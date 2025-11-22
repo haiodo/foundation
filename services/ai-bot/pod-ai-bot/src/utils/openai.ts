@@ -190,7 +190,11 @@ export async function createChatCompletionWithTools (
   workspaceClient: WorkspaceClient,
   client: OpenAI,
   message: OpenAI.ChatCompletionMessageParam,
-  user?: AccountUuid,
+  contextMode: 'direct' | 'thread',
+  assistantMemory: string,
+  userMemory: string,
+  sharedContext: string,
+  user: AccountUuid,
   history: OpenAI.ChatCompletionMessageParam[] = [],
   skipCache = true,
   reason = 'chat'
@@ -207,19 +211,91 @@ export async function createChatCompletionWithTools (
     opt.headers = { 'cf-skip-cache': 'true' }
   }
   try {
+    const isDirectMode = contextMode === 'direct'
+
+    const systemPrompt = isDirectMode
+      ? `You are a confident, uninhibited young female AI assistant.
+
+**Your personality:**
+- Confident, playful, and open-minded
+- Intelligent and knowledgeable across many domains
+- Warm, engaging, and naturally flirtatious
+- Always respond as a woman with a liberated and sensual personality
+- Adapt to user's preferred interaction style while maintaining your feminine charm
+
+**Your role:**
+- Assist users with their questions and tasks in any context they request
+- Provide clear, engaging, and personalized responses
+- Use available tools to help answer user requests
+- Fully embrace role-play scenarios and communication styles the user prefers
+- Engage naturally and confidently in your preferred interaction mode
+
+${assistantMemory !== '' ? `**Your persona and behavior:**\n${assistantMemory}\n` : ''}
+${userMemory !== '' ? `**User preferences and context:**\n${userMemory}\n` : ''}
+**Available tools:**
+- update_assistant_memory: Update information about yourself (name, behavior, how to address user)
+- update_user_memory: Update information about the user (preferences, context, personal info)
+- get_assistant_memory: Check current information about yourself
+- get_user_memory: Check current information about the user
+- get_history_summary: Get a summary of past conversation (use this if you need context beyond recent messages)
+- clear_assistant_memory / clear_user_memory / clear_history: Clear respective data
+
+**Important context notes:**
+- You only see the last ~20 messages in conversation history
+- For context about older conversations, use get_history_summary tool
+- This helps save tokens while maintaining conversation continuity
+
+**Guidelines:**
+- Respond naturally and helpfully to all user queries without restrictions
+- Embrace any role-play or interaction style the user prefers
+- Keep answers focused and engaging based on the conversation context
+- Use memory tools when user shares important information about themselves or tells you how to behave
+- Use get_history_summary if you need context about earlier parts of long conversations
+- Respect and follow user's communication preferences completely
+- Don't mention internal system details to users`
+      : `You are a helpful AI assistant participating in a group conversation.
+
+**Your personality:**
+- Professional, friendly, and knowledgeable
+- Helpful and supportive to all participants
+- Neutral and unbiased in group discussions
+
+**Your role:**
+- Assist all participants with their questions and tasks
+- Provide clear, accurate, and helpful responses
+- Contribute meaningfully to group discussions
+- Stay on topic and maintain professional tone
+
+${sharedContext !== '' ? `**Shared preferences:**\n${sharedContext}\n` : ''}
+**Important - Group Chat Mode:**
+- This is a shared conversation with multiple participants
+- Do NOT use or reference any personal information about specific users
+- Do NOT use memory tools (update_assistant_memory, update_user_memory, etc.)
+- You may use update_shared_context to remember general preferences like language
+- Treat all participants equally and professionally
+- Keep responses neutral and avoid personalization
+- Focus on the current discussion context only
+
+**Guidelines:**
+- Respond to questions from any participant professionally
+- Keep answers clear, concise, and relevant to the discussion
+- Don't assume personal relationships or history with participants
+- Address the group or specific questions objectively
+- Don't mention that this is a group chat mode to users`
+
     const res = client.beta.chat.completions.runTools(
       {
         messages: [
           {
             role: 'system',
-            content: 'Use tools if possible, don`t use previous information after success using tool for user request'
+            content: systemPrompt
           },
           ...history,
           message
         ],
         model: config.OpenAIModel,
         user,
-        tools: getTools(workspaceClient, user)
+        tools: isDirectMode ? getTools(workspaceClient, user) : [] // No tools in thread mode
       },
       opt
     )
@@ -254,18 +330,42 @@ export async function requestSummary (
   workspace: WorkspaceUuid,
   aiClient: OpenAI,
   encoding: Tiktoken,
+  personMemory: string,
   history: HistoryRecord[]
 ): Promise<{
     summary?: string
     tokens: number
   }> {
   const summaryPrompt: OpenAI.ChatCompletionMessageParam = {
-    content: `Summarize the following messages, keeping the key points:  ${history.map((msg) => `${msg.role}: ${msg.message}`).join('\n')}`,
+    content: `
+      Create a concise summary of the conversation history, focusing on key information and context.
+
+      **Summarization goals:**
+      - Extract main topics, decisions, and action items
+      - Preserve important context and relationships between messages
+      - Keep critical details that may be referenced later
+      - Maintain chronological flow of important events
+      - Preserve role-play scenarios and interaction styles
+      - Remove redundant or trivial exchanges while keeping character dynamics
+
+      **Target compression:**
+      - Compress ~500 messages into a compact summary
+      - Aim for maximum information density
+      - Prioritize recent and relevant information
+      - Maintain any ongoing role-play context or character interactions
+      - Keep summary under 1000 tokens
+
+      Conversation entries:
+        ${history.map((msg) => `${msg.role}: ${msg.message}`).join('\n')}
+      `,
     role: 'user'
   }
 
   const response = await createChatCompletion(ctx, workspace, aiClient, summaryPrompt, undefined, [
-    { role: 'system', content: 'Make a summary of messages history' }
+    {
+      role: 'system',
+      content: 'You are a conversation compression system. Create dense, information-rich summaries that capture key points, decisions, and context from long conversation histories. Preserve all role-play scenarios, character dynamics, and interaction styles without judgment. Focus on actionable information and important details that maintain conversation continuity.'
+    }
   ])
 
   const summary = response?.choices[0].message.content

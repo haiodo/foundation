@@ -151,6 +151,117 @@ async function getFoldersForDocuments (
   return res
 }
 
+async function updateAssistantMemory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  console.log('Update assistant memory', args)
+  await workspaceClient.updateAssistantMemory(user, args)
+  return 'Assistant memory updated successfully.'
+}
+
+async function updateUserMemory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  console.log('Update user memory', args)
+  await workspaceClient.updateUserMemory(user, args)
+  return 'User memory updated successfully.'
+}
+
+async function getAssistantMemory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+
+  const history = await workspaceClient.getHistoryForUser(user)
+  if (history.assistantMemory === '') {
+    return 'No assistant memory stored yet.'
+  }
+  return `Current assistant memory:\n${history.assistantMemory}`
+}
+
+async function getUserMemory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+
+  const history = await workspaceClient.getHistoryForUser(user)
+  if (history.userMemory === '') {
+    return 'No user memory stored yet.'
+  }
+  return `Current user memory:\n${history.userMemory}`
+}
+
+async function clearAssistantMemory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+  await workspaceClient.updateAssistantMemory(user, { memory: '' })
+  return 'Assistant memory has been cleared.'
+}
+
+async function clearUserMemory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+  await workspaceClient.updateUserMemory(user, { memory: '' })
+  return 'User memory has been cleared.'
+}
+
+async function updateSharedContext (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  console.log('Update shared context', args)
+  await workspaceClient.updateSharedContext(user, args)
+  return 'Shared context updated successfully.'
+}
+
+async function getSharedContext (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+
+  const history = await workspaceClient.getHistoryForUser(user)
+  if (history.sharedContext === '') {
+    return 'No shared context stored yet.'
+  }
+  return `Current shared context:\n${history.sharedContext}`
+}
+
+async function clearHistory (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+  await workspaceClient.clearHistory(user)
+  return 'Conversation history has been cleared. Starting fresh conversation.'
+}
+
+async function getHistorySummary (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: Record<string, any>
+): Promise<string> {
+  if (user === undefined) return 'No user context available'
+  return await workspaceClient.getHistorySummary(user)
+}
+
 type ChangeFields<T, R> = Omit<T, keyof R> & R
 type PredefinedTool<T extends object | string> = ChangeFields<
 RunnableToolFunction<T>,
@@ -170,56 +281,235 @@ export function registerTool<T extends object | string> (tool: PredefinedTool<T>
   tools.push([tool, func])
 }
 
+if (config.DataLabApiKey !== '') {
+  registerTool(
+    {
+      type: 'function',
+      function: {
+        name: 'getDataBeforeImport',
+        parameters: {
+          type: 'object',
+          properties: {}
+        },
+        description:
+        'Get folders and parents for documents. This step necessery before saveFile tool. YOU MUST USE IT BEFORE import file.'
+      }
+    },
+    getFoldersForDocuments
+  )
+}
+
+if (config.DataLabApiKey !== '') {
+  registerTool<object>(
+    {
+      type: 'function',
+      function: {
+        name: 'saveFile',
+        parse: JSON.parse,
+        parameters: {
+          type: 'object',
+          required: ['fileId, folder, name'],
+          properties: {
+            fileId: { type: 'string', description: 'File id to parse' },
+            folder: {
+              type: 'string',
+              default: '',
+              description:
+              'Folder, id from getDataBeforeImport. If not provided you can guess by file name and folder name, or by another file names, if you can`t, just ask user. Don`t provide empty, this field is required. If no folders at all, you should stop pipeline execution and ask user to create teamspace'
+            },
+            parent: {
+              type: 'string',
+              default: '',
+              description:
+              'Parent document, use id from getDataBeforeImport, leave empty string if not provided, it is not necessery, please feel free to pass empty string'
+            },
+            name: {
+              type: 'string',
+              description: 'Name for file, try to recognize from user input, if not provided use attached file name'
+            }
+          }
+        },
+        description:
+        'Parse pdf to markdown and save it, using for import files. Use only if provide file in current message and user require to import/save, if file not provided ask user to attach it. You MUST call getDataBeforeImport tool before for get ids. Use file name as name if user not provide it, don`t use old parameters. You can ask user about folder if you have not enough data to get folder id'
+      }
+    },
+    saveFile
+  )
+}
+
+// Assistant memory tools
+registerTool<object>(
+  {
+    type: 'function',
+    function: {
+      name: 'update_assistant_memory',
+      parse: JSON.parse,
+      parameters: {
+        type: 'object',
+        properties: {
+          memory: { type: 'string', description: 'Complete updated memory about yourself: your name, behavior style, how to address the user, your role, etc.' }
+        },
+        required: ['memory']
+      },
+      description:
+        'Update information about yourself (the assistant). Use this when user tells you how to behave, what name to use, how to address them, or defines your role/personality.'
+    }
+  },
+  updateAssistantMemory
+)
+
 registerTool(
   {
     type: 'function',
     function: {
-      name: 'getDataBeforeImport',
+      name: 'get_assistant_memory',
       parameters: {
         type: 'object',
         properties: {}
       },
       description:
-        'Get folders and parents for documents. This step necessery before saveFile tool. YOU MUST USE IT BEFORE import file.'
+        'Retrieve current memory about yourself (the assistant). Check your name, behavior style, and how you should address the user.'
     }
   },
-  getFoldersForDocuments
+  getAssistantMemory
 )
 
+registerTool(
+  {
+    type: 'function',
+    function: {
+      name: 'clear_assistant_memory',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      description:
+        'Clear all memory about yourself (the assistant). Use only if user explicitly asks to reset your persona.'
+    }
+  },
+  clearAssistantMemory
+)
+
+// User memory tools
 registerTool<object>(
   {
     type: 'function',
     function: {
-      name: 'saveFile',
+      name: 'update_user_memory',
       parse: JSON.parse,
       parameters: {
         type: 'object',
-        required: ['fileId, folder, name'],
         properties: {
-          fileId: { type: 'string', description: 'File id to parse' },
-          folder: {
-            type: 'string',
-            default: '',
-            description:
-              'Folder, id from getDataBeforeImport. If not provided you can guess by file name and folder name, or by another file names, if you can`t, just ask user. Don`t provide empty, this field is required. If no folders at all, you should stop pipeline execution and ask user to create teamspace'
-          },
-          parent: {
-            type: 'string',
-            default: '',
-            description:
-              'Parent document, use id from getDataBeforeImport, leave empty string if not provided, it is not necessery, please feel free to pass empty string'
-          },
-          name: {
-            type: 'string',
-            description: 'Name for file, try to recognize from user input, if not provided use attached file name'
-          }
-        }
+          memory: { type: 'string', description: 'Complete updated memory about the user: their preferences, context, personal info, interests, etc.' }
+        },
+        required: ['memory']
       },
       description:
-        'Parse pdf to markdown and save it, using for import files. Use only if provide file in current message and user require to import/save, if file not provided ask user to attach it. You MUST call getDataBeforeImport tool before for get ids. Use file name as name if user not provide it, don`t use old parameters. You can ask user about folder if you have not enough data to get folder id'
+        'Update information about the user. Use this when user shares personal information, preferences, or context about themselves.'
     }
   },
-  saveFile
+  updateUserMemory
+)
+
+registerTool(
+  {
+    type: 'function',
+    function: {
+      name: 'get_user_memory',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      description:
+        'Retrieve current memory about the user. Check what information is stored about them.'
+    }
+  },
+  getUserMemory
+)
+
+registerTool(
+  {
+    type: 'function',
+    function: {
+      name: 'clear_user_memory',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      description:
+        'Clear all memory about the user. Use only if user explicitly asks to forget everything about them.'
+    }
+  },
+  clearUserMemory
+)
+
+// Shared context tools
+registerTool<object>(
+  {
+    type: 'function',
+    function: {
+      name: 'update_shared_context',
+      parse: JSON.parse,
+      parameters: {
+        type: 'object',
+        properties: {
+          context: { type: 'string', description: 'Complete updated shared context: language preference, timezone, general non-personal settings, etc.' }
+        },
+        required: ['context']
+      },
+      description:
+        'Update shared context that can be used in both direct and group chats. Use for non-personal preferences like language, timezone, or public settings that are safe to share in group conversations.'
+    }
+  },
+  updateSharedContext
+)
+
+registerTool(
+  {
+    type: 'function',
+    function: {
+      name: 'get_shared_context',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      description:
+        'Retrieve current shared context. Check language preference, timezone, or other general settings.'
+    }
+  },
+  getSharedContext
+)
+
+registerTool(
+  {
+    type: 'function',
+    function: {
+      name: 'clear_history',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      description:
+        'Clear conversation history. Use when user asks to clear/forget the conversation history or start fresh. This removes all previous messages but keeps assistant and user memory.'
+    }
+  },
+  clearHistory
+)
+
+registerTool(
+  {
+    type: 'function',
+    function: {
+      name: 'get_history_summary',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      description:
+        'Get a summary of the conversation history. Use this instead of relying on full message history when you need context about previous discussions but want to save tokens. Returns a concise summary of past conversations.'
+    }
+  },
+  getHistorySummary
 )
 
 export function getTools (
