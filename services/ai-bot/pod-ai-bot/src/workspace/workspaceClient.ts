@@ -68,6 +68,7 @@ import { markdownToMarkup } from '@hcengineering/text-markdown'
 import { countTokens } from '@hcengineering/openai'
 import { getAccountClient } from '@hcengineering/server-client'
 import { getGlobalPerson } from '../utils/account'
+import tracker, { Issue } from '@hcengineering/tracker'
 
 interface PersonHistoryRecord {
   assistantMemory: string // Info about assistant: name, behavior style, how to address user
@@ -402,6 +403,10 @@ export class WorkspaceClient {
             role: 'user',
             content: markupToText(msg.message)
           })
+        }
+        if (messageClass === tracker.class.Issue) {
+          const is: Issue = msg as any as Issue
+          
         }
       }
       // TODO: Add other types of objects
