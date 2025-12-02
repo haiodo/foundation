@@ -48,10 +48,11 @@ import core, {
   Tx,
   TxCUD,
   TxOperations,
+  withContext,
   type Account,
   type WorkspaceIds
 } from '@hcengineering/core'
-import { Room } from '@hcengineering/love'
+import love, { MeetingMinutes, MeetingStatus, Room } from '@hcengineering/love'
 import fs from 'fs'
 import { Tiktoken } from 'js-tiktoken'
 import OpenAI from 'openai'
@@ -577,7 +578,8 @@ export class WorkspaceClient {
     await this.love.disconnect(request.roomId)
   }
 
-  async processLoveTranscript (text: string, participant: Ref<Person>, room: Ref<Room>): Promise<void> {
+  @withContext('processLoveTranscript')
+  async processLoveTranscript (ctx: MeasureContext, text: string, participant: Ref<Person>, room: Ref<Room>): Promise<void> {
     // Just wait initialization
     await this.opClient
 
@@ -605,5 +607,79 @@ export class WorkspaceClient {
     if (this.love === undefined) return true
 
     return !this.love.hasActiveConnections()
+  }
+
+  /**
+   * Add session recording as attachment to meeting minutes
+   */
+  async addSessionAttachment (
+    roomId: Ref<Room>,
+    blobId: string,
+    participant: string,
+    startTimeSec: number,
+    endTimeSec: number,
+    size: number,
+    sessionNumber: number
+  ): Promise<void> {
+    const client = await this.opClient
+
+    // Find active meeting minutes for this room
+    const meetingMinutes = await client.findOne<MeetingMinutes>(love.class.MeetingMinutes, {
+      attachedTo: roomId,
+      status: MeetingStatus.Active
+    })
+
+    if (meetingMinutes === undefined) {
+      this.ctx.warn('No active meeting minutes found for room', { roomId, participant })
+      return
+    }
+
+    // participant is now the display name from LiveKit (participant.name), not Ref<Person>
+    // Just sanitize it for use in filename
+    let participantName = participant.trim()
+    if (participantName === '') {
+      participantName = 'Unknown'
+    }
+    // Replace spaces and special characters for filename safety
+    participantName = participantName.replace(/\s+/g, '_').replace(/[<>:"/\\|?*]/g, '_')
+
+    // Format start and end times as mm:ss
+    const formatTime = (sec: number): string => {
+      const minutes = Math.floor(sec / 60)
+      const seconds = Math.floor(sec % 60)
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`
+    }
+    const startTimeStr = formatTime(startTimeSec)
+    const endTimeStr = formatTime(endTimeSec)
+
+    // Create attachment with participant name, session number and time range
+    const attachmentName = `${participantName}_${sessionNumber}_${startTimeStr}-${endTimeStr}.mp3`
+
+    await client.addCollection(
+      attachment.class.Attachment,
+      meetingMinutes.space,
+      meetingMinutes._id,
+      meetingMinutes._class,
+      'attachments',
+      {
+        name: attachmentName,
+        file: blobId as Ref<Blob>,
+        type: 'audio/mpeg',
+        size,
+        lastModified: Date.now()
+      }
+    )
+
+    this.ctx.info('Added session attachment to meeting minutes', {
+      meetingMinutes: meetingMinutes._id,
+      roomId,
+      participant,
+      participantName,
+      sessionNumber,
+      attachmentName,
+      size,
+      startTimeSec,
+      endTimeSec
+    })
   }
 }

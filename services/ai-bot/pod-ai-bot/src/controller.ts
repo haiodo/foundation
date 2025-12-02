@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 
+import { Readable } from 'stream'
 import { isWorkspaceLoginInfo } from '@hcengineering/account-client'
 import {
   AIEventRequest,
@@ -45,8 +46,10 @@ import { encodingForModel, getEncoding } from 'js-tiktoken'
 import OpenAI from 'openai'
 
 import chunter from '@hcengineering/chunter'
-import { ConsumerControl, StorageAdapter } from '@hcengineering/server-core'
+import { ConsumerControl, PlatformQueueProducer, StorageAdapter } from '@hcengineering/server-core'
 import { buildStorageFromConfig, storageConfigFromEnv } from '@hcengineering/server-storage'
+import { TranscriptionTask } from './types'
+import { v4 as uuid } from 'uuid'
 import { markdownToMarkup, markupToMarkdown } from '@hcengineering/text-markdown'
 import config from './config'
 import { tryAssignToWorkspace } from './utils/account'
@@ -56,12 +59,40 @@ import contact, { Contact, getName, SocialIdentityRef } from '@hcengineering/con
 
 const CLOSE_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 
+/** Audio chunk metadata from HTTP headers */
+export interface AudioChunkMetadata {
+  roomName: string
+  participant: string
+  startTimeSec: number
+  endTimeSec: number
+  durationSec: number
+  hasSpeech: boolean
+  speechRatio: number
+  peakAmplitude: number
+  rmsAmplitude: number
+  sampleRate: number
+  channels: number
+  bitsPerSample: number
+}
+
+/** Session recording metadata from HTTP headers */
+export interface SessionRecordingMetadata {
+  roomName: string
+  participant: string // Identity (Ref<Person>) for user identification
+  participantName: string // Display name for files/attachments
+  startTimeSec: number
+  endTimeSec: number
+  sessionNumber: number
+  size: number
+}
+
 export class AIControl {
   private readonly workspaces: Map<WorkspaceUuid, WorkspaceClient> = new Map<WorkspaceUuid, WorkspaceClient>()
   private readonly closeWorkspaceTimeouts: Map<WorkspaceUuid, NodeJS.Timeout> = new Map<WorkspaceUuid, NodeJS.Timeout>()
   private readonly connectingWorkspaces = new Map<WorkspaceUuid, Promise<void>>()
 
   readonly storageAdapter: StorageAdapter
+  private transcriptionProducer: PlatformQueueProducer<TranscriptionTask> | undefined
 
   private readonly openai?: OpenAI
 
@@ -90,6 +121,130 @@ export class AIControl {
         })
         : undefined
     this.storageAdapter = buildStorageFromConfig(storageConfigFromEnv())
+  }
+
+  setTranscriptionProducer (producer: PlatformQueueProducer<TranscriptionTask>): void {
+    this.transcriptionProducer = producer
+  }
+
+  /**
+   * Process incoming audio chunk: store in storage and queue for transcription
+   */
+  async processAudioChunk (gzipData: Buffer, metadata: AudioChunkMetadata): Promise<void> {
+    // Parse workspace from room name (format: workspaceUuid_roomId)
+    const parsed = metadata.roomName.split('_')
+    const workspace = parsed[0] as WorkspaceUuid | undefined
+
+    if (workspace === undefined) {
+      this.ctx.error('Invalid room name format', { roomName: metadata.roomName })
+      return
+    }
+
+    // Generate unique blob ID for this chunk
+    const blobId = `audio-chunk-${uuid()}`
+
+    // Get workspace client to access storage with proper wsIds
+    const wsClient = await this.getWorkspaceClient(workspace)
+    if (wsClient === undefined) {
+      this.ctx.error('Failed to get workspace client for audio chunk', { workspace })
+      return
+    }
+
+    try {
+      // Store gzipped WAV in storage
+      await this.storageAdapter.put(
+        this.ctx,
+        wsClient.wsIds,
+        blobId,
+        gzipData,
+        'application/gzip',
+        gzipData.length
+      )
+
+      // Create transcription task
+      const task: TranscriptionTask = {
+        blobId,
+        roomName: metadata.roomName,
+        participant: metadata.participant,
+        startTimeSec: metadata.startTimeSec,
+        endTimeSec: metadata.endTimeSec,
+        durationSec: metadata.durationSec,
+        hasSpeech: metadata.hasSpeech,
+        speechRatio: metadata.speechRatio,
+        peakAmplitude: metadata.peakAmplitude,
+        rmsAmplitude: metadata.rmsAmplitude,
+        sampleRate: metadata.sampleRate,
+        channels: metadata.channels,
+        bitsPerSample: metadata.bitsPerSample
+      }
+
+      // Queue for transcription
+      if (this.transcriptionProducer !== undefined) {
+        await this.transcriptionProducer.send(this.ctx, workspace, [task])
+        this.ctx.info('Audio chunk queued for transcription', {
+          blobId,
+          workspace,
+          participant: metadata.participant,
+          durationSec: metadata.durationSec,
+          hasSpeech: metadata.hasSpeech
+        })
+      } else {
+        this.ctx.warn('Transcription producer not set, audio chunk stored but not queued', { blobId })
+      }
+    } catch (err: any) {
+      this.ctx.error('Failed to process audio chunk', { error: err.message, workspace })
+    }
+  }
+
+  /**
+   * Process full session recording: stream directly to storage and attach to meeting minutes
+   */
+  async processSessionRecording (stream: Readable, metadata: SessionRecordingMetadata): Promise<void> {
+    // Parse workspace and roomId from room name (format: workspaceUuid_roomName_roomId)
+    const parsed = metadata.roomName.split('_')
+    const workspace = parsed[0] as WorkspaceUuid | undefined
+    const roomId = parsed[parsed.length - 1] as Ref<Room> | undefined
+
+    if (workspace === undefined || roomId === undefined) {
+      this.ctx.error('Invalid room name format for session', { roomName: metadata.roomName })
+      return
+    }
+
+    // Get workspace client
+    const wsClient = await this.getWorkspaceClient(workspace)
+    if (wsClient === undefined) {
+      this.ctx.error('Failed to get workspace client for session recording', { workspace })
+      return
+    }
+
+    try {
+      // Generate unique blob ID for this session
+      const blobId = `session-${metadata.participant}-${uuid()}.mp3`
+
+      // Stream MP3 directly to storage
+      await this.storageAdapter.put(
+        this.ctx,
+        wsClient.wsIds,
+        blobId,
+        stream,
+        'audio/mpeg',
+        metadata.size
+      )
+
+      this.ctx.info('Session recording stored', {
+        blobId,
+        workspace,
+        participant: metadata.participant,
+        startTimeSec: metadata.startTimeSec,
+        endTimeSec: metadata.endTimeSec,
+        size: metadata.size
+      })
+
+      // Add attachment to meeting minutes
+      await wsClient.addSessionAttachment(roomId, blobId, metadata.participantName, metadata.startTimeSec, metadata.endTimeSec, metadata.size, metadata.sessionNumber)
+    } catch (err: any) {
+      this.ctx.error('Failed to process session recording', { error: err.message, workspace })
+    }
   }
 
   async closeWorkspaceClient (workspace: WorkspaceUuid): Promise<void> {
@@ -390,6 +545,6 @@ export class AIControl {
     const wsClient = await this.getWorkspaceClient(workspace)
     if (wsClient === undefined) return
 
-    await wsClient.processLoveTranscript(request.transcript, request.participant, roomId)
+    await wsClient.processLoveTranscript(this.ctx, request.transcript, request.participant, roomId)
   }
 }
