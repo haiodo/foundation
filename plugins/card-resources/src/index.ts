@@ -19,7 +19,6 @@ import CardsPresenter from './components/CardsPresenter.svelte'
 import EditCard from './components/EditCard.svelte'
 import Main from './components/Main.svelte'
 import {
-  getCardId,
   getCardTitle,
   resolveLocation,
   resolveLocationData,
@@ -31,6 +30,8 @@ import {
   cardCustomLinkMatch,
   openCardInSidebar,
   checkRelationsSectionVisibility,
+  checkOldMessagesSectionVisibility,
+  checkCommunicationMessagesSectionVisibility,
   getSpaceAccessPublicLink,
   canGetSpaceAccessPublicLink,
   cardFactory,
@@ -69,12 +70,17 @@ import ChildrenCardSection from './components/sections/ChildrenSection.svelte'
 import ContentCardSection from './components/sections/ContentSection.svelte'
 import PropertiesCardSection from './components/sections/PropertiesSection.svelte'
 import RelationsCardSection from './components/sections/RelationsSection.svelte'
+import CardCommunicatiomMessages from './components/sections/CardCommunicatiomMessages.svelte'
+import OldMessagesCardSection from './components/sections/OldMessagesCardSection.svelte'
+
 import FavoriteCardPresenter from './components/FavoriteCardPresenter.svelte'
 import CardTagsColored from './components/CardTagsColored.svelte'
 import CardTagColored from './components/CardTagColored.svelte'
 import CardWidgetTab from './components/CardWidgetTab.svelte'
 import CardIcon from './components/CardIcon.svelte'
 import CardFeedView from './components/CardFeedView.svelte'
+
+import './cardTableFormatter'
 
 export { default as CardSelector } from './components/CardSelector.svelte'
 export { default as CardIcon } from './components/CardIcon.svelte'
@@ -136,7 +142,9 @@ export default async (): Promise<Resources> => ({
     ChildrenSection: ChildrenCardSection,
     ContentSection: ContentCardSection,
     PropertiesSection: PropertiesCardSection,
-    RelationsSection: RelationsCardSection
+    RelationsSection: RelationsCardSection,
+    OldMessagesSection: OldMessagesCardSection,
+    CommunicationMessagesSection: CardCommunicatiomMessages
   },
   completion: {
     CardQuery: queryCard
@@ -152,12 +160,13 @@ export default async (): Promise<Resources> => ({
   },
   function: {
     CardTitleProvider: getCardTitle,
-    CardIdProvider: getCardId,
     GetCardLink: getCardLink,
     CardCustomLinkMatch: cardCustomLinkMatch,
     CardCustomLinkEncode: cardCustomLinkEncode,
     OpenCardInSidebar: openCardInSidebar,
     CheckRelationsSectionVisibility: checkRelationsSectionVisibility,
+    CheckOldMessagesSectionVisibility: checkOldMessagesSectionVisibility,
+    CheckCommunicationMessagesSectionVisibility: checkCommunicationMessagesSectionVisibility,
     GetSpaceAccessPublicLink: getSpaceAccessPublicLink,
     CanGetSpaceAccessPublicLink: canGetSpaceAccessPublicLink,
     CardFactory: cardFactory

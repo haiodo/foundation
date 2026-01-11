@@ -70,6 +70,7 @@ async function OnAttribute (ctx: TxCreateDoc<AnyAttribute>[], control: TriggerCo
       for (const viewlet of viewlets) {
         const updatedConfig = [...viewlet.config]
         // let push it after grow for the list
+        if (viewlet.descriptor === view.viewlet.RelationshipTable) continue
         if (viewlet.descriptor === view.viewlet.List) {
           const index = viewlet.config.findIndex((p) => typeof p !== 'string' && p.displayProps?.grow === true)
           if (index !== -1) {
@@ -261,7 +262,12 @@ async function OnMasterTagCreate (ctx: TxCreateDoc<MasterTag | Tag>[], control: 
       attachTo: tag.extends,
       variant: { $exists: false }
     })
+    const existingViewlets = await control.findAll(control.ctx, view.class.Viewlet, {
+      attachTo: createTx.objectId,
+      variant: { $exists: false }
+    })
     for (const viewlet of viewlets) {
+      if (existingViewlets.find((it) => it.descriptor === viewlet.descriptor) !== undefined) continue
       const base = extractObjectData(viewlet)
       res.push(
         control.txFactory.createTxCreateDoc(view.class.Viewlet, core.space.Model, {

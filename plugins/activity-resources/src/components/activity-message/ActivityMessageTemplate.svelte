@@ -34,7 +34,7 @@
   import ActivityMessageActions from '../ActivityMessageActions.svelte'
   import MessageTimestamp from '../MessageTimestamp.svelte'
   import ReactionsPresenter from '../reactions/ReactionsPresenter.svelte'
-  import Replies from '../Replies.svelte'
+  import Replies from '../replies/Replies.svelte'
   import ActivityMessagePresenter from './ActivityMessagePresenter.svelte'
   import InlineAction from './InlineAction.svelte'
 
@@ -63,6 +63,7 @@
   export let inlineActions: MessageInlineAction[] = []
   export let excludedActions: Ref<ViewAction>[] = []
   export let readonly: boolean = false
+  export let padding: string | null = null
   export let onClick: (() => void) | undefined = undefined
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
   export let embeddedActions: boolean = false
@@ -178,6 +179,7 @@
       class:actionsOpened={isActionsOpened}
       class:filledHover={hoverStyles === 'filledHover'}
       class:stale
+      style:padding
       on:click={onClick}
       on:contextmenu={handleContextMenu}
     >

@@ -24,7 +24,6 @@ interface Config {
   ApiSecret: string
 
   StorageConfig: string
-  StorageProviderName: string
   S3StorageConfig: string
   Secret: string
 
@@ -32,6 +31,7 @@ interface Config {
 
   BillingUrl: string
   BillingPollInterval: number
+  UseGlobalLiveKit: boolean
 }
 
 const envMap: { [key in keyof Config]: string } = {
@@ -44,7 +44,6 @@ const envMap: { [key in keyof Config]: string } = {
   ApiSecret: 'LIVEKIT_API_SECRET',
 
   StorageConfig: 'STORAGE_CONFIG',
-  StorageProviderName: 'STORAGE_PROVIDER_NAME',
   S3StorageConfig: 'S3_STORAGE_CONFIG',
   Secret: 'SECRET',
   ServiceID: 'SERVICE_ID',
@@ -52,7 +51,8 @@ const envMap: { [key in keyof Config]: string } = {
   RecordingPreset: 'RECORDING_PRESET',
 
   BillingUrl: 'BILLING_URL',
-  BillingPollInterval: 'BILLING_POLL_INTERVAL'
+  BillingPollInterval: 'BILLING_POLL_INTERVAL',
+  UseGlobalLiveKit: 'USE_GLOBAL_LIVEKIT'
 }
 
 const parseNumber = (str: string | undefined): number | undefined => (str !== undefined ? Number(str) : undefined)
@@ -66,13 +66,13 @@ const config: Config = (() => {
     ApiKey: process.env[envMap.ApiKey],
     ApiSecret: process.env[envMap.ApiSecret],
     StorageConfig: process.env[envMap.StorageConfig],
-    StorageProviderName: process.env[envMap.StorageProviderName] ?? 's3',
     S3StorageConfig: process.env[envMap.S3StorageConfig],
     Secret: process.env[envMap.Secret],
     ServiceID: process.env[envMap.ServiceID] ?? 'love-service',
     RecordingPreset: process.env[envMap.RecordingPreset] ?? '720p',
     BillingUrl: process.env[envMap.BillingUrl] ?? '',
-    BillingPollInterval: parseNumber(process.env[envMap.BillingPollInterval]) ?? 15
+    BillingPollInterval: parseNumber(process.env[envMap.BillingPollInterval]) ?? 15,
+    UseGlobalLiveKit: process.env[envMap.UseGlobalLiveKit] === 'true'
   }
 
   const optional = ['StorageConfig', 'S3StorageConfig', 'LiveKitProject', 'BillingUrl']

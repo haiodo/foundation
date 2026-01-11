@@ -56,6 +56,32 @@ services:
     volumes:
       - dbpg:/var/lib/postgresql
     restart: unless-stopped
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    depends_on:
+      - postgres
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      - pgbouncer_logs:/var/log/pgbouncer
+    ports:
+      - 6432:6432
+    environment:
+      - PGBOUNCER_LISTEN_PORT=6432
+      - PGBOUNCER_BACKENDS=postgres=postgres:5432/postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=postgres
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 6432 || ps aux | grep -q pgbouncer']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   redpanda:
     image: redpandadata/redpanda:v25.2.11
     extra_hosts:
@@ -172,6 +198,7 @@ services:
       - ./branding.json:/var/cfg/branding.json
     environment:
       - ACCOUNT_PORT=3000
+      - IGNORE_EMAIL_SIGNUP=false # Set to true if you want to disable email/otp confirmations
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - SERVER_SECRET=secret
       - ADMIN_EMAILS=admin,${PLATFORM_ADMIN_EMAILS}
@@ -227,6 +254,7 @@ services:
     extra_hosts:
       - 'huly.local:host-gateway'
     links:
+
       - postgres
       - minio
       - stats
@@ -322,6 +350,7 @@ services:
     extra_hosts:
       - 'huly.local:host-gateway'
     links:
+
       - postgres
       - minio
       - account
@@ -379,6 +408,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     links:
+
       - elastic
       - postgres
       - rekoni
@@ -445,7 +475,7 @@ services:
       - ACCOUNTS_URL=http://huly.local:3000
       - DB_URL=${DB_URL_PG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - STORAGE_PROVIDER_NAME=minio
+      - S3_STORAGE_CONFIG=s3|http://minio:9000?accessKey=minioadmin&secretKey=minioadmin&rootBucket=love-recordings
       - LIVEKIT_HOST=ws://huly.local:7880
       - LIVEKIT_API_KEY=devkey
       - LIVEKIT_API_SECRET=secret
@@ -462,28 +492,67 @@ services:
       - 'huly.local:host-gateway'
     restart: unless-stopped
     environment:
-      - SERVER_SECRET=secret
-      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      # Account and Server Configuration
       - ACCOUNTS_URL=http://huly.local:3000
-      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - SERVER_SECRET=secret
+      - SERVICE_ID=ai-bot-service
+
+      # Bot Identity Configuration
       - FIRST_NAME=Julia
       - LAST_NAME=AI
       - PASSWORD=password
       - AVATAR_PATH=./avatar.png
       - AVATAR_CONTENT_TYPE=.png
-      - STATS_URL=http://huly.local:4900
-      - LOVE_ENDPOINT=http://huly.local:8096
-      - BILLING_URL=http://huly.local:4041
-      - OPENAI_API_KEY=token
-      - OPENAI_SUMMARY_MODEL=openai/gpt-oss-20b
-      - OPENAI_TRANSLATE_MODEL=openai/gpt-oss-20b
-      - OPENAI_BASE_URL=http://huly.local:1234/v1/
+
+      # Port Configuration
+      - PORT=4010
+
+      # LLM Configuration
+      # - LLM_PROVIDER=openai
+      # - OPENAI_API_KEY=token
+      # - OPENAI_MODEL=gpt-4o-mini
+      # - OPENAI_BASE_URL=http://huly.local:1234/v1/
+      # - OPENAI_SUMMARY_MODEL=openai/gpt-oss-20b
+      # - OPENAI_TRANSLATE_MODEL=openai/gpt-oss-20b
+
+      # GigaChat Configuration (only if using GigaChat)
+      - LLM_PROVIDER=gigachat
+      - GIGACHAT_CREDENTIALS=${GIGACHAT_AUTH_KEY}
+      - GIGACHAT_SCOPE=GIGACHAT_API_PERS
+      - GIGACHAT_MODEL=GigaChat-2
+      - GIGACHAT_BASE_URL=https://gigachat.devices.sberbank.ru/api/v1/
+      - GIGACHAT_TIMEOUT=600
+
+      # STT Configuration
       - STT_PROVIDER=openai
-      # - STT_URL=${OPENAI_AUDIO_API_URL}
       - STT_URL=http://huly.local:9007
-      # - STT_API_KEY=${OPENAI_AUDIO_API_KEY}
       - STT_API_KEY=key
       - STT_MODEL=
+
+      # Deepgram Configuration (only if using Deepgram)
+      # - DEEPGRAM_API_KEY=your-deepgram-api-key
+      # - DEEPGRAM_PROJECT_ID=your-project-id
+      # - DEEPGRAM_TAG=tag
+      # - DEEPGRAM_POLL_INTERVAL_MINUTES=60
+
+      # VAD Configuration
+      - VAD_RMS_THRESHOLD=0.02
+      - VAD_SPEECH_RATIO_THRESHOLD=0.1
+
+      # Service Integration Configuration
+      - LOVE_ENDPOINT=http://huly.local:8096
+      - BILLING_URL=http://huly.local:4041
+      - DATALAB_API_KEY=
+
+      # Content and History Limits
+      - MAX_CONTENT_TOKENS=12800
+      - MAX_HISTORY_RECORDS=500
+
+      # Additional environment variables
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - CHUNK_STORAGE_CONFIG=${CHUNK_STORAGE_CONFIG}
+      - STATS_URL=http://huly.local:4900
   analytics:
     image: haiodo/analytics-collector
     extra_hosts:
@@ -529,6 +598,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_started
+
       stats:
         condition: service_started
       account:
@@ -696,6 +766,7 @@ services:
     extra_hosts:
       - 'huly.local:host-gateway'
     links:
+
       - postgres
       - minio
       - account
@@ -749,6 +820,19 @@ services:
     ports:
       - 4012:4012
     restart: unless-stopped
+
+  livekit-egress:
+    image: livekit/egress
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    volumes:
+      - './livekit-egress-config.yaml:/out/config.yaml:ro'
+    environment:
+      - EGRESS_CONFIG_FILE=/out/config.yaml
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
   billing:
     image: haiodo/billing
     extra_hosts:
@@ -756,6 +840,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
       account:
         condition: service_started
       datalake:
@@ -768,8 +853,64 @@ services:
       - ACCOUNTS_URL=http://huly.local:3000
       - DB_URL=${DB_URL_PG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - USAGE_UPDATE_INTERVAL=3600
+      - USAGE_UPDATE_INTERVAL=30
     restart: unless-stopped
+
+  mail_server:
+    image: intabiafusion/mail
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    depends_on:
+      - mailpit
+    ports:
+      - 8097:8097
+    environment:
+      - MODE=server
+      - PORT=8097
+      - SOURCE=hello@localhost
+      - REPLY_TO=hello@localhost
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - REGION=
+      - API_KEY=naephea1Rai7eeth1noh
+      - SMTP_HOST=mailpit
+      - SMTP_USERNAME=platform
+      - SMTP_PASSWORD=platform
+      - SMTP_PORT=1025
+      - SMTP_TLS_MODE=ignore
+      - SMTP_ALLOW_SELF_SIGNED=true
+  mail_client:
+    image: intabiafusion/mail
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    depends_on:
+      - mail_server
+      - mailpit
+    environment:
+      - MODE=client
+      - PORT=8097
+      - SERVER_URL=ws://mail_server:8097
+      - API_KEY=naephea1Rai7eeth1noh
+      - SMTP_HOST=mailpit
+      - SMTP_USERNAME=platform
+      - SMTP_PASSWORD=platform
+      - SMTP_PORT=1025
+      - SMTP_TLS_MODE=ignore
+      - SMTP_ALLOW_SELF_SIGNED=true
+  mailpit:
+    image: axllent/mailpit
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    restart: unless-stopped
+    volumes:
+        - mailpit:/data
+    ports:
+        - 8025:8025
+        - 1025:1025
+    environment:
+        MP_MAX_MESSAGES: 5000
+        MP_DATABASE: /data/mailpit.db
+        MP_SMTP_AUTH_ACCEPT_ANY: 1
+        MP_SMTP_AUTH_ALLOW_INSECURE: 1
 volumes:
   db:
   dbpg:
@@ -777,3 +918,5 @@ volumes:
   elastic:
   redpanda:
   telemetry:
+  pgbouncer_logs:
+  mailpit:

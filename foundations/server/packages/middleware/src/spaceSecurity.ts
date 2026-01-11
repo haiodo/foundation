@@ -208,10 +208,10 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
     if (collabSec?.provideSecurity === true) {
       for (const val of ctx.contextData.socialStringsToUsers.values()) {
         if (
-          val.accontUuid === collab.collaborator &&
+          val.accountUuid === collab.collaborator &&
           [AccountRole.Guest, AccountRole.ReadOnlyGuest].includes(val.role)
         ) {
-          this.brodcastEvent(ctx, [val.accontUuid])
+          this.brodcastEvent(ctx, [val.accountUuid])
         }
       }
     }
@@ -316,7 +316,7 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
 
   private broadcastAll (ctx: MeasureContext<SessionData>, space: SpaceWithMembers): void {
     const { socialStringsToUsers } = ctx.contextData
-    const accounts = Array.from(new Set(Array.from(socialStringsToUsers.values()).map((v) => v.accontUuid)))
+    const accounts = Array.from(new Set(Array.from(socialStringsToUsers.values()).map((v) => v.accountUuid)))
 
     this.brodcastEvent(ctx, accounts, space._id)
   }
@@ -467,7 +467,7 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
           const guests = new Set<AccountUuid>()
           for (const val of ctx.contextData.socialStringsToUsers.values()) {
             if ([AccountRole.Guest, AccountRole.ReadOnlyGuest].includes(val.role)) {
-              guests.add(val.accontUuid)
+              guests.add(val.accountUuid)
             }
           }
           const collabs = (await this.next?.findAll(ctx, core.class.Collaborator, {
@@ -491,7 +491,7 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
         const guests = new Set<AccountUuid>()
         for (const val of ctx.contextData.socialStringsToUsers.values()) {
           if ([AccountRole.Guest, AccountRole.ReadOnlyGuest].includes(val.role)) {
-            guests.add(val.accontUuid)
+            guests.add(val.accountUuid)
           }
         }
         const collaboratorObjs = (await this.next?.findAll(ctx, core.class.Collaborator, {
@@ -734,7 +734,30 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
         lookup[key] = arr as any
       } else if (val !== undefined) {
         if (!allowedSpaces.has(val.space)) {
-          lookup[key] = undefined
+          // allow attached lookups for guests when collaborator security is enabled
+          // do not check if collaborator of the doc because it's being checked on the storage (DB) level
+          // as otherwise there will be no doc here at all
+          if (key === 'attachedTo' && ctx.contextData.modelDb?.hierarchy != null) {
+            const attachedVal = val as AttachedDoc
+            if (attachedVal.attachedToClass == null) {
+              lookup[key] = undefined
+              continue
+            }
+
+            const collabSec = getClassCollaborators(
+              ctx.contextData.modelDb,
+              ctx.contextData.modelDb.hierarchy,
+              attachedVal.attachedToClass
+            )
+            const collabSecEnabled =
+              collabSec?.provideSecurity === true &&
+              [AccountRole.Guest, AccountRole.ReadOnlyGuest].includes(account.role)
+            if (!collabSecEnabled) {
+              lookup[key] = undefined
+            }
+          } else {
+            lookup[key] = undefined
+          }
         }
       }
     }

@@ -80,6 +80,7 @@ import type {
   TxUpdateDoc,
   TxWorkspaceEvent
 } from './tx'
+import { VersionableClass } from './versioning'
 
 /**
  * @public
@@ -199,7 +200,8 @@ export default plugin(coreId, {
     IndexConfiguration: '' as Ref<Mixin<IndexingConfiguration<Doc>>>,
     SpacesTypeData: '' as Ref<Mixin<Space>>,
     TransientConfiguration: '' as Ref<Mixin<TransientConfiguration>>,
-    TxAccessLevel: '' as Ref<Mixin<TxAccessLevel>>
+    TxAccessLevel: '' as Ref<Mixin<TxAccessLevel>>,
+    VersionableClass: '' as Ref<Mixin<VersionableClass>>
   },
   space: {
     Tx: '' as Ref<Space>,
@@ -293,7 +295,8 @@ export default plugin(coreId, {
     AutoJoin: '' as IntlString,
     AutoJoinDescr: '' as IntlString,
     RBAC: '' as IntlString,
-    RBACDescr: '' as IntlString
+    RBACDescr: '' as IntlString,
+    Version: '' as IntlString
   },
   descriptor: {
     SpacesType: '' as Ref<SpaceTypeDescriptor>

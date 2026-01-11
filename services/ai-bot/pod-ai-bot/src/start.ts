@@ -27,7 +27,7 @@ import serverToken, { generateToken } from '@hcengineering/server-token'
 import { getClient as getAccountClient } from '@hcengineering/account-client'
 import { AIEventRequest } from '@hcengineering/ai-bot'
 import { createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/analytics-service'
-import { newMetrics, type SocialId, type WorkspaceUuid, type Ref } from '@hcengineering/core'
+import { newMetrics, type SocialId, type WorkspaceUuid, type Ref, TxCUD, Doc, groupByArray } from '@hcengineering/core'
 import { type Room } from '@hcengineering/love'
 import { type Person } from '@hcengineering/contact'
 import { type ChatMessage } from '@hcengineering/chunter'
@@ -93,6 +93,12 @@ export const start = async (): Promise<void> => {
 
   const aiControl = new AIControl(personUuid, socialIds, ctx)
 
+  // Check and create bucket if missing.
+  await aiControl.chunkStorageAdapter.make(ctx, {
+    uuid: '' as WorkspaceUuid,
+    url: ''
+  })
+
   // Create a workspace consumer
   // Create queue consumer's
   //
@@ -120,8 +126,32 @@ export const start = async (): Promise<void> => {
         await aiControl.processEvent(message.workspace, [message.value], control)
       } catch (err: any) {
         ctx.error('failed to handle ai event', { error: err.message })
+        setTimeout(() => {
+          console.error('Retrying after error...')
+        }, 1000)
       }
     }
+  )
+
+  const txConsumer = queue.createBatchConsumer<TxCUD<Doc>>(
+    ctx,
+    QueueTopic.Tx,
+    'ai-bot',
+    async (ctx, message, control) => {
+      const byWorkspace = groupByArray(message, (a) => a.workspace)
+      for (const [ws, txes] of byWorkspace.entries()) {
+        try {
+          await aiControl.processTxes(
+            ws,
+            txes.map((it) => it.value),
+            control
+          )
+        } catch (err: any) {
+          ctx.error('failed to handle ai event', { error: err.message })
+        }
+      }
+    },
+    { batchSize: 50 }
   )
 
   // Set up transcription queue producer
@@ -159,11 +189,10 @@ export const start = async (): Promise<void> => {
         await mkdir(config.DebugDir, { recursive: true })
       }
     }
-    // Create transcription consumer with real implementation
     const transcriptionHandler = createTranscriptionConsumer(
       ctx,
       transcriptionConfig,
-      aiControl.storageAdapter,
+      aiControl.chunkStorageAdapter,
       // Callback to get workspace storage info
       async (workspace: WorkspaceUuid) => {
         const wsClient = await aiControl.getWorkspaceClient(workspace)
@@ -172,7 +201,6 @@ export const start = async (): Promise<void> => {
         }
         return { wsIds: wsClient.wsIds }
       },
-      // Callback to send transcript to platform (legacy, creates new message)
       async (
         ctx,
         workspace: WorkspaceUuid,
@@ -294,6 +322,7 @@ export const start = async (): Promise<void> => {
     void aiEventConsumer.close()
     void transcriptionConsumer?.close()
     void transcriptionProducer.close()
+    void txConsumer.close()
     void transcriptionDeadLetterProducer.close()
     if (billingIntervalId !== undefined) {
       clearInterval(billingIntervalId)

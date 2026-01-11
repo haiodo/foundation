@@ -88,16 +88,17 @@ export async function listWorkspaces (
   params: {
     region?: string | null
     mode?: WorkspaceMode | null
+    visited?: number | null
   }
 ): Promise<WorkspaceInfoWithStatus[]> {
-  const { region, mode } = params
+  const { region, mode, visited } = params
   const { extra } = decodeTokenVerbose(ctx, token)
 
   if (!['tool', 'backup', 'admin', 'github'].includes(extra?.service) && extra?.admin !== 'true') {
     throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
-  return await getWorkspaces(db, false, region, mode)
+  return await getWorkspaces(db, false, region, mode, visited)
 }
 
 export async function listAccounts (
@@ -584,7 +585,7 @@ export async function getPersonInfo (
 ): Promise<PersonInfo> {
   const { account } = params
   const { extra } = decodeTokenVerbose(ctx, token)
-  verifyAllowedServices(['workspace', 'tool', 'gmail', 'huly-mail'], extra)
+  verifyAllowedServices(['workspace', 'tool', 'gmail', 'huly-mail', 'export'], extra)
 
   if (account == null || account === '') {
     throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))

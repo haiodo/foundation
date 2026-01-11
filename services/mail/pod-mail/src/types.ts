@@ -24,3 +24,14 @@ export interface Endpoint {
   type: RequestType
   handler: RequestHandler
 }
+
+export interface EmailNotification {
+  html: string
+  to: string
+  text: string
+  subject: string
+}
+export interface AccountNotification {
+  type: 'email'
+  data: any
+}

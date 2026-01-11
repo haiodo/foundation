@@ -12,6 +12,7 @@
 // limitations under the License.
 
 import activity from '@hcengineering/activity'
+import communication from '@hcengineering/communication'
 import {
   type CanCreateCardResource,
   type Card,
@@ -22,6 +23,8 @@ import {
   type CardViewDefaults,
   type CreateCardExtension,
   DOMAIN_CARD,
+  type ExportExtension,
+  type ExportFunc,
   type FavoriteCard,
   type FavoriteType,
   type MasterTag,
@@ -35,6 +38,7 @@ import core, {
   AccountRole,
   type Blobs,
   type Class,
+  type ClassCollaborators,
   ClassifierKind,
   type CollectionSize,
   type Doc,
@@ -77,8 +81,8 @@ import { PaletteColorIndexes } from '@hcengineering/ui/src/colors'
 import { type AnyComponent } from '@hcengineering/ui/src/types'
 import { type BuildModelKey } from '@hcengineering/view'
 import { createActions } from './actions'
-import card from './plugin'
 import { definePermissions } from './permissions'
+import card from './plugin'
 
 export { cardId } from '@hcengineering/card'
 
@@ -202,6 +206,11 @@ export class TCreateCardExtension extends TMasterTag implements CreateCardExtens
   canCreate?: CanCreateCardResource
 }
 
+@Model(card.class.ExportExtension, core.class.Doc, DOMAIN_MODEL)
+export class TExportExtension extends TDoc implements ExportExtension {
+  func!: Resource<ExportFunc>
+}
+
 export * from './migration'
 
 const listConfig: (BuildModelKey | string)[] = [
@@ -312,12 +321,21 @@ export function createSystemType (
     value: false
   })
 
+  builder.mixin(card.class.Card, core.class.Class, view.mixin.BaseQuery, {
+    baseQuery: {
+      isLatest: true
+    }
+  })
+
   builder.createDoc(view.class.Viewlet, core.space.Model, {
     attachTo: type,
     descriptor: view.viewlet.Table,
     configOptions: {
       hiddenKeys: ['content', 'title'],
       sortable: true
+    },
+    baseQuery: {
+      isLatest: true
     },
     config: [
       { key: '', props: { shrink: true } },
@@ -351,6 +369,9 @@ export function createSystemType (
       ],
       other: []
     },
+    baseQuery: {
+      isLatest: true
+    },
     configOptions: {
       hiddenKeys: ['content', 'title']
     },
@@ -375,7 +396,8 @@ export function createModel (builder: Builder): void {
     TCardViewDefaults,
     TFavoriteCard,
     TFavoriteType,
-    TCreateCardExtension
+    TCreateCardExtension,
+    TExportExtension
   )
 
   builder.createDoc(
@@ -547,6 +569,9 @@ export function createModel (builder: Builder): void {
         hiddenKeys: ['content', 'title'],
         sortable: true
       },
+      baseQuery: {
+        isLatest: true
+      },
       config: [
         '',
         '_class',
@@ -580,6 +605,9 @@ export function createModel (builder: Builder): void {
       },
       configOptions: {
         hiddenKeys: ['content', 'title']
+      },
+      baseQuery: {
+        isLatest: true
       },
       config: listConfig
     },
@@ -642,6 +670,9 @@ export function createModel (builder: Builder): void {
         hiddenKeys: ['content', 'title'],
         sortable: true
       },
+      baseQuery: {
+        isLatest: true
+      },
       config: ['']
     },
     card.viewlet.CardRelationshipTable
@@ -685,10 +716,6 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(card.class.Card, core.class.Class, view.mixin.ObjectTitle, {
     titleProvider: card.function.CardTitleProvider
-  })
-
-  builder.mixin(card.class.Card, core.class.Class, view.mixin.ObjectIdentifier, {
-    provider: card.function.CardIdProvider
   })
 
   builder.mixin(card.class.Card, core.class.Class, view.mixin.LinkProvider, {
@@ -829,7 +856,17 @@ export function createModel (builder: Builder): void {
     encode: card.function.CardCustomLinkEncode
   })
 
+  builder.mixin(card.class.Card, core.class.Class, core.mixin.VersionableClass, {
+    enabled: false
+  })
+
   createPublicLinkAction(builder, card.class.Card, card.action.PublicLink)
+
+  builder.createDoc<ClassCollaborators<Card>>(core.class.ClassCollaborators, core.space.Model, {
+    attachedTo: card.class.Card,
+    fields: ['modifiedBy'],
+    allFields: true
+  })
 }
 
 function defineTabs (builder: Builder): void {
@@ -892,6 +929,32 @@ function defineTabs (builder: Builder): void {
       checkVisibility: card.function.CheckRelationsSectionVisibility
     },
     card.section.Relations
+  )
+
+  builder.createDoc(
+    card.class.CardSection,
+    core.space.Model,
+    {
+      label: activity.string.Messages,
+      component: card.sectionComponent.OldMessagesSection,
+      order: 1000,
+      navigation: [],
+      checkVisibility: card.function.CheckOldMessagesSectionVisibility
+    },
+    card.section.OldMessages
+  )
+
+  builder.createDoc(
+    card.class.CardSection,
+    core.space.Model,
+    {
+      label: activity.string.Messages,
+      component: card.sectionComponent.CommunicationMessagesSection,
+      order: 1000,
+      navigation: [],
+      checkVisibility: card.function.CheckCommunicationMessagesSectionVisibility
+    },
+    communication.ids.CardMessagesSection
   )
 
   builder.createDoc<Viewlet>(view.class.Viewlet, core.space.Model, {

@@ -17,6 +17,8 @@ import cardPlugin, { cardId, DOMAIN_CARD, type Card, type Role } from '@hcengine
 import core, {
   DOMAIN_MODEL,
   TxOperations,
+  type Class,
+  type ClassPermission,
   type Client,
   type Data,
   type Doc,
@@ -27,6 +29,7 @@ import {
   createOrUpdate,
   tryMigrate,
   tryUpgrade,
+  TypeNumber,
   type MigrateOperation,
   type MigrationClient,
   type MigrationUpgradeClient
@@ -57,6 +60,11 @@ export const cardOperation: MigrateOperation = {
         state: 'update-custom-fields-displayprops',
         mode: 'upgrade',
         func: updateCustomFieldsDisplayProps
+      },
+      {
+        state: 'fill-versioning',
+        mode: 'upgrade',
+        func: fillVersioning
       }
     ])
   },
@@ -110,8 +118,191 @@ export const cardOperation: MigrateOperation = {
         state: 'fix-migrated-roles-permissions',
         mode: 'upgrade',
         func: migrateRolePermissions
+      },
+      {
+        state: 'version-for-versionable-types',
+        mode: 'upgrade',
+        func: addVersionForVersionableTypes
+      },
+      {
+        state: 'migrate-restricted-permissions',
+        mode: 'upgrade',
+        func: migrateRestrictedPermissions
       }
     ])
+  }
+}
+
+async function migrateRestrictedPermissions (_client: MigrationUpgradeClient): Promise<void> {
+  const client = new TxOperations(_client, core.account.System)
+  const hierarchy = client.getHierarchy()
+  const desc = hierarchy.getDescendants(card.class.Card)
+  const permissions = await client.findAll(core.class.ClassPermission, { objectClass: { $in: desc } })
+  const restrictedTargets = new Set<Ref<Class<Doc>>>()
+  for (const perm of permissions) {
+    if (perm.targetClass !== undefined) {
+      restrictedTargets.add(perm.targetClass)
+    }
+  }
+
+  const targets = await client.findAll(card.class.MasterTag, { _id: { $in: [...restrictedTargets] } })
+
+  for (const masterTag of targets) {
+    const isMixin = hierarchy.isMixin(masterTag._id)
+    const objectClass = hierarchy.getBaseClass(masterTag._id)
+    if (isMixin) {
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxMixin,
+          txMatch: {
+            mixin: masterTag._id
+          },
+          scope: 'space',
+          forbid: false,
+          label: card.string.AddTagPermission,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_create_allowed` as Ref<ClassPermission>
+      )
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxMixin,
+          txMatch: {
+            mixin: masterTag._id
+          },
+          scope: 'space',
+          forbid: true,
+          label: card.string.ForbidAddTagPermission,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_create_forbidden` as Ref<ClassPermission>
+      )
+      const key = `operations.$unset.${masterTag._id}`
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxUpdateDoc,
+          txMatch: {
+            [key]: {
+              $exists: true
+            }
+          },
+          scope: 'space',
+          forbid: false,
+          label: card.string.RemoveTag,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_remove_allowed` as Ref<ClassPermission>
+      )
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxUpdateDoc,
+          txMatch: {
+            [key]: { $exists: true }
+          },
+          scope: 'space',
+          forbid: true,
+          label: card.string.ForbidRemoveTag,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_remove_forbidden` as Ref<ClassPermission>
+      )
+    } else {
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxCreateDoc,
+          scope: 'space',
+          forbid: false,
+          label: card.string.CreateCardPermission,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_create_allowed` as Ref<ClassPermission>
+      )
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxCreateDoc,
+          scope: 'space',
+          forbid: true,
+          label: card.string.ForbidCreateCardPermission,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_create_forbidden` as Ref<ClassPermission>
+      )
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxRemoveDoc,
+          scope: 'space',
+          forbid: false,
+          label: card.string.RemoveCard,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_remove_allowed` as Ref<ClassPermission>
+      )
+      await client.createDoc(
+        core.class.ClassPermission,
+        core.space.Model,
+        {
+          objectClass,
+          txClass: core.class.TxRemoveDoc,
+          txMatch: {
+            objectClass: masterTag._id
+          },
+          scope: 'space',
+          forbid: true,
+          label: card.string.ForbidRemoveCard,
+          description: masterTag.label,
+          targetClass: masterTag._id
+        },
+        `${masterTag._id}_remove_forbidden` as Ref<ClassPermission>
+      )
+    }
+  }
+}
+
+async function addVersionForVersionableTypes (client: MigrationUpgradeClient): Promise<void> {
+  const txOp = new TxOperations(client, core.account.System)
+  const versionableTypes = await client.findAll(card.class.MasterTag, {})
+  for (const type of versionableTypes) {
+    if (client.getHierarchy().as(type, core.mixin.VersionableClass).enabled) {
+      if (client.getHierarchy().findAttribute(type._id, 'version') === undefined) {
+        await txOp.createDoc(core.class.Attribute, core.space.Model, {
+          attributeOf: type._id,
+          _class: core.class.Attribute,
+          isCustrom: false,
+          label: core.string.Version,
+          name: 'version',
+          readonly: true,
+          type: TypeNumber()
+        })
+      }
+    }
   }
 }
 
@@ -410,5 +601,30 @@ async function migrateRolePermissions (client: Client): Promise<void> {
   const roles = await client.findAll(card.class.Role, { permissions: { $exists: false } })
   for (const role of roles) {
     await txOp.update(role, { permissions: [] })
+  }
+}
+
+async function fillVersioning (client: MigrationClient): Promise<void> {
+  const iterator = await client.traverse<Card>(DOMAIN_CARD, { baseId: { $exists: false } })
+
+  try {
+    while (true) {
+      const cards = await iterator.next(500)
+      if (cards == null || cards.length === 0) break
+      for (const doc of cards) {
+        await client.update(
+          DOMAIN_CARD,
+          { _id: doc._id },
+          {
+            baseId: doc._id,
+            version: 1,
+            isLatest: true,
+            docCreatedBy: doc.createdBy ?? doc.modifiedBy
+          }
+        )
+      }
+    }
+  } finally {
+    await iterator.close()
   }
 }

@@ -80,7 +80,7 @@ export const main = async (): Promise<void> => {
       )
   })
 
-  const storageConfig = storageConfigs.storages.findLast((p) => p.name === config.StorageProviderName)
+  const storageConfig = storageConfigs.storages.find((it) => ['datalake', 's3'].includes(it.kind))
   const s3storageConfig = s3StorageConfigs?.storages.findLast((p) => p.kind === 's3')
 
   const app = express()
@@ -105,6 +105,7 @@ export const main = async (): Promise<void> => {
   app.post('/webhook', async (req, res) => {
     try {
       const event = await receiver.receive(req.body, req.get('Authorization'))
+      console.log('webhook', JSON.stringify(event))
       if (event.event === 'egress_ended' && event.egressInfo !== undefined) {
         for (const res of event.egressInfo.fileResults) {
           ctx.info('webhook event', { event: event.event, egress: event.egressInfo })
@@ -130,14 +131,6 @@ export const main = async (): Promise<void> => {
           // Ensure we don't fail the webhook if billing fails
         }
 
-        res.send()
-        return
-      } else if (event.event === 'room_started' && event.room !== undefined) {
-        const { sid, name } = event.room
-        ctx.info('webhook event', { event: event.event, room: { sid, name } })
-      } else if (event.event === 'room_finished' && event.room !== undefined) {
-        const { sid, name } = event.room
-        ctx.info('webhook event', { event: event.event, room: { sid, name } })
         res.send()
         return
       }
@@ -167,7 +160,7 @@ export const main = async (): Promise<void> => {
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   app.get('/checkRecordAvailable', async (_req, res) => {
-    res.send(await checkRecordAvailable(storageConfig, s3storageConfig))
+    res.send(await checkRecordAvailable(ctx, storageConfig, s3storageConfig))
   })
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -290,7 +283,7 @@ export const main = async (): Promise<void> => {
     console.error(e)
   })
 
-  if (config.BillingUrl !== '') {
+  if (config.BillingUrl !== '' && config.UseGlobalLiveKit) {
     setInterval(
       () => {
         void updateLiveKitSessions(ctx).catch((error) => {
@@ -325,11 +318,16 @@ const createToken = async (roomName: string, _id: string, participantName: strin
 }
 
 const checkRecordAvailable = async (
+  ctx: MeasureContext,
   storageConfig: StorageConfig | undefined,
   s3storageConfig: StorageConfig | undefined
 ): Promise<boolean> => {
   if (storageConfig !== undefined && storageConfig.kind === 's3') return true
   if (storageConfig !== undefined && storageConfig.kind === 'datalake' && s3storageConfig !== undefined) return true
+  ctx.error('NO S3 storage config storage:', {
+    storageConfig: storageConfig?.kind,
+    s3storageConfig: s3storageConfig?.kind
+  })
   return false
 }
 
@@ -349,6 +347,8 @@ const startRecord = async (
   const uploadParams = await getS3UploadParams(ctx, wsIds, storageConfig, s3StorageConfig)
 
   const { filepath, endpoint, accessKey, secret, region, bucket } = uploadParams
+
+  ctx.info('staring recording on', { filepath, endpoint, region, bucket })
   const output = new EncodedFileOutput({
     fileType: EncodedFileType.MP4,
     filepath,

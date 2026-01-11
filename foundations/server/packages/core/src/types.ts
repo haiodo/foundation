@@ -349,6 +349,7 @@ export interface IndexedDoc {
   searchShortTitle_fields?: any[]
   searchIcon_fields?: any[]
   fulltextSummary?: string
+  baseId?: Ref<Doc>
   [key: string]: any
 }
 
@@ -553,17 +554,16 @@ export interface SessionRequest {
   start: number
 }
 
+export interface AccountAndRole {
+  accountUuid: AccountUuid
+  role: AccountRole
+}
+
 export interface ClientSessionCtx {
   ctx: MeasureContext
 
   pipeline: Pipeline
-  socialStringsToUsers: Map<
-  PersonId,
-  {
-    accontUuid: AccountUuid
-    role: AccountRole
-  }
-  >
+  socialStringsToUsers: Map<PersonId, AccountAndRole>
   requestId: ReqId | undefined
   sendResponse: (id: ReqId | undefined, msg: any) => Promise<void>
   sendPong: () => void
