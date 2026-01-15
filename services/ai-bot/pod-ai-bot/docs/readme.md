@@ -133,7 +133,7 @@ The service remains fully backward compatible with environment variable-based co
 ```yaml
 services:
   aibot:
-    image: intabiafusion/ai-bot
+    image: haiodo/ai-bot
     environment:
       # Account and Server Configuration
       - ACCOUNTS_URL=http://accounts-service:3000
@@ -199,7 +199,7 @@ services:
 ```yaml
 services:
   aibot:
-    image: intabiafusion/ai-bot
+    image: haiodo/ai-bot
     volumes:
       - ./config.yaml:/usr/src/app/config.yaml:ro
     environment:
@@ -210,7 +210,7 @@ services:
 ```yaml
 services:
   aibot:
-    image: intabiafusion/ai-bot
+    image: haiodo/ai-bot
     environment:
       - CONFIG_YAML=LS0tCmFjY291bnRzOgogIHVybDogImh0dHA6Ly9hY2NvdW50cy1zZXJ2aWNlOjMwMDAiCiAgc2VydmVyU2VjcmV0OiAieW91ci1zZWNyZXQiCiAgc2VydmljZUlkOiAiYWktYm90LXNlcnZpY2UiCiMgLi4uIHJlc3Qgb2YgY29uZmlnCg==
 ```
@@ -234,7 +234,7 @@ spec:
     spec:
       containers:
       - name: aibot
-        image: intabiafusion/ai-bot
+        image: haiodo/ai-bot
         ports:
         - containerPort: 4010
         env:
@@ -291,7 +291,7 @@ spec:
     spec:
       containers:
       - name: aibot
-        image: intabiafusion/ai-bot
+        image: haiodo/ai-bot
         ports:
         - containerPort: 4010
         volumeMounts:

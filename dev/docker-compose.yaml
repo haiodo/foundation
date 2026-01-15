@@ -823,7 +823,7 @@ services:
     restart: unless-stopped
 
   love-agent-prod:
-    image: intabiafusion/love-agent
+    image: haiodo/love-agent
     extra_hosts:
       - 'huly.local:host-gateway'
     depends_on:
@@ -875,7 +875,7 @@ services:
     restart: unless-stopped
 
   mail_server:
-    image: intabiafusion/mail
+    image: haiodo/mail
     extra_hosts:
       - 'huly.local:host-gateway'
     depends_on:
@@ -897,7 +897,7 @@ services:
       - SMTP_TLS_MODE=ignore
       - SMTP_ALLOW_SELF_SIGNED=true
   mail_client:
-    image: intabiafusion/mail
+    image: haiodo/mail
     extra_hosts:
       - 'huly.local:host-gateway'
     depends_on:
