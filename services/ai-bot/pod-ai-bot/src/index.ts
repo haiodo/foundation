@@ -14,7 +14,14 @@
 //
 import { config } from 'dotenv'
 
-import { start } from './start'
+import { startQueue } from './queue'
+import aibotConfig from './config'
+import { startClient } from './client'
 
 config()
-void start()
+
+if (aibotConfig.Mode === 'queue') {
+  void startQueue()
+} else {
+  void startClient()
+}

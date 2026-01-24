@@ -603,7 +603,7 @@ jobs:
                 "containerd-snapshotter": true
               }
             }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           filter: tree:0
@@ -663,13 +663,17 @@ jobs:
     needs: build
     runs-on: macos-latest
     timeout-minutes: 60
+    outputs:
+      release_tag: ${{ steps.release_info.outputs.release_tag }}
+      rev: ${{ steps.release_info.outputs.rev }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           filter: tree:0
           submodules: recursive
-
+      - name: Free space
+        uses: ./.github/actions/free-disk-space
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
@@ -726,7 +730,7 @@ jobs:
         run: |
           cd desktop-package
           node ../common/scripts/install-run-rushx.js dist --linux --x64
-          node ../common/scripts/install-run-rushx.js dist --windows --x64 --arm64
+          node ../common/scripts/install-run-rushx.js dist --windows --x64
           node ../common/scripts/install-run-rushx.js dist --macos --x64 --arm64
           # ./scripts/copy-publish-artifacts.sh ${{ env.PublishTempFolder}}
       # - name: Publish distribution assets and version
@@ -741,20 +745,167 @@ jobs:
       - name: Upload MacOS
         uses: actions/upload-artifact@v4
         with:
-          name: Huly-MacOS-x64
-          path: ./desktop-package/deploy/Huly-macos-*-x64.dmg
+          name: Platform-MacOS-x64
+          path: ./desktop-package/deploy/Platform-macos-*-x64.dmg
+      - name: Upload MacOS Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Platform-MacOS-zip
+          path: ./desktop-package/deploy/Platform-macos*.zip
       - name: Upload MacOS arm64
         uses: actions/upload-artifact@v4
         with:
-          name: Huly-MacOS-arm64
-          path: ./desktop-package/deploy/Huly-macos-*-arm64.dmg
+          name: Platform-MacOS-arm64
+          path: ./desktop-package/deploy/Platform-macos-*-arm64.dmg
       - name: Upload Windows
         uses: actions/upload-artifact@v4
         with:
-          name: Huly-Windows
-          path: ./desktop-package/deploy/Huly-windows-*.zip
+          name: Platform-Windows
+          path: ./desktop-package/deploy/Platform-windows-*.exe
+      - name: Upload Windows zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Platform-Windows-zip
+          path: ./desktop-package/deploy/Platform-windows-*.zip
       - name: Upload Linux
         uses: actions/upload-artifact@v4
         with:
-          name: Huly-Linux
-          path: ./desktop-package/deploy/Huly-linux-*.zip
+          name: Platform-Linux-arm64
+          path: ./desktop-package/deploy/Platform-linux-*-arm64.zip
+      - name: Upload Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: Platform-Linux-x64
+          path: ./desktop-package/deploy/Platform-linux-*-x64.zip
+
+      - name: Upload Linux App image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Platform-Linux-AppImage
+          path: ./desktop-package/deploy/Platform-linux-*.AppImage
+
+      - name: List deploy contents
+        run: |
+          cd desktop-package
+          echo "Files in deploy directory:"
+          ls -la deploy/
+
+      - name: Build server bundle (macOS only)
+        run: |
+          cd desktop-package
+          node ../common/scripts/install-run-rushx.js bundle:server
+
+      - name: Upload server bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-bundle
+          path: ./desktop-package/bundle
+      - name: Upload manifests (yml + blockmap)
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-manifests
+          path: |
+            ./desktop-package/deploy/*.yml
+            ./desktop-package/deploy/*.yaml
+            ./desktop-package/deploy/*.blockmap
+
+      - name: Set release info
+        id: release_info
+        run: |
+          echo "release_tag=$(node common/scripts/show_tag.js)" >> $GITHUB_OUTPUT
+          echo "rev=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+  dist-build-docker:
+    needs: dist-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: tree:0
+          submodules: recursive
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Configure docker
+        uses: docker/setup-docker-action@v4
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+
+      - name: Download Platform-MacOS-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-MacOS-x64
+          path: ./desktop-package/deploy
+      - name: Download Platform-MacOS-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-MacOS-arm64
+          path: ./desktop-package/deploy
+      - name: Download Platform-MacOS-zip
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-MacOS-zip
+          path: ./desktop-package/deploy
+      - name: Download Platform-Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-Windows
+          path: ./desktop-package/deploy
+      - name: Download Platform-Windows-zip
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-Windows-zip
+          path: ./desktop-package/deploy
+      # - name: Download Platform-Linux-arm64
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: Platform-Linux-arm64
+      #     path: ./desktop-package/deploy
+      - name: Download Platform-Linux-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-Linux-x64
+          path: ./desktop-package/deploy
+      - name: Download Platform-Linux-AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: Platform-Linux-AppImage
+          path: ./desktop-package/deploy
+      - name: Download server-bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: server-bundle
+          path: ./desktop-package/bundle
+      - name: Download desktop-manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-manifests
+          path: ./desktop-package/deploy
+
+      - name: List downloaded artifacts
+        run: ls -R ./desktop-package/deploy || true
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: haiodo
+          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+      - name: Build and push Docker image (via package script)
+        run: |
+          set -euo pipefail
+          cd desktop-package
+          ../common/scripts/docker_build.sh haiodo/desktop-distro
+          ../common/scripts/docker_tag.sh haiodo/desktop-distro
+        env:
+          DOCKER_CLI_HINTS: false
+          DOCKER_BUILDKIT: 1
+          BUILD_REV: ${{ needs.dist-build.outputs.rev }}
+          RELEASE_TAG: ${{ needs.dist-build.outputs.release_tag }}

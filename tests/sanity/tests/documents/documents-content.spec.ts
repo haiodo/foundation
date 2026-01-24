@@ -77,10 +77,13 @@ test.describe('Content in the Documents tests', () => {
 
     for (let i = 0; i < contents.length; i++) {
       content = await documentContentPage.addContentToTheNewLine(`${i === 0 ? '[] ' : ''}${contents[i]}`)
+      // Need to wait a bit for a proper order
+      await page.waitForTimeout(25)
       await documentContentPage.checkContent(content)
     }
     for (const line of contents) {
       await documentContentPage.assignToDo(`${newUser2.lastName} ${newUser2.firstName}`, line)
+      await page.waitForTimeout(25)
     }
 
     await leftSideMenuSecondPage.clickDocuments()

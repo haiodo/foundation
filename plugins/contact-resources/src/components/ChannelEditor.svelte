@@ -15,9 +15,8 @@
 <script lang="ts">
   import { Channel } from '@hcengineering/contact'
   import { Data } from '@hcengineering/core'
-  import type { IntlString } from '@hcengineering/platform'
-  import { translateCB } from '@hcengineering/platform'
-  import { copyTextToClipboard } from '@hcengineering/presentation'
+  import { translateCB, IntlString } from '@hcengineering/platform'
+  import { copyTextToClipboard, isDisabled } from '@hcengineering/presentation'
   import {
     Button,
     FocusHandler,
@@ -139,7 +138,7 @@
         dispatch('close', value)
       }}
     />
-    {#if openable}
+    {#if openable && !isDisabled('integration') && !isDisabled('integrations')}
       <Button
         focusIndex={4}
         kind={'ghost'}

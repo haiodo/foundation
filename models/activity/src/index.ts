@@ -310,42 +310,33 @@ export function createModel (builder: Builder): void {
     activity.class.ActivityMessagesFilter,
     core.space.Model,
     {
-      label: activity.string.All,
+      label: activity.string.Attributes,
       position: 10,
-      filter: activity.filter.AllFilter
+      filter: activity.filter.AttributesFilter
     },
-    activity.ids.AllFilter
+    activity.ids.AttributesActivityFilter
   )
 
-  builder.createDoc(activity.class.ActivityMessagesFilter, core.space.Model, {
-    label: activity.string.Attributes,
-    position: 10,
-    filter: activity.filter.AttributesFilter
-  })
-
-  builder.createDoc(activity.class.ActivityMessagesFilter, core.space.Model, {
-    label: activity.string.Pinned,
-    position: 20,
-    filter: activity.filter.PinnedFilter
-  })
-
-  builder.createDoc(activity.class.ActivityMessagesFilter, core.space.Model, {
-    label: activity.string.Mentions,
-    position: 60,
-    filter: activity.filter.ReferencesFilter
-  })
-
   builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
+    activity.class.ActivityMessagesFilter,
     core.space.Model,
     {
-      objectClass: activity.class.Reaction,
-      action: 'create',
-      component: activity.component.ReactionPresenter,
-      label: activity.string.Reacted,
-      onlyWithParent: true
+      label: activity.string.Pinned,
+      position: 20,
+      filter: activity.filter.PinnedFilter
     },
-    activity.ids.ReactionAddedActivityViewlet
+    activity.ids.PinnedActivityFilter
+  )
+
+  builder.createDoc(
+    activity.class.ActivityMessagesFilter,
+    core.space.Model,
+    {
+      label: activity.string.Mentions,
+      position: 60,
+      filter: activity.filter.ReferencesFilter
+    },
+    activity.ids.MentionsActivityFilter
   )
 
   builder.mixin(activity.class.ActivityMessage, core.class.Class, view.mixin.ObjectPanel, {

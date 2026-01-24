@@ -38,7 +38,6 @@ import {
 } from '@hcengineering/contact'
 import {
   AccountRole,
-  type ClassCollaborators,
   DOMAIN_MODEL,
   DateRangeMode,
   IndexKind,
@@ -77,7 +76,7 @@ import {
 } from '@hcengineering/model'
 import attachment from '@hcengineering/model-attachment'
 import chunter from '@hcengineering/model-chunter'
-import core, { TAttachedDoc, TDoc, TSpace } from '@hcengineering/model-core'
+import core, { defineCollaborators, TAttachedDoc, TDoc, TSpace } from '@hcengineering/model-core'
 import { createPublicLinkAction } from '@hcengineering/model-guest'
 import { generateClassNotificationTypes } from '@hcengineering/model-notification'
 import presentation from '@hcengineering/model-presentation'
@@ -325,7 +324,8 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(contact.class.Person, core.class.Class, core.mixin.TxAccessLevel, {
-    createAccessLevel: AccountRole.Guest
+    createAccessLevel: AccountRole.Guest,
+    isIdentity: true
   })
 
   builder.mixin(contact.class.SocialIdentity, core.class.Class, core.mixin.TxAccessLevel, {
@@ -346,6 +346,8 @@ export function createModel (builder: Builder): void {
   builder.mixin(contact.class.Organization, core.class.Class, activity.mixin.ActivityDoc, {})
 
   builder.mixin(contact.class.Channel, core.class.Class, activity.mixin.ActivityDoc, {})
+
+  createAttributePresenter(builder, contact.component.ContactNamePresenter, contact.class.Contact, 'name', 'attribute')
 
   builder.mixin(contact.class.Person, core.class.Class, view.mixin.ObjectIcon, {
     component: contact.component.PersonIcon
@@ -458,6 +460,7 @@ export function createModel (builder: Builder): void {
             icon: contact.icon.Person,
             label: contact.string.Person,
             accessLevel: AccountRole.DocGuest,
+            visibleIf: contact.function.PersonsSpecialVisibleIf,
             componentProps: {
               _class: contact.class.Person,
               baseQuery: {
@@ -475,6 +478,7 @@ export function createModel (builder: Builder): void {
             icon: contact.icon.Company,
             label: contact.string.Organization,
             accessLevel: AccountRole.DocGuest,
+            visibleIf: contact.function.CompaniesSpecialVisibleIf,
             componentProps: {
               _class: contact.class.Organization,
               icon: contact.icon.Company,
@@ -493,16 +497,6 @@ export function createModel (builder: Builder): void {
     component: contact.component.Contacts,
     label: contact.string.Contacts,
     index: 100
-  })
-
-  builder.createDoc(activity.class.DocUpdateMessageViewlet, core.space.Model, {
-    objectClass: contact.class.Person,
-    action: 'update',
-    config: {
-      name: {
-        presenter: contact.activity.NameChangedActivityMessage
-      }
-    }
   })
 
   builder.createDoc<Viewlet>(
@@ -652,19 +646,13 @@ export function createModel (builder: Builder): void {
     inlineEditor: contact.component.ContactArrayEditor
   })
 
-  builder.createDoc<ClassCollaborators<Contact>>(core.class.ClassCollaborators, core.space.Model, {
-    attachedTo: contact.class.Contact,
-    fields: []
-  })
+  defineCollaborators(builder, contact.class.Contact, { fields: [] })
 
   builder.mixin(contact.class.Channel, core.class.Class, view.mixin.ObjectPanel, {
     component: contact.component.ChannelPanel
   })
 
-  builder.createDoc<ClassCollaborators<Channel>>(core.class.ClassCollaborators, core.space.Model, {
-    attachedTo: contact.class.Channel,
-    fields: ['modifiedBy']
-  })
+  defineCollaborators(builder, contact.class.Channel, { fields: ['modifiedBy'] })
 
   builder.mixin(contact.class.Channel, core.class.Class, notification.mixin.NotificationObjectPresenter, {
     presenter: contact.component.ActivityChannelPresenter
@@ -1289,39 +1277,6 @@ export function createModel (builder: Builder): void {
   )
 
   builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: contact.class.Person,
-      label: chunter.string.LeftComment
-    },
-    contact.ids.PersonChatMessageViewlet
-  )
-
-  builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: contact.mixin.Employee,
-      label: chunter.string.LeftComment
-    },
-    contact.ids.EmployeeChatMessageViewlet
-  )
-
-  builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: contact.class.Organization,
-      label: chunter.string.LeftComment
-    },
-    contact.ids.OrganizationChatMessageViewlet
-  )
-
-  builder.createDoc(
     notification.class.NotificationGroup,
     core.space.Model,
     {
@@ -1416,5 +1371,14 @@ export function createModel (builder: Builder): void {
     role: AccountRole.Guest,
     feature: 'auto-translate',
     order: 1600
+  })
+
+  builder.mixin(core.class.Collaborator, core.class.Class, view.mixin.CollectionEditor, {
+    editor: contact.component.CollaboratorEditor,
+    inlineEditor: contact.component.CollaboratorEditor
+  })
+
+  builder.mixin(core.class.Collaborator, core.class.Class, view.mixin.ObjectPresenter, {
+    presenter: contact.component.CollaboratorPresenter
   })
 }

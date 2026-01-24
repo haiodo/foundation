@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 */
+import './svg.d.ts'
 
 import type { IntlString, StatusCode } from '@hcengineering/platform'
 import { mergeIds } from '@hcengineering/platform'
@@ -78,6 +79,7 @@ export default mergeIds(loginId, login, {
     SignUpToCreateWorkspace: '' as IntlString,
     WhatIsYourName: '' as IntlString,
     AccessExpired: '' as IntlString,
-    AccessNotActive: '' as IntlString
+    AccessNotActive: '' as IntlString,
+    DesktopApp: '' as IntlString
   }
 })

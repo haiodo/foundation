@@ -12,7 +12,9 @@ import {
   ClientSocketReadyState,
   FRAME_HELLO_RESP,
   FRAME_PING,
-  pingConst,
+  FRAME_PONG,
+  FRAME_OP_STATUS,
+  FRAME_OP_STATUS_RESP,
   type ConnectionSocket,
   type HelloRequest,
   type HelloResponse,
@@ -71,7 +73,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       requests: new Map(),
       lastRequest: Date.now(),
       lastPing: Date.now(),
-      socket: cs
+      socket: cs,
+      options: {}
     }
 
     const helloReq: HelloRequest = {
@@ -114,7 +117,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       requests: new Map(),
       lastRequest: Date.now(),
       lastPing: Date.now(),
-      socket: cs
+      socket: cs,
+      options: {}
     }
     server.reconnectQueue.set('session-2', oldSession)
 
@@ -126,7 +130,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       requests: new Map(),
       lastRequest: Date.now(),
       lastPing: Date.now(),
-      socket: cs
+      socket: cs,
+      options: {}
     }
 
     const helloReq: HelloRequest = {
@@ -167,7 +172,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       requests: new Map(),
       lastRequest: Date.now(),
       lastPing: Date.now(),
-      socket: cs
+      socket: cs,
+      options: {}
     }
 
     const helloReq: HelloRequest = {
@@ -349,7 +355,14 @@ describe('ClisrServer and ClisrClient consistency', () => {
 
   it('handleTick moves timed-out sessions to reconnectQueue and invokes event handlers', async () => {
     const ctx = createFakeCtx()
+
+    const calls: Array<{ ev: any, id: string }> = []
     const server = new ClisrServer(ctx, async () => true, '1.0.0')
+
+    // Register event handler to capture timeout events
+    server.eventHandlers.push(async (sessionId, ev) => {
+      calls.push({ ev, id: sessionId })
+    })
 
     try {
       // Create a session that will be considered timed out
@@ -373,10 +386,6 @@ describe('ClisrServer and ClisrClient consistency', () => {
         socket: cs
       } as any
 
-      const calls: Array<{ ev: string, id: string }> = []
-      server.eventHandlers.push(async (sessionId, ev) => {
-        calls.push({ ev, id: sessionId })
-      })
       ;(server as any).sessions.set(session.sid, session)
 
       await server.handleTick()
@@ -406,7 +415,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       requests: new Map(),
       lastRequest: Date.now(),
       lastPing: Date.now(),
-      socket: cs
+      socket: cs,
+      options: {}
     }
 
     let calledErr = false
@@ -429,19 +439,23 @@ describe('ClisrServer and ClisrClient consistency', () => {
     expect(calledErr).toBe(true)
   })
 
-  it('processes ping messages and calls registered handlers', async () => {
+  it('processes ping messages and sends pong response', async () => {
     const ctx = createFakeCtx()
     const server = new ClisrServer(ctx, async () => true, '1.0.0')
 
     // Fake ws that stores event listeners
     const listeners: Record<string, Array<(...args: any[]) => void>> = {}
+    const sendCalls: any[] = []
     const ws: any = {
       bufferedAmount: 0,
       readyState: 1,
       OPEN: 1,
       CLOSED: 2,
       CLOSING: 3,
-      send: jest.fn((_buf: any, _opts: any, cb: any) => cb?.()),
+      send: jest.fn((_buf: any, _opts: any, cb: any) => {
+        sendCalls.push(_buf)
+        cb?.()
+      }),
       close: jest.fn(),
       terminate: jest.fn(),
       on: (name: string, fn: (...args: any[]) => void) => {
@@ -454,12 +468,6 @@ describe('ClisrServer and ClisrClient consistency', () => {
     // Retrieve session and mark it as hello'ed so ping is treated as normal request
     const sess = Array.from((server as any).sessions.values())[0] as any
     sess.hello = {}
-
-    // Register a handler that captures ping messages
-    const pings: any[] = []
-    server.handlers.push(async (req) => {
-      if (req.method === pingConst) pings.push(req)
-    })
 
     // craft a raw ping frame payload
     const payload = Buffer.from([FRAME_PING])
@@ -474,7 +482,9 @@ describe('ClisrServer and ClisrClient consistency', () => {
 
     // Wait a tick for async handlers to run
     await new Promise((resolve) => setImmediate(resolve))
-    expect(pings.length).toBeGreaterThan(0)
+    // Verify that a pong response was sent (FRAME_PONG = 0x02)
+    const pongSent = sendCalls.some((buf) => buf instanceof Buffer && buf[0] === FRAME_PONG)
+    expect(pongSent).toBe(true)
   })
 
   it('send waits for backpressure then sends binary data', async () => {
@@ -575,15 +585,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
     analyticsSpy.mockRestore()
   })
 
-  it('ConnectionSocket.checkState terminates socket when CLOSED or CLOSING and returns false', () => {
-    const rpc = new RPCHandler()
-    const ws: any = { readyState: 3, CLOSED: 3, CLOSING: 2, terminate: jest.fn() }
-    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
-    expect(cs.checkState()).toBe(false)
-    expect(ws.terminate).toHaveBeenCalled()
-  })
-
-  it('readRequest recognizes ping buffers and returns ping request', () => {
+  it('ConnectionSocket.send handles synchronous ws.send throws (Send before connected) and logs but does not report to analytics', async () => {
+    const ctx = createFakeCtx()
     const rpc = new RPCHandler()
     const ws: any = {
       bufferedAmount: 0,
@@ -591,15 +594,111 @@ describe('ClisrServer and ClisrClient consistency', () => {
       OPEN: 1,
       CLOSED: 2,
       CLOSING: 3,
-      send: jest.fn(),
+      send: (_buf: any, _opts: any, cb?: any) => {
+        // Simulate synchronous throw from underlying ws implementation
+        throw new Error('Send before connected exception')
+      },
+      close: jest.fn(),
+      terminate: jest.fn()
+    }
+    const compressSpy = jest.fn().mockResolvedValue(Buffer.from('x'))
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc, {
+      compress: compressSpy
+    })
+    const errSpy = jest.spyOn(ctx as any, 'error')
+    const analyticsSpy = jest.spyOn(Analytics, 'handleError').mockImplementation(() => {})
+    const msg: any = { id: 'e4', result: { method: 'x', params: [], meta: {} }, time: Date.now() }
+    // cs.send should not throw even when ws.send throws synchronously
+    await expect(cs.send(ctx, msg)).resolves.toBeUndefined()
+    expect(errSpy).toHaveBeenCalled()
+    // 'Send before connected' is considered benign and should not be reported to analytics
+    expect(analyticsSpy).not.toHaveBeenCalled()
+    analyticsSpy.mockRestore()
+  })
+
+  it('ConnectionSocket.send handles synchronous ws.send throws (unexpected) and reports to analytics', async () => {
+    const ctx = createFakeCtx()
+    const rpc = new RPCHandler()
+    const ws: any = {
+      bufferedAmount: 0,
+      readyState: 1,
+      OPEN: 1,
+      CLOSED: 2,
+      CLOSING: 3,
+      send: (_buf: any, _opts: any, cb?: any) => {
+        // Simulate synchronous unexpected throw
+        throw new Error('unexpected send failure')
+      },
+      close: jest.fn(),
+      terminate: jest.fn()
+    }
+    const compressSpy = jest.fn().mockResolvedValue(Buffer.from('x'))
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc, {
+      compress: compressSpy
+    })
+    const errSpy = jest.spyOn(ctx as any, 'error')
+    const analyticsSpy = jest.spyOn(Analytics, 'handleError').mockImplementation(() => {})
+    const msg: any = { id: 'e5', result: { method: 'x', params: [], meta: {} }, time: Date.now() }
+    await expect(cs.send(ctx, msg)).resolves.toBeUndefined()
+    expect(errSpy).toHaveBeenCalled()
+    expect(analyticsSpy).toHaveBeenCalled()
+    analyticsSpy.mockRestore()
+  })
+
+  it('ConnectionSocket.sendRaw handles synchronous ws.send throws and logs appropriately', async () => {
+    const ctx = createFakeCtx()
+    const rpc = new RPCHandler()
+    const ws: any = {
+      bufferedAmount: 0,
+      readyState: 1,
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      send: (_buf: any, _opts: any, cb?: any) => {
+        // Simulate synchronous throw
+        throw new Error('Send before connected exception')
+      },
       close: jest.fn(),
       terminate: jest.fn()
     }
     const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+    const errSpy = jest.spyOn(ctx as any, 'error')
+    const analyticsSpy = jest.spyOn(Analytics, 'handleError').mockImplementation(() => {})
+    // Should not throw; internal handler should catch and process the error
+    await cs.sendRaw(ctx, Buffer.from([1, 2, 3]))
+    expect(errSpy).toHaveBeenCalled()
+    // Benign 'Send before connected' shouldn't be reported to analytics
+    expect(analyticsSpy).not.toHaveBeenCalled()
+    analyticsSpy.mockRestore()
+  })
 
-    const rr = cs.readRequest(Buffer.from([FRAME_PING]), false)
-    expect(rr.method).toBe(pingConst)
-    expect(rr.id).toBe(-1)
+  it('ConnectionSocket.sendPong handles synchronous ws.send throws without reporting (Send before connected)', () => {
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      send: jest.fn().mockImplementation(() => {
+        throw new Error('Send before connected exception')
+      }),
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+    const analyticsSpy = jest.spyOn(Analytics, 'handleError').mockImplementation(() => {})
+    // Should not throw even if ws.send throws synchronously
+    expect(() => {
+      cs.sendPong()
+    }).not.toThrow()
+    expect(analyticsSpy).not.toHaveBeenCalled()
+    analyticsSpy.mockRestore()
+  })
+
+  it('ConnectionSocket.checkState terminates socket when CLOSED or CLOSING and returns false', () => {
+    const rpc = new RPCHandler()
+    const ws: any = { readyState: 3, CLOSED: 3, CLOSING: 2, terminate: jest.fn() }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+    expect(cs.checkState()).toBe(false)
+    expect(ws.terminate).toHaveBeenCalled()
   })
 
   it('ConnectionSocket.sendPong returns early when socket is not OPEN or when connection is closed', () => {
@@ -609,5 +708,431 @@ describe('ClisrServer and ClisrClient consistency', () => {
     // If not open, sendPong should silently return
     cs.sendPong()
     expect(ws.send).not.toHaveBeenCalled()
+  })
+
+  it('ConnectionSocket.sendRaw reports async callback errors to Analytics', async () => {
+    const ctx = createFakeCtx()
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      send: (_buf: Buffer, _opts: any, cb: any) => {
+        cb(new Error('boom'))
+      }
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+
+    const analyticsSpy = jest.spyOn(Analytics, 'handleError').mockImplementation(() => {})
+    const errorSpy = jest.spyOn(ctx, 'error')
+
+    await cs.sendRaw(ctx, Buffer.from([FRAME_PING]))
+    // allow callbacks to run
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(errorSpy).toHaveBeenCalled()
+    expect(analyticsSpy).toHaveBeenCalled()
+
+    analyticsSpy.mockRestore()
+  })
+
+  it('ConnectionSocket.sendRaw ignores benign Send before connected errors from async callback', async () => {
+    const ctx = createFakeCtx()
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      send: (_buf: Buffer, _opts: any, cb: any) => {
+        cb(new Error('Send before connected'))
+      }
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+
+    const analyticsSpy = jest.spyOn(Analytics, 'handleError').mockImplementation(() => {})
+    const errorSpy = jest.spyOn(ctx, 'error')
+
+    await cs.sendRaw(ctx, Buffer.from([FRAME_PING]))
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(errorSpy).toHaveBeenCalled()
+    expect(analyticsSpy).not.toHaveBeenCalled()
+
+    analyticsSpy.mockRestore()
+  })
+
+  it('ConnectionSocket.sendRaw returns early when socket is not OPEN', async () => {
+    const ctx = createFakeCtx()
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 3, // CLOSED
+      send: jest.fn(),
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      bufferedAmount: 0
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+    await cs.sendRaw(ctx, Buffer.from([1, 2, 3]))
+    expect(ws.send).not.toHaveBeenCalled()
+  })
+
+  it('ConnectionSocket.send handles compression for large messages', async () => {
+    const ctx = createFakeCtx()
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      send: jest.fn(),
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      bufferedAmount: 0
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc, {
+      compress: async (x: any) => x,
+      uncompress: async (x: any) => x
+    })
+    const largeData = { result: 'x'.repeat(2000) }
+    await cs.send(ctx, largeData as any)
+    expect(ws.send).toHaveBeenCalled()
+  })
+
+  it('server handleTick removes timed out sessions', async () => {
+    const ctx = createFakeCtx()
+    const server = new ClisrServer(ctx, async () => true, '1.0.0')
+
+    try {
+      // Manually add a session that has timed out
+      const fakeSocket: any = {
+        id: 'fake',
+        isClosed: false,
+        close: jest.fn(),
+        send: jest.fn(),
+        sendRaw: jest.fn(),
+        sendPong: jest.fn(),
+        data: () => ({}),
+        isBackpressure: () => false,
+        backpressure: jest.fn(),
+        checkState: () => true,
+        readRequest: jest.fn()
+      }
+      const session: Session = {
+        hello: { method: 'hello', params: [], id: -1, token: 'test' },
+        createTime: Date.now() - 1000000, // Old session
+        sid: 'test-sid',
+        sessionId: 'test-session',
+        requests: new Map(),
+        lastRequest: Date.now() - 1000000, // Very old
+        lastPing: Date.now(),
+        socket: fakeSocket,
+        options: {}
+      }
+      ;(server as any).sessions.set('test-sid', session)
+
+      await server.handleTick()
+
+      // Session should be moved to reconnectQueue or removed
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('handleTick sends ping for hang requests', async () => {
+    const ctx = createFakeCtx()
+    const server = new ClisrServer(ctx, async () => true, '1.0.0')
+
+    const fakeSocket: any = {
+      sendRaw: jest.fn(),
+      data: () => ({})
+    }
+
+    const session = {
+      hello: {},
+      createTime: Date.now(),
+      sid: 'hang-sid',
+      sessionId: 'session-hang',
+      requests: new Map(),
+      lastRequest: Date.now(),
+      lastPing: Date.now() - (2 * 1000 * 1000 + 1000), // older than OperationTimeout
+      socket: fakeSocket,
+      options: {}
+    } as any
+
+    const rr = {
+      session,
+      startTime: Date.now() - 51 * 1000 * 1000, // older than HangTimeout
+      method: 'hangOp'
+    } as any
+
+    ;(server as any).requests.set('#hang', rr)
+
+    const warnSpy = jest.spyOn(ctx, 'warn')
+
+    await server.handleTick()
+
+    expect(fakeSocket.sendRaw).toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith('found hang request', expect.objectContaining({ request: 'hangOp' }))
+
+    warnSpy.mockRestore()
+  })
+
+  it('server broadcast handles send errors gracefully', async () => {
+    const ctx = createFakeCtx()
+    const server = new ClisrServer(ctx, async () => true, '1.0.0')
+
+    try {
+      // Manually add a session with failing send
+      const fakeSocket: any = {
+        id: 'fake',
+        isClosed: false,
+        close: jest.fn(),
+        send: jest.fn().mockRejectedValue(new Error('send failed')),
+        sendRaw: jest.fn(),
+        sendPong: jest.fn(),
+        data: () => ({}),
+        isBackpressure: () => false,
+        backpressure: jest.fn(),
+        checkState: () => true,
+        readRequest: jest.fn()
+      }
+      const session: Session = {
+        hello: { method: 'hello', params: [], id: -1, token: 'test' },
+        createTime: Date.now(),
+        sid: 'test-sid',
+        sessionId: 'test-session',
+        requests: new Map(),
+        lastRequest: Date.now(),
+        lastPing: Date.now(),
+        socket: fakeSocket,
+        options: {}
+      }
+      ;(server as any).sessions.set('test-sid', session)
+
+      // Should not throw even if send fails
+      await server.broadcast({ test: 'data' })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('server handles reconnecting session', async () => {
+    const ctx = createFakeCtx()
+    const server = new ClisrServer(ctx, async (token: string) => token === 'test-token', '1.0.0')
+    server.compress = async (x: any) => x
+    server.uncompress = async (x: any) => x
+
+    try {
+      const sent: any[] = []
+      const cs = createFakeCS(sent)
+
+      // First, create an initial session
+      const session1: Session = {
+        hello: undefined,
+        createTime: Date.now(),
+        sid: 'sid-1',
+        sessionId: 'reconnect-session',
+        requests: new Map(),
+        lastRequest: Date.now(),
+        lastPing: Date.now(),
+        socket: cs,
+        options: {}
+      }
+
+      // Put session in reconnectQueue to simulate disconnect
+      ;(server as any).bySessionId.set('reconnect-session', session1)
+      ;(server as any).reconnectQueue.set('sid-1', session1)
+
+      // Create new session trying to reconnect
+      const session2: Session = {
+        hello: undefined,
+        createTime: Date.now(),
+        sid: 'sid-2',
+        sessionId: 'reconnect-session',
+        requests: new Map(),
+        lastRequest: Date.now(),
+        lastPing: Date.now(),
+        socket: cs,
+        options: {}
+      }
+
+      const helloReq: HelloRequest = {
+        method: 'hello',
+        params: [],
+        id: -1,
+        token: 'test-token',
+        sessionId: 'reconnect-session'
+      }
+
+      await server.checkHello(session2, helloReq, cs)
+
+      // Should have sent hello response with reconnect=true
+      expect(sent.length).toBe(1)
+      const raw = sent[0].raw as Buffer
+      const payload = raw.slice(1)
+      const resp = server.rpcHandler.readResponse<any>(payload, true) as HelloResponse
+      expect(resp.reconnect).toBe(true)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('sends FRAME_OP_STATUS to the client for long-running operations', async () => {
+    const ctx = createFakeCtx()
+    const server = new ClisrServer(ctx, async () => true, '1.0.0')
+    server.compress = async (x: any) => x
+    server.uncompress = async (x: any) => x
+
+    try {
+      // Fake socket captures raw frames sent by server
+      const fakeSocket: any = {
+        id: 'fake',
+        isClosed: false,
+        close: jest.fn(),
+        send: jest.fn(),
+        sendRaw: jest.fn(),
+        sendPong: jest.fn(),
+        data: () => ({}),
+        isBackpressure: () => false,
+        backpressure: jest.fn(),
+        checkState: () => true,
+        readRequest: jest.fn()
+      }
+      const session: Session = {
+        hello: { method: 'hello', params: [], id: -1, token: 'test' },
+        createTime: Date.now(),
+        sid: 'test-sid',
+        sessionId: 'test-session',
+        requests: new Map(),
+        lastRequest: Date.now(),
+        lastPing: Date.now(),
+        socket: fakeSocket,
+        options: {}
+      }
+      ;(server as any).sessions.set('test-sid', session)
+
+      // Insert a fake long-running request into server.requests and the session map
+      const fakeRequest: any = {
+        method: 'x',
+        sendData: jest.fn(),
+        startTime: Date.now() - 6000, // older than the 5s threshold
+        session
+      }
+      ;(server as any).requests.set('#r1', fakeRequest)
+      session.requests.set('#r1', fakeRequest)
+
+      // Run the tick; server should emit a FRAME_OP_STATUS to the session socket
+      await server.handleTick()
+
+      expect(fakeSocket.sendRaw).toHaveBeenCalled()
+      const buf = (fakeSocket.sendRaw as jest.Mock).mock.calls[0][1] // sendRaw(ctx, buf)
+      expect(buf[0]).toBe(FRAME_OP_STATUS)
+      const payload = JSON.parse(Buffer.from(buf.slice(1)).toString('utf8'))
+      expect(payload.id).toBe('#r1')
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('handles FRAME_OP_STATUS_RESP by resending the operation when client reports not executing', async () => {
+    const ctx = createFakeCtx()
+    const server = new ClisrServer(ctx, async () => true, '1.0.0')
+    server.compress = async (x: any) => x
+    server.uncompress = async (x: any) => x
+
+    try {
+      const fakeSocket: any = {
+        id: 'fake',
+        isClosed: false,
+        close: jest.fn(),
+        send: jest.fn(),
+        sendRaw: jest.fn(),
+        sendPong: jest.fn(),
+        data: () => ({}),
+        isBackpressure: () => false,
+        backpressure: jest.fn(),
+        checkState: () => true,
+        readRequest: jest.fn()
+      }
+      const session: Session = {
+        hello: { method: 'hello', params: [], id: -1, token: 'test' },
+        createTime: Date.now(),
+        sid: 'test-sid',
+        sessionId: 'test-session',
+        requests: new Map(),
+        lastRequest: Date.now(),
+        lastPing: Date.now(),
+        socket: fakeSocket,
+        options: {}
+      }
+      ;(server as any).sessions.set('test-sid', session)
+
+      // Insert a fake request into the session's requests map with a mocked sendData
+      const fakeRequest: any = {
+        method: 'x',
+        sendData: jest.fn()
+      }
+      ;(server as any).requests.set('#r2', fakeRequest)
+      session.requests.set('#r2', fakeRequest)
+
+      // Simulate receiving FRAME_OP_STATUS_RESP from client with executing=false
+      const payload = JSON.stringify({ id: '#r2', executing: false })
+      const buf = Buffer.alloc(1 + Buffer.byteLength(payload))
+      buf[0] = FRAME_OP_STATUS_RESP
+      buf.write(payload, 1, 'utf8')
+
+      await (server as any).handleMessage(session, buf)
+
+      // The request's sendData should have been invoked
+      expect(fakeRequest.sendData).toHaveBeenCalled()
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('ConnectionSocket.data returns connection data', () => {
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      send: jest.fn(),
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      bufferedAmount: 0
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '192.168.1.1', userAgent: 'TestAgent', language: 'en' }, rpc)
+    const data = cs.data()
+    expect(data.remoteAddress).toBe('192.168.1.1')
+    expect(data.userAgent).toBe('TestAgent')
+    expect(data.language).toBe('en')
+  })
+
+  it('ConnectionSocket.isBackpressure returns true when bufferedAmount exceeds threshold', () => {
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      send: jest.fn(),
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      bufferedAmount: 20 * 1024 * 1024 // 20MB - above backpressure threshold
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+    expect(cs.isBackpressure()).toBe(true)
+  })
+
+  it('ConnectionSocket.isBackpressure returns false when bufferedAmount is low', () => {
+    const rpc = new RPCHandler()
+    const ws: any = {
+      readyState: 1,
+      send: jest.fn(),
+      OPEN: 1,
+      CLOSED: 3,
+      CLOSING: 2,
+      bufferedAmount: 1000 // Low amount
+    }
+    const cs = createConnectionSocket(ws, { remoteAddress: '127.0.0.1', userAgent: '', language: '' }, rpc)
+    expect(cs.isBackpressure()).toBe(false)
   })
 })

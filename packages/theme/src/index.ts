@@ -16,11 +16,12 @@
 import { Analytics } from '@hcengineering/analytics'
 import '@hcengineering/platform-rig/profiles/ui/svelte'
 import { derived, writable } from 'svelte/store'
-import { ThemeVariant, type ThemeVariantType } from './variants'
+import { ThemeVariant, type ThemeVariantType, AccentColor, type AccentColorType } from './variants'
 
 export { default as Theme } from './Theme.svelte'
 export { default as InvertedTheme } from './InvertedTheme.svelte'
-export { ThemeVariant, type ThemeVariantType } from './variants'
+export { ThemeVariant, type ThemeVariantType, AccentColor, type AccentColorType } from './variants'
+export { accentColorOptions, type AccentColorOption, getAccentColorName } from './accent'
 
 /**
  * @public
@@ -66,6 +67,26 @@ export const getCurrentLanguage = (): string => {
  * @public
  */
 export const getCurrentEmoji = (): string => localStorage.getItem('emoji') ?? getDefaultProps('emoji', 'emoji-system')
+/**
+ * @public
+ */
+export const getCurrentAccentColor = (): string =>
+  localStorage.getItem('accent') ?? getDefaultProps('accent', AccentColor.Intabia)
+
+/**
+ * @public
+ *
+ * Build composite accent class name of form `accent-{theme}-{accent}`.
+ * `theme` is expected to be the full theme class (e.g. 'theme-light' or 'theme-dark')
+ * and `accent` is the accent class (e.g. 'accent-huly'). Returns an empty string
+ * when `accent` is null/undefined or an empty string.
+ */
+export const getCompositeAccentClass = (theme: string, accent?: string): string => {
+  if (accent === undefined || accent === null || accent === '') return ''
+  const themeShort = isThemeDark(theme) ? 'dark' : 'light'
+  const accentShort = accent.replace(/^accent-/, '')
+  return `accent-${themeShort}-${accentShort}`
+}
 
 export class ThemeOptions {
   readonly variant: ThemeVariantType
@@ -73,7 +94,8 @@ export class ThemeOptions {
     readonly fontSize: number,
     readonly dark: boolean,
     readonly language: string,
-    readonly emoji: string
+    readonly emoji: string,
+    readonly accent: AccentColorType = AccentColor.Intabia
   ) {
     this.variant = dark ? ThemeVariant.Dark : ThemeVariant.Light
   }
@@ -86,7 +108,8 @@ export function initThemeStore (): void {
       getCurrentFontSize() === 'normal-font' ? 16 : 14,
       isThemeDark(getCurrentTheme()),
       getCurrentLanguage(),
-      getCurrentEmoji()
+      getCurrentEmoji(),
+      getCurrentAccentColor() as AccentColorType
     )
   )
 }

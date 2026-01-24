@@ -20,7 +20,8 @@ import {
   type AvatarInfo,
   type Channel,
   type Contact,
-  type Person
+  type Person,
+  contactId
 } from '@hcengineering/contact'
 import {
   AccountRole,
@@ -36,7 +37,7 @@ import {
 } from '@hcengineering/core'
 import login from '@hcengineering/login'
 import { getResource, type IntlString, type Resources } from '@hcengineering/platform'
-import { MessageBox, getBlobRef, getClient, type ObjectSearchResult } from '@hcengineering/presentation'
+import { MessageBox, getBlobRef, getClient, type ObjectSearchResult, isDisabled } from '@hcengineering/presentation'
 import {
   getPlatformAvatarColorByName,
   getPlatformAvatarColorForTextDef,
@@ -120,13 +121,14 @@ import UserInfo from './components/UserInfo.svelte'
 import UsersList from './components/UsersList.svelte'
 import UsersPopup from './components/UsersPopup.svelte'
 import ActivityChannelPresenter from './components/activity/ActivityChannelPresenter.svelte'
-import NameChangedActivityMessage from './components/activity/NameChangedActivityMessage.svelte'
 import IconAddMember from './components/icons/AddMember.svelte'
 import ExpandRightDouble from './components/icons/ExpandRightDouble.svelte'
 import IconMembers from './components/icons/Members.svelte'
 import ContactNamePresenter from './components/ContactNamePresenter.svelte'
 import PersonPreviewProvider from './components/person/PersonPreviewProvider.svelte'
 import TranslationSettings from './components/TranslationSettings.svelte'
+import CollaboratorEditor from './components/collaborator/CollaboratorEditor.svelte'
+import CollaboratorPresenter from './components/collaborator/CollaboratorPresenter.svelte'
 
 import { get } from 'svelte/store'
 import { canMergePersons, canResendInvitation } from './visibilityTester'
@@ -347,9 +349,6 @@ export default async (): Promise<Resources> => ({
     OpenChannel: openChannelURL,
     ResendInvite: resendInvite
   },
-  activity: {
-    NameChangedActivityMessage
-  },
   component: {
     CreateGuest,
     ContactArrayEditor,
@@ -403,7 +402,9 @@ export default async (): Promise<Resources> => ({
     PersonIdFilter,
     AssigneePopup,
     TranslationSettings,
-    SocialIdentityPresenter
+    SocialIdentityPresenter,
+    CollaboratorEditor,
+    CollaboratorPresenter
   },
   completion: {
     EmployeeQuery: async (
@@ -465,7 +466,9 @@ export default async (): Promise<Resources> => ({
     ChannelTitleProvider: channelTitleProvider,
     ChannelIdentifierProvider: channelIdentifierProvider,
     CanResendInvitation: canResendInvitation,
-    CanMergePersons: canMergePersons
+    CanMergePersons: canMergePersons,
+    PersonsSpecialVisibleIf: () => !isDisabled(`${contactId}.persons`),
+    CompaniesSpecialVisibleIf: () => !isDisabled(`${contactId}.companies`)
   },
   resolver: {
     Location: resolveLocation,

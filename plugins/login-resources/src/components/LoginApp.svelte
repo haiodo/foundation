@@ -20,12 +20,14 @@
     Location,
     Popup,
     Scroller,
+    Label,
     deviceOptionsStore as deviceInfo,
     fetchMetadataLocalStorage,
     getCurrentLocation,
     location,
     setMetadataLocalStorage,
-    themeStore
+    themeStore,
+    desktopPlatform
   } from '@hcengineering/ui'
   import workbench from '@hcengineering/workbench'
   import { onDestroy, onMount } from 'svelte'
@@ -42,9 +44,13 @@
   import SelectWorkspace from './SelectWorkspace.svelte'
   import SignupForm from './SignupForm.svelte'
   import LoginIcon from './icons/LoginIcon.svelte'
+  import SelectDownloads from './SelectDownloads.svelte'
   import { Pages, getAccount, pages } from '..'
+  import { getHref, goTo } from '../utils'
   import login from '../plugin'
 
+  // Resolve static asset URLs at runtime to avoid requiring image module declarations
+  // (prevents TypeScript / diagnostics errors when module types are missing)
   import loginBack from '../../img/login_back.png'
   import loginBack2x from '../../img/login_back_2x.png'
   import loginBackAvif from '../../img/login_back.avif'
@@ -79,7 +85,8 @@
       'autoJoin',
       'confirm',
       'confirmationSend',
-      'auth'
+      'auth',
+      'downloads'
     ]
     if (token === undefined ? !allowedUnauthPages.includes(page) : !pages.includes(page)) {
       const account = fetchMetadataLocalStorage(login.metadata.LastAccount)
@@ -168,6 +175,8 @@
               <PasswordRestore />
             {:else if page === 'selectWorkspace'}
               <SelectWorkspace {navigateUrl} />
+            {:else if page === 'downloads'}
+              <SelectDownloads />
             {:else if page === 'join'}
               <Join />
             {:else if page === 'autoJoin'}
@@ -182,6 +191,20 @@
               <ChangePassword />
             {/if}
           </div>
+          {#if !desktopPlatform && page !== 'downloads'}
+            <div class="mt-4 flex flex-row-reverse mr-4">
+              {#if !($deviceInfo.isMobile && $deviceInfo.minWidth) && getMetadata(login.metadata.DesktopUpdatesUrl) != null && getMetadata(login.metadata.DesktopUpdatesUrl) !== ''}
+                <a
+                  href={getHref('downloads')}
+                  on:click|preventDefault={() => {
+                    goTo('downloads')
+                  }}
+                >
+                  <Label label={login.string.Downloads} />
+                </a>
+              {/if}
+            </div>
+          {/if}
         </Scroller>
       </div>
 

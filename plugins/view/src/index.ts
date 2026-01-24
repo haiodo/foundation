@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-import { Class, Doc, DocumentQuery, FindOptions, Mixin, Ref } from '@hcengineering/core'
+import { Class, Client, Doc, DocumentQuery, FindOptions, Mixin, Ref } from '@hcengineering/core'
 import { Asset, IntlString, Plugin, Resource, plugin } from '@hcengineering/platform'
 import { AnyComponent, PopupAlignment, PopupPosAlignment, type ComponentExtensionId } from '@hcengineering/ui/src/types'
 import {
@@ -30,6 +30,7 @@ import {
   AttributeFilterPresenter,
   AttributePresenter,
   BaseQuery,
+  BuildMarkdownTableMetadata,
   ClassFilters,
   ClassSortFuncs,
   CollectionEditor,
@@ -264,7 +265,8 @@ const view = plugin(viewId, {
     ForbidAttributeChanges: '' as IntlString,
     AllowAttributeChanges: '' as IntlString,
     NoCreatePermissionTitle: '' as IntlString,
-    CopyAsMarkdownTable: '' as IntlString
+    CopyAsMarkdownTable: '' as IntlString,
+    GroupAndSort: '' as IntlString
   },
   icon: {
     Table: '' as Asset,
@@ -356,7 +358,10 @@ const view = plugin(viewId, {
     PositionElementAlignment: '' as Resource<(e?: Event) => PopupAlignment | undefined>
   },
   function: {
-    OpenDocument: '' as Resource<OpenDocumentFunction>
+    OpenDocument: '' as Resource<OpenDocumentFunction>,
+    BuildMarkdownTableFromDocs: '' as Resource<
+    (docs: Doc[], metadata: BuildMarkdownTableMetadata, client: Client) => Promise<string>
+    >
   },
   actionImpl: {
     CopyTextToClipboard: '' as ViewAction<{
@@ -369,6 +374,10 @@ const view = plugin(viewId, {
     }>,
     CopyAsMarkdownTable: '' as ViewAction<{
       cardClass: Ref<Class<Doc>>
+      viewlet?: Viewlet
+      config?: Array<string | any>
+      query?: DocumentQuery<Doc>
+      viewOptions?: any
     }>,
     UpdateDocument: '' as ViewAction<{
       key: string

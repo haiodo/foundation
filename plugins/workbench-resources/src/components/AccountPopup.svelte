@@ -18,7 +18,13 @@
   import core, { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import rating, { type PersonRating } from '@hcengineering/rating'
   import login, { loginId } from '@hcengineering/login'
-  import { createQuery, getCurrentWorkspaceUrl, hasResource, isDisabled } from '@hcengineering/presentation'
+  import presentation, {
+    createQuery,
+    getCurrentWorkspaceUrl,
+    hasResource,
+    isDisabled,
+    IconDownload
+  } from '@hcengineering/presentation'
   import setting, { settingId, SettingsCategory } from '@hcengineering/setting'
   import {
     Action,
@@ -35,9 +41,10 @@
   import workbench from '../plugin'
   import { logOut } from '../utils'
   import HelpAndSupport from './HelpAndSupport.svelte'
+
   import { Analytics } from '@hcengineering/analytics'
   import { allowGuestSignUpStore } from '@hcengineering/view-resources'
-  import { getClient } from '@hcengineering/account-client'
+  import { getMetadata } from '@hcengineering/platform'
 
   let items: SettingsCategory[] = []
 
@@ -164,6 +171,26 @@
       group: 'end'
     })
 
+    // Hide downloads action on mobile phones (small viewport + mobile detection)
+    if (!($deviceInfo.isMobile && $deviceInfo.minWidth)) {
+      actions.push({
+        icon: IconDownload,
+        label: presentation.string.Download,
+        action: async () => {
+          // Navigate to the dedicated downloads page instead of showing an inline popup
+          closePopup()
+          const loc = getCurrentResolvedLocation()
+          loc.fragment = undefined
+          loc.query = undefined
+          loc.path[0] = loginId
+          loc.path[1] = 'downloads'
+          loc.path.length = 2
+          navigate(loc)
+        },
+        group: 'end'
+      })
+    }
+
     if (account.role === AccountRole.ReadOnlyGuest) {
       if ($allowGuestSignUpStore) {
         actions.push({
@@ -179,7 +206,7 @@
         icon: setting.icon.InviteWorkspace,
         label: view.string.ReadOnlySignUp,
         action: async () => {
-          open('https://huly.io/signup')
+          open(getMetadata(presentation.metadata.SignupUrl))
         },
         group: 'end'
       })
@@ -229,11 +256,11 @@
           <div class="overflow-label fs-bold">System</div>
         </div>
       {:else}
-        {#if person}
+        {#if person != null}
           <Component is={contact.component.Avatar} props={{ person, size: 'medium', name: person.name }} />
         {/if}
         <div class="ml-2 flex-col">
-          {#if person}
+          {#if person != null}
             <div class="overflow-label fs-bold caption-color" class:mt-2={hasRating}>
               {formatName(person.name)}
             </div>

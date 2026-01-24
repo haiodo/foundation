@@ -13,20 +13,18 @@
 // limitations under the License.
 //
 
-import activity from '@hcengineering/activity'
 import contact from '@hcengineering/contact'
 import {
   AccountRole,
   DOMAIN_MODEL,
   type AccountUuid,
   type Blob,
-  type ClassCollaborators,
   type Ref,
   type IntegrationKind
 } from '@hcengineering/core'
 import exportPlugin from '@hcengineering/export'
 import { Mixin, Model, UX, type Builder } from '@hcengineering/model'
-import core, { TClass, TConfiguration, TDoc } from '@hcengineering/model-core'
+import core, { defineCollaborators, TClass, TConfiguration, TDoc } from '@hcengineering/model-core'
 import view, { createAction } from '@hcengineering/model-view'
 import notification from '@hcengineering/notification'
 import type { Asset, IntlString } from '@hcengineering/platform'
@@ -164,10 +162,7 @@ export function createModel (builder: Builder): void {
     setting.ids.SettingsWidget
   )
 
-  builder.createDoc<ClassCollaborators<Integration>>(core.class.ClassCollaborators, core.space.Model, {
-    attachedTo: setting.class.Integration,
-    fields: ['modifiedBy']
-  })
+  defineCollaborators(builder, setting.class.Integration, { fields: ['modifiedBy'] })
 
   builder.createDoc(
     setting.class.SettingsCategory,
@@ -454,19 +449,6 @@ export function createModel (builder: Builder): void {
       component: setting.component.Settings
     },
     setting.ids.SettingApp
-  )
-
-  builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
-    core.space.Model,
-    {
-      objectClass: setting.class.Integration,
-      icon: setting.icon.Integrations,
-      label: setting.string.IntegrationWith,
-      action: 'update',
-      hideIfRemoved: true
-    },
-    setting.ids.UpdateIntegrationActivityViewlet
   )
 
   builder.mixin(core.class.TypeString, core.class.Class, view.mixin.ObjectEditor, {

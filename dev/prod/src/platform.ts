@@ -51,7 +51,7 @@ import rekoni from '@hcengineering/rekoni'
 import { requestId } from '@hcengineering/request'
 import setting, { settingId } from '@hcengineering/setting'
 import sign from '@hcengineering/sign'
-import { supportId } from '@hcengineering/support'
+import support, { supportId, supportLink, reportBugLink, docsLink, privacyPolicyLink } from '@hcengineering/support'
 import { surveyId } from '@hcengineering/survey'
 import { tagsId } from '@hcengineering/tags'
 import { taskId } from '@hcengineering/task'
@@ -198,6 +198,11 @@ export interface Config {
   PULSE_URL?: string
   HULYLAKE_URL?: string
   DISABLED_FEATURES?: string
+  SIGNUP_URL?: string
+
+  DESKTOP_UPDATES_URL?: string
+  DESKTOP_UPDATES_CHANNEL?: string
+  DESKTOP_UPDATES_CHANNELS?: string
 }
 
 export interface Branding {
@@ -208,6 +213,12 @@ export interface Branding {
     type?: string
     sizes?: string
   }>
+  support?: {
+    supportLink?: string
+    reportBugLink?: string
+    docsLink?: string
+    privacyPolicyLink?: string
+  }
   languages?: string
   lastNameFirst?: string
   defaultLanguage?: string
@@ -459,6 +470,14 @@ export async function configurePlatform() {
   setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP === 'true')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
 
+
+  const updatesUrl = config.DESKTOP_UPDATES_URL
+  // NOTE: env format is: default_value;key1:value1;key2:value2...
+  const updatesChannels = (config.DESKTOP_UPDATES_CHANNELS ?? config.DESKTOP_UPDATES_CHANNEL ?? 'latest').split(';').map(c => c.trim().split(':'))
+
+  setMetadata(login.metadata.DesktopUpdatesUrl, updatesUrl)
+  setMetadata(login.metadata.DesktopUpdatesChannel, updatesChannels)
+
   setMetadata(login.metadata.PasswordValidations, PASSWORD_REQUIREMENTS[config.PASSWORD_STRICTNESS ?? 'none'])
 
   setMetadata(presentation.metadata.UploadURL, config.UPLOAD_URL)
@@ -469,11 +488,14 @@ export async function configurePlatform() {
   )
   setMetadata(presentation.metadata.CollaboratorUrl, config.COLLABORATOR_URL)
 
+  setMetadata(platform.metadata.DevModel, false)
+
   setMetadata(presentation.metadata.FrontUrl, config.FRONT_URL)
   setMetadata(presentation.metadata.PreviewUrl, config.PREVIEW_URL)
   setMetadata(presentation.metadata.StatsUrl, config.STATS_URL)
   setMetadata(presentation.metadata.LinkPreviewUrl, config.LINK_PREVIEW_URL)
   setMetadata(presentation.metadata.UseOTP, config.USE_OTP !== 'false')
+  setMetadata(presentation.metadata.SignupUrl, config.SIGNUP_URL ?? 'https://platform.intabia.ru/signup')
 
   const disabledFeatures = (config.DISABLED_FEATURES ??'').split(',').map(it => it.trim()).filter(it => it.length > 0)
   setMetadata(presentation.metadata.DisabledFeatures, new Set(disabledFeatures))
@@ -520,6 +542,11 @@ export async function configurePlatform() {
 
   setMetadata(presentation.metadata.PulseUrl, config.PULSE_URL)
   setMetadata(presentation.metadata.HulylakeUrl, config.HULYLAKE_URL ?? '')
+
+  setMetadata(support.metadata.SupportLink, myBranding.support?.supportLink ?? supportLink)
+  setMetadata(support.metadata.ReportBugLink, myBranding.support?.reportBugLink ?? reportBugLink)
+  setMetadata(support.metadata.DocsLink, myBranding.support?.docsLink ?? docsLink)
+  setMetadata(support.metadata.PrivacyPolicyLink, myBranding.support?.privacyPolicyLink ?? privacyPolicyLink)
 
   const languages = myBranding.languages
     ? myBranding.languages.split(',').map((l) => l.trim())

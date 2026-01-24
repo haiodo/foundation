@@ -108,9 +108,18 @@ export default plugin(textEditorId, {
     SetCellHighlightColor: '' as IntlString,
     SetTextColor: '' as IntlString,
 
+    RefreshTable: '' as IntlString,
+    ShowDiff: '' as IntlString,
+    SeeOriginalData: '' as IntlString,
+    CategoryVersioning: '' as IntlString,
+    TableDiffLabel: '' as IntlString,
+    TableRefreshConfirmationLabel: '' as IntlString,
+
     ConvertToLinkPreview: '' as IntlString,
     ConvertToEmbedPreview: '' as IntlString,
-    UnableToLoadEmbeddedContent: '' as IntlString
+    UnableToLoadEmbeddedContent: '' as IntlString,
+    SourceURL: '' as IntlString,
+    SelectedDocuments: '' as IntlString<{ count: number }>
   },
   icon: {
     Header1: '' as Asset,
@@ -143,6 +152,9 @@ export default plugin(textEditorId, {
     Brush: '' as Asset,
     TextStyle: '' as Asset,
     LinkPreview: '' as Asset,
+    Refresh: '' as Asset,
+    ShowDiff: '' as Asset,
+    SeeOriginalData: '' as Asset,
     EmbedPreview: '' as Asset
   }
 })

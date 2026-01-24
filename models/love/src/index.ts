@@ -25,7 +25,6 @@ import {
   DOMAIN_TRANSIENT,
   DateRangeMode,
   IndexKind,
-  type ClassCollaborators,
   type AccountUuid
 } from '@hcengineering/core'
 import {
@@ -63,7 +62,7 @@ import {
   Hidden
 } from '@hcengineering/model'
 import calendar, { TEvent, TSchedule } from '@hcengineering/model-calendar'
-import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
+import core, { defineCollaborators, TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import preference, { TPreference } from '@hcengineering/model-preference'
 import presentation from '@hcengineering/model-presentation'
 import view, { createAction, createAttributePresenter } from '@hcengineering/model-view'
@@ -85,7 +84,7 @@ export const DOMAIN_LOVE = 'love' as Domain
 export const DOMAIN_MEETING_MINUTES = 'meeting-minutes' as Domain
 
 @Model(love.class.Room, core.class.Doc, DOMAIN_LOVE)
-@UX(love.string.Room, love.icon.Love)
+@UX(love.string.Room, love.icon.Love, undefined, undefined, undefined, undefined, 'name')
 export class TRoom extends TDoc implements Room {
   @Prop(TypeString(), core.string.Name)
   @Index(IndexKind.FullText)
@@ -187,7 +186,8 @@ export class TMeeting extends TEvent implements Meeting {
   undefined,
   'createdOn',
   undefined,
-  love.string.MeetingsMinutes
+  love.string.MeetingsMinutes,
+  'title'
 )
 export class TMeetingMinutes extends TAttachedDoc implements MeetingMinutes, Todoable {
   @Prop(TypeRef(core.class.Doc), love.string.Room, { editor: love.component.MeetingMinutesDocEditor })
@@ -613,11 +613,7 @@ export function createModel (builder: Builder): void {
     enabledTypes: [love.ids.MeetingMinutesChatNotification]
   })
 
-  builder.createDoc<ClassCollaborators<MeetingMinutes>>(core.class.ClassCollaborators, core.space.Model, {
-    attachedTo: love.class.MeetingMinutes,
-    fields: ['createdBy'],
-    provideSecurity: true
-  })
+  defineCollaborators(builder, love.class.MeetingMinutes, { fields: ['createdBy'], provideSecurity: true })
 
   builder.mixin(love.class.Room, core.class.Class, core.mixin.IndexConfiguration, {
     indexes: [],

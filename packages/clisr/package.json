@@ -57,7 +57,7 @@
     "express": "^4.21.2",
     "@hcengineering/server-token": "workspace:^0.7.17"
   },
-  "repository": "https://github.com/intabiafusion/dqueue",
+  "repository": "https://github.com/haiodo/foundation",
   "publishConfig": {
     "access": "public"
   },

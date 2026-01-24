@@ -15,9 +15,9 @@
 
 import activity from '@hcengineering/activity'
 import chunter from '@hcengineering/chunter'
-import { AccountRole, type ClassCollaborators, type Ref, type Status } from '@hcengineering/core'
+import { AccountRole, type Ref, type Status } from '@hcengineering/core'
 import { type Builder } from '@hcengineering/model'
-import core from '@hcengineering/model-core'
+import core, { defineCollaborators } from '@hcengineering/model-core'
 import { generateClassNotificationTypes } from '@hcengineering/model-notification'
 import presentation from '@hcengineering/model-presentation'
 import task from '@hcengineering/model-task'
@@ -25,7 +25,7 @@ import view from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import notification from '@hcengineering/notification'
 import setting from '@hcengineering/setting'
-import pluginState, { type Issue, trackerId } from '@hcengineering/tracker'
+import pluginState, { trackerId } from '@hcengineering/tracker'
 
 import type { TaskStatusFactory } from '@hcengineering/task'
 import { PaletteColorIndexes } from '@hcengineering/ui/src/colors'
@@ -503,10 +503,7 @@ export function createModel (builder: Builder): void {
 
   defineSortAndGrouping(builder)
 
-  builder.createDoc<ClassCollaborators<Issue>>(core.class.ClassCollaborators, core.space.Model, {
-    attachedTo: tracker.class.Issue,
-    fields: ['createdBy', 'assignee']
-  })
+  defineCollaborators(builder, tracker.class.Issue, { fields: ['createdBy', 'assignee'] })
 
   builder.mixin(tracker.class.Issue, core.class.Class, setting.mixin.Editable, {
     value: true
@@ -531,82 +528,6 @@ export function createModel (builder: Builder): void {
   builder.mixin(tracker.class.IssueTemplate, core.class.Class, view.mixin.ObjectPanel, {
     component: tracker.component.EditIssueTemplate
   })
-
-  builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
-    core.space.Model,
-    {
-      objectClass: tracker.class.Issue,
-      action: 'update',
-      icon: tracker.icon.Issue,
-      config: {
-        status: {
-          iconPresenter: tracker.component.IssueStatusIcon
-        },
-        priority: {
-          iconPresenter: tracker.component.PriorityIconPresenter
-        },
-        estimation: {
-          icon: tracker.icon.Estimation
-        }
-      }
-    },
-    tracker.ids.IssueUpdatedActivityViewlet
-  )
-
-  builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
-    core.space.Model,
-    {
-      objectClass: tracker.class.Issue,
-      action: 'create',
-      icon: tracker.icon.Issue,
-      valueAttr: 'title'
-    },
-    tracker.ids.IssueCreatedActivityViewlet
-  )
-
-  builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
-    core.space.Model,
-    {
-      objectClass: tracker.class.Issue,
-      action: 'remove',
-      icon: tracker.icon.Issue,
-      valueAttr: 'title'
-    },
-    tracker.ids.IssueRemovedActivityViewlet
-  )
-
-  builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
-    core.space.Model,
-    {
-      objectClass: tracker.class.Milestone,
-      action: 'update',
-      config: {
-        status: {
-          iconPresenter: tracker.component.MilestoneStatusIcon
-        }
-      }
-    },
-    tracker.ids.MilestionUpdatedActivityViewlet
-  )
-
-  builder.createDoc(
-    activity.class.DocUpdateMessageViewlet,
-    core.space.Model,
-    {
-      objectClass: tracker.class.IssueTemplate,
-      action: 'update',
-      config: {
-        priority: {
-          iconPresenter: tracker.component.PriorityIconPresenter
-        }
-      }
-    },
-    tracker.ids.IssueTemplateUpdatedActivityViewlet
-  )
 
   defineApplication(builder, { myIssuesId, allIssuesId, issuesId, componentsId, milestonesId, templatesId, labelsId })
 
@@ -640,50 +561,6 @@ export function createModel (builder: Builder): void {
     role: AccountRole.Maintainer,
     order: 4000
   })
-
-  builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: tracker.class.Issue,
-      label: chunter.string.LeftComment
-    },
-    tracker.ids.IssueChatMessageViewlet
-  )
-
-  builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: tracker.class.IssueTemplate,
-      label: chunter.string.LeftComment
-    },
-    tracker.ids.IssueTemplateChatMessageViewlet
-  )
-
-  builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: tracker.class.Component,
-      label: chunter.string.LeftComment
-    },
-    tracker.ids.ComponentChatMessageViewlet
-  )
-
-  builder.createDoc(
-    chunter.class.ChatMessageViewlet,
-    core.space.Model,
-    {
-      messageClass: chunter.class.ChatMessage,
-      objectClass: tracker.class.Milestone,
-      label: chunter.string.LeftComment
-    },
-    tracker.ids.MilestoneChatMessageViewlet
-  )
 
   builder.mixin(tracker.class.Issue, core.class.Class, view.mixin.ObjectIcon, {
     component: tracker.component.IssueStatusPresenter
