@@ -31,6 +31,7 @@ import { cardId } from '@hcengineering/card'
 import { chunterId } from '@hcengineering/chunter'
 import client, { clientId } from '@hcengineering/client'
 import contactPlugin, { contactId } from '@hcengineering/contact'
+import { converterId } from '@hcengineering/converter'
 import { documentsId } from '@hcengineering/controlled-documents'
 import { desktopPreferencesId } from '@hcengineering/desktop-preferences'
 import { desktopDownloadsId } from '@hcengineering/desktop-downloads'
@@ -149,7 +150,7 @@ import print, { printId } from '@hcengineering/print'
 import sign from '@hcengineering/sign'
 import textEditor, { textEditorId } from '@hcengineering/text-editor'
 
-import { initThemeStore, setDefaultLanguage } from '@hcengineering/theme'
+import { AccentColorType, initThemeStore, setDefaultLanguage, setForceAccent } from '@hcengineering/theme'
 import { configureNotifications } from './notifications'
 import { configureAnalyticsProviders } from '@hcengineering/analytics-providers'
 import { Branding, Config } from './types'
@@ -337,6 +338,8 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   setMetadata(login.metadata.AccountsUrl, config.ACCOUNTS_URL)
   setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP === 'true')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
+  setMetadata(login.metadata.LoginTheme, config.LOGIN_THEME ?? 'intabia')
+
   setMetadata(presentation.metadata.UploadURL, config.UPLOAD_URL)
   setMetadata(presentation.metadata.UploadURL, config.FILES_URL)
   setMetadata(presentation.metadata.DatalakeUrl, config.DATALAKE_URL ?? '')
@@ -363,6 +366,10 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   setMetadata(github.metadata.GithubClientID, config.GITHUB_CLIENTID ?? '')
   setMetadata(github.metadata.GithubURL, config.GITHUB_URL ?? '')
 
+  if (config.ACCENT_THEME != null && config.ACCENT_THEME.trim() !== '') {
+    setForceAccent(config.ACCENT_THEME as AccentColorType)
+  }
+
   setMetadata(communication.metadata.Enabled, config.COMMUNICATION_API_ENABLED === 'true')
 
   if (config.MODEL_VERSION != null) {
@@ -383,7 +390,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
 
   setMetadata(rekoni.metadata.RekoniUrl, config.REKONI_URL)
   setMetadata(contactPlugin.metadata.LastNameFirst, myBranding.lastNameFirst === 'true')
-  setMetadata(love.metadata.ServiceEnpdoint, config.LOVE_ENDPOINT)
+  setMetadata(love.metadata.ServiceEndpoint, config.LOVE_ENDPOINT)
   setMetadata(love.metadata.WebSocketURL, config.LIVEKIT_WS)
   setMetadata(print.metadata.PrintURL, config.PRINT_URL)
   setMetadata(sign.metadata.SignURL, config.SIGN_URL)
@@ -405,7 +412,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   const languages =
     myBranding.languages !== undefined && myBranding.languages !== ''
       ? myBranding.languages.split(',').map((l) => l.trim())
-      : ['en', 'ru', 'es', 'pt', 'zh', 'fr', 'cs', 'it', 'de', 'ja', 'tr']
+      : ['en', 'ru', 'es', 'pt', 'pt-br', 'zh', 'fr', 'cs', 'it', 'de', 'ja', 'tr']
 
   setMetadata(uiPlugin.metadata.Languages, languages)
 
@@ -429,6 +436,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   addLocation(onboardId, async () => await import('@hcengineering/onboard-resources'))
   addLocation(workbenchId, async () => await import('@hcengineering/workbench-resources'))
   addLocation(viewId, async () => await import('@hcengineering/view-resources'))
+  addLocation(converterId, async () => await import('@hcengineering/converter-resources'))
   addLocation(taskId, async () => await import('@hcengineering/task-resources'))
   addLocation(contactId, async () => await import('@hcengineering/contact-resources'))
   addLocation(chunterId, async () => await import('@hcengineering/chunter-resources'))

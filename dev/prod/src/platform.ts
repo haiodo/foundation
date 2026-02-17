@@ -24,6 +24,7 @@ import { cardId } from '@hcengineering/card'
 import { chunterId } from '@hcengineering/chunter'
 import client, { clientId } from '@hcengineering/client'
 import contactPlugin, { contactId } from '@hcengineering/contact'
+import { converterId } from '@hcengineering/converter'
 import { documentsId } from '@hcengineering/controlled-documents'
 import { desktopPreferencesId } from '@hcengineering/desktop-preferences'
 import { diffviewId } from '@hcengineering/diffview'
@@ -142,11 +143,12 @@ import { coreId } from '@hcengineering/core'
 import presentation, { loadServerConfig, createFileStorage, presentationId } from '@hcengineering/presentation'
 
 import { setMetadata } from '@hcengineering/platform'
-import { initThemeStore, setDefaultLanguage } from '@hcengineering/theme'
+import { initThemeStore, setDefaultLanguage, setForceAccent, type AccentColorType } from '@hcengineering/theme'
 
 import { preferenceId } from '@hcengineering/preference'
 import { uiId } from '@hcengineering/ui/src/plugin'
 import { configureAnalytics } from './analytics'
+import { Analytics } from '@hcengineering/analytics'
 
 export interface Config {
   ACCOUNTS_URL: string
@@ -203,6 +205,9 @@ export interface Config {
   DESKTOP_UPDATES_URL?: string
   DESKTOP_UPDATES_CHANNEL?: string
   DESKTOP_UPDATES_CHANNELS?: string
+
+  ACCENT_THEME?: string
+  LOGIN_THEME?: string
 }
 
 export interface Branding {
@@ -420,7 +425,8 @@ export async function configurePlatform() {
         if (err.message.includes('Loading chunk') && i != 4) {
           continue
         }
-        console.log('reload due to loading error')
+        Analytics.handleError(err)
+        console.error(err)
         location.reload()
       }
     }
@@ -469,6 +475,7 @@ export async function configurePlatform() {
   setMetadata(login.metadata.AccountsUrl, config.ACCOUNTS_URL)
   setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP === 'true')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
+  setMetadata(login.metadata.LoginTheme, config.LOGIN_THEME ?? 'intabia')
 
 
   const updatesUrl = config.DESKTOP_UPDATES_URL
@@ -487,6 +494,10 @@ export async function configurePlatform() {
     createFileStorage(config.UPLOAD_URL, config.DATALAKE_URL, config.HULYLAKE_URL)
   )
   setMetadata(presentation.metadata.CollaboratorUrl, config.COLLABORATOR_URL)
+
+  if( config.ACCENT_THEME != null && config.ACCENT_THEME.trim() !== '') {
+    setForceAccent(config.ACCENT_THEME as AccentColorType)
+  }
 
   setMetadata(platform.metadata.DevModel, false)
 
@@ -530,7 +541,7 @@ export async function configurePlatform() {
 
   setMetadata(uiPlugin.metadata.DefaultApplication, login.component.LoginApp)
   setMetadata(contactPlugin.metadata.LastNameFirst, myBranding.lastNameFirst === 'true')
-  setMetadata(love.metadata.ServiceEnpdoint, config.LOVE_ENDPOINT)
+  setMetadata(love.metadata.ServiceEndpoint, config.LOVE_ENDPOINT)
   setMetadata(love.metadata.WebSocketURL, config.LIVEKIT_WS)
   setMetadata(print.metadata.PrintURL, config.PRINT_URL)
   setMetadata(sign.metadata.SignURL, config.SIGN_URL)
@@ -550,7 +561,7 @@ export async function configurePlatform() {
 
   const languages = myBranding.languages
     ? myBranding.languages.split(',').map((l) => l.trim())
-    : ['en', 'ru', 'es', 'pt', 'zh', 'fr', 'cs', 'it', 'de', 'ja', 'tr']
+    : ['en', 'ru', 'es', 'pt', 'pt-br', 'zh', 'fr', 'cs', 'it', 'de', 'ja', 'tr']
 
   setMetadata(uiPlugin.metadata.Languages, languages)
 
@@ -563,7 +574,9 @@ export async function configurePlatform() {
       [githubId, github.component.ConnectApp],
       [calendarId, calendar.component.ConnectApp],
       [guestId, guest.component.GuestApp],
-      [globalProfileRoute, globalProfile.component.GlobalProfileApp]
+      [globalProfileRoute, globalProfile.component.GlobalProfileApp],
+      ['themes', workbench.component.Themes],
+      ['meetings', love.component.GuestMeetingApp]
     ])
   )
 
@@ -578,6 +591,7 @@ export async function configurePlatform() {
     async () => await import(/* webpackChunkName: "workbench" */ '@hcengineering/workbench-resources')
   )
   addLocation(viewId, async () => await import(/* webpackChunkName: "view" */ '@hcengineering/view-resources'))
+  addLocation(converterId, async () => await import(/* webpackChunkName: "converter" */ '@hcengineering/converter-resources'))
   addLocation(taskId, async () => await import(/* webpackChunkName: "task" */ '@hcengineering/task-resources'))
   addLocation(contactId, async () => await import(/* webpackChunkName: "contact" */ '@hcengineering/contact-resources'))
   addLocation(chunterId, async () => await import(/* webpackChunkName: "chunter" */ '@hcengineering/chunter-resources'))

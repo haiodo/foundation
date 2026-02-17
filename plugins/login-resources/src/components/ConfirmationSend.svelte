@@ -13,13 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Label } from '@hcengineering/ui'
+  import Label from './internal/Label.svelte'
   import { onMount } from 'svelte'
   import login from '../plugin'
   import { afterConfirm, getAccount } from '../utils'
 
   const CHECK_INTERVAL = 1000
-  let checkHandle: number | undefined
+  let checkHandle: any | undefined
   let mounted = false
 
   async function checkAccountStatus (): Promise<void> {

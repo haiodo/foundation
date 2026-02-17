@@ -53,6 +53,7 @@ export default plugin(loginId, {
     LoginAccount: '' as Metadata<string>,
     DisableSignUp: '' as Metadata<boolean>,
     HideLocalLogin: '' as Metadata<boolean>,
+    LoginTheme: '' as Metadata<string>,
     TransactorOverride: '' as Metadata<string>,
     PasswordValidations: '' as Metadata<{
       MinLength: number
@@ -94,7 +95,10 @@ export default plugin(loginId, {
     RestoreArchivedWorkspace: '' as IntlString,
     PasswordExpiredDesc: '' as IntlString,
     Downloads: '' as IntlString,
-    BackLabel: '' as IntlString
+    BackLabel: '' as IntlString,
+    Email: '' as IntlString,
+    Password: '' as IntlString,
+    PasswordRepeat: '' as IntlString
   },
   function: {
     SendInvite: '' as Resource<(email: string, role: AccountRole) => Promise<void>>,
@@ -113,7 +117,8 @@ export default plugin(loginId, {
     SelectWorkspace: '' as Resource<
     (
       workspace: string,
-      token: string | null | undefined
+      token: string | null | undefined,
+      doNavigate?: boolean | undefined // Default to true
     ) => Promise<[Status, WorkspaceLoginInfo | undefined, boolean]>
     >,
     ExchangeGuestToken: '' as Resource<(token: string) => Promise<string>>,

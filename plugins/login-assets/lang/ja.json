@@ -8,11 +8,13 @@
   "string": {
     "LogIn": "ログイン",
     "SignUp": "サインアップ",
+    "SignUpTab": "登録",
     "CreateWorkspace": "ワークスペースを作成",
     "HaveWorkspace": "すでにワークスペースをお持ちですか？",
     "LastName": "姓",
     "FirstName": "名",
     "Join": "参加",
+    "JoinWorkspace": "{workspaceName} に参加",
     "Email": "メールアドレス",
     "Password": "パスワード",
     "Workspace": "ワークスペース名",
@@ -68,10 +70,10 @@
     "RestoreArchivedWorkspace": "アーカイブを解除",
     "Hello": "{name} さん、こんにちは",
     "ProcessingInvite": "招待を処理中です。しばらくお待ちください...",
-    "SignToProceed": "続行するにはサインインしてください",
+    "SignToProceed": "Intabia. Platform",
     "Proceed": "続行",
     "SetPasswordLater": "後でパスワードを設定します",
-    "SetPasswordNow": "今すぐパスワードを設定します",
+    "SetPasswordNow": "今すぐパスワードを設定する",
     "LoginAsGuest": "ゲストとして続行",
     "SignUpToCreateWorkspace": "ゲストアクセス可能なワークスペースはありません。登録して独自のワークスペースを作成してください。",
     "WhatIsYourName": "お名前は何ですか？",
@@ -85,6 +87,14 @@
     "EnterNewPassword": "新しいパスワードを入力",
     "RepeatNewPassword": "新しいパスワードを再入力",
     "PasswordExpiredDesc": "パスワードの有効期限が切れています。続行するには新しいパスワードを設定してください",
-    "BackLabel": "戻る"
+    "BackLabel": "戻る",
+    "PasswordExpiredDesc": "パスワードの有効期限が切れています。続行するには新しいパスワードを設定してください。",
+    "JoinWithThisAccount": "このアカウントで参加",
+    "UseDifferentAccount": "別のアカウントを使用",
+    "UseCurrentAccountToJoin": "すでにサインインしていますか？",
+    "LogInAndJoin": "ログインして参加",
+    "SignUpAndJoin": "サインアップして参加",
+    "CreateNewAccount": "新規アカウントを作成",
+    "SignedInAs": "{name} としてサインイン中"
   }
 }

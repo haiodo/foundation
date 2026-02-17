@@ -16,11 +16,14 @@
 <script lang="ts">
   import type { IntlString } from '@hcengineering/platform'
   import { OK, Severity, Status, translate } from '@hcengineering/platform'
-  import { Button, Label, StylishEdit, deviceOptionsStore as deviceInfo, themeStore } from '@hcengineering/ui'
+  import { deviceOptionsStore as deviceInfo, themeStore } from '@hcengineering/ui'
+  import Label from './internal/Label.svelte'
+  import StylishEdit from './internal/StylishEdit.svelte'
+  import FormButton from './internal/FormButton.svelte'
   import StatusControl from './StatusControl.svelte'
 
   import { onMount } from 'svelte'
-  import { BottomAction } from '..'
+  import { BottomAction, loginTheme } from '..'
   import { makeSequential } from '../mutex'
   import type { Field } from '../types'
   import login from '../plugin'
@@ -34,6 +37,7 @@
   }
 
   export let caption: IntlString
+  export let captionParams: Record<string, any> = {}
   export let status: Status
   export let fields: Field[]
   export let action: Action
@@ -46,6 +50,9 @@
   export let subtitle: string | undefined = undefined
   export let signUpDisabled = false
   export let isLoading: boolean = false
+  export let proceedDisabled: boolean = false
+  export let actionButtonDataId: string | undefined = undefined
+  export let secondaryButtonDataId: string | undefined = undefined
 
   const validate = makeSequential(async function validateAsync (language: string): Promise<boolean> {
     if (ignoreInitialValidation || isLoading) return true
@@ -122,8 +129,7 @@
 <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <form
   class="container"
-  style:padding={$deviceInfo.docWidth <= 480 ? '.25rem 1.25rem' : '4rem 5rem'}
-  style:min-height={$deviceInfo.docHeight > 720 ? '42rem' : '0'}
+  style:padding={$deviceInfo.docWidth <= 480 ? '.25rem 1.25rem' : '2rem 2rem'}
   on:keydown={(evt) => {
     if (evt.key === 'Enter') {
       evt.preventDefault()
@@ -139,6 +145,11 @@
   }}
 >
   {#if loginState !== 'none'}
+    {#if $loginTheme.showLoginTitle}
+      <div class="main-heading">
+        <Label className="login-label main-heading__label" variant="heading" label={login.string.SignToProceed} />
+      </div>
+    {/if}
     <Tabs {loginState} {signUpDisabled} />
   {:else}
     {#if subtitle !== undefined}
@@ -147,7 +158,7 @@
       </div>
     {/if}
     <div class="flex-row-center">
-      <div class="title"><Label label={caption} /></div>
+      <div class="title"><Label label={caption} params={captionParams} /></div>
       <slot name="region-selector" />
     </div>
   {/if}
@@ -156,7 +167,7 @@
       <div class={field.short !== undefined && !($deviceInfo.docWidth <= 600) ? 'form-col' : 'form-row'}>
         <StylishEdit
           label={field.i18n}
-          name={field.id}
+          name={field.idOverride ?? field.id}
           password={field.password}
           disabled={inAction || field.disabled}
           bind:value={object[field.name]}
@@ -167,20 +178,21 @@
         />
       </div>
     {/each}
-
+    <slot name="after-fields" />
     <div class="status">
       <StatusControl {status} />
     </div>
 
     <div class="form-row send">
-      <Button
+      <FormButton
+          dataId={actionButtonDataId}
         label={action.i18n}
         kind={'contrast'}
-        shape={'round2'}
+        shape={'round'}
         size={'x-large'}
         width="100%"
         loading={inAction}
-        disabled={status.severity !== Severity.OK && status.severity !== Severity.ERROR}
+        disabled={proceedDisabled || (status.severity !== Severity.OK && status.severity !== Severity.ERROR)}
         on:click={(e) => {
           e.preventDefault()
           if (!inAction) {
@@ -195,7 +207,8 @@
     </div>
     {#if secondaryButtonLabel !== undefined && secondaryButtonAction}
       <div class="form-row">
-        <Button
+          <FormButton
+        dataId={secondaryButtonDataId}
           label={secondaryButtonLabel}
           width="100%"
           on:click={(e) => {
@@ -224,10 +237,40 @@
     display: flex;
     flex-direction: column;
 
+    .fs-title {
+      color: var(--login-content-color, var(--theme-content-color));
+    }
+
     .title {
-      font-weight: 500;
-      font-size: 1.25rem;
-      color: var(--theme-caption-color);
+      font-weight: var(--login-title-font-weight, 500);
+      font-size: var(--login-title-font-size, 1.25rem);
+      color: var(--login-caption-color, var(--theme-caption-color));
+    }
+
+    /* Main heading (title above tabs/signup/login) */
+    .main-heading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 28px;
+      font-style: Bold;
+    }
+
+    .login-label.main-heading__label {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding: 0 0 16px;
+      width: 412px;
+      height: 36px;
+      font-family: 'Open Sans', sans-serif;
+      font-style: normal;
+      font-weight: var(--login-main-heading-font-weight, 700);
+      font-size: var(--login-main-heading-font-size, 28px);
+      line-height: var(--login-main-heading-line-height, 38px);
+      letter-spacing: var(--login-main-heading-letter-spacing, -0.005em);
+      text-align: center;
+      color: var(--login-heading-color, #000061) !important;
     }
     .status {
       padding-top: 1rem;
@@ -236,11 +279,16 @@
     }
 
     .form {
+      background: var(--login-form-bg, transparent);
+      padding: var(--login-form-padding, 0);
+      border-radius: var(--login-form-border-radius, 0);
+      box-shadow: var(--login-form-box-shadow, none);
+      color: var(--login-content-color, var(--theme-content-color));
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      column-gap: 0.75rem;
-      row-gap: 1.5rem;
-      margin-top: 1.5rem;
+      column-gap: var(--login-form-column-gap, 0.75rem);
+      row-gap: var(--login-form-row-gap, 1.5rem);
+      margin-top: var(--login-form-margin-top, 1.5rem);
+      grid-template-columns: var(--login-form-grid-template, 1fr 1fr);
 
       .form-row {
         grid-column-start: 1;
@@ -250,7 +298,7 @@
       .hint {
         margin-top: 1rem;
         font-size: 0.8rem;
-        color: var(--theme-content-color);
+        color: var(--login-label-color, var(--login-content-color, var(--theme-content-color)));
       }
 
       .send {
@@ -263,14 +311,15 @@
     .footer {
       margin-top: 1.75rem;
       font-size: 0.8rem;
-      color: var(--theme-content-color);
+      text-align: center;
+      color: var(--login-label-color, var(--login-content-color, var(--theme-content-color)));
       span {
-        color: var(--theme-darker-color);
+        color: var(--login-darker-color, var(--theme-darker-color));
       }
       a {
         font-weight: 500;
         text-decoration: underline;
-        color: var(--theme-content-color);
+        color: var(--login-label-color, var(--login-content-color, var(--theme-content-color)));
       }
     }
   }

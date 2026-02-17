@@ -39,7 +39,9 @@ import process, {
   Step,
   Transition,
   isUpdateTx,
-  ProcessCustomEvent
+  ProcessCustomEvent,
+  ApproveRequest,
+  ExecutionStatus
 } from '@hcengineering/process'
 import { QueueTopic, TriggerControl } from '@hcengineering/server-core'
 import { ProcessMessage } from '@hcengineering/server-process'
@@ -97,7 +99,15 @@ import {
   CheckSubProcessMatch,
   CheckTime,
   FieldChangedCheck,
-  EventCheck
+  EventCheck,
+  RequestApproval,
+  ApproveRequestApproved,
+  ApproveRequestRejected,
+  CancelToDo,
+  LockCard,
+  LockSection,
+  UnlockCard,
+  UnlockSection
 } from './functions'
 import { ToDoCancellRollback, ToDoCloseRollback } from './rollback'
 
@@ -139,6 +149,42 @@ export async function OnProcessToDoClose (txes: Tx[], control: TriggerControl): 
       },
       control
     )
+    if (todo._class === process.class.ApproveRequest) {
+      const request = todo as ApproveRequest
+      if (request.approved === true) {
+        await putEventToQueue(
+          {
+            event: process.trigger.OnApproveRequestApproved,
+            execution: todo.execution,
+            createdOn: tx.modifiedOn,
+            context: {
+              todo
+            }
+          },
+          control
+        )
+      } else if (request.approved === false) {
+        // remove all other approve requests for this execution
+        const toRemove = await control.findAll(control.ctx, process.class.ApproveRequest, {
+          group: request.group,
+          doneOn: null
+        })
+        for (const req of toRemove) {
+          res.push(control.txFactory.createTxRemoveDoc(req._class, req.space, req._id))
+        }
+        await putEventToQueue(
+          {
+            event: process.trigger.OnApproveRequestRejected,
+            execution: todo.execution,
+            createdOn: tx.modifiedOn,
+            context: {
+              todo
+            }
+          },
+          control
+        )
+      }
+    }
   }
   return res
 }
@@ -297,7 +343,10 @@ async function getExecutionReassignTxes (card: Card, control: TriggerControl): P
   const res: Tx[] = []
   const cards = await control.findAll(control.ctx, cardPlugin.class.Card, { baseId: card.baseId })
   const ids = cards.map((p) => p._id).filter((p) => p !== card._id)
-  const executions = await control.findAll(control.ctx, process.class.Execution, { card: { $in: ids } })
+  const executions = await control.findAll(control.ctx, process.class.Execution, {
+    card: { $in: ids },
+    status: ExecutionStatus.Active
+  })
   for (const execution of executions) {
     res.push(
       control.txFactory.createTxUpdateDoc(execution._class, execution.space, execution._id, {
@@ -476,7 +525,15 @@ export default async () => ({
     CheckSubProcessesDone,
     CheckSubProcessMatch,
     CheckTime,
-    EventCheck
+    EventCheck,
+    RequestApproval,
+    ApproveRequestApproved,
+    ApproveRequestRejected,
+    CancelToDo,
+    LockCard,
+    LockSection,
+    UnlockCard,
+    UnlockSection
   },
   transform: {
     CurrentDate,

@@ -19,7 +19,11 @@ import documentsPlugin, {
   documentsId,
   DocumentState,
   type Document,
-  type DocumentSpace
+  type DocumentSpace,
+  type DocumentTemplate,
+  type ProjectDocument,
+  type ChangeControl,
+  type DocumentRequest
 } from '@hcengineering/controlled-documents'
 import exportPlugin, { type RelationDefinition } from '@hcengineering/export'
 import { type Builder } from '@hcengineering/model'
@@ -32,13 +36,14 @@ import request from '@hcengineering/model-request'
 import tracker from '@hcengineering/model-tracker'
 import view, { classPresenter, createAction } from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
+import converter from '@hcengineering/converter'
 import notification from '@hcengineering/notification'
 import contacts from '@hcengineering/model-contact'
 import setting from '@hcengineering/setting'
 import tags from '@hcengineering/tags'
 import textEditor from '@hcengineering/text-editor'
 
-import { AccountRole, type Class, type Doc, type Ref } from '@hcengineering/core'
+import { AccountRole, type ClassCollaborators, type Class, type Doc, type Lookup, type Ref } from '@hcengineering/core'
 import { type Action } from '@hcengineering/view'
 import { definePermissions } from './permissions'
 import documents from './plugin'
@@ -105,6 +110,10 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(documents.class.ControlledDocument, core.class.Class, view.mixin.ObjectTitle, {
     titleProvider: documents.function.ControlledDocumentTitleProvider
+  })
+
+  builder.mixin(documents.class.Document, core.class.Class, converter.mixin.MarkdownValueFormatter, {
+    formatter: documents.function.FormatDocumentMarkdownValue
   })
 
   builder.mixin(documents.class.DocumentApprovalRequest, core.class.Class, view.mixin.ObjectPresenter, {
@@ -234,6 +243,11 @@ export function createModel (builder: Builder): void {
   )
 
   // Workflow
+  const documentTableLookup: Lookup<Document> = {
+    owner: contact.mixin.Employee,
+    category: documents.class.DocumentCategory,
+    template: documents.mixin.DocumentTemplate
+  }
   builder.createDoc(
     view.class.Viewlet,
     core.space.Model,
@@ -287,16 +301,27 @@ export function createModel (builder: Builder): void {
         'modifiedOn'
       ],
       options: {
-        lookup: {
-          owner: contact.mixin.Employee,
-          category: documents.class.DocumentCategory,
-          template: documents.mixin.DocumentTemplate
-        }
+        lookup: documentTableLookup
       }
     },
     documents.viewlet.TableDocument
   )
 
+  builder.createDoc(
+    view.class.ViewletViewAction,
+    core.space.Model,
+    {
+      descriptor: view.viewlet.Table,
+      extension: converter.extensions.CopyAsMarkdownAction,
+      applicableToClass: documents.class.Document
+    },
+    documents.specialViewAction.TableDocument
+  )
+
+  const documentTemplateTableLookup: Lookup<DocumentTemplate> = {
+    owner: contact.mixin.Employee,
+    category: documents.class.DocumentCategory
+  }
   builder.createDoc(
     view.class.Viewlet,
     core.space.Model,
@@ -346,10 +371,7 @@ export function createModel (builder: Builder): void {
         hiddenKeys: ['attachedTo']
       },
       options: {
-        lookup: {
-          owner: contact.mixin.Employee,
-          category: documents.class.DocumentCategory
-        }
+        lookup: documentTemplateTableLookup
       }
     },
     documents.viewlet.TableDocumentTemplate
@@ -1025,7 +1047,7 @@ export function createModel (builder: Builder): void {
         label: print.string.PrintToPDF,
         icon: print.icon.Print,
         category: view.category.General,
-        input: 'focus', // NOTE: should only work for one doc for now, not bulk
+        input: 'any',
         target,
         context: { mode: ['context', 'browser'], group: 'tools' },
         visibilityTester: documents.function.CanPrintDocument,
@@ -1047,6 +1069,11 @@ export function createModel (builder: Builder): void {
 
 export function defineNotifications (builder: Builder): void {
   builder.mixin(documents.class.ControlledDocument, core.class.Class, activity.mixin.ActivityDoc, {})
+
+  builder.createDoc(activity.class.ActivityExtension, core.space.Model, {
+    ofClass: documents.class.ControlledDocument,
+    components: { input: { component: chunter.component.ChatMessageInput } }
+  })
 
   builder.createDoc(activity.class.ActivityExtension, core.space.Model, {
     ofClass: documents.class.DocumentComment,

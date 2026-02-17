@@ -15,11 +15,13 @@
     "PasswordExpiredDesc": "您的密码已过期。请设置新密码以继续。",
     "LogIn": "登录",
     "SignUp": "注册",
+    "SignUpTab": "注册",
     "CreateWorkspace": "创建工作区",
     "HaveWorkspace": "已经有工作区了？",
     "LastName": "姓",
     "FirstName": "名",
     "Join": "加入",
+    "JoinWorkspace": "加入 {workspaceName}",
     "Email": "电子邮件",
     "Password": "密码",
     "Workspace": "工作区名称",
@@ -75,7 +77,7 @@
     "RestoreArchivedWorkspace": "解包",
     "Hello": "你好 {name},",
     "ProcessingInvite": "处理邀请，请稍候...",
-    "SignToProceed": "请登录以继续",
+    "SignToProceed": "Intabia. Platform",
     "Proceed": "继续",
     "SetPasswordLater": "稍后设置密码",
     "SetPasswordNow": "现在设置密码",
@@ -85,6 +87,13 @@
     "AccessExpired": "访问时间已过期。请申请新的访问链接。",
     "AccessNotActive": "访问时间尚未开始。开始时间：",
     "Downloads": "下载桌面应用",
-    "BackLabel": "返回"
+    "BackLabel": "返回",
+    "JoinWithThisAccount": "使用此账户加入",
+    "UseDifferentAccount": "使用其他账户",
+    "UseCurrentAccountToJoin": "已登录？",
+    "LogInAndJoin": "登录并加入",
+    "SignUpAndJoin": "注册并加入",
+    "CreateNewAccount": "创建新账户",
+    "SignedInAs": "已以 {name} 身份登录"
   }
 }

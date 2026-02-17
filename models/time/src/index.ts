@@ -17,7 +17,6 @@ import activity from '@hcengineering/activity'
 import calendarPlugin, { type Visibility } from '@hcengineering/calendar'
 import contactPlugin, { type Employee } from '@hcengineering/contact'
 import {
-  AccountRole,
   DOMAIN_MODEL,
   DateRangeMode,
   IndexKind,
@@ -203,19 +202,19 @@ export function createModel (builder: Builder): void {
     time.app.Me
   )
 
-  builder.createDoc(
-    workbench.class.Application,
-    core.space.Model,
-    {
-      label: time.string.Team,
-      icon: time.icon.Team,
-      accessLevel: AccountRole.User,
-      alias: 'team',
-      hidden: false,
-      component: time.component.Team
-    },
-    time.app.Team
-  )
+  // builder.createDoc(
+  //   workbench.class.Application,
+  //   core.space.Model,
+  //   {
+  //     label: time.string.Team,
+  //     icon: time.icon.Team,
+  //     accessLevel: AccountRole.User,
+  //     alias: 'team',
+  //     hidden: true,
+  //     component: time.component.Team
+  //   },
+  //   time.app.Team
+  // )
 
   builder.mixin(time.class.ToDo, core.class.Class, view.mixin.IgnoreActions, {
     actions: [view.action.Open, tracker.action.NewRelatedIssue, view.action.Delete]

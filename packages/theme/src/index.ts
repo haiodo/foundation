@@ -32,6 +32,27 @@ export const setDefaultLanguage = (language: string): void => {
   }
 }
 
+let forceAccent: AccentColorType | undefined
+/**
+ * @public
+ */
+export const setDefaultAccent = (accent: string): void => {
+  if (localStorage.getItem('accent') === null) {
+    localStorage.setItem('accent', accent)
+  }
+}
+
+export const isForceAccentColor = (): boolean => {
+  return forceAccent != null && (forceAccent as any) !== ''
+}
+
+export const setForceAccent = (value: AccentColorType): void => {
+  if (!value.startsWith('accent-')) {
+    forceAccent = ('accent-' + value) as AccentColorType
+  }
+  forceAccent = value
+}
+
 function getDefaultProps (prop: string, value: string): string {
   localStorage.setItem(prop, value)
   return value
@@ -70,8 +91,8 @@ export const getCurrentEmoji = (): string => localStorage.getItem('emoji') ?? ge
 /**
  * @public
  */
-export const getCurrentAccentColor = (): string =>
-  localStorage.getItem('accent') ?? getDefaultProps('accent', AccentColor.Intabia)
+export const getCurrentAccentColor = (): AccentColorType =>
+  (forceAccent ?? localStorage.getItem('accent') ?? getDefaultProps('accent', AccentColor.Intabia)) as AccentColorType
 
 /**
  * @public
@@ -95,7 +116,7 @@ export class ThemeOptions {
     readonly dark: boolean,
     readonly language: string,
     readonly emoji: string,
-    readonly accent: AccentColorType = AccentColor.Intabia
+    readonly accent: AccentColorType
   ) {
     this.variant = dark ? ThemeVariant.Dark : ThemeVariant.Light
   }

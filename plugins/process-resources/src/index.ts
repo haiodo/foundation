@@ -24,11 +24,15 @@ import ExecutionMyToDos from './components/ExecutionMyToDos.svelte'
 import ExecutonPresenter from './components/ExecutonPresenter.svelte'
 import ExecutonProgressPresenter from './components/ExecutonProgressPresenter.svelte'
 import Main from './components/Main.svelte'
+import CancelToDoEditor from './components/settings/CancelToDoEditor.svelte'
+import ApproveRequestPresenter from './components/ApproveRequestPresenter.svelte'
 import SubProcessPresenter from './components/presenters/SubProcessPresenter.svelte'
 import ToDoPresenter from './components/presenters/ToDoPresenter.svelte'
 import UpdateCardPresenter from './components/presenters/UpdateCardPresenter.svelte'
 import ProcessesCardSection from './components/ProcessesCardSection.svelte'
 import ProcessesExtension from './components/ProcessesExtension.svelte'
+import RequestsCardSection from './components/RequestsCardSection.svelte'
+import RequestsExtension from './components/RequestsExtension.svelte'
 import ProcessesSettingSection from './components/ProcessesSection.svelte'
 import ProcessPresenter from './components/ProcessPresenter.svelte'
 import RunProcessCardPopup from './components/RunProcessCardPopup.svelte'
@@ -71,16 +75,26 @@ import TimeEditor from './components/settings/TimeEditor.svelte'
 import TimePresenter from './components/settings/TimePresenter.svelte'
 import ToDoSettingPresenter from './components/settings/ToDoPresenter.svelte'
 import TransitionRefPresenter from './components/settings/TransitionRefPresenter.svelte'
+import ApproveRequestEditor from './components/settings/ApproveRequestEditor.svelte'
+import ApproveRequestTriggerEditor from './components/settings/ApproveRequestTriggerEditor.svelte'
+import ApproveRequestTriggerPresenter from './components/settings/ApproveRequestTriggerPresenter.svelte'
+import LockSectionEditor from './components/settings/LockSectionEditor.svelte'
+import LockSectionPresenter from './components/settings/LockSectionPresenter.svelte'
+import UnLockSectionPresenter from './components/settings/UnLockSectionPresenter.svelte'
 import AppendEditor from './components/transformEditors/AppendEditor.svelte'
 import CutEditor from './components/transformEditors/CutEditor.svelte'
 import ReplaceEditor from './components/transformEditors/ReplaceEditor.svelte'
 import SplitEditor from './components/transformEditors/SplitEditor.svelte'
 import NumberPresenter from './components/transformPresenters/NumberPresenter.svelte'
 import RolePresenter from './components/transformPresenters/RolePresenter.svelte'
+import ToDoValuePresenter from './components/settings/ToDoValuePresenter.svelte'
 import { exportProcess } from './exporter'
 import { ProcessMiddleware } from './middleware'
 import {
+  approveRequestApproved,
+  approveRequestRejected,
   checkProcessSectionVisibility,
+  checkRequestsSectionVisibility,
   continueExecution,
   eventCheck,
   fieldChangesCheck,
@@ -109,6 +123,8 @@ export default async (): Promise<Resources> => ({
     ToDoPresenter,
     UpdateCardPresenter,
     ProcessesExtension,
+    RequestsExtension,
+    RequestsCardSection,
     ExecutonPresenter,
     ExecutonProgressPresenter,
     ProcessPresenter,
@@ -148,7 +164,16 @@ export default async (): Promise<Resources> => ({
     FunctionSubmenu,
     SubProcessMatchEditor,
     SubProcessMatchPresenter,
-    ProcessesHeaderExtension
+    ProcessesHeaderExtension,
+    ApproveRequestPresenter,
+    ApproveRequestEditor,
+    ApproveRequestTriggerEditor,
+    ApproveRequestTriggerPresenter,
+    LockSectionPresenter,
+    LockSectionEditor,
+    UnLockSectionPresenter,
+    CancelToDoEditor,
+    ToDoValuePresenter
   },
   criteriaEditor: {
     BaseCriteria,
@@ -177,12 +202,15 @@ export default async (): Promise<Resources> => ({
     SubProcessMatchCheck: subProcessMatchCheck,
     ToDo: todoTranstionCheck,
     Time: timeTransitionCheck,
-    OnEventCheck: eventCheck
+    OnEventCheck: eventCheck,
+    ApproveRequestApproved: approveRequestApproved,
+    ApproveRequestRejected: approveRequestRejected
   },
   function: {
     ExportProcess: exportProcess,
     ShowDoneQuery: showDoneQuery,
     CheckProcessSectionVisibility: checkProcessSectionVisibility,
+    CheckRequestsSectionVisibility: checkRequestsSectionVisibility,
     // eslint-disable-next-line @typescript-eslint/unbound-method
     CreateMiddleware: ProcessMiddleware.create
   }
