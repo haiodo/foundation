@@ -25,7 +25,8 @@ import {
   DOMAIN_TRANSIENT,
   DateRangeMode,
   IndexKind,
-  type AccountUuid
+  type AccountUuid,
+  SocialIdType
 } from '@hcengineering/core'
 import {
   type DevicesPreference,
@@ -74,7 +75,7 @@ import preference, { TPreference } from '@hcengineering/model-preference'
 import presentation from '@hcengineering/model-presentation'
 import view, { createAction, createAttributePresenter } from '@hcengineering/model-view'
 import media from '@hcengineering/media'
-import notification from '@hcengineering/notification'
+import notification, { type MessageNotificationType, type TxNotificationType } from '@hcengineering/notification'
 import { getEmbeddedLabel } from '@hcengineering/platform'
 import setting from '@hcengineering/setting'
 import workbench, { WidgetType } from '@hcengineering/workbench'
@@ -195,6 +196,9 @@ export class TPendingRecording extends TAttachedDoc implements PendingRecording 
 
   @Prop(TypeNumber(), getEmbeddedLabel('Size'))
     size?: number
+
+  @Prop(TypeString(), getEmbeddedLabel('Status'))
+    status!: 'active' | 'cancelled' | 'completed'
 }
 
 @Model(love.class.DevicesPreference, preference.class.Preference)
@@ -458,13 +462,6 @@ export function createModel (builder: Builder): void {
     love.ids.LoveNotificationGroup
   )
 
-  builder.createDoc(notification.class.NotificationProviderDefaults, core.space.Model, {
-    provider: notification.providers.SoundNotificationProvider,
-    excludeIgnore: [love.ids.KnockNotification],
-    ignoredTypes: [],
-    enabledTypes: []
-  })
-
   builder.createDoc(core.class.DomainIndexConfiguration, core.space.Model, {
     domain: DOMAIN_LOVE,
     disabled: [{ space: 1 }, { modifiedOn: 1 }, { modifiedBy: 1 }, { createdBy: 1 }, { createdOn: -1 }]
@@ -683,23 +680,39 @@ export function createModel (builder: Builder): void {
     love.viewlet.FloorMeetingMinutes
   )
 
-  builder.createDoc(
-    notification.class.NotificationType,
+  builder.createDoc<MessageNotificationType>(
+    notification.class.MessageNotificationType,
     core.space.Model,
     {
       label: chunter.string.Chat,
       generated: false,
       hidden: false,
-      txClasses: [core.class.TxCreateDoc],
+      messageClass: chunter.class.ChatMessage,
       objectClass: chunter.class.ChatMessage,
       attachedToClass: love.class.MeetingMinutes,
-      txMatch: {
-        'attributes.collection': 'messages'
+      match: {
+        collection: 'messages'
       },
       defaultEnabled: false,
       group: love.ids.LoveNotificationGroup
     },
     love.ids.MeetingMinutesChatNotification
+  )
+
+  builder.createDoc<TxNotificationType>(
+    notification.class.TxNotificationType,
+    core.space.Model,
+    {
+      label: love.string.Invite,
+      generated: false,
+      hidden: true,
+      objectClass: love.class.UserMeetingInvite,
+      txClasses: [],
+      defaultEnabled: true,
+      group: love.ids.LoveNotificationGroup,
+      isMention: true
+    },
+    love.ids.InviteNotification
   )
 
   builder.createDoc(notification.class.NotificationProviderDefaults, core.space.Model, {
@@ -771,5 +784,16 @@ export function createModel (builder: Builder): void {
     love.class.MeetingMinutes,
     'meetingEnd',
     'attribute'
+  )
+
+  builder.createDoc(
+    contact.class.SocialIdentityProvider,
+    core.space.Model,
+    {
+      label: love.string.Office,
+      icon: love.icon.Love,
+      type: SocialIdType.LOVE
+    },
+    love.socialIdentityProvider.Love
   )
 }

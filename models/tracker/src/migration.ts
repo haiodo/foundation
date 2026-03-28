@@ -40,6 +40,7 @@ import tags from '@hcengineering/tags'
 import task from '@hcengineering/task'
 import tracker, {
   type Issue,
+  type IssueChildInfo,
   type IssueStatus,
   type Project,
   TimeReportDayType,
@@ -362,6 +363,56 @@ async function migrateIssueStatuses (client: MigrationClient): Promise<void> {
   )
 }
 
+export async function migrateChildInfoParentId (client: MigrationClient): Promise<void> {
+  const issues = await client.find<Issue>(
+    DOMAIN_TASK,
+    {
+      _class: tracker.class.Issue
+    },
+    { projection: { _id: 1, childInfo: 1, attachedTo: 1 } as any }
+  )
+
+  const issuesWithChildren = issues.filter((it) => it.childInfo?.length > 0)
+
+  if (issuesWithChildren.length === 0) return
+
+  // Collect all childIds that need parentId
+  const childIdsToResolve = new Set<Ref<Issue>>()
+  for (const issue of issuesWithChildren) {
+    for (const ci of issue.childInfo) {
+      if (ci.parentId === undefined) {
+        childIdsToResolve.add(ci.childId)
+      }
+    }
+  }
+
+  if (childIdsToResolve.size === 0) return
+
+  const childToParent = new Map<Ref<Issue>, Ref<Issue>>()
+  for (const child of issues) {
+    childToParent.set(child._id, child.attachedTo)
+  }
+
+  // Update each issue's childInfo with parentId
+  for (const issue of issuesWithChildren) {
+    let modified = false
+    const updatedChildInfo: IssueChildInfo[] = issue.childInfo.map((ci) => {
+      if (ci.parentId === undefined) {
+        const parentId = childToParent.get(ci.childId)
+        if (parentId !== undefined) {
+          modified = true
+          return { ...ci, parentId }
+        }
+      }
+      return ci
+    })
+
+    if (modified) {
+      await client.update(DOMAIN_TASK, { _id: issue._id }, { childInfo: updatedChildInfo })
+    }
+  }
+}
+
 export const trackerOperation: MigrateOperation = {
   async preMigrate (client: MigrationClient, logger: ModelLogger, mode): Promise<void> {
     await tryMigrate(mode, client, trackerId, [
@@ -396,6 +447,11 @@ export const trackerOperation: MigrateOperation = {
         state: 'migrateDefaultTypeMixins',
         mode: 'upgrade',
         func: migrateDefaultTypeMixins
+      },
+      {
+        state: 'childInfo-parentId-v2',
+        mode: 'upgrade',
+        func: migrateChildInfoParentId
       }
     ])
   },

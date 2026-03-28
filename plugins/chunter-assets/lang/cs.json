@@ -84,6 +84,7 @@
     "ReplyToThread": "Odpovědět ve vlákně",
     "SentMessage": "Odeslaná zpráva",
     "Direct": "Přímý",
+    "GroupChat": "Skupinový chat",
     "RepliedToThread": "Odpověděl ve vlákně",
     "RepliedTo": "odpověděl na: {message}",
     "AllChannels": "Všechny kanály",
@@ -133,6 +134,26 @@
     "OpenChatInSidebar": "Otevřít chat v postranním panelu",
     "NoThreadsYet": "Zatím nejsou žádné vlákna.",
     "SummarizeMessages": "Shrnout diskuzi",
-    "DeleteMessageDescription": "Opravdu chcete tuto zprávu smazat? Tuto akci nelze vrátit zpět."
+    "DeleteMessageDescription": "Opravdu chcete tuto zprávu smazat? Tuto akci nelze vrátit zpět.",
+    "Star": "Přidat do oblíbených",
+    "Unstar": "Odebrat z oblíbených",
+    "HideFromChatList": "Skrýt ze seznamu chatů",
+    "Leave": "Opustit {label}",
+    "HideAll": "Skrýt vše",
+    "Seen": "Přečteno"
+  },
+  "emailTemplate": {
+    "DMNotificationText": "{sender} vám poslal zprávu: \n\n{message}",
+    "DMNotificationHtml": "<p><b>{sender}</b> vám poslal zprávu: </p> {message} <p>{link}</p>",
+    "DMNotificationSubject": "Máte novou přímou zprávu",
+    "ChannelNotificationText": "{sender} poslal zprávu v {doc}: \n\n {message}",
+    "ChannelNotificationHtml": "<p><b>{sender}</b> poslal zprávu v {doc}:</p> {message} <p>{link}</p>",
+    "ChannelNotificationSubject": "Máte novou zprávu v {doc}",
+    "JoinChannelNotificationText": "Byli jste přidáni do #{doc}",
+    "JoinChannelNotificationHtml": "<p>Byli jste přidáni do <b>#{doc}</b></p> <p>{link}</p>",
+    "JoinChannelNotificationSubject": "Byli jste přidáni do #{doc}",
+    "ThreadNotificationText": "{sender} odpověděl na {doc}: \n\n{message}",
+    "ThreadNotificationHtml": "<p><b>{sender}</b> odpověděl na {doc}:</p><p>{message}</p><p>{link}</p>",
+    "ThreadNotificationSubject": "Nová odpověď na {doc}"
   }
 }

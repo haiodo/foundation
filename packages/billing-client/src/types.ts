@@ -4,9 +4,31 @@ export interface BillingStats {
   liveKitStats: LiveKitStats
   datalakeStats: DatalakeStats
   aiStats: AiStats
+  participantDailyStats: ParticipantDailyStats[]
+  transcriptDailyStats: TranscriptDailyStats[]
+}
+
+export interface ParticipantDailyStats {
+  day: string
+  totalMinutes: number
+  maxParticipants: number
+  avgMeetingDurationMinutes: number
+  maxMeetingDurationMinutes: number
+}
+
+export interface TranscriptDailyStats {
+  day: string
+  totalDurationSeconds: number
 }
 
 export interface DatalakeStats {
+  count: number
+  size: number
+  byType: DatalakeStatsByType[]
+}
+
+export interface DatalakeStatsByType {
+  type: string
   count: number
   size: number
 }
@@ -46,6 +68,16 @@ export interface LiveKitEgressData {
   duration: number
 }
 
+export interface LiveKitParticipantSessionData {
+  workspace: string
+  participantId: string
+  sessionId: string
+  room: string
+  joinedAt: string
+  leftAt: string
+  durationSeconds: number
+}
+
 export interface AiTranscriptStats {
   totalDurationSeconds: number
 }
@@ -74,4 +106,9 @@ export interface AiTokensData {
   reason: string
   tokens: number
   date: string
+}
+
+export interface LargestSpaceInfo {
+  spaceId: string
+  size: number
 }

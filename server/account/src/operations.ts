@@ -1012,7 +1012,7 @@ export async function checkJoin (
     verifiedOn: { $gt: 0 }
   })
   const email = emailSocialId?.value ?? ''
-  const workspaceUuid = await checkInvite(ctx, invite, email)
+  const workspaceUuid = await checkInvite(ctx, invite)
   const workspace = await getWorkspaceById(db, workspaceUuid)
 
   if (workspace === null) {
@@ -1029,6 +1029,74 @@ export async function checkJoin (
   return {
     ...wsLoginInfo,
     role: invite.role
+  }
+}
+
+/**
+ * Given an invite and a token of an already authenticated user, assigns the user to the workspace.
+ * Unlike `join` which requires email/password, this method works with an existing session token.
+ */
+export async function joinByInvite (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { inviteId: string }
+): Promise<WorkspaceLoginInfo> {
+  const { inviteId } = params
+
+  if (inviteId == null || inviteId === '') {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+
+  const invite = await getWorkspaceInvite(db, inviteId)
+  if (invite == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+  }
+
+  const { account: accountUuid } = decodeTokenVerbose(ctx, token)
+  const workspaceUuid = await checkInvite(ctx, invite)
+  const workspace = await getWorkspaceById(db, workspaceUuid)
+
+  if (workspace === null) {
+    ctx.error('Workspace not found in joinByInvite', { workspaceUuid, inviteId })
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid }))
+  }
+
+  return await doJoinByInvite(ctx, db, branding, token, accountUuid, workspace, invite)
+}
+
+/**
+ * Public method to get invite information without authentication.
+ * Returns workspace name and invite details for the join page.
+ */
+export async function getInviteInfo (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { inviteId: string }
+): Promise<WorkspaceInviteInfo> {
+  const { inviteId } = params
+
+  if (inviteId == null || inviteId === '') {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+
+  const invite = await getWorkspaceInvite(db, inviteId)
+  if (invite == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+  }
+
+  const workspaceUuid = await checkInvite(ctx, invite)
+  const workspace = await getWorkspaceById(db, workspaceUuid)
+  if (workspace == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid }))
+  }
+
+  return {
+    workspace: workspace.uuid,
+    name: workspace.name
   }
 }
 
@@ -1305,7 +1373,7 @@ export async function requestPasswordReset (
   })
 
   const link = concatLink(front, `/login/recovery?id=${token}`)
-  const lang = branding?.language
+  const lang = branding?.defaultLanguage
   const text = await translate(accountPlugin.string.RecoveryText, { link }, lang)
   const html = await translate(accountPlugin.string.RecoveryHTML, { link }, lang)
   const subject = await translate(accountPlugin.string.RecoverySubject, {}, lang)
@@ -1390,6 +1458,7 @@ export async function leaveWorkspace (
   }
 
   const initiatorRole = await db.getWorkspaceRole(account, workspace)
+  const targetRole = await db.getWorkspaceRole(targetAccount, workspace)
 
   if (account !== targetAccount) {
     if (initiatorRole == null || getRolePower(initiatorRole) < getRolePower(AccountRole.Maintainer)) {
@@ -1397,6 +1466,30 @@ export async function leaveWorkspace (
         account,
         workspace,
         initiatorRole
+      })
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
+
+    if (targetRole === AccountRole.Owner && initiatorRole === AccountRole.Maintainer) {
+      ctx.warn('Maintainer cannot remove owner from workspace', {
+        account,
+        targetAccount,
+        workspace,
+        initiatorRole,
+        targetRole
+      })
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
+  }
+
+  if (account === targetAccount && initiatorRole === AccountRole.Owner) {
+    const members = await db.getWorkspaceMembers(workspace)
+    const owners = members.filter((m) => m.role === AccountRole.Owner)
+
+    if (owners.length === 1) {
+      ctx.warn('Owner cannot remove themselves as the last owner of the workspace', {
+        account,
+        workspace
       })
       throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
     }
@@ -2876,8 +2969,10 @@ export type AccountMethods =
   | 'resendInvite'
   | 'selectWorkspace'
   | 'join'
+  | 'joinByInvite'
   | 'checkJoin'
   | 'checkAutoJoin'
+  | 'getInviteInfo'
   | 'signUpJoin'
   | 'confirm'
   | 'changePassword'
@@ -2951,8 +3046,10 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     resendInvite: wrap(resendInvite),
     selectWorkspace: wrap(selectWorkspace),
     join: wrap(join),
+    joinByInvite: wrap(joinByInvite),
     checkJoin: wrap(checkJoin),
     checkAutoJoin: wrap(checkAutoJoin),
+    getInviteInfo: wrap(getInviteInfo),
     signUpJoin: wrap(signUpJoin),
     confirm: wrap(confirm),
     changePassword: wrap(changePassword),

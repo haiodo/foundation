@@ -88,6 +88,7 @@ import {
   type ObjectPanelFooter,
   type ObjectPresenter,
   type ObjectTitle,
+  type ObjectLabel,
   type ObjectTooltip,
   type ObjectValidator,
   type PreviewPresenter,
@@ -263,6 +264,11 @@ export class TObjectFactory extends TClass implements ObjectFactory {
 @Mixin(view.mixin.ObjectTitle, core.class.Class)
 export class TObjectTitle extends TClass implements ObjectTitle {
   titleProvider!: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<string>>
+}
+
+@Mixin(view.mixin.ObjectLabel, core.class.Class)
+export class TObjectLabel extends TClass implements ObjectLabel {
+  labelProvider!: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<IntlString>>
 }
 
 @Mixin(view.mixin.ObjectIdentifier, core.class.Class)
@@ -478,6 +484,13 @@ export const showColorsViewOption: ViewOptionModel = {
   actionTarget: 'display',
   label: view.string.ShowColors
 }
+export const showDaysViewOption: ViewOptionModel = {
+  key: 'shouldShowDays',
+  type: 'toggle',
+  defaultValue: false,
+  actionTarget: 'display',
+  label: view.string.ShowDays
+}
 
 export function createModel (builder: Builder): void {
   builder.createModel(
@@ -506,6 +519,7 @@ export function createModel (builder: Builder): void {
     TObjectValidator,
     TObjectFactory,
     TObjectTitle,
+    TObjectLabel,
     TObjectEditorHeader,
     TObjectEditorFooter,
     TObjectPanelFooter,

@@ -12,6 +12,7 @@
 // limitations under the License.
 
 import { type Resources } from '@hcengineering/platform'
+import ApproveRequestPresenter from './components/ApproveRequestPresenter.svelte'
 import ExecutionContextSelector from './components/attributeEditors/ExecutionContextSelector.svelte'
 import FunctionSelector from './components/attributeEditors/FunctionSelector.svelte'
 import NestedContextSelector from './components/attributeEditors/NestedContextSelector.svelte'
@@ -24,20 +25,20 @@ import ExecutionMyToDos from './components/ExecutionMyToDos.svelte'
 import ExecutonPresenter from './components/ExecutonPresenter.svelte'
 import ExecutonProgressPresenter from './components/ExecutonProgressPresenter.svelte'
 import Main from './components/Main.svelte'
-import CancelToDoEditor from './components/settings/CancelToDoEditor.svelte'
-import ApproveRequestPresenter from './components/ApproveRequestPresenter.svelte'
 import SubProcessPresenter from './components/presenters/SubProcessPresenter.svelte'
 import ToDoPresenter from './components/presenters/ToDoPresenter.svelte'
 import UpdateCardPresenter from './components/presenters/UpdateCardPresenter.svelte'
 import ProcessesCardSection from './components/ProcessesCardSection.svelte'
 import ProcessesExtension from './components/ProcessesExtension.svelte'
-import RequestsCardSection from './components/RequestsCardSection.svelte'
-import RequestsExtension from './components/RequestsExtension.svelte'
 import ProcessesSettingSection from './components/ProcessesSection.svelte'
 import ProcessPresenter from './components/ProcessPresenter.svelte'
+import RequestsCardSection from './components/RequestsCardSection.svelte'
+import RequestsExtension from './components/RequestsExtension.svelte'
 import RunProcessCardPopup from './components/RunProcessCardPopup.svelte'
 import RunProcessPopup from './components/RunProcessPopup.svelte'
 import ActionsPresenter from './components/settings/ActionsPresenter.svelte'
+import CancelSubProcessEditor from './components/settings/CancelSubProcessEditor.svelte'
+import CancelToDoEditor from './components/settings/CancelToDoEditor.svelte'
 import FunctionSubmenu from './components/settings/FunctionSubmenu.svelte'
 import ProcessEditor from './components/settings/ProcessEditor.svelte'
 import StatePresenter from './components/settings/StatePresenter.svelte'
@@ -65,21 +66,22 @@ import CreateCardPresenter from './components/presenters/CreateCardPresenter.sve
 import ProcessesHeaderExtension from './components/ProcessesHeaderExtension.svelte'
 import AddRelationEditor from './components/settings/AddRelationEditor.svelte'
 import AddTagEditor from './components/settings/AddTagEditor.svelte'
+import ApproveRequestEditor from './components/settings/ApproveRequestEditor.svelte'
+import ApproveRequestTriggerEditor from './components/settings/ApproveRequestTriggerEditor.svelte'
+import ApproveRequestTriggerPresenter from './components/settings/ApproveRequestTriggerPresenter.svelte'
 import CardUpdateEditor from './components/settings/CardUpdateEditor.svelte'
 import CardUpdatePresenter from './components/settings/CardUpdatePresenter.svelte'
 import CreateCardEditor from './components/settings/CreateCardEditor.svelte'
 import FieldChangesEditor from './components/settings/FieldChangesEditor.svelte'
+import LockSectionEditor from './components/settings/LockSectionEditor.svelte'
+import LockSectionPresenter from './components/settings/LockSectionPresenter.svelte'
 import SubProcessMatchEditor from './components/settings/SubProcessMatchEditor.svelte'
 import SubProcessMatchPresenter from './components/settings/SubProcessMatchPresenter.svelte'
 import TimeEditor from './components/settings/TimeEditor.svelte'
 import TimePresenter from './components/settings/TimePresenter.svelte'
 import ToDoSettingPresenter from './components/settings/ToDoPresenter.svelte'
+import ToDoValuePresenter from './components/settings/ToDoValuePresenter.svelte'
 import TransitionRefPresenter from './components/settings/TransitionRefPresenter.svelte'
-import ApproveRequestEditor from './components/settings/ApproveRequestEditor.svelte'
-import ApproveRequestTriggerEditor from './components/settings/ApproveRequestTriggerEditor.svelte'
-import ApproveRequestTriggerPresenter from './components/settings/ApproveRequestTriggerPresenter.svelte'
-import LockSectionEditor from './components/settings/LockSectionEditor.svelte'
-import LockSectionPresenter from './components/settings/LockSectionPresenter.svelte'
 import UnLockSectionPresenter from './components/settings/UnLockSectionPresenter.svelte'
 import AppendEditor from './components/transformEditors/AppendEditor.svelte'
 import CutEditor from './components/transformEditors/CutEditor.svelte'
@@ -87,8 +89,13 @@ import ReplaceEditor from './components/transformEditors/ReplaceEditor.svelte'
 import SplitEditor from './components/transformEditors/SplitEditor.svelte'
 import NumberPresenter from './components/transformPresenters/NumberPresenter.svelte'
 import RolePresenter from './components/transformPresenters/RolePresenter.svelte'
-import ToDoValuePresenter from './components/settings/ToDoValuePresenter.svelte'
-import { exportProcess } from './exporter'
+import ExecutionRefPresenter from './components/ExecutionRefPresenter.svelte'
+import ActionTypePresenter from './components/ActionTypePresenter.svelte'
+import LockFieldEditor from './components/settings/LockFieldEditor.svelte'
+import LockFieldPresenter from './components/settings/LockFieldPresenter.svelte'
+import UnLockFieldPresenter from './components/settings/UnLockFieldPresenter.svelte'
+
+import { exportProcesses, importProcess } from './exporter'
 import { ProcessMiddleware } from './middleware'
 import {
   approveRequestApproved,
@@ -173,7 +180,13 @@ export default async (): Promise<Resources> => ({
     LockSectionEditor,
     UnLockSectionPresenter,
     CancelToDoEditor,
-    ToDoValuePresenter
+    CancelSubProcessEditor,
+    ToDoValuePresenter,
+    ExecutionRefPresenter,
+    ActionTypePresenter,
+    LockFieldEditor,
+    LockFieldPresenter,
+    UnLockFieldPresenter
   },
   criteriaEditor: {
     BaseCriteria,
@@ -207,7 +220,8 @@ export default async (): Promise<Resources> => ({
     ApproveRequestRejected: approveRequestRejected
   },
   function: {
-    ExportProcess: exportProcess,
+    ExportProcess: exportProcesses,
+    ImportProcess: importProcess,
     ShowDoneQuery: showDoneQuery,
     CheckProcessSectionVisibility: checkProcessSectionVisibility,
     CheckRequestsSectionVisibility: checkRequestsSectionVisibility,

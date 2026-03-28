@@ -49,6 +49,7 @@
     "Required": "Obbligatorio",
     "ParallelExecutionForbidden": "Esecuzione parallela vietata",
     "StartAutomatically": "Avvia automaticamente",
+    "AutomationOnly": "Solo automazione",
     "Error": "Errore",
     "Continue": "Continua",
     "RequestFromUser": "Richiedi da utente",
@@ -146,7 +147,17 @@
     "Approvers": "Approvatori",
     "UnlockCard": "Sblocca scheda",
     "UnlockSection": "Sblocca sezione",
-    "CancelToDo": "Annulla azione"
+    "CancelToDo": "Annulla azione",
+    "Export": "Esporta",
+    "Import": "Importa",
+    "CancelProcess": "Annulla processo",
+    "SyncWithField": "Sincronizza con campo",
+    "ActionType": "Tipo",
+    "ApproveAction": "Approva",
+    "ReviewAction": "Revisa",
+    "Review": "Revisa",
+    "LockField": "Blocca campo",
+    "UnlockField": "Sblocca campo"
   },
   "error": {
     "MethodNotFound": "Metodo non trovato: {methodId}",

@@ -269,7 +269,15 @@
     "DefaultIssueStatus": "Varsayılan sorun durumu",
     "IssueStatus": "Durum",
     "Extensions": "Uzantılar",
-    "UnsetParentIssue": "Üst sorunu kaldır"
+    "UnsetParentIssue": "Üst sorunu kaldır",
+    "ForbidCreateProjectPermission": "Proje oluşturmayı yasakla",
+    "ForbidCreateProjectPermissionDescription": "Kullanıcıların yeni proje oluşturmasını yasakla",
+    "AdditionalProperties": "Ek özellikler"
   },
-  "status": {}
+  "status": {},
+  "emailTemplate": {
+    "AssigneeNotificationText": "{doc} was assigned to you by {sender}",
+    "AssigneeNotificationHtml": "<p>{doc} was assigned to you by {sender}</p> <p>{link}</p>",
+    "AssigneeNotificationSubject": "{doc} was assigned to you"
+  }
 }

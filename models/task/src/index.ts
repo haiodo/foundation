@@ -36,6 +36,7 @@ import {
   ReadOnly,
   TypeBoolean,
   TypeDate,
+  TypeRank,
   TypeRecord,
   TypeRef,
   TypeString,
@@ -113,7 +114,7 @@ export class TTask extends TAttachedDoc implements Task {
   @Prop(TypeDate(), task.string.DueDate, { editor: task.component.DueDateEditor })
     dueDate!: Timestamp | null
 
-  @Prop(TypeString(), task.string.Rank)
+  @Prop(TypeRank(), task.string.Rank)
   @Index(IndexKind.IndexedDsc)
   @Hidden()
     rank!: Rank
@@ -452,19 +453,6 @@ export function createModel (builder: Builder): void {
   builder.mixin(core.class.Status, core.class.Class, view.mixin.AllValuesFunc, {
     func: task.function.GetAllStates
   })
-
-  // builder.createDoc(
-  //   notification.class.NotificationType,
-  //   core.space.Model,
-  //   {
-  //     label: task.string.Assigned,
-  //     hidden: false,
-  //     textTemplate: '{doc} was assigned to you by {sender}',
-  //     htmlTemplate: '<p>{doc} was assigned to you by {sender}</p>',
-  //     subjectTemplate: '{doc} was assigned to you'
-  //   },
-  //   task.ids.AssigneedNotification
-  // )
 
   builder.mixin(task.mixin.TaskTypeClass, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: task.component.TaskTypeClassPresenter

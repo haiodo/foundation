@@ -116,7 +116,10 @@ export async function getPerson (control: TriggerControl, personId: PersonId): P
   return (await control.findAll(control.ctx, contact.class.Person, { _id: socialId.attachedTo }))[0]
 }
 
-export async function getEmployee (control: TriggerControl, personId: PersonId): Promise<Employee | undefined> {
+export async function getEmployee (
+  control: Pick<TriggerControl, 'findAll' | 'ctx'>,
+  personId: PersonId
+): Promise<Employee | undefined> {
   if (personId === core.account.System) return undefined
 
   const socialId = (
@@ -252,8 +255,15 @@ export async function getAccountBySocialKey (control: TriggerControl, socialKey:
   return employee[0]?.personUuid ?? null
 }
 
-export async function getPersonSpaces (control: TriggerControl): Promise<Pick<PersonSpace, '_id' | 'person'>[]> {
-  return await control.queryFind(control.ctx, contact.class.PersonSpace, {}, { projection: { _id: 1, person: 1 } })
+export async function getPersonSpaces (
+  control: TriggerControl
+): Promise<Pick<PersonSpace, '_id' | 'person' | 'account'>[]> {
+  return await control.queryFind(
+    control.ctx,
+    contact.class.PersonSpace,
+    {},
+    { projection: { _id: 1, person: 1, account: 1 } }
+  )
 }
 
 export function getAddCollaboratorsTxes (

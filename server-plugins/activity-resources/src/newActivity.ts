@@ -11,7 +11,6 @@ import core, {
 import { type Card } from '@hcengineering/card'
 import { type TriggerControl } from '@hcengineering/server-core'
 import activity from '@hcengineering/activity'
-import { type ActivityControl } from '@hcengineering/server-activity'
 import { MessageEventType, type CreateMessageEvent } from '@hcengineering/communication-sdk-types'
 import {
   type ActivityAttributeUpdate,
@@ -98,7 +97,7 @@ async function createMessages (tx: TxCUD<Card>, control: TriggerControl, card: C
   )
 }
 
-function getActivityAction (control: ActivityControl, tx: TxCUD<Doc>): 'create' | 'remove' | 'update' {
+function getActivityAction (control: TriggerControl, tx: TxCUD<Doc>): 'create' | 'remove' | 'update' {
   const hierarchy = control.hierarchy
 
   if (hierarchy.isDerived(tx._class, core.class.TxCreateDoc)) return 'create'
@@ -111,28 +110,34 @@ async function getActivityContent (control: TriggerControl, extra: ActivityMessa
   const { action, update } = extra
   const { hierarchy } = control
   const clazz = hierarchy.getClass(card._class)
-  const objectType = await translate(clazz.label, {})
+  const language = control.branding?.defaultLanguage ?? 'en'
+  const objectType = await translate(clazz.label, {}, language)
 
   if (action === 'create') {
-    return await translate(activity.string.NewObjectType, { type: objectType, title: card.title })
+    return await translate(activity.string.NewObjectType, { type: objectType, title: card.title }, language)
   }
 
   if (action === 'remove') {
-    return await translate(activity.string.RemovedObjectType, { type: objectType, title: card.title })
+    return await translate(activity.string.RemovedObjectType, { type: objectType, title: card.title }, language)
   }
 
   if (action === 'update' && update !== undefined) {
-    const text = await getUpdateText(update, card, hierarchy)
+    const text = await getUpdateText(update, card, hierarchy, language)
 
-    return text ?? (await translate(activity.string.ChangedObject, { object: card.title }))
+    return text ?? (await translate(activity.string.ChangedObject, { object: card.title }, language))
   }
 
   return ''
 }
 
-async function getUpdateText (update: ActivityUpdate, card: Card, hierarchy: Hierarchy): Promise<string | undefined> {
+async function getUpdateText (
+  update: ActivityUpdate,
+  card: Card,
+  hierarchy: Hierarchy,
+  language: string
+): Promise<string | undefined> {
   if (update.type === ActivityUpdateType.Attribute) {
-    const attrName = await getAttrName(update, card._class, hierarchy)
+    const attrName = await getAttrName(update, card._class, hierarchy, language)
 
     if (attrName === undefined) {
       return undefined
@@ -141,26 +146,30 @@ async function getUpdateText (update: ActivityUpdate, card: Card, hierarchy: Hie
     const { added, removed, set, attrClass } = update
 
     if (added != null && added.length > 0) {
-      return await translate(activity.string.NewObject, { object: attrName })
+      return await translate(activity.string.NewObject, { object: attrName }, language)
     }
     if (removed != null && removed.length > 0) {
-      return await translate(activity.string.RemovedObject, { object: attrName })
+      return await translate(activity.string.RemovedObject, { object: attrName }, language)
     }
 
     if (set !== undefined) {
       const isUnset = set === null
 
       if (isUnset) {
-        return await translate(activity.string.UnsetObject, { object: attrName })
+        return await translate(activity.string.UnsetObject, { object: attrName }, language)
       } else {
         const values = await getAttributeValues(set, attrClass)
         if (values !== undefined) {
-          return await translate(activity.string.AttributeSetTo, {
-            name: capitalizeFirstLetter(attrName),
-            value: values.join(', ')
-          })
+          return await translate(
+            activity.string.AttributeSetTo,
+            {
+              name: capitalizeFirstLetter(attrName),
+              value: values.join(', ')
+            },
+            language
+          )
         }
-        return await translate(activity.string.ChangedObject, { object: attrName })
+        return await translate(activity.string.ChangedObject, { object: attrName }, language)
       }
     }
   }
@@ -169,11 +178,11 @@ async function getUpdateText (update: ActivityUpdate, card: Card, hierarchy: Hie
     const clazz = hierarchy.getClass(update.tag)
     if (update.action === 'add') {
       const tagName = await translate(clazz.label, {})
-      return await translate(activity.string.AddedTag, { title: tagName })
+      return await translate(activity.string.AddedTag, { title: tagName }, language)
     }
     if (update.action === 'remove') {
       const tagName = await translate(clazz.label, {})
-      return await translate(activity.string.RemovedTag, { title: tagName })
+      return await translate(activity.string.RemovedTag, { title: tagName }, language)
     }
   }
   return undefined
@@ -182,7 +191,8 @@ async function getUpdateText (update: ActivityUpdate, card: Card, hierarchy: Hie
 async function getAttrName (
   attributeUpdates: ActivityAttributeUpdate,
   objectClass: Ref<Class<Doc>>,
-  hierarchy: Hierarchy
+  hierarchy: Hierarchy,
+  language: string
 ): Promise<string | undefined> {
   const { attrKey } = attributeUpdates
 
@@ -196,7 +206,7 @@ async function getAttrName (
       return undefined
     }
 
-    return await translate(label, {})
+    return await translate(label, {}, language)
   } catch (e) {
     console.error(e)
     return undefined

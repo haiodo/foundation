@@ -46,6 +46,17 @@ export async function handleWorkspaceStats (
   res.status(200).json(stats)
 }
 
+export async function handleWorkspaceStatsByType (
+  ctx: MeasureContext,
+  req: Request,
+  res: Response,
+  datalake: Datalake
+): Promise<void> {
+  const { workspace } = req.params
+  const stats = await datalake.getWorkspaceStatsByType(ctx, workspace as WorkspaceUuid)
+  res.status(200).json(stats)
+}
+
 export async function handleBlobList (
   ctx: MeasureContext,
   req: Request,
@@ -298,7 +309,7 @@ export async function handleUploadFormData (
         } catch (err: any) {
           Analytics.handleError(err)
           const error = err instanceof Error ? err.message : String(err)
-          ctx.error('failed to upload blob', { error: err })
+          ctx.error('failed to upload blob', { error })
           return { key, error }
         } finally {
           if (data instanceof Readable) {

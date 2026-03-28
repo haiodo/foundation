@@ -271,7 +271,13 @@
     "Extensions": "Extensions",
     "UnsetParentIssue": "Désélectionner l'issue parent",
     "ForbidCreateProjectPermission": "Interdire la création de projet",
-    "ForbidCreateProjectPermissionDescription": "Interdit aux utilisateurs de créer de nouveaux projets"
+    "ForbidCreateProjectPermissionDescription": "Interdit aux utilisateurs de créer de nouveaux projets",
+    "AdditionalProperties": "Propriétés supplémentaires"
   },
-  "status": {}
+  "status": {},
+  "emailTemplate": {
+    "AssigneeNotificationText": "{doc} was assigned to you by {sender}",
+    "AssigneeNotificationHtml": "<p>{doc} was assigned to you by {sender}</p> <p>{link}</p>",
+    "AssigneeNotificationSubject": "{doc} was assigned to you"
+  }
 }

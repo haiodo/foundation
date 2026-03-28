@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import activity from '@hcengineering/activity'
+import activity, { type DocUpdateMessage } from '@hcengineering/activity'
 import chunter from '@hcengineering/chunter'
 import { AccountRole, type Ref, type Status } from '@hcengineering/core'
 import { type Builder } from '@hcengineering/model'
@@ -24,7 +24,7 @@ import task from '@hcengineering/model-task'
 import view from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import converter from '@hcengineering/converter'
-import notification from '@hcengineering/notification'
+import notification, { type MessageNotificationType } from '@hcengineering/notification'
 import setting from '@hcengineering/setting'
 import pluginState, { trackerId } from '@hcengineering/tracker'
 
@@ -138,8 +138,8 @@ function defineNotifications (builder: Builder): void {
     tracker.ids.TrackerNotificationGroup
   )
 
-  builder.createDoc(
-    notification.class.NotificationType,
+  builder.createDoc<MessageNotificationType<DocUpdateMessage>>(
+    notification.class.MessageNotificationType,
     core.space.Model,
     {
       hidden: false,
@@ -147,15 +147,18 @@ function defineNotifications (builder: Builder): void {
       label: task.string.AssignedToMe,
       group: tracker.ids.TrackerNotificationGroup,
       field: 'assignee',
-      txClasses: [core.class.TxCreateDoc, core.class.TxUpdateDoc],
+      messageClass: activity.class.DocUpdateMessage,
       objectClass: tracker.class.Issue,
-      onlyOwn: true,
+      attachedToClass: tracker.class.Issue,
+      notificationMessage: tracker.string.IssueAssignedToYou,
       templates: {
-        textTemplate: '{doc} was assigned to you by {sender}',
-        htmlTemplate: '<p>{doc} was assigned to you by {sender}</p>',
-        subjectTemplate: '{doc} was assigned to you'
+        text: tracker.emailTemplate.AssigneeNotificationText,
+        html: tracker.emailTemplate.AssigneeNotificationHtml,
+        subject: tracker.emailTemplate.AssigneeNotificationSubject
       },
-      defaultEnabled: true
+      priority: 200,
+      defaultEnabled: true,
+      isMention: true
     },
     tracker.ids.AssigneeNotification
   )
@@ -164,7 +167,7 @@ function defineNotifications (builder: Builder): void {
     builder,
     tracker.class.Issue,
     tracker.ids.TrackerNotificationGroup,
-    [],
+    ['todos'],
     ['comments', 'status', 'priority', 'assignee', 'subIssues', 'blockedBy', 'milestone', 'dueDate']
   )
 }
@@ -605,6 +608,30 @@ export function createModel (builder: Builder): void {
 
   definePermissions(builder)
   defineSpaceType(builder)
+
+  builder.createDoc(
+    view.class.ViewletDescriptor,
+    core.space.Model,
+    {
+      label: tracker.string.TimeSpendReports,
+      icon: tracker.icon.Estimation,
+      component: tracker.component.TimeSpendReportList
+    },
+    tracker.viewlet.TimeSpendReportList
+  )
+
+  builder.createDoc(
+    view.class.Viewlet,
+    core.space.Model,
+    {
+      attachTo: tracker.class.Issue,
+      descriptor: tracker.viewlet.TimeSpendReportList,
+      viewOptions: undefined,
+      configOptions: {},
+      config: []
+    },
+    tracker.viewlet.TimeSpendReportListVL
+  )
 }
 
 function defineSpaceType (builder: Builder): void {

@@ -14,13 +14,14 @@
 //
 
 import { type Doc, type Ref } from '@hcengineering/core'
-import { type NotificationType } from '@hcengineering/notification'
+import { type MessageNotificationType } from '@hcengineering/notification'
 import { type Resource, mergeIds } from '@hcengineering/platform'
 import { type AnyComponent } from '@hcengineering/ui/src/types'
 import { type ActionCategory, type ViewAction } from '@hcengineering/view'
 import { loveId } from '@hcengineering/love'
 import love from '@hcengineering/love-resources/src/plugin'
 import { type ObjectSearchCategory, type ObjectSearchFactory } from '@hcengineering/model-presentation'
+import { type SocialIdentityProvider } from '@hcengineering/contact'
 
 export default mergeIds(loveId, love, {
   component: {
@@ -45,10 +46,13 @@ export default mergeIds(loveId, love, {
   },
   ids: {
     Settings: '' as Ref<Doc>,
-    MeetingMinutesChatNotification: '' as Ref<NotificationType>
+    MeetingMinutesChatNotification: '' as Ref<MessageNotificationType>
   },
   completion: {
     MeetingMinutesQuery: '' as Resource<ObjectSearchFactory>,
     MeetingMinutesCategory: '' as Ref<ObjectSearchCategory>
+  },
+  socialIdentityProvider: {
+    Love: '' as Ref<SocialIdentityProvider>
   }
 })

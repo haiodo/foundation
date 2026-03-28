@@ -156,7 +156,9 @@ services:
       retries: 10
     restart: unless-stopped
   elastic:
-    image: 'elasticsearch:7.14.2'
+    image: 'elasticsearch:8.19.1'
+    command: >
+      /bin/sh -c "./bin/elasticsearch-plugin list | grep -q analysis-icu || ./bin/elasticsearch-plugin install --batch analysis-icu; exec /usr/local/bin/docker-entrypoint.sh eswrapper -Ediscovery.type=single-node -Expack.security.enabled=false -Expack.security.http.ssl.enabled=false"
     expose:
       - 9200
     extra_hosts:
@@ -169,7 +171,9 @@ services:
       - ELASTICSEARCH_PORT_NUMBER=9200
       - BITNAMI_DEBUG=true
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms256m -Xmx450m
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms450m -Xmx450m
     healthcheck:
       interval: 20s
       retries: 10
@@ -216,7 +220,7 @@ services:
       - ACCOUNTS_URL=http://huly.local:3000
       - BRANDING_PATH=/var/cfg/branding.json
       # - DISABLE_SIGNUP=true
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
       - MAILBOX_DOMAINS=huly.dev.local
       - MAILBOX_MAX_COUNT_PER_ACCOUNT=2
     restart: unless-stopped
@@ -229,7 +233,7 @@ services:
     environment:
       - PORT=4900
       - SERVER_SECRET=secret
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
     restart: unless-stopped
   # payment:
   #   image: haiodo/payment
@@ -246,7 +250,7 @@ services:
   #     - POLAR_ACCESS_TOKEN=${POLAR_ACCESS_TOKEN}
   #     - POLAR_WEBHOOK_SECRET=${POLAR_WEBHOOK_SECRET}
   #     - POLAR_SUBSCRIPTION_PLANS=${POLAR_SUBSCRIPTION_PLANS}
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
   #   restart: unless-stopped
   workspace:
     image: haiodo/workspace
@@ -276,7 +280,7 @@ services:
       - BACKUP_BUCKET=${BACKUP_BUCKET_NAME}
       - MAIL_URL=
       # - INIT_WORKSPACE=staging-dev
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
     restart: unless-stopped
   collaborator:
     image: haiodo/collaborator
@@ -294,7 +298,7 @@ services:
       - ACCOUNTS_URL=http://huly.local:3000
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
     restart: unless-stopped
   front:
     image: haiodo/front
@@ -334,15 +338,17 @@ services:
       - BACKUP_URL=http://huly.local:4039/api/backup,
       - EXCLUDED_APPLICATIONS_FOR_ANONYMOUS=["chunter", "notification"]
       # - DISABLE_SIGNUP=true
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
       - PULSE_URL=ws://huly.local:8099/ws
       - DATALAKE_URL=http://huly.local:4030
       # - HULYLAKE_URL=http://huly.local:8096
       - AI_URL=http://huly.local:4010
+      - LANDING_URL=http://huly.local:9078/landing/
       - LOVE_ENDPOINT=http://huly.local:8096
       - LIVEKIT_WS=ws://huly.local:7880
       - EXPORT_URL=http://huly.local:4009
       - LINK_PREVIEW_URL=http://huly.local:4042
+      - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
     restart: unless-stopped
   transactor:
     image: haiodo/transactor
@@ -373,7 +379,8 @@ services:
       - METRICS_FILE=metrics.txt
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - FRONT_URL=http://huly.local:8087
-      - MAIL_URL=''
+#      - MAIL_URL=http://huly.local:8097
+#      - MAIL_AUTH_TOKEN=naephea1Rai7eeth1noh
       - ACCOUNTS_URL=http://huly.local:3000
       - LAST_NAME_FIRST=true
       - BRANDING_PATH=/var/cfg/branding.json
@@ -383,9 +390,10 @@ services:
       - RATE_LIMIT_WINDOW=3000
       - FILES_URL=http://huly.local:4030/blob/:workspace/:blobId/:filename
       - COMMUNICATION_API_ENABLED=false
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
       - HYLYLAKE_URL=http://huly.local:8096
       - AI_BOT_URL=http://huly.local:4010
+      - WEB_PUSH_URL=http://notification:3335
     restart: unless-stopped
   rekoni:
     image: haiodo/rekoni-service
@@ -396,7 +404,7 @@ services:
       - 4004:4004
     environment:
       - STATS_URL=http://huly.local:4901
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
   fulltext:
     image: haiodo/fulltext
     extra_hosts:
@@ -423,7 +431,7 @@ services:
       - STATS_URL=http://huly.local:4900
       - REKONI_URL=http://huly.local:4004
       - ACCOUNTS_URL=http://huly.local:3000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
       # - HULYLAKE_URL=http://huly.local:8096
   print:
     image: haiodo/print
@@ -439,7 +447,7 @@ services:
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - STATS_URL=http://huly.local:4900
       - ACCOUNTS_URL=http://huly.local:3000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
   sign:
     image: haiodo/sign
     extra_hosts:
@@ -461,7 +469,7 @@ services:
       - SERVICE_ID=sign-service
       - BRANDING_PATH=/var/cfg/branding.json
       - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
   love:
     image: haiodo/love
     extra_hosts:
@@ -578,8 +586,8 @@ services:
       - OPENAI_API_KEY=token
       # - OPENAI_MODEL=gpt-4o-mini
       - OPENAI_BASE_URL=http://huly.local:1234/v1/
-      - OPENAI_SUMMARY_MODEL=openai/gpt-oss-20b
-      - OPENAI_TRANSLATE_MODEL=openai/gpt-oss-20b
+      - OPENAI_SUMMARY_MODEL=qwen/qwen3.5-9b
+      - OPENAI_TRANSLATE_MODEL=qwen/qwen3.5-9b
 
       # GigaChat Configuration (only if using GigaChat)
       # - LLM_PROVIDER=gigachat
@@ -644,7 +652,7 @@ services:
       - SERVICE_ID=analytics-collector-service
       - ACCOUNTS_URL=http://huly.local:3000
       - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
       # - POSTHOG_HOST=${POSTHOG_HOST}
       # - POSTHOG_API_KEY=${POSTHOG_API_KEY}
       # - MAX_PAYLOAD_SIZE=10mb
@@ -665,7 +673,7 @@ services:
       - STATS_URL=http://huly.local:4900
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - ACCOUNTS_URL=http://huly.local:3000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
     restart: unless-stopped
   datalake:
     image: haiodo/datalake
@@ -692,8 +700,7 @@ services:
       - BUCKETS=blobs,eu|http://minio:9000?accessKey=minioadmin&secretKey=minioadmin
       - REGION=
       - QUEUE_CONFIG=${QUEUE_CONFIG}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-      - SECURE=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
     restart: unless-stopped
   # hulylake:
   #   image: haiodo/hulylake
@@ -771,6 +778,22 @@ services:
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
     restart: unless-stopped
+  time-machine:
+    image: haiodo/worker
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+      postgres:
+        condition: service_started
+    environment:
+      - DB_URL=${DB_URL_PG}
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+    restart: unless-stopped
   #  translate:
   #    image: haiodo/translate
   #    extra_hosts:
@@ -813,32 +836,32 @@ services:
   #     - INTERVAL=60
   #     - STORAGE=minio|minio?accessKey=minioadmin&secretKey=minioadmin
   #     - WORKSPACE_STORAGE=${STORAGE_CONFIG}
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
   #     - QUEUE_CONFIG=${QUEUE_CONFIG}
   #     - TEMPORAL_ADDRESS=localhost:7233
   #   restart: unless-stopped
-  backup-api:
-    image: haiodo/backup-api
-    extra_hosts:
-      - 'huly.local:host-gateway'
-    depends_on:
-      minio:
-        condition: service_healthy
-      stats:
-        condition: service_started
-      account:
-        condition: service_started
-    ports:
-      - 4039:4039
-    environment:
-      - PORT=4039
-      - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
-      - STATS_URL=http://huly.local:4900
-      - BUCKET_NAME=backups
-      - STORAGE=minio|minio?accessKey=minioadmin&secretKey=minioadmin
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-    restart: unless-stopped
+#  backup-api:
+#    image: haiodo/backup-api
+#    extra_hosts:
+#      - 'huly.local:host-gateway'
+#    depends_on:
+#      minio:
+#        condition: service_healthy
+#      stats:
+#        condition: service_started
+#      account:
+#        condition: service_started
+#    ports:
+#      - 4039:4039
+#    environment:
+#      - PORT=4039
+#      - SECRET=secret
+#      - ACCOUNTS_URL=http://huly.local:3000
+#      - STATS_URL=http://huly.local:4900
+#      - BUCKET_NAME=backups
+#      - STORAGE=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+#    restart: unless-stopped
 
   rating:
     image: haiodo/rating
@@ -862,24 +885,8 @@ services:
       - ACCOUNTS_URL=http://huly.local:3000
       - COMMUNICATION_TIME_LOGGING_ENABLED=true
       - COMMUNICATION_API_ENABLED=false
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
       - HYLYLAKE_URL=http://huly.local:8096
-    restart: unless-stopped
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    extra_hosts:
-      - 'huly.local:host-gateway'
-    ports:
-      - 16686:16686 # Web UI
-      - 4317:4317
-      - 4318:4318
-    volumes:
-      - telemetry:/badger
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-      - SPAN_STORAGE_TYPE=badger
-      - BADGER_DIRECTORY_VALUE=/badger/data
-      - BADGER_DIRECTORY_KEY=/badger/key
     restart: unless-stopped
   love-agent:
     image: haiodo/love-agent
@@ -898,22 +905,22 @@ services:
       - STT_PROVIDER=stream
     restart: unless-stopped
 
-  love-agent-prod:
-    image: haiodo/love-agent
-    extra_hosts:
-      - 'huly.local:host-gateway'
-    depends_on:
-      - love
-      - aibot
-    environment:
-      - SERVER_SECRET=secret
-      - AGENT_NAME=transcribe-prod
-      - PLATFORM_URL=http://huly.local:4010
-      - LIVEKIT_URL=ws://huly.local:7880
-      - LIVEKIT_API_KEY=devkey
-      - LIVEKIT_API_SECRET=secret
-      - STT_PROVIDER=stream
-    restart: unless-stopped
+  # love-agent-prod:
+  #   image: haiodo/love-agent
+  #   extra_hosts:
+  #     - 'huly.local:host-gateway'
+  #   depends_on:
+  #     - love
+  #     - aibot
+  #   environment:
+  #     - SERVER_SECRET=secret
+  #     - AGENT_NAME=transcribe-prod
+  #     - PLATFORM_URL=http://huly.local:4010
+  #     - LIVEKIT_URL=ws://huly.local:7880
+  #     - LIVEKIT_API_KEY=devkey
+  #     - LIVEKIT_API_SECRET=secret
+  #     - STT_PROVIDER=stream
+  #   restart: unless-stopped
 
   livekit-egress:
     image: livekit/egress
@@ -1024,6 +1031,35 @@ services:
       - PORT=4042
     ports:
       - 4042:4042
+    restart: unless-stopped
+  notifications:
+    image: haiodo/notifications
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+      transactor:
+        condition: service_started
+    environment:
+      - SECRET=secret
+      - ACCOUNTS_URL=http://huly.local:3000
+      - DB_URL=${DB_URL_PG}
+      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      - STATS_URL=http://huly.local:4900
+  notification:
+    image: haiodo/notification
+    environment:
+      - PORT=3335
+      - SOURCE=mail@example.com
+      - ACCESS_KEY=none
+      - SECRET_KEY=none
+      - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
+      - PUSH_PRIVATE_KEY=${PUSH_PRIVATE_KEY}
     restart: unless-stopped
 volumes:
   db:

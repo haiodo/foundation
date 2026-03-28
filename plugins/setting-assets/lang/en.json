@@ -125,6 +125,8 @@
     "WorkspaceName": "Workspace name",
     "Workspace": "Workspace",
     "OwnerOrMaintainerRequired": "You need to be a workspace Owner or Maintainer",
+    "LastOwnerLeaveTitle": "Cannot leave workspace",
+    "LastOwnerLeaveMessage": "You are the only owner of this workspace. To leave, first grant owner permissions to another member. If nobody needs this workspace anymore, consider deleting this workspace instead.",
     "Backup": "Backup",
     "BackupLast": "Last backup",
     "BackupTotalSnapshots": "Total Snapshots",
@@ -214,5 +216,10 @@
     "SelectUsers": "Select users",
     "ShowInTitle": "Show in title",
     "SpaceMembersOnly": "Space members only"
+  },
+  "emailTemplate": {
+    "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",
+    "IntegrationDisabledNotificationHtml": "<p>Integration with {doc} was disabled</p> <p>{link}</p>",
+    "IntegrationDisabledNotificationSubject": "Integration with {doc} was disabled"
   }
 }

@@ -13,13 +13,19 @@
 // limitations under the License.
 //
 
-import { type ActivityMessage } from '@hcengineering/activity'
-import { type Channel, type ChatMessage, type DirectMessage } from '@hcengineering/chunter'
+import activity, { type ActivityMessage } from '@hcengineering/activity'
+import { type Channel, type ChatMessage } from '@hcengineering/chunter'
 import { type Resources } from '@hcengineering/platform'
 import { MessageBox, getClient } from '@hcengineering/presentation'
 import { getLocation, navigate, showPopup } from '@hcengineering/ui'
-import { writable } from 'svelte/store'
-import view from '@hcengineering/view'
+import { get, writable } from 'svelte/store'
+import { type DocNotifyContext, type NotificationAppearancePreference } from '@hcengineering/notification'
+import {
+  getNotificationsCount,
+  InboxNotificationsClientImpl,
+  isActivityNotification,
+  isMentionNotification
+} from '@hcengineering/notification-resources'
 
 import chunter from './plugin'
 
@@ -39,7 +45,6 @@ import CreateChannel from './components/chat/create/CreateChannel.svelte'
 import CreateDirectChat from './components/chat/create/CreateDirectChat.svelte'
 import ChunterBrowser from './components/chat/specials/ChunterBrowser.svelte'
 import SavedMessages from './components/chat/specials/SavedMessages.svelte'
-import ConvertDmToPrivateChannelModal from './components/ConvertDmToPrivateChannel.svelte'
 import DirectIcon from './components/DirectIcon.svelte'
 import DmHeader from './components/DmHeader.svelte'
 import DmPresenter from './components/DmPresenter.svelte'
@@ -68,7 +73,6 @@ import {
   getThreadLink,
   locationDataResolver,
   openChannelInSidebar,
-  openChannelInSidebarAction,
   openThreadInSidebar,
   replyToThread
 } from './navigation'
@@ -78,20 +82,18 @@ import {
   canCopyMessageLink,
   canDeleteMessage,
   canReplyToThread,
-  dmIdentifierProvider,
   getDmName,
   getTitle,
   getUnreadThreadsCount,
-  leaveChannelAction,
-  removeChannelAction,
   translateMessage,
   showOriginalMessage,
   canTranslateMessage,
   startConversationAction,
   summarizeMessages,
-  canSummarizeMessages
+  canSummarizeMessages,
+  DirectLabelProvider
 } from './utils'
-import DeleteMessagePresenter from './components/DeleteMessagePresenter.svelte'
+import DeleteMessageConfirmationPopup from './components/DeleteMessageConfirmationPopup.svelte'
 
 export { default as ChannelEmbeddedContent } from './components/ChannelEmbeddedContent.svelte'
 export { default as ChatMessageInput } from './components/chat-message/ChatMessageInput.svelte'
@@ -132,13 +134,6 @@ async function UnarchiveChannel (channel: Channel): Promise<void> {
   })
 }
 
-async function ConvertDmToPrivateChannel (dm: DirectMessage): Promise<void> {
-  showPopup(ConvertDmToPrivateChannelModal, {
-    label: chunter.string.ConvertToPrivate,
-    dm
-  })
-}
-
 export const userSearch = writable('')
 
 export async function chunterBrowserVisible (): Promise<boolean> {
@@ -150,20 +145,10 @@ export function chatMessagesFilter (message: ActivityMessage): boolean {
 }
 
 export async function deleteChatMessage (message: ChatMessage): Promise<void> {
-  const client = getClient()
-
   showPopup(
-    MessageBox,
+    DeleteMessageConfirmationPopup,
     {
-      label: chunter.string.DeleteMessage,
-      message: chunter.string.DeleteMessageDescription,
-      component: DeleteMessagePresenter,
-      componentProps: { value: message },
-      dangerous: true,
-      okLabel: view.string.Delete,
-      action: async () => {
-        await client.remove(message)
-      }
+      message
     },
     'center'
   )
@@ -220,8 +205,8 @@ export default async (): Promise<Resources> => ({
     GetFragment: getTitle,
     GetLink: getMessageLink,
     DirectTitleProvider,
+    DirectLabelProvider,
     ChannelTitleProvider,
-    DmIdentifierProvider: dmIdentifierProvider,
     CanDeleteMessage: canDeleteMessage,
     CanCopyMessageLink: canCopyMessageLink,
     GetChunterSpaceLinkFragment: chunterSpaceLinkFragmentProvider,
@@ -235,17 +220,41 @@ export default async (): Promise<Resources> => ({
     CanTranslateMessage: canTranslateMessage,
     CanSummarizeMessages: canSummarizeMessages,
     OpenThreadInSidebar: openThreadInSidebar,
-    LocationDataResolver: locationDataResolver
+    LocationDataResolver: locationDataResolver,
+    ShowNotifyMarkerFn: async (
+      contexts: DocNotifyContext[],
+      preference?: NotificationAppearancePreference
+    ): Promise<boolean> => {
+      if (preference?.showChatBadge === false) return false
+
+      const hasUpdates = contexts.some((context) => (context.lastUpdate ?? 0) > (context.lastView ?? 0))
+      if (!hasUpdates) return false
+
+      const notificationClient = InboxNotificationsClientImpl.getClient()
+      const client = getClient()
+      const hierarchy = client.getHierarchy()
+
+      for (const context of contexts) {
+        if ((context.lastUpdate ?? 0) <= (context.lastView ?? 0)) continue
+
+        const notifications = get(notificationClient.inboxNotificationsByContext).get(context._id) ?? []
+        const activityNotifications = notifications.filter(isActivityNotification)
+        const mentionNotifications = notifications
+          .filter(isMentionNotification)
+          .filter((it) => hierarchy.isDerived(it.mentionedInClass, activity.class.ActivityMessage))
+        const unreadCount = getNotificationsCount(context, [...activityNotifications, ...mentionNotifications])
+        if (unreadCount > 0) {
+          return true
+        }
+      }
+      return false
+    }
   },
   actionImpl: {
     ArchiveChannel,
     UnarchiveChannel,
-    ConvertDmToPrivateChannel,
     DeleteChatMessage: deleteChatMessage,
-    LeaveChannel: leaveChannelAction,
-    RemoveChannel: removeChannelAction,
     ReplyToThread: replyToThread,
-    OpenInSidebar: openChannelInSidebarAction,
     TranslateMessage: translateMessage,
     SummarizeMessages: summarizeMessages,
     ShowOriginalMessage: showOriginalMessage,

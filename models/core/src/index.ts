@@ -16,6 +16,7 @@
 import {
   type Class,
   type ClassCollaborators,
+  type Collaborator,
   type Data,
   type Doc,
   DOMAIN_BENCHMARK,
@@ -26,6 +27,7 @@ import {
   DOMAIN_STATUS,
   DOMAIN_TRANSIENT,
   DOMAIN_TX,
+  type IndexingConfiguration,
   type Ref
 } from '@hcengineering/core'
 import { type Builder, Collection } from '@hcengineering/model'
@@ -57,6 +59,7 @@ import {
   TPluginConfiguration,
   TRefTo,
   TRelation,
+  TRelationMetadata,
   TSequence,
   TTransientConfiguration,
   TTTransientTTL,
@@ -183,6 +186,7 @@ export function createModel (builder: Builder): void {
     TMigrationState,
     TBlob,
     TRelation,
+    TRelationMetadata,
     TAssociation,
     TDomainIndexConfiguration,
     TBenchmarkDoc,
@@ -226,6 +230,16 @@ export function createModel (builder: Builder): void {
       { createdOn: -1 }
     ]
   })
+
+  builder.mixin<Class<Collaborator>, IndexingConfiguration<Collaborator>>(
+    core.class.Collaborator,
+    core.class.Class,
+    core.mixin.IndexConfiguration,
+    {
+      searchDisabled: true,
+      indexes: []
+    }
+  )
 
   builder.createDoc(core.class.DomainIndexConfiguration, core.space.Model, {
     domain: DOMAIN_BENCHMARK,

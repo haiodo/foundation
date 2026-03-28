@@ -45,6 +45,7 @@
     "Required": "Povinné",
     "ParallelExecutionForbidden": "Nedovoluj paralelní spuštění",
     "StartAutomatically": "Spustit automaticky",
+    "AutomationOnly": "Pouze automatizace",
     "Error": "Chyba",
     "Continue": "Pokračovat",
     "RequestFromUser": "Požádat uživatele",
@@ -141,7 +142,17 @@
     "Approvers": "Schvalovatelé",
     "UnlockCard": "Odemknout kartu",
     "UnlockSection": "Odemknout sekci",
-    "CancelToDo": "Zrušit akční položku"
+    "CancelToDo": "Zrušit akční položku",
+    "Export": "Exportovat",
+    "Import": "Importovat",
+    "CancelProcess": "Zrušit proces",
+    "SyncWithField": "Synchronizovat s polem",
+    "ActionType": "Typ",
+    "ApproveAction": "Schválit",
+    "ReviewAction": "Zkontrolovat",
+    "Review": "Zkontrolovat",
+    "LockField": "Zamknout pole",
+    "UnlockField": "Odemknout pole"
   },
   "error": {
     "MethodNotFound": "Metoda nenalezena: {methodId}",

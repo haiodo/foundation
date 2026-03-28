@@ -34,7 +34,8 @@ import core, {
   SortingOrder,
   type TxOperations,
   type WithLookup,
-  getClassCollaborators
+  getClassCollaborators,
+  generateId
 } from '@hcengineering/core'
 import notification, {
   type ActivityInboxNotification,
@@ -53,6 +54,7 @@ import { getMetadata, getResource } from '@hcengineering/platform'
 import { createQuery, getClient, MessageBox } from '@hcengineering/presentation'
 import {
   getCurrentLocation,
+  getEventPositionElement,
   getLocation,
   type Location,
   locationStorageKeyId,
@@ -91,14 +93,6 @@ export function loadNotificationSettings (): void {
 
 loadNotificationSettings()
 
-export async function hasDocNotifyContextPinAction (docNotifyContext: DocNotifyContext): Promise<boolean> {
-  return !docNotifyContext.isPinned
-}
-
-export async function hasDocNotifyContextUnpinAction (docNotifyContext: DocNotifyContext): Promise<boolean> {
-  return docNotifyContext.isPinned
-}
-
 /**
  * @public
  */
@@ -115,59 +109,27 @@ export async function canReadNotifyContext (doc: DocNotifyContext): Promise<bool
 /**
  * @public
  */
-export async function canUnReadNotifyContext (doc: DocNotifyContext): Promise<boolean> {
-  const canReadContext = await canReadNotifyContext(doc)
-  return !canReadContext
-}
-
-/**
- * @public
- */
 export async function readNotifyContext (doc: DocNotifyContext): Promise<void> {
   const inboxClient = InboxNotificationsClientImpl.getClient()
   const inboxNotifications = get(inboxClient.inboxNotificationsByContext).get(doc._id) ?? []
-
+  const me = getCurrentAccount()
   const ops = getClient().apply(undefined, 'readNotifyContext', true)
   try {
     await inboxClient.readNotifications(
       ops,
       inboxNotifications.map(({ _id }) => _id)
     )
-    await ops.update(doc, { lastViewedTimestamp: Date.now() })
-  } finally {
-    await ops.commit()
-  }
-}
 
-/**
- * @public
- */
-export async function unReadNotifyContext (doc: DocNotifyContext): Promise<void> {
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const inboxNotifications = get(inboxClient.inboxNotificationsByContext).get(doc._id) ?? []
-  const notificationsToUnread = inboxNotifications.filter(({ isViewed }) => isViewed)
-
-  if (notificationsToUnread.length === 0) {
-    return
-  }
-
-  const ops = getClient().apply(undefined, 'unReadNotifyContext', true)
-
-  try {
-    await inboxClient.unreadNotifications(
-      ops,
-      notificationsToUnread.map(({ _id }) => _id)
-    )
-    const toUnread = inboxNotifications.find(isActivityNotification)
-
-    if (toUnread !== undefined) {
-      const createdOn = (toUnread as WithLookup<ActivityInboxNotification>)?.$lookup?.attachedTo?.createdOn
-
-      if (createdOn === undefined || createdOn === 0) {
-        return
-      }
-
-      await ops.diffUpdate(doc, { lastViewedTimestamp: createdOn - 1 })
+    const state = await inboxClient.getReadState(doc.objectId)
+    if (state != null) {
+      await ops.update(state, {
+        [me.uuid]: {
+          messageId: generateId<ActivityMessage>(),
+          timestamp: Date.now()
+        }
+      })
+    } else {
+      await ops.update(doc, { lastView: Date.now() })
     }
   } finally {
     await ops.commit()
@@ -177,6 +139,8 @@ export async function unReadNotifyContext (doc: DocNotifyContext): Promise<void>
 export async function removeContextNotifications (doc?: DocNotifyContext): Promise<void> {
   if (doc === undefined) return
 
+  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const me = getCurrentAccount()
   const ops = getClient().apply(undefined, 'removeContextNotifications', true)
 
   try {
@@ -189,7 +153,17 @@ export async function removeContextNotifications (doc?: DocNotifyContext): Promi
     for (const notification of notifications) {
       await ops.removeDoc(notification._class, notification.space, notification._id)
     }
-    await ops.update(doc, { lastViewedTimestamp: Date.now() })
+    const state = await inboxClient.getReadState(doc.objectId)
+    if (state != null) {
+      await ops.update(state, {
+        [me.uuid]: {
+          messageId: generateId<ActivityMessage>(),
+          timestamp: Date.now()
+        }
+      })
+    } else {
+      await ops.update(doc, { lastView: Date.now() })
+    }
   } finally {
     await ops.commit()
   }
@@ -240,22 +214,6 @@ export async function subscribe (docClass: Ref<Class<Doc>>, docId: Ref<Doc>): Pr
   await subscribeDoc(client, docClass, docId, 'add')
 }
 
-export async function pinDocNotifyContext (object: DocNotifyContext): Promise<void> {
-  const client = getClient()
-
-  await client.updateDoc(object._class, object.space, object._id, {
-    isPinned: true
-  })
-}
-
-export async function unpinDocNotifyContext (object: DocNotifyContext): Promise<void> {
-  const client = getClient()
-
-  await client.updateDoc(object._class, object.space, object._id, {
-    isPinned: false
-  })
-}
-
 export async function clearAll (): Promise<void> {
   const client = InboxNotificationsClientImpl.getClient()
 
@@ -276,12 +234,6 @@ export async function readAll (): Promise<void> {
   const client = InboxNotificationsClientImpl.getClient()
 
   await client.readAllNotifications()
-}
-
-export async function unreadAll (): Promise<void> {
-  const client = InboxNotificationsClientImpl.getClient()
-
-  await client.unreadAllNotifications()
 }
 
 export function isActivityNotification (doc?: InboxNotification): doc is ActivityInboxNotification {
@@ -403,11 +355,13 @@ export async function hasInboxNotifications (
   return unreadInboxData.size > 0
 }
 
-export async function getNotificationsCount (
-  context: DocNotifyContext | undefined,
+export function getNotificationsCount (
+  context: DocNotifyContext | DocNotifyContext[] | undefined,
   notifications: InboxNotification[] = []
-): Promise<number> {
-  if (context === undefined || notifications.length === 0) {
+): number {
+  if (context == null) return 0
+  const contexts = Array.isArray(context) ? context : [context]
+  if (contexts.length === 0 || notifications.length === 0) {
     return 0
   }
 
@@ -710,7 +664,8 @@ export async function subscribePush (): Promise<boolean> {
           keys: {
             p256dh: arrayBufferToBase64(subscription.getKey('p256dh')),
             auth: arrayBufferToBase64(subscription.getKey('auth'))
-          }
+          },
+          name: navigator.userAgent
         })
       } else {
         const exists = await client.findOne(notification.class.PushSubscription, {
@@ -724,7 +679,8 @@ export async function subscribePush (): Promise<boolean> {
             keys: {
               p256dh: arrayBufferToBase64(current.getKey('p256dh')),
               auth: arrayBufferToBase64(current.getKey('auth'))
-            }
+            },
+            name: navigator.userAgent
           })
         }
       }
@@ -827,4 +783,48 @@ export async function locationDataResolver (loc: Location): Promise<LocationData
   } catch (e) {
     return {}
   }
+}
+
+export function parseUserAgent (userAgent: string): string {
+  const browsers = [
+    { name: 'Edge', pattern: /Edg\/[\d.]+/ },
+    { name: 'Opera', pattern: /OPR\/[\d.]+/ },
+    { name: 'Chrome', pattern: /CriOS\/[\d.]+|Chrome\/[\d.]+/ },
+    { name: 'Firefox', pattern: /FxiOS\/[\d.]+|Firefox\/[\d.]+/ },
+    { name: 'Safari', pattern: /Safari\/[\d.]+/ }
+  ]
+
+  const os = [
+    { name: 'Windows', pattern: /Windows/ },
+    { name: 'Mac', pattern: /Macintosh/ },
+    { name: 'Linux', pattern: /Linux/ },
+    { name: 'Android', pattern: /Android/ },
+    { name: 'iOS', pattern: /iPhone|iPad/ }
+  ]
+
+  const browser = browsers.find(({ pattern }) => pattern.test(userAgent))?.name ?? 'Unknown browser'
+  const system = os.find(({ pattern }) => pattern.test(userAgent))?.name ?? 'Unknown OS'
+
+  return `${browser} on ${system}`
+}
+
+export async function editDocNotificationsVisibilityTester (doc: Doc | Doc[] | undefined): Promise<boolean> {
+  if (doc == null) return false
+  const object = Array.isArray(doc) ? doc[0] : doc
+  if (object == null) return false
+
+  const client = getClient()
+  const classCollaborators = getClassCollaborators(client.getModel(), client.getHierarchy(), object._class)
+  if (classCollaborators === undefined) return false
+  const collaborator = await client.findOne(core.class.Collaborator, {
+    attachedTo: object._id,
+    collaborator: getCurrentAccount().uuid
+  })
+
+  return collaborator != null
+}
+
+export async function editDocNotificationsAction (doc: Doc | Doc[], evt: MouseEvent): Promise<void> {
+  const value = Array.isArray(doc) ? doc[0] : doc
+  showPopup(notification.component.MutePopup, { value }, getEventPositionElement(evt))
 }

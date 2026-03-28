@@ -26,22 +26,29 @@ import {
   Timestamp,
   Tx,
   TxCUD,
-  Blob
+  Blob,
+  Markup,
+  Client
 } from '@hcengineering/core'
 import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import { Preference } from '@hcengineering/preference'
-import type { AnyComponent, ComponentExtensionId } from '@hcengineering/ui'
+import type { AnyComponent, ComponentExtensionId, LabelAndProps } from '@hcengineering/ui'
 import type { Action } from '@hcengineering/view'
 
 /**
  * @public
  */
 export interface ActivityMessage extends AttachedDoc {
+  attachedToTitle?: string
+  attachedToIdentifier?: string
+  attachedToUrl?: string
+
   modifiedBy: PersonId
   modifiedOn: Timestamp
 
   isPinned?: boolean
+  message?: Markup
 
   repliedPersons?: Ref<Person>[]
   lastReply?: Timestamp
@@ -97,13 +104,14 @@ export interface DocUpdateMessage extends ActivityMessage {
   objectId: Ref<Doc>
   objectClass: Ref<Class<Doc>>
 
+  objectTitle?: string
+  objectAttributes?: Record<string, any>
+
   txId?: Ref<TxCUD<Doc>>
 
   action: DocUpdateAction
   updateCollection?: string
   attributeUpdates?: DocAttributeUpdates
-  title?: string
-  attributes?: Record<string, any>
 }
 
 export interface ActivityReference extends ActivityMessage {
@@ -326,7 +334,8 @@ export default plugin(activityId, {
     AttributeSetTo: '' as IntlString,
     AddedTag: '' as IntlString,
     RemovedTag: '' as IntlString,
-    ValueTooLarge: '' as IntlString
+    ValueTooLarge: '' as IntlString,
+    SentAttachments: '' as IntlString
   },
   component: {
     Activity: '' as AnyComponent,
@@ -341,14 +350,16 @@ export default plugin(activityId, {
     ActivityInfoMessagePreview: '' as AnyComponent
   },
   ids: {
-    MentionNotification: '' as Ref<Doc>,
     AddReactionNotification: '' as Ref<any>
   },
   extension: {
     ActivityEmployeePresenter: '' as ComponentExtensionId
   },
   function: {
-    ShouldScrollToActivity: '' as Resource<() => boolean>
+    ShouldScrollToActivity: '' as Resource<() => boolean>,
+    ActivityMessageTooltipProvider: '' as Resource<
+    (client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>
+    >
   },
   backreference: {
     // Update list of back references

@@ -25,7 +25,6 @@ import contact, {
   getFirstName,
   getLastName,
   getName,
-  Organization,
   Person,
   PersonSpace,
   type UserProfile
@@ -60,6 +59,7 @@ import serverCore, { TriggerControl } from '@hcengineering/server-core'
 import { workbenchId } from '@hcengineering/workbench'
 
 import { ManageCollaboratorsTrigger } from './collaborators'
+import { Presenter, PresenterControl } from '@hcengineering/server-activity'
 
 export async function OnSpaceTypeMembers (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
@@ -294,6 +294,7 @@ async function createPersonSpace (
       private: true,
       archived: false,
       person,
+      account,
       members: [account]
     })
   ]
@@ -359,42 +360,21 @@ export async function OnChannelUpdate (txes: Tx[], control: TriggerControl): Pro
   return result
 }
 
-/**
- * @public
- */
-export async function personHTMLPresenter (doc: Doc, control: TriggerControl): Promise<string> {
-  const person = doc as Person
+const personUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${contactId}/${doc._id}`
-  const link = concatLink(front, path)
-  return `<a href="${link}">${getName(control.hierarchy, person, control.branding?.lastNameFirst)}</a>`
+  return concatLink(front, path)
 }
 
-/**
- * @public
- */
-export function personTextPresenter (doc: Doc, control: TriggerControl): string {
+const personTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const person = doc as Person
   return `${getName(control.hierarchy, person, control.branding?.lastNameFirst)}`
 }
 
-/**
- * @public
- */
-export async function organizationHTMLPresenter (doc: Doc, control: TriggerControl): Promise<string> {
-  const organization = doc as Organization
+const organizationUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${contactId}/${doc._id}`
-  const link = concatLink(front, path)
-  return `<a href="${link}">${organization.name}</a>`
-}
-
-/**
- * @public
- */
-export function organizationTextPresenter (doc: Doc): string {
-  const organization = doc as Organization
-  return `${organization.name}`
+  return concatLink(front, path)
 }
 
 /**
@@ -498,10 +478,9 @@ export default async () => ({
     ManageCollaboratorsTrigger
   },
   function: {
-    PersonHTMLPresenter: personHTMLPresenter,
-    PersonTextPresenter: personTextPresenter,
-    OrganizationHTMLPresenter: organizationHTMLPresenter,
-    OrganizationTextPresenter: organizationTextPresenter,
+    PersonUrlPresenter: personUrlPresenter,
+    PersonTitlePresenter: personTitlePresenter,
+    OrganizationUrlPresenter: organizationUrlPresenter,
     ContactNameProvider: contactNameProvider,
     GetCurrentEmployeeName: getCurrentEmployeeName,
     GetCurrentEmployeeEmail: getCurrentEmployeeEmail,

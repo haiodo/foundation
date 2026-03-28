@@ -46,6 +46,7 @@
     "SelectWorkspaceToExportSpace": "スペースからドキュメントをエクスポートするワークスペースを選択",
     "SelectSpace": "スペースを選択",
     "NoSelectedDocuments": "ドキュメントが選択されていません",
+    "NoDocumentsMatchedFilters": "現在のフィルターではエクスポート対象のドキュメントが見つかりませんでした。フィルターまたは選択内容を変更して、もう一度お試しください。",
     "RequestPermissionToImport": "ドキュメントをインポートするには、対象ワークスペースの所有者に許可をリクエストしてください。",
     "ExportOnlyEffective": "有効なステータスのドキュメントのみエクスポート",
     "ExportFilterMode": "エクスポートするドキュメント",
@@ -53,5 +54,10 @@
     "ExportFilterSkipArchivedObsolete": "アーカイブ・廃止を除くすべて",
     "ExportFilterAll": "すべてのドキュメント",
     "ExportResultRecordTitle": "ワークスペース {workspace} からのドキュメントのエクスポート ({date})"
+  },
+  "emailTemplate": {
+    "ImportedDocumentsNotificationText": "{body}",
+    "ImportedDocumentsNotificationHtml": "<p>{body}</p><p>{link}</p>",
+    "ImportedDocumentsNotificationSubject": "{title}"
   }
 }

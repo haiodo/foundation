@@ -5,8 +5,10 @@ import {
   AiTranscriptData,
   BillingStats,
   DatalakeStats,
+  LargestSpaceInfo,
   LiveKitEgressData,
   LiveKitEgressStats,
+  LiveKitParticipantSessionData,
   LiveKitSessionData,
   LiveKitSessionsStats,
   LiveKitStats
@@ -86,6 +88,13 @@ export class BillingClient {
     await fetchSafe(url, { method: 'POST', headers: { ...this.headers }, body })
   }
 
+  async postParticipantSessions (data: LiveKitParticipantSessionData[]): Promise<void> {
+    const path = '/api/v1/livekit/participants'
+    const url = new URL(concatLink(this.endpoint, path))
+    const body = JSON.stringify(data)
+    await fetchSafe(url, { method: 'POST', headers: { ...this.headers }, body })
+  }
+
   async getAiTranscriptLastData (): Promise<AiTranscriptData | undefined> {
     const path = '/api/v1/ai/transcript/last'
     const url = new URL(concatLink(this.endpoint, path))
@@ -107,6 +116,13 @@ export class BillingClient {
     const body = JSON.stringify(data)
 
     await fetchSafe(url, { method: 'POST', headers: { ...this.headers }, body })
+  }
+
+  async getLargestSpaces (workspace: WorkspaceUuid): Promise<LargestSpaceInfo[]> {
+    const path = `/api/v1/${workspace}/spaces/largest`
+    const url = new URL(concatLink(this.endpoint, path))
+    const response = await fetchSafe(url, { headers: { ...this.headers } })
+    return (await response.json()) as LargestSpaceInfo[]
   }
 }
 

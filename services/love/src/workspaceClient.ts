@@ -16,21 +16,18 @@
 import activity, { ActivityInfoMessage } from '@hcengineering/activity'
 import { RestClient } from '@hcengineering/api-client'
 import attachment, { Attachment } from '@hcengineering/attachment'
-import contact, { Person, AvatarType } from '@hcengineering/contact'
+import contact, { Person } from '@hcengineering/contact'
 import core, {
   Data,
   MeasureContext,
   Ref,
   generateId,
-  TxFactory,
   systemAccountUuid,
   type AccountUuid,
   type Blob,
   type PersonId,
   type WorkspaceUuid,
   DocumentUpdate,
-  AccountRole,
-  TxApplyResult,
   SocialIdType
 } from '@hcengineering/core'
 import drive, { createFile } from '@hcengineering/drive'
@@ -38,6 +35,7 @@ import love, {
   MeetingMinutes,
   MeetingStatus,
   ParticipantInfo,
+  ParticipantMetadata,
   PendingRecording,
   RecordingFormat,
   RecordingState,
@@ -53,18 +51,60 @@ import { RecordingPreset } from './preset'
 export class WorkspaceClient {
   private client!: RestClient
 
+  // Static cache for workspace clients
+  private static readonly workspaces = new Map<WorkspaceUuid, WorkspaceClient>()
+  private static readonly connectingWorkspaces = new Map<WorkspaceUuid, Promise<void>>()
+
   private constructor (
     private readonly workspace: WorkspaceUuid,
     private readonly ctx: MeasureContext
   ) {}
 
   static async create (workspace: WorkspaceUuid, ctx: MeasureContext): Promise<WorkspaceClient> {
-    const instance = new WorkspaceClient(workspace, ctx)
-    await instance.initClient(workspace)
-    return instance
+    return await WorkspaceClient.getWorkspaceClient(workspace, ctx)
   }
 
   async close (): Promise<void> {}
+
+  private static async initWorkspaceClient (workspace: WorkspaceUuid, ctx: MeasureContext): Promise<void> {
+    if (WorkspaceClient.connectingWorkspaces.has(workspace)) {
+      return await WorkspaceClient.connectingWorkspaces.get(workspace)
+    }
+
+    const initPromise = (async () => {
+      try {
+        if (!WorkspaceClient.workspaces.has(workspace)) {
+          const instance = new WorkspaceClient(workspace, ctx)
+          await instance.initClient(workspace)
+          WorkspaceClient.workspaces.set(workspace, instance)
+        }
+      } catch (err: any) {
+        ctx.error('Failed to initialize workspace client', { error: err?.message ?? String(err), workspace })
+      } finally {
+        WorkspaceClient.connectingWorkspaces.delete(workspace)
+      }
+    })()
+
+    WorkspaceClient.connectingWorkspaces.set(workspace, initPromise)
+    await initPromise
+  }
+
+  static async getWorkspaceClient (workspace: WorkspaceUuid, ctx: MeasureContext): Promise<WorkspaceClient> {
+    await WorkspaceClient.initWorkspaceClient(workspace, ctx)
+    const client = WorkspaceClient.workspaces.get(workspace)
+    if (client === undefined) {
+      throw new Error(`Failed to get workspace client for ${workspace}`)
+    }
+    return client
+  }
+
+  static async closeAll (): Promise<void> {
+    for (const workspace of WorkspaceClient.workspaces.values()) {
+      await workspace.close()
+    }
+    WorkspaceClient.workspaces.clear()
+    WorkspaceClient.connectingWorkspaces.clear()
+  }
 
   private async initClient (workspace: WorkspaceUuid): Promise<RestClient> {
     const token = generateToken(systemAccountUuid, workspace, { service: 'love' })
@@ -322,7 +362,8 @@ export class WorkspaceClient {
     name: string | null,
     account: AccountUuid | null,
     meeting: Ref<MeetingMinutes>,
-    sessionId: string
+    sessionId: string,
+    meta: ParticipantMetadata
   ): Promise<void> {
     try {
       this.ctx.info('[WorkspaceClient.upsertParticipantFromLiveKit] Starting', { meeting, person, name, sessionId })
@@ -367,104 +408,28 @@ export class WorkspaceClient {
         infos.splice(1)
       }
 
-      if (infos.length > 0) {
+      if (infos.length === 1) {
+        const info = infos[0]
         // ParticipantInfo already exists - update it with new meeting/session info
-        for (const info of infos) {
-          this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Updating existing ParticipantInfo', {
-            infoId: info._id,
-            person,
-            meeting
-          })
-          // Ensure the `meeting` field is set so clients can reliably discover current meeting
-          // for this participant (fixes missing subscribe to join requests / knock notifications).
-          await this.client.update(info, {
-            meeting,
-            room: attachedRoom ?? info.room,
-            name: name ?? info.name,
-            sessionId,
-            account: account ?? info.account
-          })
-          this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Updated ParticipantInfo', {
-            infoId: info._id,
-            person,
-            meeting
-          })
-
-          // Ensure cell uniqueness - if collision detected, reassign to a free place atomically
-          try {
-            const updatedInfo = await this.client.findOne(love.class.ParticipantInfo, { _id: info._id })
-            if (updatedInfo !== undefined) {
-              const colliders = await this.client.findAll(love.class.ParticipantInfo, {
-                meeting,
-                x: updatedInfo.x,
-                y: updatedInfo.y
-              })
-              const other = colliders.find((p) => p._id !== updatedInfo._id)
-              if (other !== undefined) {
-                // collision - pick a free place and try to update via apply
-                const roomDoc =
-                  attachedRoom !== null ? await this.client.findOne(love.class.Room, { _id: attachedRoom }) : undefined
-                if (roomDoc !== undefined) {
-                  const participants = await this.client.findAll(love.class.ParticipantInfo, { meeting })
-                  const place = getFreeRoomPlace(roomDoc, participants, person)
-                  const tf = new TxFactory(core.account.System)
-                  const updateTx = tf.createTxUpdateDoc(
-                    love.class.ParticipantInfo,
-                    core.space.Workspace,
-                    updatedInfo._id,
-                    { x: place.x, y: place.y }
-                  )
-                  const applyTx = tf.createTxApplyIf(
-                    core.space.Workspace,
-                    `${meeting}_${updatedInfo._id}_place`,
-                    [],
-                    [{ _class: love.class.ParticipantInfo, query: { meeting, x: place.x, y: place.y } }],
-                    [updateTx],
-                    'reassignParticipantPlace',
-                    true
-                  )
-                  const res = (await this.client.tx(applyTx)) as unknown
-                  let applied = false
-                  if (Array.isArray(res)) {
-                    const r = (res as unknown[]).find((it: unknown) => {
-                      if (it == null || typeof it !== 'object') return false
-                      const s = (it as { success?: unknown }).success
-                      return typeof s === 'boolean'
-                    })
-                    applied = r != null && (r as { success: boolean }).success
-                  } else if (res != null && typeof res === 'object') {
-                    const s = (res as { success?: unknown }).success
-                    applied = typeof s === 'boolean' && s
-                  }
-                  if (applied) {
-                    this.ctx.info(
-                      '[WorkspaceClient.upsertParticipantFromLivekit] Reassigned participant to free place',
-                      {
-                        infoId: updatedInfo._id,
-                        place
-                      }
-                    )
-                  } else {
-                    this.ctx.warn(
-                      '[WorkspaceClient.upsertParticipantFromLivekit] Failed to reassign participant place',
-                      {
-                        infoId: updatedInfo._id,
-                        place
-                      }
-                    )
-                  }
-                }
-              }
-            }
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err)
-            this.ctx.error('[WorkspaceClient.upsertParticipantFromLivekit] Collision handling failed', {
-              error: msg,
-              meeting,
-              person
-            })
-          }
-        }
+        this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Updating existing ParticipantInfo', {
+          infoId: info._id,
+          person,
+          meeting
+        })
+        // Ensure the `meeting` field is set so clients can reliably discover current meeting
+        // for this participant (fixes missing subscribe to join requests / knock notifications).
+        await this.client.update(info, {
+          meeting,
+          room: attachedRoom ?? info.room,
+          name: name ?? info.name,
+          sessionId,
+          account: account ?? info.account
+        })
+        this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Updated ParticipantInfo', {
+          infoId: info._id,
+          person,
+          meeting
+        })
       } else {
         // Create new ParticipantInfo - place will be allocated atomically to avoid collisions
         this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Creating new ParticipantInfo', {
@@ -472,88 +437,37 @@ export class WorkspaceClient {
           meeting,
           attachedRoom
         })
-        const txFactory = new TxFactory(core.account.System)
-        const maxAttempts = 5
-        let created = false
-        let newId: Ref<ParticipantInfo> | undefined
         const roomDoc =
           attachedRoom !== null ? await this.client.findOne(love.class.Room, { _id: attachedRoom }) : undefined
-        for (let attempt = 0; attempt < maxAttempts && !created; attempt++) {
-          const participants = await this.client.findAll(love.class.ParticipantInfo, { meeting })
-          const place = roomDoc !== undefined ? getFreeRoomPlace(roomDoc, participants, person) : { x: 0, y: 0 }
-          const oid = generateId<ParticipantInfo>()
-          const createTx = txFactory.createTxCreateDoc(
-            love.class.ParticipantInfo,
-            core.space.Workspace,
-            {
+
+        const participants = await this.client.findAll(love.class.ParticipantInfo, { meeting })
+
+        const place =
+          roomDoc !== undefined
+            ? getFreeRoomPlace(
+              roomDoc,
+              participants,
               person,
-              name: name ?? '',
-              meeting,
-              room: attachedRoom ?? null,
-              x: place.x,
-              y: place.y,
-              sessionId: sessionId ?? null,
-              account: account ?? null
-            } as any,
-            oid
-          )
-          const applyTx = txFactory.createTxApplyIf(
-            core.space.Workspace,
-            `${meeting}`,
-            [],
-            [
-              { _class: love.class.ParticipantInfo, query: { meeting, person } },
-              { _class: love.class.ParticipantInfo, query: { meeting, x: place.x, y: place.y } }
-            ],
-            [createTx],
-            'createParticipant',
-            true
-          )
-          try {
-            const res = (await this.client.tx(applyTx)) as TxApplyResult
-            if (res.success) {
-              created = true
-              newId = oid
-              this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Created ParticipantInfo (apply)', {
-                newId,
-                person,
-                meeting,
-                place
-              })
-              break
-            } else {
-              this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] create apply failed, retrying', {
-                attempt,
-                meeting,
-                place
-              })
-              await new Promise((resolve) => setTimeout(resolve, 50))
-            }
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err)
-            this.ctx.error('[WorkspaceClient.upsertParticipantFromLivekit] create apply error', { error: msg })
-            await new Promise((resolve) => setTimeout(resolve, 50))
-          }
-        }
-        if (!created) {
-          // Fallback
-          const fallbackId = await this.client.createDoc(love.class.ParticipantInfo, core.space.Workspace, {
+              meta.x !== undefined && meta.y !== undefined ? { x: meta.x, y: meta.y } : undefined
+            )
+            : { x: 0, y: 0 }
+        const oid = generateId<ParticipantInfo>()
+
+        await this.client.createDoc(
+          love.class.ParticipantInfo,
+          core.space.Workspace,
+          {
             person,
             name: name ?? '',
-            kind: 'user',
             meeting,
             room: attachedRoom ?? null,
-            x: -1, // -1 will show a person on random free place
-            y: -1,
+            x: place.x,
+            y: place.y,
             sessionId: sessionId ?? null,
             account: account ?? null
-          } as any)
-          this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Created ParticipantInfo (fallback)', {
-            newId: fallbackId,
-            person,
-            meeting
-          })
-        }
+          } as any,
+          oid
+        )
       }
     } catch (err: any) {
       this.ctx.error('[WorkspaceClient.upsertParticipantFromLivekit] Failed', {
@@ -605,125 +519,27 @@ export class WorkspaceClient {
    * Find a person by name (attempts a few strategies: exact first/last match, full name match, case-insensitive regex).
    * Returns the first matching Person ref or undefined if not found.
    */
-  async findPersonByName (firstName?: string, lastName?: string): Promise<Ref<Person> | undefined> {
+  async ensurePersonByName (guestId: string, firstName?: string, lastName?: string): Promise<Ref<Person> | undefined> {
     try {
-      // Build an exact match query first
-      const q: any = {}
-      if (firstName !== undefined && firstName !== '') q.firstName = firstName
-      if (lastName !== undefined && lastName !== '') q.lastName = lastName
-
-      let persons: Person[] = []
-      if (Object.keys(q).length > 0) {
-        persons = (await this.client.findAll(contact.class.Person, q, { limit: 10 })) as unknown as Person[]
-      }
-
-      // Fallback: try full `name` exact match
-      if (persons.length === 0 && firstName != null && lastName != null) {
-        const full = `${firstName} ${lastName}`
-        persons = (await this.client.findAll(
-          contact.class.Person,
-          { name: full },
-          { limit: 10 }
-        )) as unknown as Person[]
-      }
-
-      // Fallback: case-insensitive regex match if nothing found so far
-      if (persons.length === 0 && firstName != null) {
-        const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const regexQ: any = {}
-        if (firstName !== undefined) regexQ.firstName = { $regex: `^${escapeRegExp(firstName)}$`, $options: 'i' }
-        if (lastName !== undefined) regexQ.lastName = { $regex: `^${escapeRegExp(lastName ?? '')}$`, $options: 'i' }
-        persons = (await this.client.findAll(contact.class.Person, regexQ, { limit: 10 })) as unknown as Person[]
-      }
-
-      if (persons.length > 0) return persons[0]._id
-      return undefined
+      const person = await this.client.ensurePerson(SocialIdType.LOVE, guestId, firstName ?? '', lastName ?? '', {
+        addGuestEmployee: true
+      })
+      return person.localPerson as Ref<Person>
     } catch (err: any) {
       this.ctx.error('[WorkspaceClient.findPersonByName] Failed', {
         error: err?.message ?? String(err),
         firstName,
         lastName
       })
-      return undefined
     }
   }
 
-  /**
-   * Create a guest Person record with provided name parts.
-   * Uses a simple payload (name, firstName, lastName, avatarType) and returns created Person ref.
-   */
-  async createGuestPerson (firstName: string, lastName?: string): Promise<Ref<Person> | undefined> {
-    try {
-      const name = lastName != null ? `${firstName} ${lastName}` : firstName
-      const payload: any = {
-        name,
-        firstName: firstName ?? '',
-        lastName: lastName ?? '',
-        avatarType: AvatarType.COLOR
-      }
-
-      const personId = await this.client.createDoc(contact.class.Person, contact.space.Contacts, payload)
-      this.ctx.info('[WorkspaceClient.createGuestPerson] Created person', { personId, name })
-
-      // Ensure Employee mixin for this Person (retry on transient failure)
-      try {
-        await this.ensureEmployeeMixin(personId)
-        this.ctx.info('[WorkspaceClient.createGuestPerson] Ensured Employee mixin for person', { personId })
-      } catch (err: any) {
-        this.ctx.error('[WorkspaceClient.createGuestPerson] Unexpected error ensuring Employee mixin', {
-          error: err?.message ?? String(err),
-          personId
-        })
-      }
-      await this.createLoveSocialIdentity(personId, name)
-
-      return personId
-    } catch (err: any) {
-      this.ctx.error('[WorkspaceClient.createGuestPerson] Failed', {
-        error: err?.message ?? String(err),
-        firstName,
-        lastName
-      })
-      return undefined
-    }
-  }
-
-  // TODO: Pending remove
-  async ensureEmployeeMixin (personId: Ref<Person>): Promise<boolean> {
-    await this.ctx.with('create-employee', {}, async () => {
-      await this.client.createMixin(personId, contact.class.Person, contact.space.Contacts, contact.mixin.Employee, {
-        active: true,
-        role: AccountRole.Guest
-      })
-    })
-    return true
-  }
-
-  async createLoveSocialIdentity (personRef: Ref<Person>, name: string): Promise<PersonId> {
-    // Ok we do not have one, let's create a new one with the same name as the Person
-    return (await this.client.addCollection(
-      contact.class.SocialIdentity,
-      contact.space.Contacts,
-      personRef,
-      contact.class.Person,
-      'socialIds',
-      {
-        type: SocialIdType.LOVE,
-        key: personRef, // Using personRef as key for simplicity
-        value: personRef
-      }
-    )) as unknown as PersonId
-  }
-
-  async getCreatePersonIdByPersonRef (personRef: Ref<Person>, name: string): Promise<PersonId | undefined> {
+  async getPersonIdByPersonRef (personRef: Ref<Person>, name: string): Promise<PersonId | undefined> {
     try {
       const socialIds = await this.client.findAll(contact.class.SocialIdentity, { attachedTo: personRef }, { limit: 1 })
       if (socialIds.length > 0) {
         return socialIds[0]._id as PersonId
       }
-
-      // Ok we do not have one, let's create a new one with the same name as the Person
-      return await this.createLoveSocialIdentity(personRef, name)
     } catch (err: any) {
       this.ctx.error('[WorkspaceClient.getPersonIdByPersonRef] Failed', {
         error: err?.message ?? String(err),
@@ -807,7 +623,8 @@ export class WorkspaceClient {
           startedAt: Date.now(),
           roomName: params.roomName,
           name: params.name,
-          egressId: params.egressId
+          egressId: params.egressId,
+          status: 'active'
         }
       )
       this.ctx.info('[WorkspaceClient.createPendingRecording] Created', {
@@ -870,6 +687,26 @@ export class WorkspaceClient {
         error: err?.message ?? String(err)
       })
       return undefined
+    }
+  }
+
+  /**
+   * Mark a PendingRecording as cancelled.
+   * Called when recording is stopped by user before egress completes.
+   */
+  async cancelPendingRecording (pendingRecording: PendingRecording): Promise<void> {
+    try {
+      await this.client.update(pendingRecording, { status: 'cancelled' })
+      this.ctx.info('[WorkspaceClient.cancelPendingRecording] Marked as cancelled', {
+        docId: pendingRecording._id,
+        egressId: pendingRecording.egressId,
+        format: pendingRecording.format
+      })
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.cancelPendingRecording] Failed', {
+        error: err?.message ?? String(err),
+        docId: pendingRecording._id
+      })
     }
   }
 
@@ -941,6 +778,58 @@ export class WorkspaceClient {
         meeting
       })
       return undefined
+    }
+  }
+
+  /**
+   * Clean up orphaned PendingRecording entries that reference finished meetings.
+   * This handles cases where PendingRecording was not cleaned up when a meeting finished
+   * (e.g., due to a missed egress_ended webhook or service restart before cleanup could complete).
+   */
+  async cleanupOrphanedPendingRecordings (): Promise<void> {
+    try {
+      // Find all PendingRecording entries first
+      const allPendingRecordings = await this.client.findAll(love.class.PendingRecording, {})
+
+      if (allPendingRecordings.length === 0) {
+        return
+      }
+
+      // Get unique meeting IDs from PendingRecording entries
+      const meetingIds = [...new Set(allPendingRecordings.map((rec) => rec.attachedTo as Ref<MeetingMinutes>))]
+
+      // Find which of these meetings are finished
+      const finishedMeetings = await this.client.findAll(love.class.MeetingMinutes, {
+        _id: { $in: meetingIds },
+        status: MeetingStatus.Finished
+      })
+
+      const finishedMeetingIds = new Set(finishedMeetings.map((m) => m._id))
+
+      // Remove PendingRecording entries that reference finished meetings
+      let removedCount = 0
+      for (const rec of allPendingRecordings) {
+        if (finishedMeetingIds.has(rec.attachedTo as Ref<MeetingMinutes>)) {
+          await this.client.remove(rec)
+          removedCount++
+          this.ctx.info('[WorkspaceClient.cleanupOrphanedPendingRecordings] Removed orphaned PendingRecording', {
+            recordingId: rec._id,
+            meeting: rec.attachedTo,
+            format: rec.format,
+            egressId: rec.egressId
+          })
+        }
+      }
+
+      if (removedCount > 0) {
+        this.ctx.info('[WorkspaceClient.cleanupOrphanedPendingRecordings] Cleaned up orphaned recordings', {
+          count: removedCount
+        })
+      }
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.cleanupOrphanedPendingRecordings] Failed', {
+        error: err?.message ?? String(err)
+      })
     }
   }
 }

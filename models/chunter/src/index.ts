@@ -14,7 +14,7 @@
 //
 
 import activity, { type ActivityMessageControl } from '@hcengineering/activity'
-import { chunterId, type ChunterSpace } from '@hcengineering/chunter'
+import { type Chat, chunterId, type ChunterSpace } from '@hcengineering/chunter'
 import contact from '@hcengineering/contact'
 import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
@@ -22,6 +22,7 @@ import presentation from '@hcengineering/model-presentation'
 import view from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import { WidgetType } from '@hcengineering/workbench'
+import { AccountRole, type Class, type IndexingConfiguration } from '@hcengineering/core'
 
 import { defineActions } from './actions'
 import { defineNotifications } from './notifications'
@@ -29,6 +30,7 @@ import chunter from './plugin'
 import {
   DOMAIN_CHUNTER,
   TChannel,
+  TChat,
   TChatMessage,
   TChatSyncInfo,
   TChunterSpace,
@@ -36,7 +38,6 @@ import {
   TObjectChatPanel,
   TThreadMessage
 } from './types'
-import { AccountRole } from '@hcengineering/core'
 
 export { chunterId } from '@hcengineering/chunter'
 export { chunterOperation } from './migration'
@@ -50,7 +51,8 @@ export function createModel (builder: Builder): void {
     TChatMessage,
     TThreadMessage,
     TObjectChatPanel,
-    TChatSyncInfo
+    TChatSyncInfo,
+    TChat
   )
 
   builder.createDoc(
@@ -62,7 +64,10 @@ export function createModel (builder: Builder): void {
       icon: chunter.icon.Chunter,
       alias: chunterId,
       hidden: false,
-      component: chunter.component.Chat
+      component: chunter.component.Chat,
+      position: 'top',
+      order: 200,
+      showNotifyMarkerFn: chunter.function.ShowNotifyMarkerFn
     },
     chunter.app.Chunter
   )
@@ -130,6 +135,10 @@ export function createModel (builder: Builder): void {
     titleProvider: chunter.function.DirectTitleProvider
   })
 
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, view.mixin.ObjectLabel, {
+    labelProvider: chunter.function.DirectLabelProvider
+  })
+
   builder.mixin(chunter.class.Channel, core.class.Class, view.mixin.ObjectTitle, {
     titleProvider: chunter.function.ChannelTitleProvider
   })
@@ -148,10 +157,6 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(chunter.class.Channel, core.class.Class, view.mixin.SpaceHeader, {
     header: chunter.component.ChannelHeader
-  })
-
-  builder.mixin(chunter.class.DirectMessage, core.class.Class, view.mixin.ObjectIdentifier, {
-    provider: chunter.function.DmIdentifierProvider
   })
 
   builder.mixin(chunter.class.ChatMessage, core.class.Class, view.mixin.CollectionPresenter, {
@@ -195,6 +200,21 @@ export function createModel (builder: Builder): void {
     chunter.viewlet.Channels
   )
 
+  builder.createDoc(
+    view.class.Viewlet,
+    core.space.Model,
+    {
+      attachTo: chunter.class.DirectMessage,
+      descriptor: view.viewlet.Table,
+      configOptions: {
+        hiddenKeys: ['name', 'description', 'archived', 'private', 'autoJoin', 'owners', 'members']
+      },
+      config: ['', 'modifiedOn'],
+      props: { enableChecking: false }
+    },
+    chunter.viewlet.DirectMessages
+  )
+
   builder.mixin(chunter.class.Channel, core.class.Class, chunter.mixin.ObjectChatPanel, {
     ignoreKeys: ['archived', 'collaborators', 'lastMessage', 'pinned', 'description', 'members', 'owners']
   })
@@ -229,12 +249,8 @@ export function createModel (builder: Builder): void {
 
   builder.createDoc<ActivityMessageControl<ChunterSpace>>(activity.class.ActivityMessageControl, core.space.Model, {
     objectClass: chunter.class.DirectMessage,
-    skip: [
-      { _class: core.class.TxMixin },
-      { _class: core.class.TxCreateDoc },
-      { _class: core.class.TxRemoveDoc },
-      { _class: core.class.TxUpdateDoc }
-    ]
+    skip: [{ _class: core.class.TxMixin }, { _class: core.class.TxCreateDoc }, { _class: core.class.TxRemoveDoc }],
+    allowedFields: ['members']
   })
 
   builder.createDoc(activity.class.DocUpdateMessageViewlet, core.space.Model, {
@@ -328,6 +344,16 @@ export function createModel (builder: Builder): void {
     indexes: [],
     searchDisabled: true
   })
+
+  builder.mixin<Class<Chat>, IndexingConfiguration<Chat>>(
+    chunter.class.Chat,
+    core.class.Class,
+    core.mixin.IndexConfiguration,
+    {
+      searchDisabled: true,
+      indexes: []
+    }
+  )
 }
 
 export default chunter

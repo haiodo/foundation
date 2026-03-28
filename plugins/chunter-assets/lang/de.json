@@ -84,6 +84,7 @@
     "ReplyToThread": "Auf Thread antworten",
     "SentMessage": "Nachricht gesendet",
     "Direct": "Direkt",
+    "GroupChat": "Gruppenchat",
     "RepliedToThread": "Auf Thread geantwortet",
     "RepliedTo": "antwortete auf: {message}",
     "AllChannels": "Alle Kanäle",
@@ -134,6 +135,26 @@
     "ResolveThread": "Thread abschließen",
     "NoThreadsYet": "Es gibt noch keine Threads.",
     "SummarizeMessages": "Diskussion zusammenfassen",
-    "DeleteMessageDescription": "Sind Sie sicher, dass Sie diese Nachricht löschen möchten? Dies kann nicht rückgängig gemacht werden."
+    "DeleteMessageDescription": "Sind Sie sicher, dass Sie diese Nachricht löschen möchten? Dies kann nicht rückgängig gemacht werden.",
+    "Star": "Markieren",
+    "Unstar": "Markierung entfernen",
+    "HideFromChatList": "Aus Chatliste ausblenden",
+    "Leave": "{label} verlassen",
+    "HideAll": "Alle verbergen",
+    "Seen": "Gelesen"
+  },
+  "emailTemplate": {
+    "DMNotificationText": "{sender} hat Ihnen eine Nachricht gesendet: \n\n{message}",
+    "DMNotificationHtml": "<p><b>{sender}</b> hat Ihnen eine Nachricht gesendet: </p> {message} <p>{link}</p>",
+    "DMNotificationSubject": "Sie haben eine neue Direktnachricht",
+    "ChannelNotificationText": "{sender} hat eine Nachricht in {doc} gesendet: \n\n {message}",
+    "ChannelNotificationHtml": "<p><b>{sender}</b> hat eine Nachricht in {doc} gesendet:</p> {message} <p>{link}</p>",
+    "ChannelNotificationSubject": "Sie haben eine neue Nachricht in {doc}",
+    "JoinChannelNotificationText": "Sie wurden zu #{doc} hinzugefügt",
+    "JoinChannelNotificationHtml": "<p>Sie wurden zu <b>#{doc}</b> hinzugefügt</p> <p>{link}</p>",
+    "JoinChannelNotificationSubject": "Sie wurden zu #{doc} hinzugefügt",
+    "ThreadNotificationText": "{sender} hat auf {doc} geantwortet: \n\n{message}",
+    "ThreadNotificationHtml": "<p><b>{sender}</b> hat auf {doc} geantwortet:</p><p>{message}</p><p>{link}</p>",
+    "ThreadNotificationSubject": "Neue Antwort auf {doc}"
   }
 }

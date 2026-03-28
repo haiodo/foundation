@@ -41,7 +41,8 @@ import type {
   ProjectDocument,
   ControlledDocumentSnapshot
 } from './types'
-import type { NotificationType } from '@hcengineering/notification'
+import type { MessageNotificationType } from '@hcengineering/notification'
+import { DocUpdateMessage } from '@hcengineering/activity'
 
 /**
  * @public
@@ -183,6 +184,7 @@ export const documentsPlugin = plugin(documentsId, {
     Reason: '' as IntlString,
     CollaborativeDocument: '' as IntlString,
     ControlledDocument: '' as IntlString,
+    ControlledDocuments: '' as IntlString,
     Review: '' as IntlString,
     Approval: '' as IntlString,
     Reviewers: '' as IntlString,
@@ -292,6 +294,17 @@ export const documentsPlugin = plugin(documentsId, {
     TransferDocumentsHint: '' as IntlString,
     ExportDocuments: '' as IntlString
   },
+  emailTemplate: {
+    ContentNotificationText: '' as IntlString,
+    ContentNotificationHtml: '' as IntlString,
+    ContentNotificationSubject: '' as IntlString,
+    StateNotificationText: '' as IntlString,
+    StateNotificationHtml: '' as IntlString,
+    StateNotificationSubject: '' as IntlString,
+    CoAuthorsNotificationText: '' as IntlString,
+    CoAuthorsNotificationHtml: '' as IntlString,
+    CoAuthorsNotificationSubject: '' as IntlString
+  },
   ids: {
     NoParent: '' as Ref<DocumentMeta>,
     NoProject: '' as Ref<Project>,
@@ -335,7 +348,7 @@ export const documentsPlugin = plugin(documentsId, {
     ProductChangeControl: '' as Ref<DocumentTemplate>
   },
   notification: {
-    CoAuthorsNotification: '' as Ref<NotificationType>
+    CoAuthorsNotification: '' as Ref<MessageNotificationType<DocUpdateMessage>>
   },
   viewlet: {
     DocumentSpaceTable: '' as Ref<Viewlet>

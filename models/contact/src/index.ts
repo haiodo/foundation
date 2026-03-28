@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-import activity from '@hcengineering/activity'
+import activity, { type ActivityMessageControl } from '@hcengineering/activity'
 import { type Role, type Card } from '@hcengineering/card'
 import {
   AvatarType,
@@ -34,7 +34,8 @@ import {
   type SocialIdentity,
   type Status,
   type SocialIdentityProvider,
-  type Translation
+  type Translation,
+  type RecentlyUsedPersonsPreference
 } from '@hcengineering/contact'
 import {
   AccountRole,
@@ -53,7 +54,7 @@ import {
   type Ref,
   type Timestamp
 } from '@hcengineering/core'
-import { createSystemType } from '@hcengineering/model-card'
+import card, { createSystemType } from '@hcengineering/model-card'
 import {
   Collection as CollectionType,
   Hidden,
@@ -82,7 +83,7 @@ import { generateClassNotificationTypes } from '@hcengineering/model-notificatio
 import presentation from '@hcengineering/model-presentation'
 import view, { createAction, createAttributePresenter, type Viewlet } from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
-import notification from '@hcengineering/notification'
+import notification, { type NotificationGroup } from '@hcengineering/notification'
 import { getEmbeddedLabel, type Asset, type IntlString, type Resource } from '@hcengineering/platform'
 import setting from '@hcengineering/setting'
 import templates from '@hcengineering/templates'
@@ -229,7 +230,7 @@ export class TMember extends TAttachedDoc implements Member {
 }
 
 @Model(contact.class.Organization, contact.class.Contact)
-@UX(contact.string.Organization, contact.icon.Company, 'ORG', 'name', undefined, contact.string.Organizations)
+@UX(contact.string.Organization, contact.icon.Company, 'ORG', 'name', undefined, contact.string.Organizations, 'name')
 export class TOrganization extends TContact implements Organization {
   @Prop(TypeCollaborativeDoc(), core.string.Description)
   @Index(IndexKind.FullText)
@@ -284,6 +285,8 @@ export class TPersonSpace extends TSpace implements PersonSpace {
   @Prop(TypeRef(contact.class.Person), contact.string.Person)
   @Index(IndexKind.Indexed)
     person!: Ref<Person>
+
+  account!: AccountUuid
 }
 
 @Model(contact.class.UserRole, core.class.Doc, DOMAIN_ROLE)
@@ -298,6 +301,12 @@ export class TTranslation extends TPreference implements Translation {
   enabled!: boolean
   translateTo?: string
   dontTranslate!: string[]
+}
+
+@Model(contact.class.RecentlyUsedPersonsPreference, preference.class.Preference)
+export class TRecentlyUsedPersonsPreference extends TPreference implements RecentlyUsedPersonsPreference {
+  declare attachedTo: AccountUuid
+  assignees!: Ref<Person>[]
 }
 
 export function createModel (builder: Builder): void {
@@ -316,7 +325,8 @@ export function createModel (builder: Builder): void {
     TContactsTab,
     TPersonSpace,
     TUserRole,
-    TTranslation
+    TTranslation,
+    TRecentlyUsedPersonsPreference
   )
 
   builder.mixin(contact.class.PersonSpace, core.class.Class, core.mixin.TxAccessLevel, {
@@ -337,6 +347,13 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(contact.class.Person, core.class.Class, activity.mixin.ActivityDoc, {
     preposition: contact.string.For
+  })
+
+  // Prevent leaking private social identifiers (emails, external handles) via activity updates.
+  builder.createDoc<ActivityMessageControl<Person>>(activity.class.ActivityMessageControl, core.space.Model, {
+    objectClass: contact.class.Person,
+    skip: [],
+    skipFields: ['socialIds']
   })
 
   builder.mixin(contact.mixin.Employee, core.class.Class, activity.mixin.ActivityDoc, {
@@ -450,6 +467,17 @@ export function createModel (builder: Builder): void {
               baseQuery: {
                 role: 'GUEST'
               },
+              defaultConfig: [
+                { key: '', props: { showStatus: true } },
+                'city',
+                'attachments',
+                'modifiedOn',
+                {
+                  key: '$lookup.channels',
+                  label: contact.string.ContactInfo,
+                  sortingKey: ['$lookup.channels.lastMessage', 'channels']
+                }
+              ],
               createLabel: contact.string.Guest,
               createComponent: contact.component.CreateGuest
             }
@@ -855,7 +883,7 @@ export function createModel (builder: Builder): void {
     contact.class.SocialIdentityProvider,
     core.space.Model,
     {
-      label: getEmbeddedLabel('Huly'),
+      label: getEmbeddedLabel('Platform'),
       icon: contact.icon.Huly,
       type: SocialIdType.HULY
     },
@@ -1310,7 +1338,7 @@ export function createModel (builder: Builder): void {
     builder,
     contact.class.Person,
     contact.ids.PersonNotificationGroup,
-    [],
+    ['socialIds'],
     ['comments', 'attachments']
   )
 
@@ -1352,6 +1380,26 @@ export function createModel (builder: Builder): void {
     undefined,
     PaletteColorIndexes.Pink
   )
+  builder.createDoc(
+    notification.class.NotificationGroup,
+    core.space.Model,
+    {
+      label: contact.string.UserProfile,
+      icon: contact.icon.Person,
+      parent: card.ids.CardNotificationGroup as Ref<NotificationGroup>,
+      objectClass: contact.class.UserProfile
+    },
+    contact.ids.UserProfileNotificationGroup
+  )
+  generateClassNotificationTypes(
+    builder,
+    contact.class.UserProfile,
+    card.ids.CardNotificationGroup as Ref<NotificationGroup>,
+    ['todos'],
+    ['comments'],
+    contact.ids.UserProfileNotificationGroup
+  )
+
   builder.createDoc(core.class.Attribute, core.space.Model, {
     attributeOf: contact.class.UserProfile,
     name: 'person',

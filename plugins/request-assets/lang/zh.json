@@ -20,6 +20,16 @@
     "Cancel": "取消",
     "Cancelled": "已取消",
     "NewRequest": "新请求",
-    "CancelRequest": "取消请求"
+    "CancelRequest": "取消请求",
+    "NewRequestNotification": "新{name}",
+    "CancelRequestNotification": "{name}已取消"
+  },
+  "emailTemplate": {
+    "NewRequestNotificationText": "{sender} sent you a request for the {doc}",
+    "NewRequestNotificationHtml": "<p><b>{sender}</b> sent you a request for the {doc}</p> <p>{link}</p>",
+    "NewRequestNotificationSubject": "{doc}",
+    "CancelRequestNotificationText": "{sender} canceled the request for the {doc}",
+    "CancelRequestNotificationHtml": "<p><b>{sender}</b> canceled the request for the {doc}</p> <p>{link}</p>",
+    "CancelRequestNotificationSubject": "{doc}"
   }
 }

@@ -138,6 +138,20 @@ export function defineMethods (builder: Builder): void {
     process.class.Method,
     core.space.Model,
     {
+      label: process.string.CancelProcess,
+      editor: process.component.CancelSubProcessEditor,
+      presenter: process.component.SubProcessPresenter,
+      objectClass: process.class.Process,
+      requiredParams: ['_id'],
+      createdContext: null
+    },
+    process.method.CancelSubProcess
+  )
+
+  builder.createDoc(
+    process.class.Method,
+    core.space.Model,
+    {
       label: process.string.LockCard,
       objectClass: card.class.Card,
       requiredParams: [],
@@ -184,5 +198,33 @@ export function defineMethods (builder: Builder): void {
       createdContext: null
     },
     process.method.UnlockSection
+  )
+
+  builder.createDoc(
+    process.class.Method,
+    core.space.Model,
+    {
+      label: process.string.LockField,
+      objectClass: card.class.Card,
+      editor: process.component.LockFieldEditor,
+      presenter: process.component.LockFieldPresenter,
+      requiredParams: ['value'],
+      createdContext: null
+    },
+    process.method.LockField
+  )
+
+  builder.createDoc(
+    process.class.Method,
+    core.space.Model,
+    {
+      label: process.string.UnlockField,
+      objectClass: card.class.Card,
+      editor: process.component.LockFieldEditor,
+      presenter: process.component.UnLockFieldPresenter,
+      requiredParams: ['value'],
+      createdContext: null
+    },
+    process.method.UnlockField
   )
 }

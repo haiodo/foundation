@@ -50,6 +50,28 @@ export interface LiveKitEgressData {
   duration: number
 }
 
+export interface LiveKitParticipantSessionData {
+  workspace: string
+  participantId: string
+  sessionId: string
+  room: string
+  joinedAt: string
+  leftAt: string
+  durationSeconds: number
+}
+
+export interface ParticipantMinutesUsage {
+  totalMinutes: number
+}
+
+export interface ParticipantDailyUsage {
+  day: string
+  totalMinutes: number
+  maxParticipants: number
+  avgMeetingDurationMinutes: number
+  maxMeetingDurationMinutes: number
+}
+
 export interface AiTranscriptUsage {
   totalDurationSeconds: number
 }
@@ -62,6 +84,11 @@ export interface AiTokensUsage {
 export interface AiUsageData {
   transcript: AiTranscriptUsage
   tokens: AiTokensUsage[]
+}
+
+export interface AiTranscriptDailyUsage {
+  day: string
+  totalDurationSeconds: number
 }
 
 export interface AiTranscriptData {
@@ -87,6 +114,20 @@ export interface BillingDB {
   setLiveKitSessions: (ctx: MeasureContext, data: LiveKitSessionData[]) => Promise<void>
   setLiveKitEgress: (ctx: MeasureContext, data: LiveKitEgressData[]) => Promise<void>
 
+  pushParticipantSessions: (ctx: MeasureContext, data: LiveKitParticipantSessionData[]) => Promise<void>
+  getParticipantMinutes: (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    start: Date,
+    end: Date
+  ) => Promise<ParticipantMinutesUsage>
+  getParticipantDailyStats: (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    start: Date,
+    end: Date
+  ) => Promise<ParticipantDailyUsage[]>
+
   pushAiTranscriptData: (ctx: MeasureContext, data: AiTranscriptData[]) => Promise<void>
   getAiTranscriptLastData: (ctx: MeasureContext) => Promise<AiTranscriptData | undefined>
   getAiTranscriptStats: (
@@ -95,6 +136,12 @@ export interface BillingDB {
     start?: Date,
     end?: Date
   ) => Promise<AiTranscriptUsage>
+  getAiTranscriptDailyStats: (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    start: Date,
+    end: Date
+  ) => Promise<AiTranscriptDailyUsage[]>
 
   pushAiTokensData: (ctx: MeasureContext, data: AiTokensData[]) => Promise<void>
   getAiTokensStats: (

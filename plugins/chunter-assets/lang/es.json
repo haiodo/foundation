@@ -84,6 +84,7 @@
     "ReplyToThread": "Responder al hilo",
     "SentMessage": "Mensaje enviado",
     "Direct": "Directo",
+    "GroupChat": "Chat de grupo",
     "RepliedToThread": "Respondió al hilo",
     "RepliedTo": "respondió a: {message}",
     "AllChannels": "Todos los canales",
@@ -133,6 +134,26 @@
     "OpenChatInSidebar": "Abrir chat en la barra lateral",
     "NoThreadsYet": "No hay hilos todavía.",
     "SummarizeMessages": "Resumir la discusión",
-    "DeleteMessageDescription": "¿Estás seguro de que quieres eliminar este mensaje? Esta acción no se puede deshacer."
+    "DeleteMessageDescription": "¿Estás seguro de que quieres eliminar este mensaje? Esta acción no se puede deshacer.",
+    "Star": "Marcar",
+    "Unstar": "Desmarcar",
+    "HideFromChatList": "Ocultar de la lista de chat",
+    "Leave": "Abandonar {label}",
+    "HideAll": "Ocultar todo",
+    "Seen": "Leído"
+  },
+  "emailTemplate": {
+    "DMNotificationText": "{sender} te ha enviado un mensaje: \n\n{message}",
+    "DMNotificationHtml": "<p><b>{sender}</b> te ha enviado un mensaje: </p> {message} <p>{link}</p>",
+    "DMNotificationSubject": "Tienes un nuevo mensaje directo",
+    "ChannelNotificationText": "{sender} ha enviado un mensaje en {doc}: \n\n {message}",
+    "ChannelNotificationHtml": "<p><b>{sender}</b> ha enviado un mensaje en {doc}:</p> {message} <p>{link}</p>",
+    "ChannelNotificationSubject": "Tienes un nuevo mensaje en {doc}",
+    "JoinChannelNotificationText": "Has sido añadido a #{doc}",
+    "JoinChannelNotificationHtml": "<p>Has sido añadido a <b>#{doc}</b></p> <p>{link}</p>",
+    "JoinChannelNotificationSubject": "Has sido añadido a #{doc}",
+    "ThreadNotificationText": "{sender} respondió a {doc}: \n\n{message}",
+    "ThreadNotificationHtml": "<p><b>{sender}</b> respondió a {doc}:</p><p>{message}</p><p>{link}</p>",
+    "ThreadNotificationSubject": "Nueva respuesta a {doc}"
   }
 }

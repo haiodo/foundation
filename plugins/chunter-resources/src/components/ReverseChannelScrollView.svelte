@@ -18,13 +18,14 @@
     ActivityMessagePresenter,
     canGroupMessages,
     messageInFocus,
-    editingMessageStore
+    editingMessageStore,
+    clearMessageInLocation
   } from '@hcengineering/activity-resources'
   import core, { Doc, generateId, getCurrentAccount, Ref, Space, Timestamp, Tx, TxCUD } from '@hcengineering/core'
-  import { DocNotifyContext } from '@hcengineering/notification'
+  import { DocNotifyContext, ReadState } from '@hcengineering/notification'
   import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
   import { addTxListener, getClient, removeTxListener } from '@hcengineering/presentation'
-  import { ModernButton, Scroller } from '@hcengineering/ui'
+  import { ModernButton, Scroller, Loading } from '@hcengineering/ui'
   import { afterUpdate, onDestroy, onMount, tick } from 'svelte'
   import { ChatMessage } from '@hcengineering/chunter'
 
@@ -32,7 +33,6 @@
   import chunter from '../plugin'
   import { getScrollToDateOffset, getSelectedDate, jumpToDate, messageInView, readViewportMessages } from '../scroll'
   import { chatReadMessagesStore, recheckNotifications } from '../utils'
-  import BaseChatScroller from './BaseChatScroller.svelte'
   import BlankView from './BlankView.svelte'
   import ChannelInput from './ChannelInput.svelte'
   import ActivityMessagesSeparator from './ChannelMessagesSeparator.svelte'
@@ -64,6 +64,7 @@
   const inboxClient = InboxNotificationsClientImpl.getClient()
   const contextByDocStore = inboxClient.contextByDoc
   const notificationsByContextStore = inboxClient.inboxNotificationsByContext
+  const readStateByDocStore = inboxClient.readStateByDoc
 
   // Stores
   const metadataStore = provider.metadataStore
@@ -80,6 +81,9 @@
 
   let messages: ActivityMessage[] = []
   let messagesCount = 0
+
+  let isReadStateLoaded = false
+  let readState: ReadState | undefined = undefined
 
   // Elements
   let scroller: Scroller | undefined | null = undefined
@@ -124,6 +128,12 @@
     read()
   }
 
+  $: void inboxClient.getReadState(object._id).then((it) => {
+    readState = it
+    isReadStateLoaded = true
+  })
+  $: readState = $readStateByDocStore.get(doc._id) ?? undefined
+
   const unsubscribe = inboxClient.inboxNotificationsByContext.subscribe(() => {
     if (notifyContext !== undefined && !isFreeze()) {
       recheckNotifications(notifyContext)
@@ -131,12 +141,12 @@
     }
   })
 
-  $: void initializeScroll($isLoadingStore, separatorDiv, separatorIndex)
   $: adjustScrollPosition(selectedMessageId)
+  $: void initializeScroll($isLoadingStore || !isReadStateLoaded, separatorDiv, separatorIndex)
   $: void handleMessagesUpdated(messages.length)
 
   function adjustScrollPosition (selectedMessageId?: Ref<ActivityMessage>): void {
-    if ($isLoadingStore || !isScrollInitialized) {
+    if ($isLoadingStore || !isReadStateLoaded || !isScrollInitialized) {
       return
     }
     const msgData = $metadataStore.find(({ _id }) => _id === selectedMessageId)
@@ -147,9 +157,6 @@
       } else {
         scrollToMessage()
       }
-    } else if (selectedMessageId === undefined) {
-      provider.jumpToEnd()
-      reinitializeScroll()
     }
   }
 
@@ -344,8 +351,8 @@
   }
 
   function read (): void {
-    if (isFreeze() || notifyContext === undefined || !isScrollInitialized) return
-    readViewportMessages(messages, notifyContext._id, scrollDiv, contentDiv)
+    if (isFreeze() || !isScrollInitialized) return
+    readViewportMessages(messages, scrollDiv, contentDiv, readState)
   }
 
   function updateScrollData (): void {
@@ -392,6 +399,7 @@
   async function handleScrollToLatestMessage (): Promise<void> {
     selectedMessageId = undefined
     messageInFocus.set(undefined)
+    clearMessageInLocation()
 
     const metadata = $metadataStore
     const lastMetadata = metadata[metadata.length - 1]
@@ -413,9 +421,9 @@
 
   async function forceReadContext (isScrollAtBottom: boolean, context?: DocNotifyContext): Promise<void> {
     if (context === undefined || !isScrollAtBottom || forceRead || isFreeze()) return
-    const { lastUpdateTimestamp = 0, lastViewedTimestamp = 0 } = context
+    const { lastUpdate = 0, lastView = 0 } = context
 
-    if (lastViewedTimestamp >= lastUpdateTimestamp) return
+    if (lastView >= lastUpdate) return
 
     const notifications = $notificationsByContextStore.get(context._id) ?? []
     const unViewed = notifications.filter(({ isViewed }) => !isViewed)
@@ -526,13 +534,22 @@
     }
   }
 
+  let readTimeout: number | undefined
+  function handleScrollThrottled (): void {
+    if (readTimeout !== undefined) return
+    readTimeout = window.setTimeout(() => {
+      readTimeout = undefined
+      updateSelectedDate()
+      read()
+    }, 100)
+  }
+
   async function handleScroll (): Promise<void> {
     updateScrollData()
     updateDownButtonVisibility($metadataStore, messages, scrollDiv)
     updateShouldScrollToNew()
     loadMore()
-    updateSelectedDate()
-    read()
+    handleScrollThrottled()
   }
 
   function handleResize (): void {
@@ -576,10 +593,12 @@
     removeTxListener(newMessageTxListener)
   })
 
-  $: showBlankView = !$isLoadingStore && messages.length === 0 && !isThread
+  $: showBlankView = !($isLoadingStore || !isReadStateLoaded) && messages.length === 0 && !isThread
 
   export function editLastMessage (): void {
-    if ($isLoadingStore || !isScrollInitialized || !$isTailLoadedStore || scrollDiv == null) return
+    if ($isLoadingStore || !isReadStateLoaded || !isScrollInitialized || !$isTailLoadedStore || scrollDiv == null) {
+      return
+    }
     if (!isScrollAtBottom) return
     const me = getCurrentAccount()
     let lastMessage: ChatMessage | undefined = undefined
@@ -611,9 +630,8 @@
       editLastMessage()
     }
   }
-  function getKey (messages: ActivityMessage[]): string {
-    return `${messages.length}-${Math.max(...messages.map((m) => m.modifiedOn))}`
-  }
+
+  $: loadingOverlay = $isLoadingStore || !isReadStateLoaded || !isScrollInitialized
 </script>
 
 <div class="flex-col relative" class:h-full={fullHeight}>
@@ -622,15 +640,22 @@
       <JumpToDateSelector {selectedDate} fixed on:jumpToDate={handleJumpToDate} idPrefix={`${uuid}-`} />
     </div>
   {/if}
-  <BaseChatScroller
-    bind:scroller
-    bind:scrollDiv
-    bind:contentDiv
+  {#if loadingOverlay}
+    <div class="overlay">
+      <Loading />
+    </div>
+  {/if}
+  <Scroller
+    bind:this={scroller}
+    bind:divScroll={scrollDiv}
+    bind:divBox={contentDiv}
+    scrollDirection="vertical-reverse"
+    noStretch={!showBlankView}
     bottomStart={!showBlankView}
-    loadingOverlay={$isLoadingStore || !isScrollInitialized}
+    disableOverscroll
+    disablePointerEventsOnScroll
     onScroll={handleScroll}
     onResize={handleResize}
-    key={getKey(messages)}
   >
     {#if showBlankView}
       <BlankView
@@ -695,7 +720,7 @@
         onKeyDown={handleKeyDown}
       />
     {/if}
-  </BaseChatScroller>
+  </Scroller>
   {#if !isThread && isLatestMessageButtonVisible}
     <div class="down-button absolute">
       <ModernButton
@@ -726,6 +751,17 @@
 {/if}
 
 <style lang="scss">
+  .overlay {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    background: var(--theme-panel-color);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .selectedDate {
     position: absolute;
     top: 0;

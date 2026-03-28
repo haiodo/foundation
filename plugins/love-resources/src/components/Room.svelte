@@ -20,7 +20,14 @@
   import { onDestroy, onMount } from 'svelte'
 
   import love from '../plugin'
-  import { waitForOfficeLoaded, currentRoom, roomModalActive, showParticipantsInModal } from '../stores'
+  import {
+    waitForOfficeLoaded,
+    currentRoom,
+    roomModalActive,
+    showParticipantsInModal,
+    infos,
+    currentMeetingMinutes
+  } from '../stores'
   import { isFullScreen, lk } from '../utils'
   import ControlBar from './meeting/ControlBar.svelte'
   import ParticipantsListView from './meeting/ParticipantsListView.svelte'
@@ -38,9 +45,20 @@
 
   onMount(async () => {
     loading = true
+    console.log('[Room.onMount] Mounting Room component', {
+      roomId: room._id,
+      roomName: room.name,
+      isModal,
+      lkState: lk.state,
+      lkNumParticipants: lk.numParticipants,
+      roomModalActive: $roomModalActive,
+      showParticipantsInModal: $showParticipantsInModal
+    })
+
     const wsURL = getMetadata(love.metadata.WebSocketURL)
 
     if (wsURL === undefined) {
+      console.log('[Room.onMount] WebSocketURL not configured')
       return
     }
     configured = true
@@ -49,6 +67,11 @@
 
     roomEl && roomEl.addEventListener('fullscreenchange', handleFullScreen)
     loading = false
+    console.log('[Room.onMount] Room component mounted', {
+      roomId: room._id,
+      configured,
+      loading: false
+    })
   })
 
   let gridStyle = ''
@@ -56,8 +79,28 @@
   let rows: number = 0
 
   onDestroy(() => {
+    console.log('[Room.onDestroy] Destroying Room component', {
+      roomId: room._id,
+      isModal,
+      roomModalActive: $roomModalActive,
+      lkState: lk.state
+    })
     roomEl.removeEventListener('fullscreenchange', handleFullScreen)
   })
+
+  // Monitor roomModalActive changes for audio debugging
+  $: {
+    console.log('[Room] roomModalActive changed', {
+      roomId: room._id,
+      isModal,
+      roomModalActive: $roomModalActive,
+      showParticipantsInModal: $showParticipantsInModal,
+      shouldShowScreenSharing: !isModal || $roomModalActive,
+      shouldShowParticipants: ($showParticipantsInModal && isModal) || !$roomModalActive,
+      lkState: lk.state,
+      lkNumParticipants: lk.numParticipants
+    })
+  }
 
   function updateStyle (count: number, screenSharing: boolean): void {
     columns = screenSharing ? 1 : Math.min(Math.ceil(Math.sqrt(count)), 8)
@@ -118,7 +161,10 @@
   }
 
   $: if (((document.fullscreenElement && !$isFullScreen) || $isFullScreen) && roomEl) checkFullscreen()
-  $: updateStyle(lk.numParticipants, withScreenSharing)
+  $: updateStyle(
+    $infos.filter((it) => it.meeting === $currentMeetingMinutes?._id).length ?? lk.numParticipants,
+    withScreenSharing
+  )
 </script>
 
 <div bind:this={roomEl} class="flex-col-center w-full h-full" class:theme-dark={$isFullScreen}>

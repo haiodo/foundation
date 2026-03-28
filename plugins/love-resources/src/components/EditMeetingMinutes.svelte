@@ -13,16 +13,21 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import presentation, { getClient } from '@hcengineering/presentation'
+  import presentation, { createQuery, getClient } from '@hcengineering/presentation'
   import { EditBox, ModernButton } from '@hcengineering/ui'
-  import { MeetingMinutes, MeetingStatus } from '@hcengineering/love'
+  import { MeetingMinutes, MeetingStatus, PendingRecording, ParticipantInfo, Room } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
 
   import love from '../plugin'
-  import { joinMeeting } from '../meetings'
-  import { currentMeetingMinutes, myConnectingSessionId } from '../stores'
-  import { lkSessionConnected } from '../liveKitClient'
+  import { joinMeeting, leaveMeeting } from '../meetings'
+  import { currentMeetingMinutes, infos, myConnectingSessionId, rooms } from '../stores'
+  import { lkIsConnecting, lkSessionConnected } from '../liveKitClient'
   import { getMetadata } from '@hcengineering/platform'
+  import { Ref } from '@hcengineering/core'
+  import ParticipantsPreview from './ParticipantsPreview.svelte'
+  import PendingRecordingPresenter from './PendingRecordingPresenter.svelte'
+  import { openWidgetTab } from '@hcengineering/workbench-resources'
+  import { videoVisible } from '../utils'
 
   export let object: MeetingMinutes
   export let readonly: boolean = false
@@ -48,13 +53,12 @@
 
   // Check if pending join is for THIS session (same browser tab)
   $: currentSessionId = getMetadata(presentation.metadata.SessionId)
-  $: hasPendingJoinInThisSession = $myConnectingSessionId !== null && $myConnectingSessionId === currentSessionId
+  $: hasPendingJoinInThisSession =
+    $myConnectingSessionId !== null && $myConnectingSessionId === currentSessionId && $lkIsConnecting
 
   async function connect (): Promise<void> {
     await joinMeeting(object)
   }
-
-  $: connecting = hasPendingJoinInThisSession || ($currentMeetingMinutes?._id === object._id && !$lkSessionConnected)
 
   $: connectLabel = object.status !== MeetingStatus.Scheduled ? love.string.JoinMeeting : love.string.StartMeeting
 
@@ -69,23 +73,77 @@
 
     return true
   }
+
+  function getInfo (mm: Ref<MeetingMinutes>, info: ParticipantInfo[]): ParticipantInfo[] {
+    return info.filter((p) => p.meeting === mm)
+  }
+
+  $: roomInfos = getInfo(object._id, $infos)
+
+  $: room = $rooms.find((it) => it._id === object.attachedTo)
+
+  const pendingQuery = createQuery()
+  let pendingRecordings: PendingRecording[] = []
+
+  $: pendingQuery.query(love.class.PendingRecording, { attachedTo: object._id }, (result) => {
+    pendingRecordings = result
+  })
 </script>
 
-<div class="flex-row-stretch">
-  <div class="row flex-grow">
-    <div class="title">
-      <EditBox
-        disabled={readonly}
-        placeholder={love.string.MeetingMinutes}
-        bind:value={newTitle}
-        on:change={changeTitle}
-        focusIndex={1}
-      />
+<div class="flex flex-col">
+  <div class="flex flex-row">
+    <div class="flex flex-grow flex-between gap-2 mb-4">
+      <div class="title flex-grow">
+        <EditBox
+          disabled={readonly}
+          placeholder={love.string.MeetingMinutes}
+          bind:value={newTitle}
+          on:change={changeTitle}
+          focusIndex={1}
+        />
+      </div>
+      {#if showConnectionButton(object, hasPendingJoinInThisSession, $lkSessionConnected)}
+        <ModernButton
+          label={connectLabel}
+          size="large"
+          kind={'primary'}
+          on:click={connect}
+          loading={hasPendingJoinInThisSession}
+        />
+      {:else if $lkSessionConnected}
+        {#if !$videoVisible}
+          <ModernButton
+            label={love.string.ShowVideo}
+            size="large"
+            kind={'secondary'}
+            on:click={() => {
+              openWidgetTab(love.ids.MeetingWidget, 'video')
+            }}
+          />
+        {/if}
+        <ModernButton
+          label={love.string.LeaveRoom}
+          size="large"
+          kind={'negative'}
+          on:click={() => {
+            void leaveMeeting()
+          }}
+        />
+      {/if}
     </div>
-    {#if showConnectionButton(object, connecting, $lkSessionConnected)}
-      <ModernButton label={connectLabel} size="large" kind={'primary'} on:click={connect} loading={connecting} />
-    {/if}
   </div>
+  {#if object != null && roomInfos.length > 0 && room != null}
+    <div class="room-preview">
+      <ParticipantsPreview info={roomInfos} />
+    </div>
+  {/if}
+  {#if pendingRecordings.length > 0}
+    <div class="pending-recordings">
+      {#each pendingRecordings as recording}
+        <PendingRecordingPresenter value={recording} />
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style lang="scss">
@@ -94,10 +152,15 @@
     font-size: 1.25rem;
     color: var(--theme-caption-color);
   }
-  .row {
+  .room-preview {
     display: flex;
-    align-items: center;
-    gap: var(--spacing-1);
-    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .pending-recordings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
   }
 </style>

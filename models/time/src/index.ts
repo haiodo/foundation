@@ -41,7 +41,8 @@ import {
   TypeString,
   UX,
   type Builder,
-  TypeMarkup
+  TypeMarkup,
+  TypeRank
 } from '@hcengineering/model'
 import { TEvent } from '@hcengineering/model-calendar'
 import core, { defineCollaborators, TAttachedDoc, TClass, TDoc, TType } from '@hcengineering/model-core'
@@ -49,7 +50,7 @@ import document from '@hcengineering/model-document'
 import tracker from '@hcengineering/model-tracker'
 import view, { createAction } from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
-import notification, { type NotificationGroup } from '@hcengineering/notification'
+import notification, { type NotificationGroup, type TxNotificationType } from '@hcengineering/notification'
 import recruit from '@hcengineering/recruit'
 import tags from '@hcengineering/tags'
 import {
@@ -128,6 +129,7 @@ export class TToDo extends TAttachedDoc implements ToDo {
   @Prop(Collection(tags.class.TagReference, tags.string.TagLabel), tags.string.Tags)
     labels?: number | undefined
 
+  @Prop(TypeRank(), core.string.Rank)
   @Index(IndexKind.Indexed)
   @Hidden()
     rank!: Rank
@@ -357,23 +359,23 @@ export function createModel (builder: Builder): void {
     time.ids.TimeNotificationGroup
   )
 
-  builder.createDoc(
-    notification.class.NotificationType,
+  builder.createDoc<TxNotificationType>(
+    notification.class.TxNotificationType,
     core.space.Model,
     {
       hidden: false,
       generated: false,
-      allowedForAuthor: true,
+      notifyAuthor: true,
       label: time.string.NewToDo,
       group: time.ids.TimeNotificationGroup as Ref<NotificationGroup>,
       txClasses: [core.class.TxCreateDoc],
       objectClass: time.class.ProjectToDo,
-      onlyOwn: true,
+      isMention: true,
       defaultEnabled: false,
       templates: {
-        textTemplate: '{body}',
-        htmlTemplate: '<p>{body}</p>',
-        subjectTemplate: '{title}'
+        text: time.emailTemplate.ToDoCreatedText,
+        html: time.emailTemplate.ToDoCreatedHtml,
+        subject: time.emailTemplate.ToDoCreatedSubject
       }
     },
     time.ids.ToDoCreated

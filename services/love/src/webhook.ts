@@ -15,11 +15,13 @@ import {
   RoomServiceClient,
   type WebhookEvent
 } from 'livekit-server-sdk'
-import { saveLiveKitEgressBilling } from './billing'
+import { saveLiveKitEgressBilling, saveParticipantSessionBilling } from './billing'
 import config from './config'
 import { getRecordingPreset } from './preset'
 import { saveFile } from './storage'
 import { WorkspaceClient } from './workspaceClient'
+import platform, { PlatformError } from '@hcengineering/platform'
+import { parseParticipantMetadata } from './utils'
 
 export class WebhookProcessor {
   constructor (
@@ -52,8 +54,8 @@ export class WebhookProcessor {
       return
     }
 
-    const wsClient = await WorkspaceClient.create(workspace, this.ctx)
     try {
+      const wsClient = await WorkspaceClient.create(workspace, this.ctx)
       // Participant joined / left -> manage ParticipantInfo and PendingJoin via LiveKit events only
       if (event.event === 'participant_joined' || event.event === 'participant_left') {
         await this.handleJoinLeave(event, roomName, wsClient)
@@ -73,10 +75,12 @@ export class WebhookProcessor {
         return
       }
     } catch (err: any) {
-      this.ctx.error('Failed to process livekit event', { error: err?.message ?? String(err), event: event.event })
+      const wsNotFound = err instanceof PlatformError && err.status.code === platform.status.WorkspaceNotFound
+
+      if (!wsNotFound) {
+        this.ctx.error('Failed to process livekit event', { error: err?.message ?? String(err), event: event.event })
+      }
       return
-    } finally {
-      await wsClient.close()
     }
 
     // Unknown event type - acknowledge receipt but don't process
@@ -155,9 +159,6 @@ export class WebhookProcessor {
       return
     }
 
-    // Get PersonId for the participant to use as modifiedBy (optional)
-    const participantPersonId = await wsClient.getCreatePersonIdByPersonRef(personRef, displayName)
-
     // Skip activity logs only for agent/system participants.
     // If personRef is known (even without SocialIdentity), we still add activity entries
     // so joins/leaves from real Person records are visible in MeetingMinutes.
@@ -176,6 +177,9 @@ export class WebhookProcessor {
     // Add activity entry to MeetingMinutes for visibility (from participant's identity)
     // Skip for recorder participants, agents, and unknown identities to avoid logging system events as participant joins
     if (!isAgent) {
+      // Get PersonId for the participant to use as modifiedBy (optional)
+      const participantPersonId = await wsClient.getPersonIdByPersonRef(personRef, displayName)
+
       await wsClient.addActivityToMeeting(
         event.event === 'participant_joined' ? love.string.JoinedMeeting : love.string.LeaveParticipant,
         meetingId,
@@ -197,6 +201,21 @@ export class WebhookProcessor {
       await this.eventProducer.send(this.ctx, roomName.workspace, [
         queueEvents.personJoined(roomName.meetingId, personRef, participant.identity ?? '')
       ])
+
+      // Track participant session duration for billing
+      const joinedAtMs = Number(participant.joinedAt ?? participant.joinedAtMs ?? 0)
+      if (joinedAtMs > 0) {
+        const joinedAt = joinedAtMs > 1e12 ? joinedAtMs : joinedAtMs * 1000
+        await saveParticipantSessionBilling(
+          this.ctx,
+          roomName.workspace,
+          `${roomName.workspace}_${roomName.meetingId}`,
+          participant.identity ?? personRef,
+          participant.sid,
+          joinedAt,
+          Date.now()
+        )
+      }
     }
   }
 
@@ -211,12 +230,14 @@ export class WebhookProcessor {
       identity: participant.identity,
       meetingId: roomName.meetingId
     })
+    const participantMetadata = parseParticipantMetadata(participant.metadata)
     await wsClient.upsertParticipantFromLiveKit(
       personRef,
       participant.name ?? participant.identity ?? 'Unknown',
       null,
       roomName.meetingId,
-      participant.sid
+      participant.sid,
+      participantMetadata
     )
     await this.eventProducer.send(this.ctx, roomName.workspace, [
       queueEvents.personJoined(roomName.meetingId, personRef, participant.identity ?? '')
@@ -235,7 +256,6 @@ export class WebhookProcessor {
     } else {
       this.ctx.info('Skipping room_started: not a MeetingMinutes-identified room', { workspace, roomName })
     }
-    await wsClient.close()
   }
 
   private async roomFinished (
@@ -258,8 +278,6 @@ export class WebhookProcessor {
       this.ctx.info('Skipping room_finished: not a MeetingMinutes-identified room', { workspace, roomName })
       // Do not operate on legacy room-id-only events.
     }
-
-    await wsClient.close()
   }
 
   private async egressUpdated (event: WebhookEvent, roomName: ParsedRoomName): Promise<void> {
@@ -276,7 +294,6 @@ export class WebhookProcessor {
         try {
           const wsClient = await WorkspaceClient.create(roomName.workspace, this.ctx)
           await wsClient.updatePendingRecordingSize(egressId, Number(fileResult.size))
-          await wsClient.close()
 
           await this.eventProducer.send(this.ctx, roomName.workspace, [
             queueEvents.egressEvent(roomName.meetingId, event.egressInfo.egressId, 'updated', {
@@ -312,34 +329,38 @@ export class WebhookProcessor {
       const meeting = await wsClient.findMeetingById(roomName.meetingId)
       if (meeting === undefined) {
         this.ctx.warn('egress_ended: meeting not found', { egressId, meetingId: roomName.meetingId })
-        await wsClient.close()
         return
       }
 
-      await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+      // Find and remove PendingRecording first (do this regardless of file save result)
+      const pendingRecording = await wsClient.findPendingRecordingByEgressId(egressId)
+      if (pendingRecording !== undefined) {
+        await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+        await wsClient.removePendingRecording(pendingRecording)
+        this.ctx.info('[Webhook] Removed PendingRecording after egress ended', {
+          egressId,
+          recordingId: pendingRecording._id,
+          format: pendingRecording.format
+        })
+        // Process file results - save to storage and attach to meeting
+        for (const fileResult of event.egressInfo.fileResults) {
+          this.ctx.info('Processing egress file result', { egressId, filename: fileResult.filename })
 
-      // Process file results - save to storage and attach to meeting
-      for (const fileResult of event.egressInfo.fileResults) {
-        this.ctx.info('Processing egress file result', { egressId, filename: fileResult.filename })
+          if (this.storageConfig !== undefined) {
+            const storedBlob = await saveFile(
+              this.ctx,
+              wsIds,
+              this.storageConfig,
+              this.s3storageConfig,
+              fileResult.filename
+            )
+            if (storedBlob !== undefined) {
+              this.ctx.info('Stored file', { storedBlob })
 
-        if (this.storageConfig !== undefined) {
-          const storedBlob = await saveFile(
-            this.ctx,
-            wsIds,
-            this.storageConfig,
-            this.s3storageConfig,
-            fileResult.filename
-          )
-          if (storedBlob !== undefined) {
-            this.ctx.info('Stored file', { storedBlob })
-
-            const preset = getRecordingPreset(config.RecordingPreset)
-            // Use name from PendingRecording if available, otherwise generate from filename
-            const pendingRecording = await wsClient.findPendingRecordingByEgressId(egressId)
-            if (pendingRecording !== undefined) {
-              const name = pendingRecording.name ?? fileResult.filename.split('/').pop() ?? 'recording.mp4'
+              const preset = getRecordingPreset(config.RecordingPreset)
+              // Use name from PendingRecording if available, otherwise generate from filename
+              const name = pendingRecording?.name ?? fileResult.filename.split('/').pop() ?? 'recording.mp4'
               await wsClient.saveFile(storedBlob._id, name, storedBlob, preset, roomName.meetingId)
-              await wsClient.removePendingRecording(pendingRecording)
 
               await this.eventProducer.send(this.ctx, roomName.workspace, [
                 queueEvents.egressEvent(roomName.meetingId, event.egressInfo.egressId, 'ended', {
@@ -349,13 +370,17 @@ export class WebhookProcessor {
                   preset
                 })
               ])
+            } else {
+              this.ctx.error('Not Stored file', { filename: fileResult.filename })
             }
-          } else {
-            this.ctx.error('Not Stored file', { storedBlob })
           }
         }
+      } else {
+        this.ctx.warn('[Webhook] PendingRecording not found for egress', {
+          egressId,
+          meetingId: roomName.meetingId
+        })
       }
-      await wsClient.close()
     } catch (err: any) {
       this.ctx.error('egress_ended: failed to process recording', {
         error: err?.message ?? String(err),

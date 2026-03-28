@@ -13,7 +13,7 @@
     "DirectMessage": "直连消息",
     "EditUpdate": "保存...",
     "EditCancel": "取消",
-    "Comments" : "评论",
+    "Comments": "评论",
     "About": "关于",
     "Members": "成员",
     "NoMembers": "无成员",
@@ -84,6 +84,7 @@
     "ReplyToThread": "回复线程",
     "SentMessage": "发送消息",
     "Direct": "直连",
+    "GroupChat": "群聊",
     "RepliedToThread": "回复了线程",
     "RepliedTo": "回复：{message}",
     "AllChannels": "所有频道",
@@ -133,6 +134,26 @@
     "OpenChatInSidebar": "在侧边栏中打开聊天",
     "NoThreadsYet": "还没有线程。",
     "SummarizeMessages": "总结讨论",
-    "DeleteMessageDescription": "你确定要删除此消息吗？此操作无法撤销。"
+    "DeleteMessageDescription": "你确定要删除此消息吗？此操作无法撤销。",
+    "Star": "加星标",
+    "Unstar": "取消星标",
+    "HideFromChatList": "从聊天列表中隐藏",
+    "Leave": "离开{label}",
+    "HideAll": "全部隐藏",
+    "Seen": "已读"
+  },
+  "emailTemplate": {
+    "DMNotificationText": "{sender}向您发送了一条消息: \n\n{message}",
+    "DMNotificationHtml": "<p><b>{sender}</b>向您发送了一条消息: </p> {message} <p>{link}</p>",
+    "DMNotificationSubject": "您有新的直连消息",
+    "ChannelNotificationText": "{sender}在{doc}中发送了一条消息: \n\n {message}",
+    "ChannelNotificationHtml": "<p><b>{sender}</b>在{doc}中发送了一条消息:</p> {message} <p>{link}</p>",
+    "ChannelNotificationSubject": "您在{doc}中有新消息",
+    "JoinChannelNotificationText": "您已被添加到#{doc}",
+    "JoinChannelNotificationHtml": "<p>您已被添加到<b>#{doc}</b></p> <p>{link}</p>",
+    "JoinChannelNotificationSubject": "您已被添加到#{doc}",
+    "ThreadNotificationText": "{sender}回复了{doc}: \n\n{message}",
+    "ThreadNotificationHtml": "<p><b>{sender}</b>回复了{doc}:</p><p>{message}</p><p>{link}</p>",
+    "ThreadNotificationSubject": "{doc}的新回复"
   }
 }

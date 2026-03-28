@@ -572,7 +572,8 @@ export async function sendOtpEmail (
 ): Promise<void> {
   const notificationProducer = getMetadata(accountPlugin.metadata.MailQueue)
 
-  const lang = branding?.language
+  const lang = branding?.defaultLanguage
+
   const app = branding?.title ?? getMetadata(accountPlugin.metadata.ProductName)
 
   const text = await translate(accountPlugin.string.OtpText, { code: otp, app }, lang)
@@ -1208,32 +1209,15 @@ export async function createWorkspaceRecord (
   }
 }
 
-export async function checkInvite (ctx: MeasureContext, invite: WorkspaceInvite, email: string): Promise<WorkspaceUuid> {
+export async function checkInvite (ctx: MeasureContext, invite: WorkspaceInvite): Promise<WorkspaceUuid> {
   if (invite.remainingUses === 0) {
-    ctx.warn('Invite limit exceeded', { email, ...invite })
+    ctx.warn('Invite limit exceeded', invite)
     throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
   if (invite.expiresOn > 0 && invite.expiresOn < Date.now()) {
-    ctx.warn('Invite link expired', { email, ...invite })
+    ctx.warn('Invite link expired', invite)
     throw new PlatformError(new Status(Severity.ERROR, platform.status.ExpiredLink, {}))
-  }
-
-  // TODO: consider not using RegExp with user input as some regexes might
-  // be slow or even cause catastrophic backtracking
-  // if (
-  //   invite.emailPattern != null &&
-  //   invite.emailPattern.trim().length > 0 &&
-  //   !new RegExp(invite.emailPattern).test(email)
-  // ) {
-  //   ctx.error("Invite doesn't allow this email address", { email, ...invite })
-  //   Analytics.handleError(new Error(`Invite link email mask check failed ${invite.id} ${email} ${invite.emailPattern}`))
-  //   throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
-  // }
-
-  if (invite.email != null && invite.email.trim().length > 0 && invite.email !== email) {
-    ctx.warn("Invite doesn't allow this email address", { email, ...invite })
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
   return invite.workspaceUuid
@@ -1260,7 +1244,7 @@ export async function sendEmailConfirmation (
   const link = concatLink(front, `/login/confirm?id=${token}`)
 
   const name = branding?.title ?? getMetadata(accountPlugin.metadata.ProductName)
-  const lang = branding?.language
+  const lang = branding?.defaultLanguage
   const text = await translate(accountPlugin.string.ConfirmationText, { name, link }, lang)
   const html = await translate(accountPlugin.string.ConfirmationHTML, { name, link }, lang)
   const subject = await translate(accountPlugin.string.ConfirmationSubject, { name }, lang)
@@ -1357,6 +1341,7 @@ export async function getWorkspacesInfoWithStatusByIds (
   db: AccountDB,
   uuids: WorkspaceUuid[]
 ): Promise<WorkspaceInfoWithStatus[]> {
+  if (!Array.isArray(uuids) || uuids.length === 0) return []
   const statuses = await db.workspaceStatus.find({ workspaceUuid: { $in: uuids } })
   const statusesMap = statuses.reduce<Record<string, WorkspaceStatus>>((sm, s) => {
     sm[s.workspaceUuid] = s
@@ -1442,13 +1427,12 @@ export async function getWorkspaceJoinInfo (
   if (email === undefined || email === '' || email === null) {
     throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
   }
-  const normalizedEmail = cleanEmail(email)
   if (inviteId !== undefined && inviteId !== '' && inviteId !== null) {
     const invite = await getWorkspaceInvite(db, inviteId)
     if (invite == null) {
       throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
     }
-    const workspaceUuid = await checkInvite(ctx, invite, normalizedEmail)
+    const workspaceUuid = await checkInvite(ctx, invite)
     const workspace = await getWorkspaceById(db, workspaceUuid)
     if (workspace == null) {
       throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid }))
@@ -1629,7 +1613,7 @@ export async function joinWithProvider (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
-  const workspaceUuid = await checkInvite(ctx, invite, normalizedEmail)
+  const workspaceUuid = await checkInvite(ctx, invite)
   const workspace = await getWorkspaceById(db, workspaceUuid)
 
   if (workspace == null) {
@@ -1810,7 +1794,7 @@ export async function getInviteEmail (
   resend = false
 ): Promise<EmailInfo> {
   const ws = sanitizeEmail(workspace.name !== '' ? workspace.name : workspace.url)
-  const lang = branding?.language
+  const lang = branding?.defaultLanguage
 
   return {
     text: await translate(

@@ -75,7 +75,8 @@ import {
   UX,
   TypeCollaborativeDoc,
   TypeMarkup,
-  ReadOnly
+  ReadOnly,
+  TypeRank
 } from '@hcengineering/model'
 import attachment from '@hcengineering/model-attachment'
 import chunter, { TChatMessage } from '@hcengineering/model-chunter'
@@ -181,6 +182,7 @@ export class TProjectMeta extends TDoc implements ProjectMeta {
   @Prop(Collection(documents.class.ProjectDocument), documents.string.Documents)
     documents!: CollectionSize<ProjectDocument>
 
+  @Prop(TypeRank(), core.string.Rank)
   @Index(IndexKind.Indexed)
   @Hidden()
     rank!: Rank
@@ -217,7 +219,15 @@ export class TProjectDocument extends TAttachedDoc implements ProjectDocument {
 }
 
 @Model(documents.class.Document, core.class.Doc, DOMAIN_DOCUMENTS)
-@UX(documents.string.Document, documents.icon.Document)
+@UX(
+  documents.string.Document,
+  documents.icon.Document,
+  undefined,
+  undefined,
+  undefined,
+  documents.string.Documents,
+  'title'
+)
 export class TDocument extends TDoc implements Document {
   @Prop(TypeRef(core.class.Space), core.string.Space)
   @Index(IndexKind.Indexed)
@@ -377,7 +387,8 @@ export class TDocumentCategory extends TDoc implements DocumentCategory {
   undefined,
   undefined,
   undefined,
-  documents.string.Documents
+  documents.string.ControlledDocuments,
+  'title'
 )
 export class TControlledDocument extends THierarchyDocument implements ControlledDocument {
   @Prop(Collection(documents.class.DocumentRequest), documents.string.Requests)

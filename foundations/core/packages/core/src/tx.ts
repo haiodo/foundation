@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type {
+import {
   Arr,
   AttachedDoc,
   Class,
@@ -436,7 +436,10 @@ export abstract class TxProcessor implements WithTx {
   }
 
   static txHasUpdate<T extends Doc>(tx: TxUpdateDoc<T>, attribute: string): boolean {
-    const ops = tx.operations
+    return TxProcessor.hasUpdate(tx.operations, attribute)
+  }
+
+  static hasUpdate<T extends Doc>(ops: DocumentUpdate<T>, attribute: string): boolean {
     if ((ops as any)[attribute] !== undefined) return true
     for (const op in ops) {
       if (op.startsWith('$')) {
@@ -607,4 +610,19 @@ export class TxFactory {
 
 export function isMixinTx (tx: TxCUD<Doc>): tx is TxMixin<Doc, Doc> {
   return tx._class === core.class.TxMixin
+}
+
+export function getTxOperations (tx: TxCUD<Doc>): Record<string, any> {
+  if (tx._class === core.class.TxUpdateDoc) {
+    const uTx = tx as TxUpdateDoc<Doc>
+    return uTx.operations
+  } else if (tx._class === core.class.TxMixin) {
+    const mTx = tx as TxMixin<Doc, Doc>
+    return mTx.attributes
+  } else if (tx._class === core.class.TxCreateDoc) {
+    const cTx = tx as TxCreateDoc<Doc>
+    return cTx.attributes
+  }
+
+  return []
 }

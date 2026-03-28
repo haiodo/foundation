@@ -26,34 +26,35 @@ import CommonInboxNotificationPresenter from './components/inbox/CommonInboxNoti
 import MentionInboxNotificationPresenter from './components/inbox/MentionInboxNotificationPresenter.svelte'
 import NotificationCollaboratorsChanged from './components/NotificationCollaboratorsChanged.svelte'
 import GeneralPreferencesGroup from './components/settings/GeneralPreferencesGroup.svelte'
+import WebpushesPreferencesPresenter from './components/settings/WebpushesPreferencesPresenter.svelte'
+import MutePopup from './components/MutePopup.svelte'
+import NotificationAppearancePreferencesPresenter from './components/settings/NotificationAppearancePreferencesPresenter.svelte'
+
 import {
   unsubscribe,
   resolveLocation,
-  hasDocNotifyContextPinAction,
-  hasDocNotifyContextUnpinAction,
-  pinDocNotifyContext,
-  unpinDocNotifyContext,
   canReadNotifyContext,
-  canUnReadNotifyContext,
   readNotifyContext,
-  unReadNotifyContext,
   hasInboxNotifications,
   clearAll,
   readAll,
-  unreadAll,
   checkPermission,
   isNotificationAllowed,
   locationDataResolver,
-  removeContextNotifications
+  removeContextNotifications,
+  editDocNotificationsVisibilityTester,
+  editDocNotificationsAction
 } from './utils'
 
 import { InboxNotificationsClientImpl } from './inboxNotificationsClient'
 
 export * from './utils'
 export * from './inboxNotificationsClient'
+export * from './stores'
 
 export { default as BrowserNotificatator } from './components/BrowserNotificatator.svelte'
 export { default as NotifyMarker } from './components/NotifyMarker.svelte'
+export { default as MutePopup } from './components/MutePopup.svelte'
 
 export default async (): Promise<Resources> => ({
   component: {
@@ -66,30 +67,28 @@ export default async (): Promise<Resources> => ({
     CommonInboxNotificationPresenter,
     MentionInboxNotificationPresenter,
     NotificationCollaboratorsChanged,
-    GeneralPreferencesGroup
+    GeneralPreferencesGroup,
+    WebpushesPreferencesPresenter,
+    MutePopup,
+    NotificationAppearancePreferencesPresenter
   },
   function: {
     // eslint-disable-next-line @typescript-eslint/unbound-method
     GetInboxNotificationsClient: InboxNotificationsClientImpl.getClient,
-    HasDocNotifyContextPinAction: hasDocNotifyContextPinAction,
-    HasDocNotifyContextUnpinAction: hasDocNotifyContextUnpinAction,
     CanReadNotifyContext: canReadNotifyContext,
-    CanUnReadNotifyContext: canUnReadNotifyContext,
     HasInboxNotifications: hasInboxNotifications,
     CheckPushPermission: checkPermission,
     IsNotificationAllowed: isNotificationAllowed,
-    LocationDataResolver: locationDataResolver
+    LocationDataResolver: locationDataResolver,
+    EditDocNotificationsVisibilityTester: editDocNotificationsVisibilityTester
   },
   actionImpl: {
     Unsubscribe: unsubscribe,
-    PinDocNotifyContext: pinDocNotifyContext,
-    UnpinDocNotifyContext: unpinDocNotifyContext,
     ReadNotifyContext: readNotifyContext,
-    UnReadNotifyContext: unReadNotifyContext,
     RemoveContextNotifications: removeContextNotifications,
     ClearAll: clearAll,
     ReadAll: readAll,
-    UnreadAll: unreadAll
+    EditDocNotifications: editDocNotificationsAction
   },
   resolver: {
     Location: resolveLocation

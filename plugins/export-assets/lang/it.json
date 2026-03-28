@@ -46,6 +46,7 @@
     "SelectWorkspaceToExportSpace": "Seleziona spazio di lavoro per esportare documenti dallo spazio",
     "SelectSpace": "Seleziona spazio",
     "NoSelectedDocuments": "Nessun documento selezionato",
+    "NoDocumentsMatchedFilters": "Nessun documento da esportare corrisponde ai filtri attuali. Modifica i filtri o la selezione e riprova.",
     "RequestPermissionToImport": "Si prega di richiedere l'autorizzazione al proprietario dello spazio di lavoro di destinazione per importare documenti.",
     "ExportOnlyEffective": "Esporta solo documenti con stato effettivo",
     "ExportFilterMode": "Documenti da esportare",
@@ -53,5 +54,10 @@
     "ExportFilterSkipArchivedObsolete": "Tutti tranne archiviati e obsoleti",
     "ExportFilterAll": "Tutti i documenti",
     "ExportResultRecordTitle": "Esportazione di documenti dallo spazio di lavoro {workspace} ({date})"
+  },
+  "emailTemplate": {
+    "ImportedDocumentsNotificationText": "{body}",
+    "ImportedDocumentsNotificationHtml": "<p>{body}</p><p>{link}</p>",
+    "ImportedDocumentsNotificationSubject": "{title}"
   }
 }

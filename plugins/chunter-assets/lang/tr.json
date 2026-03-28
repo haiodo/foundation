@@ -84,6 +84,7 @@
     "ReplyToThread": "Başlığa yanıt ver",
     "SentMessage": "Mesaj gönderildi",
     "Direct": "Direkt",
+    "GroupChat": "Grup sohbeti",
     "RepliedToThread": "Başlığa yanıt verildi",
     "RepliedTo": "yanıtlandı: {message}",
     "AllChannels": "Tüm kanallar",
@@ -134,6 +135,26 @@
     "ResolveThread": "Çöz",
     "NoThreadsYet": "Henüz başlık yok.",
     "SummarizeMessages": "Tartışmayı özetle",
-    "DeleteMessageDescription": "Bu mesajı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
+    "DeleteMessageDescription": "Bu mesajı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+    "Star": "Yıldızla",
+    "Unstar": "Yıldızı kaldır",
+    "HideFromChatList": "Sohbet listesinden gizle",
+    "Leave": "{label} ayrıl",
+    "HideAll": "Tümünü gizle",
+    "Seen": "Okundu"
+  },
+  "emailTemplate": {
+    "DMNotificationText": "{sender} size bir mesaj gönderdi: \n\n{message}",
+    "DMNotificationHtml": "<p><b>{sender}</b> size bir mesaj gönderdi: </p> {message} <p>{link}</p>",
+    "DMNotificationSubject": "Yeni bir direkt mesajınız var",
+    "ChannelNotificationText": "{sender} {doc} içinde bir mesaj gönderdi: \n\n {message}",
+    "ChannelNotificationHtml": "<p><b>{sender}</b> {doc} içinde bir mesaj gönderdi:</p> {message} <p>{link}</p>",
+    "ChannelNotificationSubject": "{doc} içinde yeni bir mesajınız var",
+    "JoinChannelNotificationText": "#{doc} kanalına eklendiniz",
+    "JoinChannelNotificationHtml": "<p><b>#{doc}</b> kanalına eklendiniz</p> <p>{link}</p>",
+    "JoinChannelNotificationSubject": "#{doc} kanalına eklendiniz",
+    "ThreadNotificationText": "{sender} {doc} konusuna yanıt verdi: \n\n{message}",
+    "ThreadNotificationHtml": "<p><b>{sender}</b> {doc} konusuna yanıt verdi:</p><p>{message}</p><p>{link}</p>",
+    "ThreadNotificationSubject": "{doc} konusuna yeni yanıt"
   }
 }

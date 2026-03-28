@@ -29,7 +29,7 @@
   import { Action as ViewAction } from '@hcengineering/view'
   import { getActions, restrictionStore, showMenu } from '@hcengineering/view-resources'
 
-  import { savedMessagesStore } from '../../activity'
+  import { clearMessageInLocation, savedMessagesStore } from '../../activity'
   import { MessageInlineAction } from '../../types'
   import ActivityMessageActions from '../ActivityMessageActions.svelte'
   import MessageTimestamp from '../MessageTimestamp.svelte'
@@ -107,6 +107,13 @@
     isActionsOpened = false
   }
 
+  function handleAnimationEnd (event: AnimationEvent): void {
+    const name = event.animationName.split('-').pop()
+    if (name === 'highlight') {
+      clearMessageInLocation()
+    }
+  }
+
   $: key = parentMessage != null ? `${message._id}_${parentMessage._id}` : message._id
 
   $: isHidden = !!viewlet?.onlyWithParent && parentMessage === undefined
@@ -153,7 +160,7 @@
       const overrides = onReply ? new Map([[activity.action.Reply, onReply]]) : new Map()
       showMenu(
         event,
-        { object: message, baseMenuClass: activity.class.ActivityMessage, excludedActions, overrides },
+        { object: message, baseMenuClass: activity.class.ActivityMessage, excludedActions, overrides, actions },
         () => {
           isActionsOpened = false
         }
@@ -182,6 +189,7 @@
       style:padding
       on:click={onClick}
       on:contextmenu={handleContextMenu}
+      on:animationend={handleAnimationEnd}
     >
       {#if showNotify && !embedded && !isShort}
         <div class="notify" />
@@ -191,6 +199,7 @@
       {:else if isShort}
         <span class="text-sm lower time">
           <MessageTimestamp date={message.createdOn ?? message.modifiedOn} shortTime />
+          <slot name="afterTime" />
         </span>
       {:else}
         <div class="avatar mt-1 relative flex-no-shrink">
@@ -234,16 +243,16 @@
             {/if}
 
             {#if !skipLabel && showDatePreposition}
-              <span class="text-sm lower">
+              <span class="text-normal lower">
                 <Label label={activity.string.At} />
               </span>
             {/if}
 
-            <span class="text-sm lower">
-              <MessageTimestamp date={message.createdOn ?? message.modifiedOn} />
+            <span class="text-normal lower">
+              <MessageTimestamp date={message.createdOn ?? message.modifiedOn} shortTime />
             </span>
             {#if message.editedOn}
-              <span class="text-sm lower">(<Label label={notification.string.Edited} />)</span>
+              <span class="text-normal lower">(<Label label={notification.string.Edited} />)</span>
             {/if}
 
             {#if withActions && inlineActions.length > 0 && !readonly}
@@ -253,6 +262,7 @@
                 {/each}
               </div>
             {/if}
+            <slot name="afterTime" />
           </div>
         {/if}
 
@@ -302,7 +312,7 @@
     position: relative;
     display: flex;
     flex-shrink: 0;
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 1.25rem;
     gap: 1rem;
     //overflow: hidden;
     border: 1px solid transparent;
@@ -392,7 +402,6 @@
 
   .header {
     display: flex;
-    align-items: baseline;
     font-size: 0.875rem;
     color: var(--global-secondary-TextColor);
     margin-bottom: 0.25rem;
@@ -439,6 +448,7 @@
     top: -0.5rem;
     left: -0.5rem;
     color: var(--white-color);
+    z-index: 2;
   }
 
   .message-content {

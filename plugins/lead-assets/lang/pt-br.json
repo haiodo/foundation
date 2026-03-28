@@ -13,7 +13,7 @@
     "Customer": "Cliente",
     "Customers": "Clientes",
     "Leads": "Leads",
-    "MyLeads": "As minhas leads",
+    "MyLeads": "Meus leads",
     "SelectCustomer": "Selecionar Cliente",
     "Lead": "Lead",
     "Assignee": "Atribuído a",
@@ -36,5 +36,10 @@
     "FunnelMembers": "Membros",
     "ForbidCreateFunnelPermission": "Proibir criação de funil",
     "ForbidCreateFunnelPermissionDescription": "Proíbe os utilizadores de criar novos funis"
+  },
+  "emailTemplate": {
+    "AssigneeNotificationText": "{doc} was assigned to you by {sender}",
+    "AssigneeNotificationHtml": "<p>{doc} was assigned to you by {sender}</p> <p>{link}</p>",
+    "AssigneeNotificationSubject": "{doc} was assigned to you"
   }
 }

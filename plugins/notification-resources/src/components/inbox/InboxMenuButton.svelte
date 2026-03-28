@@ -17,9 +17,9 @@
   import { ButtonMenu, IconMoreV } from '@hcengineering/ui'
 
   import notification from '../../plugin'
-  import { clearAll, readAll, unreadAll } from '../../utils'
+  import { clearAll, readAll } from '../../utils'
 
-  async function onSelect (id?: 'clear' | 'read' | 'unread'): Promise<void> {
+  async function onSelect (id?: 'clear' | 'read'): Promise<void> {
     if (id == null) return
 
     if (id === 'clear') {
@@ -29,10 +29,6 @@
     if (id === 'read') {
       void readAll()
     }
-
-    if (id === 'unread') {
-      void unreadAll()
-    }
   }
 </script>
 
@@ -40,16 +36,12 @@
   size="small"
   noSelection
   icon={IconMoreV}
+  dataId="inbox_menu-button"
   items={[
     {
       id: 'read',
       icon: view.icon.Eye,
       label: notification.string.MarkReadAll
-    },
-    {
-      id: 'unread',
-      icon: view.icon.EyeCrossed,
-      label: notification.string.MarkUnreadAll
     },
     {
       id: 'clear',

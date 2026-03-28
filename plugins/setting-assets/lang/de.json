@@ -125,6 +125,8 @@
     "WorkspaceName": "Arbeitsbereich-Name",
     "Workspace": "Arbeitsbereich",
     "OwnerOrMaintainerRequired": "Sie müssen Eigentümer oder Betreuer des Arbeitsbereichs sein",
+    "LastOwnerLeaveTitle": "Arbeitsbereich kann nicht verlassen werden",
+    "LastOwnerLeaveMessage": "Sie sind der einzige Eigentümer dieses Arbeitsbereichs. Um ihn zu verlassen, übertragen Sie die Eigentümerrechte zunächst auf ein anderes Mitglied. Wenn niemand diesen Arbeitsbereich mehr benötigt, sollten Sie ihn stattdessen löschen.",
     "Backup": "Sicherung",
     "BackupLast": "Letzte Sicherung",
     "BackupTotalSnapshots": "Gesamtanzahl der Schnappschüsse",
@@ -214,5 +216,10 @@
     "SelectUsers": "Benutzer auswählen",
     "ShowInTitle": "Im Titel anzeigen",
     "SpaceMembersOnly": "Nur Bereichsmitglieder"
+  },
+  "emailTemplate": {
+    "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",
+    "IntegrationDisabledNotificationHtml": "<p>Integration with {doc} was disabled</p> <p>{link}</p>",
+    "IntegrationDisabledNotificationSubject": "Integration with {doc} was disabled"
   }
 }

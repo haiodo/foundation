@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import activity from '@hcengineering/activity'
+import activity, { type DocUpdateMessage } from '@hcengineering/activity'
 import contact from '@hcengineering/contact'
 import documentsPlugin, {
   documentsId,
@@ -22,7 +22,7 @@ import documentsPlugin, {
   type DocumentSpace,
   type DocumentTemplate
 } from '@hcengineering/controlled-documents'
-import exportPlugin, { type RelationDefinition } from '@hcengineering/export'
+import exportPlugin from '@hcengineering/export'
 import { type Builder } from '@hcengineering/model'
 import chunter from '@hcengineering/model-chunter'
 import core, { defineCollaborators } from '@hcengineering/model-core'
@@ -34,7 +34,7 @@ import tracker from '@hcengineering/model-tracker'
 import view, { classPresenter, createAction } from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import converter from '@hcengineering/converter'
-import notification from '@hcengineering/notification'
+import notification, { type MessageNotificationType } from '@hcengineering/notification'
 import contacts from '@hcengineering/model-contact'
 import setting from '@hcengineering/setting'
 import tags from '@hcengineering/tags'
@@ -75,6 +75,31 @@ import {
 export { documentsId } from '@hcengineering/controlled-documents/src/index'
 export * from './types'
 
+function defineRelationMetadata (builder: Builder): void {
+  const rel = (
+    ref: Ref<Class<Doc>>,
+    field: string,
+    targetClass: Ref<Class<Doc>>,
+    direction: 'forward' | 'inverse' = 'forward'
+  ): void => {
+    builder.createDoc(core.class.RelationMetadata, core.space.Model, {
+      sourceClass: ref,
+      field,
+      targetClass,
+      direction
+    })
+  }
+
+  rel(documents.class.Document, 'category', documents.class.DocumentCategory, 'forward')
+  rel(documents.class.Document, 'template', documents.class.Document, 'forward')
+  rel(documents.class.Document, 'meta', documents.class.ProjectMeta, 'inverse')
+  rel(documents.class.Document, 'document', documents.class.ProjectDocument, 'inverse')
+  rel(documents.class.HierarchyDocument, 'attachedTo', documents.class.DocumentMeta, 'forward')
+  rel(documents.class.ControlledDocument, 'changeControl', documents.class.ChangeControl, 'forward')
+  rel(documents.class.ProjectMeta, 'meta', documents.class.ProjectMeta, 'inverse')
+  rel(documents.class.ProjectMeta, 'document', documents.class.ProjectDocument, 'inverse')
+}
+
 export function createModel (builder: Builder): void {
   builder.createModel(
     TDocumentSpace,
@@ -104,6 +129,8 @@ export function createModel (builder: Builder): void {
 
     TDocumentComment
   )
+
+  defineRelationMetadata(builder)
 
   builder.mixin(documents.class.ControlledDocument, core.class.Class, view.mixin.ObjectTitle, {
     titleProvider: documents.function.ControlledDocumentTitleProvider
@@ -831,19 +858,6 @@ export function createModel (builder: Builder): void {
     documents.action.TransferDocument
   )
 
-  const relations: RelationDefinition[] = [
-    // Forward relations - migrate referenced documents first
-    { field: 'attachedTo', class: documents.class.DocumentMeta },
-    { field: 'changeControl', class: documents.class.ChangeControl },
-    { field: 'category', class: documents.class.DocumentCategory },
-    { field: 'template', class: documents.class.Document },
-    // Inverse relations - find documents that reference this one
-    // ProjectMeta references DocumentMeta via 'meta' field - must be migrated before ProjectDocument
-    { field: 'meta', class: documents.class.ProjectMeta, direction: 'inverse' },
-    // ProjectDocument references ControlledDocument via 'document' field
-    { field: 'document', class: documents.class.ProjectDocument, direction: 'inverse' }
-  ]
-
   createAction(
     builder,
     {
@@ -852,9 +866,6 @@ export function createModel (builder: Builder): void {
         component: exportPlugin.component.ExportToWorkspaceModal,
         fillProps: {
           _objects: 'value'
-        },
-        props: {
-          relations
         }
       },
       label: exportPlugin.string.ExportToWorkspace,
@@ -880,7 +891,6 @@ export function createModel (builder: Builder): void {
           _object: 'value'
         },
         props: {
-          relations,
           spaceExport: true,
           docClass: documents.class.ControlledDocument
         }
@@ -1098,72 +1108,77 @@ export function defineNotifications (builder: Builder): void {
     core.space.Model,
     {
       label: documents.string.DocumentApplication,
-      icon: documents.icon.DocumentApplication
+      icon: documents.icon.DocumentApplication,
+      objectClass: documents.class.Document
     },
     documents.notification.DocumentsNotificationGroup
   )
 
-  builder.createDoc(
-    notification.class.NotificationType,
+  builder.createDoc<MessageNotificationType<DocUpdateMessage>>(
+    notification.class.MessageNotificationType,
     core.space.Model,
     {
       hidden: false,
       generated: false,
-      allowedForAuthor: false,
+      notifyAuthor: false,
       label: documents.string.Document,
       group: documents.notification.DocumentsNotificationGroup,
       field: 'content',
-      txClasses: [core.class.TxUpdateDoc],
+      messageClass: activity.class.DocUpdateMessage,
       objectClass: documents.class.ControlledDocument,
+      attachedToClass: documents.class.ControlledDocument,
       defaultEnabled: false,
       templates: {
-        textTemplate: '{body}',
-        htmlTemplate: '<p>{body}</p>',
-        subjectTemplate: '{title}'
+        text: documents.emailTemplate.ContentNotificationText,
+        html: documents.emailTemplate.ContentNotificationHtml,
+        subject: documents.emailTemplate.ContentNotificationSubject
       }
     },
     documents.notification.ContentNotification
   )
 
-  builder.createDoc(
-    notification.class.NotificationType,
+  builder.createDoc<MessageNotificationType<DocUpdateMessage>>(
+    notification.class.MessageNotificationType,
     core.space.Model,
     {
       hidden: false,
       generated: false,
-      allowedForAuthor: false,
+      notifyAuthor: false,
       label: documents.string.Status,
       group: documents.notification.DocumentsNotificationGroup,
       field: 'state',
-      txClasses: [core.class.TxUpdateDoc],
+      messageClass: activity.class.DocUpdateMessage,
       objectClass: documents.class.ControlledDocument,
+      attachedToClass: documents.class.ControlledDocument,
       defaultEnabled: false,
       templates: {
-        textTemplate: '{sender} changed {doc} status',
-        htmlTemplate: '<p>{sender} changed {doc} status</p>',
-        subjectTemplate: '{doc} status changed'
+        text: documents.emailTemplate.StateNotificationText,
+        html: documents.emailTemplate.StateNotificationHtml,
+        subject: documents.emailTemplate.StateNotificationSubject
       }
     },
     documents.notification.StateNotification
   )
 
-  builder.createDoc(
-    notification.class.NotificationType,
+  builder.createDoc<MessageNotificationType<DocUpdateMessage>>(
+    notification.class.MessageNotificationType,
     core.space.Model,
     {
       hidden: false,
       generated: false,
-      allowedForAuthor: false,
+      notifyAuthor: false,
       label: documents.string.CoAuthors,
       group: documents.notification.DocumentsNotificationGroup,
       field: 'coAuthors',
-      txClasses: [core.class.TxCreateDoc, core.class.TxUpdateDoc],
+      messageClass: activity.class.DocUpdateMessage,
       objectClass: documents.class.ControlledDocument,
+      attachedToClass: documents.class.ControlledDocument,
       defaultEnabled: true,
+      isMention: true,
       templates: {
-        textTemplate: '{sender} assigned you as a co-author of {doc}',
-        htmlTemplate: '<p>{sender} assigned you as a co-author of {doc}</p>',
-        subjectTemplate: 'Co-authoring assignment for {doc}'
+        text: documents.emailTemplate.CoAuthorsNotificationText,
+        html: documents.emailTemplate.CoAuthorsNotificationHtml,
+        subject: documents.emailTemplate.CoAuthorsNotificationSubject
       }
     },
     documents.notification.CoAuthorsNotification

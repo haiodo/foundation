@@ -13,14 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import task from '@hcengineering/task'
-  import { Issue } from '@hcengineering/tracker'
-  import { floorFractionDigits, Label } from '@hcengineering/ui'
-  import { FixedColumn, statusStore } from '@hcengineering/view-resources'
+  import { Issue, reduceChildInfoTree } from '@hcengineering/tracker'
+  import { floorFractionDigits, Label, tooltip } from '@hcengineering/ui'
+  import { FixedColumn } from '@hcengineering/view-resources'
   import tracker from '../../plugin'
   import EstimationProgressCircle from '../issues/timereport/EstimationProgressCircle.svelte'
   import TimePresenter from '../issues/timereport/TimePresenter.svelte'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   export let docs: Issue[] | undefined = undefined
+  export let itemsProj: Issue[] | undefined = undefined
   export let capacity: number | undefined = undefined
   export let category: string | undefined = undefined
 
@@ -28,51 +29,23 @@
 
   $: noParents = docs?.filter((it) => !ids.has(it.attachedTo))
 
-  $: rootNoBacklogIssues = noParents?.filter(
-    (it) => $statusStore.byId.get(it.status)?.category !== task.statusCategory.UnStarted
-  )
-
   $: totalEstimation = floorFractionDigits(
-    (rootNoBacklogIssues ?? [{ estimation: 0, childInfo: [] } as unknown as Issue])
+    (noParents ?? [{ reportedTime: 0, childInfo: [], estimation: 0 } as unknown as Issue])
       .map((it) => {
-        const cat = $statusStore.byId.get(it.status)?.category
-
-        let retEst = it.estimation
-        if (it.childInfo?.length > 0) {
-          const cEstimation = it.childInfo.map((ct) => ct.estimation).reduce((a, b) => a + b, 0)
-          const cReported = it.childInfo.map((ct) => ct.reportedTime).reduce((a, b) => a + b, 0)
-          if (cEstimation !== 0) {
-            retEst = cEstimation
-            if (cat === task.statusCategory.Won || cat === task.statusCategory.Lost) {
-              if (cReported < cEstimation) {
-                retEst = cReported
-              }
-            }
-          }
-        } else {
-          if (cat === task.statusCategory.Won || cat === task.statusCategory.Lost) {
-            if (it.reportedTime < it.estimation) {
-              return it.reportedTime
-            }
-          }
-        }
-        return retEst
+        const tree = reduceChildInfoTree(it.childInfo ?? [], it.estimation, it.reportedTime)
+        return Math.max(it.estimation ?? 0, tree.totalEstimation ?? 0)
       })
       .reduce((it, cur) => {
         return it + cur
       }, 0),
     3
   )
+
   $: totalReported = floorFractionDigits(
-    (noParents ?? [{ reportedTime: 0, childInfo: [] } as unknown as Issue])
+    (noParents ?? [{ reportedTime: 0, childInfo: [], estimation: 0 } as unknown as Issue])
       .map((it) => {
-        if (it.childInfo?.length > 0) {
-          const cReported = it.childInfo.map((ct) => ct.reportedTime).reduce((a, b) => a + b, 0)
-          if (cReported !== 0) {
-            return cReported + it.reportedTime
-          }
-        }
-        return it.reportedTime
+        const tree = reduceChildInfoTree(it.childInfo ?? [], it.estimation, it.reportedTime)
+        return tree.totalReportedTime
       })
       .reduce((it, cur) => {
         return it + cur
@@ -81,19 +54,27 @@
   )
 </script>
 
-{#if docs && (category === 'milestone' || category === 'assignee')}
+{#if docs !== undefined}
   <FixedColumn key="estimation-editor">
     <!-- <Label label={tracker.string.MilestoneDay} value={}/> -->
     <div class="flex-row-center flex-no-shrink h-6" class:showWarning={totalEstimation > (capacity ?? 0)}>
-      <EstimationProgressCircle value={totalReported} max={totalEstimation} />
-      <div class="w-2 min-w-2" />
-      {#if totalReported > 0}
-        <TimePresenter value={totalReported} />
-        /
-      {/if}
-      <TimePresenter value={totalEstimation} />
-      {#if capacity}
-        <Label label={tracker.string.CapacityValue} params={{ value: capacity }} />
+      {#if docs.length === itemsProj?.length}
+        {#if totalEstimation > 0}
+          <EstimationProgressCircle items={[{ value: totalReported, max: totalEstimation }]} />
+        {/if}
+        <div class="w-2 min-w-2" />
+        {#if totalReported > 0}
+          <TimePresenter value={totalReported} />
+          /
+        {/if}
+        <TimePresenter value={totalEstimation} />
+        {#if capacity}
+          <Label label={tracker.string.CapacityValue} params={{ value: capacity }} />
+        {/if}
+      {:else}
+        <div class="p-1">
+          ({docs.length}/{itemsProj?.length ?? 0})
+        </div>
       {/if}
     </div>
   </FixedColumn>

@@ -40,7 +40,6 @@
         // "DB_URL": "postgresql://root@localhost:26257/defaultdb?sslmode=disable",
         // "GREEN_URL": "http://huly.local:6767?token=secret",
         "SERVER_PORT": "3332",
-        "APM_SERVER_URL2": "http://localhost:8200",
         "METRICS_CONSOLE": "false",
         "METRICS_FILE": "./metrics.txt", // Show metrics in console evert 30 seconds.,
         "STORAGE_CONFIG": "datalake|http://huly.local:4030",
@@ -51,9 +50,7 @@
         "FRONT_URL": "http://localhost:8080",
         "ACCOUNTS_URL": "http://localhost:3000",
         "MODEL_JSON": "../../models/all/bundle/model.json",
-        // "SERVER_PROVIDER":"uweb"
-        "SERVER_PROVIDER": "ws",
-        "MODEL_VERSION": "0.7.343",
+        "MODEL_VERSION": "0.7.346",
         // "version": "0.7.0",
         "COMMUNICATION_API_ENABLED": "false",
         "ELASTIC_INDEX_NAME": "local_storage_index",
@@ -64,7 +61,7 @@
         "REGION": "",
         "QUEUE_REGION": "",
         "FILES_URL": "http://huly.local:4030/blob/:workspace/:blobId/:filename",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://huly.local:4318/v1/traces",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://huly.local:4318",
         "BRANDING_PATH": "../../dev/branding.json"
       },
       "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
@@ -165,7 +162,7 @@
         "MINIO_SECRET_KEY": "minioadmin",
         "MINIO_ENDPOINT": "localhost",
         // "DISABLE_SIGNUP": "true",
-        "OTLP_ENDPOINT": "http://huly.local:4318/v1/traces"
+        "OTLP_ENDPOINT": "http://huly.local:4318"
       },
       "runtimeVersion": "20",
       "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
@@ -369,27 +366,28 @@
       "name": "Debug tool",
       "type": "node",
       "request": "launch",
-      "args": ["src/__start.ts", "calculate-ratings", "2d790fe8-faba-4c2e-afb1-5610445966bb"],
+      "args": ["src/__start.ts", "upgrade-workspace", "c438f4dc-fad4-4fa3-ad0e-de4b9201871a"],
       "env": {
-        "MODEL_VERSION": "0.7.153",
+        "MODEL_VERSION": "0.7.344",
+        "MODEL_JSON": "../../models/all/bundle/model.json",
         "STORAGE_CONFIG": "datalake|http://huly.local:4030",
         "ACCOUNTS_URL": "http://huly.local:3000",
         "TRANSACTOR_URL": "ws://localhost:3332",
         "ACCOUNT_DB_URL": "postgresql://root@localhost:26257/defaultdb?sslmode=disable",
-        "MONGO_URL": "mongodb://localhost:27017",
         "ELASTIC_URL": "http://localhost:9200",
         "SERVER_SECRET": "secret",
-        "DB_URL": "postgresql://root@localhost:26257/defaultdb?sslmode=disable",
+        "DB_URL": "postgresql://postgres:postgres@huly.local:5432",
+        "ACCOUNT_DB_URL": "postgresql://postgres:postgres@huly.local:5432",
         "QUEUE_CONFIG": "huly.local:19092",
-        "REGION": "cockroach",
-        "QUEUE_REGION": "cockroach"
+        "REGION": "",
+        "QUEUE_REGION": ""
       },
       "smartStep": false,
       "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
       "sourceMaps": true,
       "sourceMapRenames": false,
       "skipFiles": ["<node_internals>/**"],
-      "cwd": "${workspaceRoot}/dev/tool",
+      "cwd": "./dev/tool",
       "protocol": "inspector",
       "outputCapture": "std",
       "runtimeVersion": "22",
@@ -477,13 +475,14 @@
       "env": {
         "ACCOUNTS_URL": "http://localhost:3000",
         "STORAGE": "minio|localhost?accessKey=minioadmin&secretKey=minioadmin",
-        "WORKSPACE_STORAGE": "minio|localhost?accessKey=minioadmin&secretKey=minioadmin",
-        "DB_URL": "postgresql://root@host.docker.internal:26257/defaultdb?sslmode=disable",
+        "WORKSPACE_STORAGE": "datalake|http://huly.local:4030",
+        "DB_URL": "postgresql://postgres:postgres@huly.local:5432",
         "MODEL_JSON": "${workspaceRoot}/models/all/bundle/model.json",
         "SECRET": "secret",
-        "REGION": "cockroach",
+        "REGION": "",
         "BUCKET_NAME": "backups",
-        "INTERVAL": "300"
+        "INTERVAL": "300",
+        "SKIP_WORKSPACES": ""
       },
       "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
       "showAsyncStacks": true,
@@ -570,7 +569,7 @@
         "FRONT_URL": "http://localhost:8080",
         "PORT": "3500",
         "STATS_URL": "http://huly.local:4900",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://huly.local:4318/v1/traces"
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://huly.local:4318"
       },
       "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
       "sourceMaps": true,
@@ -592,7 +591,7 @@
         "COLLABORATOR_URL": "ws://huly.local:3078",
         "PLATFORM_OPERATION_LOGGING": "true",
         "STATS_URL": "http://huly.local:4900",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://huly.local:4318/v1/traces",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://huly.local:4318",
         "QUEUE_CONFIG": "huly.local:19092",
         "MODEL_JSON": "${workspaceRoot}/models/all/bundle/model.json",
         "REGION": "cockroach",
@@ -798,8 +797,8 @@
         "QUEUE_CONFIG": "huly.local:19092",
         "OPENAI_API_KEY": "changeme",
         "OPENAI_BASE_URL": "http://localhost:1234/v1",
-        "OPENAI_MODEL": "openai/gpt-oss-20b",
-        "LLM_PROVIDER": "server", // "gigachat", // "openai" | "gigachat"
+        "OPENAI_MODEL": "qwen/qwen3.5-9b",
+        "LLM_PROVIDER": "openai",
         "GIGACHAT_CREDENTIALS": "${GIGACHAT_AUTH_KEY}",
         "GIGACHAT_SCOPE": "GIGACHAT_API_PERS",
         "GIGACHAT_MODEL": "GigaChat-2",
@@ -841,6 +840,8 @@
         "LIVEKIT_HOST": "ws://huly.local:7880",
         "LIVEKIT_API_KEY": "devkey",
         "LIVEKIT_API_SECRET": "secret",
+        "LIVEKIT_WEBHOOK_API_KEY": "whkey",
+        "LIVEKIT_WEBHOOK_API_SECRET":"whsecret",
         "BILLING_URL": "http://huly.local:4041",
         "BILLING_POLL_INTERVAL": "15",
         "QUEUE_CONFIG": "huly.local:19092",
@@ -1026,11 +1027,29 @@
         "ACCOUNTS_URL": "http://localhost:3000",
         "STORAGE_CONFIG": "datalake|http://huly.local:4030",
         "TRANSACTOR_URL": "ws://localhost:3333",
-        "SERVICE_ID": "export-service"
+        "SERVICE_ID": "export-service",
       },
       "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
       "sourceMaps": true,
       "cwd": "${workspaceRoot}/services/export/pod-export"
+    },
+    {
+    "name": "Debug Notifications",
+    "type": "node",
+    "request": "launch",
+    "args": ["src/index.ts"],
+    "env": {
+    "SECRET": "secret",
+    "ACCOUNTS_URL": "http://localhost:3000",
+    "QUEUE_CONFIG": "localhost:19092",
+    "QUEUE_REGION": "",
+    "MODEL_JSON": "${workspaceRoot}/models/all/bundle/model.json",
+    "STORAGE_CONFIG": "datalake|http://localhost:4030",
+    "DB_URL": "postgresql://postgres:postgres@huly.local:5432"
+    },
+    "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
+    "sourceMaps": true,
+    "cwd": "${workspaceRoot}/services/notifications"
     }
   ]
 }

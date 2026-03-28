@@ -84,6 +84,7 @@
     "ReplyToThread": "スレッドに返信",
     "SentMessage": "メッセージを送信",
     "Direct": "ダイレクト",
+    "GroupChat": "グループチャット",
     "RepliedToThread": "スレッドに返信しました",
     "RepliedTo": "に返信しました: {message}",
     "AllChannels": "すべてのチャンネル",
@@ -134,6 +135,26 @@
     "ResolveThread": "解決",
     "NoThreadsYet": "まだスレッドはありません。",
     "SummarizeMessages": "内容を要約",
-    "DeleteMessageDescription": "このメッセージを削除してもよろしいですか？この操作は元に戻せません。"
+    "DeleteMessageDescription": "このメッセージを削除してもよろしいですか？この操作は元に戻せません。",
+    "Star": "スターを付ける",
+    "Unstar": "スターを外す",
+    "HideFromChatList": "チャットリストから非表示",
+    "Leave": "{label}を退出",
+    "HideAll": "すべて非表示",
+    "Seen": "閲覧済み"
+  },
+  "emailTemplate": {
+    "DMNotificationText": "{sender}からメッセージが届きました: \n\n{message}",
+    "DMNotificationHtml": "<p><b>{sender}</b>からメッセージが届きました: </p> {message} <p>{link}</p>",
+    "DMNotificationSubject": "新しいダイレクトメッセージがあります",
+    "ChannelNotificationText": "{sender}が{doc}にメッセージを送信しました: \n\n {message}",
+    "ChannelNotificationHtml": "<p><b>{sender}</b>が{doc}にメッセージを送信しました:</p> {message} <p>{link}</p>",
+    "ChannelNotificationSubject": "{doc}に新しいメッセージがあります",
+    "JoinChannelNotificationText": "#{doc}に追加されました",
+    "JoinChannelNotificationHtml": "<p><b>#{doc}</b>に追加されました</p> <p>{link}</p>",
+    "JoinChannelNotificationSubject": "#{doc}に追加されました",
+    "ThreadNotificationText": "{sender}が{doc}に返信しました: \n\n{message}",
+    "ThreadNotificationHtml": "<p><b>{sender}</b>が{doc}に返信しました:</p><p>{message}</p><p>{link}</p>",
+    "ThreadNotificationSubject": "{doc}への新しい返信"
   }
 }

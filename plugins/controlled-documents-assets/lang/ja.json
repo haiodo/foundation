@@ -6,6 +6,7 @@
     "Category": "カテゴリ",
     "CollaborativeDocument": "共同編集ドキュメント",
     "ControlledDocument": "管理されたドキュメント",
+    "ControlledDocuments": "管理対象文書",
     "Requests": "リクエスト",
     "EffectiveDate": "発効日",
     "PlannedEffectiveDate": "計画されている発効日",
@@ -279,5 +280,16 @@
     "Reviewed": "レビュー済み",
     "Rejected": "却下",
     "ToReview": "レビュー待ち"
+  },
+  "emailTemplate": {
+    "ContentNotificationText": "{body}",
+    "ContentNotificationHtml": "<p>{body}</p> <p>{link}</p>",
+    "ContentNotificationSubject": "{title}",
+    "StateNotificationText": "{sender} changed {doc} status",
+    "StateNotificationHtml": "<p>{sender} changed {doc} status</p> <p>{link}</p>",
+    "StateNotificationSubject": "{doc} status changed",
+    "CoAuthorsNotificationText": "{sender} assigned you as a co-author of {doc}",
+    "CoAuthorsNotificationHtml": "<p>{sender} assigned you as a co-author of {doc}</p> <p>{link}</p>",
+    "CoAuthorsNotificationSubject": "Co-authoring assignment for {doc}"
   }
 }

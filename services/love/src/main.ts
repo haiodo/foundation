@@ -21,6 +21,7 @@ import { createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/a
 import { MeasureContext, newMetrics, systemAccountUuid, WorkspaceUuid } from '@hcengineering/core'
 import {
   parseRoomName,
+  ParticipantMetadata,
   queueEvents,
   QueueMeetingEvent,
   QueueMeetingMessage,
@@ -180,29 +181,25 @@ export const main = async (): Promise<void> => {
       }
       case QueueMeetingEvent.updateMetadata: {
         const metadataMsg = queueMsg as QueueMeetingUpdateMetadataMessage
-        await updateMetadata(roomClient, metadataMsg.roomName, metadataMsg.metadata)
+        await updateMetadata(ctx, roomClient, metadataMsg.roomName, metadataMsg.metadata)
         break
       }
       case QueueMeetingEvent.started: {
         const wsClient = await WorkspaceClient.create(msg.workspace, ctx)
-        try {
-          const mm = await wsClient.findMeetingById(queueMsg.meetingId)
-          if (mm !== undefined && mm.startWithRecording === true) {
-            const sysToken = generateToken(systemAccountUuid, msg.workspace, { service: 'love' })
-            const wsLoginInfo = await getAccountClient(sysToken).getLoginInfoByToken()
-            if (!isWorkspaceLoginInfo(wsLoginInfo)) {
-              break
-            }
-            await recordingProcessor.startRecording(
-              getRoomName(msg.workspace, queueMsg.meetingId),
-              msg.workspace,
-              queueMsg.meetingId,
-              wsLoginInfo,
-              mm.title
-            )
+        const mm = await wsClient.findMeetingById(queueMsg.meetingId)
+        if (mm !== undefined && mm.startWithRecording === true) {
+          const sysToken = generateToken(systemAccountUuid, msg.workspace, { service: 'love' })
+          const wsLoginInfo = await getAccountClient(sysToken).getLoginInfoByToken()
+          if (!isWorkspaceLoginInfo(wsLoginInfo)) {
+            break
           }
-        } finally {
-          await wsClient.close()
+          await recordingProcessor.startRecording(
+            getRoomName(msg.workspace, queueMsg.meetingId),
+            msg.workspace,
+            queueMsg.meetingId,
+            wsLoginInfo,
+            mm.title
+          )
         }
         break
       }
@@ -258,6 +255,8 @@ export const main = async (): Promise<void> => {
 
     const _id = req.body._id
     const participantName = req.body.participantName
+    const x = req.body.x ?? -1
+    const y = req.body.y ?? -1
     const roomName = getRoomName(workspaceId, meetingId)
 
     const room = await roomClient.listRooms([roomName])
@@ -280,7 +279,17 @@ export const main = async (): Promise<void> => {
       }
     }
 
-    res.send(await createToken(roomName, _id, participantName))
+    res.send(
+      await createToken(
+        roomName,
+        _id,
+        participantName,
+        JSON.stringify({
+          x,
+          y
+        } satisfies ParticipantMetadata)
+      )
+    )
   })
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -374,13 +383,25 @@ export const main = async (): Promise<void> => {
       // Check if LiveKit room exists before updating transcription
       const existingRooms = await roomClient.listRooms([roomName])
       if (existingRooms === undefined || existingRooms.length === 0) {
-        ctx.error('Cannot update transcription: LiveKit room does not exist', { roomName })
+        ctx.warn('Cannot update transcription: LiveKit room does not exist', { roomName })
         res.status(404).send({ error: 'Room does not exist. Please ensure participants have joined the meeting.' })
         return
       }
 
       const metadata = language != null ? { transcription, language } : { transcription }
       await eventProducer.send(ctx, workspaceId, [queueEvents.updateMetadata(meetingId, roomName, metadata)])
+
+      // Start/stop audio recording alongside transcription
+      if (transcription === true) {
+        const sysToken = generateToken(systemAccountUuid, workspaceId, { service: 'love' })
+        const wsLoginInfo = await getAccountClient(sysToken).getLoginInfoByToken()
+        if (isWorkspaceLoginInfo(wsLoginInfo)) {
+          await recordingProcessor.startAudioRecording(roomName, workspaceId, meetingId, wsLoginInfo)
+        }
+      } else {
+        void recordingProcessor.stopAudioRecording(roomName, workspaceId, meetingId)
+      }
+
       res.status(200).send()
     } catch (e) {
       console.error(e)
@@ -449,6 +470,7 @@ export const main = async (): Promise<void> => {
     void eventProducer.close()
     void queue.shutdown()
     pollingService.stop()
+    void WorkspaceClient.closeAll()
     server.close(() => process.exit())
   }
 
@@ -491,13 +513,15 @@ const checkRecordAvailable = async (
 }
 
 async function updateMetadata (
+  ctx: MeasureContext,
   roomClient: RoomServiceClient,
   roomName: string,
   metadata: Partial<RoomMetadata>
 ): Promise<void> {
   const room = (await roomClient.listRooms([roomName]))[0]
   if (room === undefined) {
-    throw new Error(`Cannot update metadata: room "${roomName}" does not exist`)
+    ctx.warn(`Cannot update metadata: room "${roomName}" does not exist`)
+    return
   }
   const currentMetadata = parseMetadata(room.metadata)
 

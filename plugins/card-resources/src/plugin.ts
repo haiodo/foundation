@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import card, { cardId } from '@hcengineering/card'
+import card, { type Card, cardId } from '@hcengineering/card'
 import { type Permission, type Doc, type Ref } from '@hcengineering/core'
 import { type IntlString, mergeIds, type Resource } from '@hcengineering/platform'
 import { type ObjectSearchCategory, type ObjectSearchFactory } from '@hcengineering/presentation'
@@ -55,11 +55,13 @@ export default mergeIds(cardId, card, {
     CardWidgetTab: '' as AnyComponent,
     CreateCard: '' as AnyComponent,
     CardHeaderButton: '' as AnyComponent,
-    CreateRolePopup: '' as AnyComponent
+    CreateRolePopup: '' as AnyComponent,
+    MyCards: '' as AnyComponent
   },
   function: {
     CardFactory: '' as Resource<(props?: Record<string, any>) => Promise<Ref<Doc> | undefined>>,
-    FormatCardMarkdownValue: '' as Resource<ValueFormatter>
+    FormatCardMarkdownValue: '' as Resource<ValueFormatter>,
+    CheckChildrenSectionVisibility: '' as Resource<(doc: Card) => Promise<boolean>>
   },
   permission: {
     CreateCard: '' as Ref<Permission>,
@@ -160,6 +162,9 @@ export default mergeIds(cardId, card, {
     ForbidCreateCardPermission: '' as IntlString,
     ForbidAddTagPermission: '' as IntlString,
     ForbidRemoveTag: '' as IntlString,
-    CardUpdated: '' as IntlString
+    CardUpdated: '' as IntlString,
+    CardCreated: '' as IntlString,
+    MyCards: '' as IntlString,
+    GotoMyCards: '' as IntlString
   }
 })

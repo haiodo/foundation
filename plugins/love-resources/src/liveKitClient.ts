@@ -16,7 +16,7 @@ import { translate } from '@hcengineering/platform'
 import { getMediaDevices, getSelectedSpeakerId, type MediaSession } from '@hcengineering/media'
 import { LoveEvents } from '@hcengineering/love'
 import { useMedia } from '@hcengineering/media-resources'
-import { writable } from 'svelte/store'
+import { get, writable } from 'svelte/store'
 import { Analytics } from '@hcengineering/analytics'
 import { addNotification, NotificationSeverity } from '@hcengineering/ui'
 import { getCurrentLanguage } from '@hcengineering/theme'
@@ -33,9 +33,12 @@ export enum ScreenSharingState {
 
 export const screenSharingState = writable<ScreenSharingState>(ScreenSharingState.Inactive)
 export const lkSessionConnected = writable<boolean>(false)
+export const lkReconnected = writable<number>(0)
 
-const LAST_PARTICIPANT_NOTIFICATION_DELAY_MS = 15 * 1000
-const AUTO_DISCONNECT_DELAY_MS = 60 * 1000
+export const lkIsConnecting = writable<boolean>(false)
+
+const LAST_PARTICIPANT_NOTIFICATION_DELAY_MS = 60 * 1000
+const AUTO_DISCONNECT_DELAY_MS = 10 * 60 * 1000 // set 10 minutes
 
 export function getLiveKitClient (): LiveKitClient {
   return new LiveKitClient()
@@ -53,7 +56,6 @@ const defaultCaptureOptions: VideoCaptureOptions = {
 export class LiveKitClient {
   public readonly liveKitRoom: LKRoom
 
-  public isConnecting: boolean = false
   public currentMediaSession: MediaSession | undefined = undefined
   private currentSessionSupportsVideo: boolean = false
   private lastParticipantNotificationTimeout: number = -1
@@ -82,6 +84,8 @@ export class LiveKitClient {
       videoCaptureDefaults: defaultCaptureOptions
     })
     lkRoom.on(RoomEvent.Connected, this.onConnected)
+    lkRoom.on(RoomEvent.Reconnecting, this.onReconnecting)
+    lkRoom.on(RoomEvent.Reconnected, this.onReconnected)
     lkRoom.on(RoomEvent.Disconnected, this.onDisconnected)
     this.liveKitRoom = lkRoom
   }
@@ -96,7 +100,17 @@ export class LiveKitClient {
       withVideo,
       currentState: this.liveKitRoom.state
     })
-    this.isConnecting = true
+
+    if (get(lkSessionConnected)) {
+      console.log('[LiveKitClient.connect] Already connected => Disconnect', {
+        wsURL,
+        withVideo,
+        currentState: this.liveKitRoom.state
+      })
+      await this.disconnect()
+    }
+
+    lkIsConnecting.set(true)
     this.currentSessionSupportsVideo = withVideo
     try {
       const setupMediaSession = async (): Promise<void> => {
@@ -141,7 +155,7 @@ export class LiveKitClient {
       console.log('[LiveKitClient.connect] Connection established successfully', { state: this.liveKitRoom.state })
     } catch (error) {
       console.error('[LiveKitClient.connect] Connection failed', { error, state: this.liveKitRoom.state })
-      this.isConnecting = false
+      lkIsConnecting.set(false)
       this.currentMediaSession?.close()
       this.currentMediaSession?.removeAllListeners()
       this.currentMediaSession = undefined
@@ -176,8 +190,9 @@ export class LiveKitClient {
 
   onConnected = (): void => {
     console.log('[LiveKitClient.onConnected] Connected event fired')
-    this.isConnecting = false
     lkSessionConnected.set(true)
+    lkIsConnecting.set(false)
+
     this.liveKitRoom.on(RoomEvent.ParticipantConnected, this.onParticipantConnected)
     this.liveKitRoom.on(RoomEvent.ParticipantDisconnected, this.onParticipantDisconnected)
     this.liveKitRoom.on(RoomEvent.TrackSubscribed, this.onTrackSubscribed)
@@ -188,9 +203,20 @@ export class LiveKitClient {
     this.liveKitRoom.on(RoomEvent.TrackUnmuted, this.onTrackUnmuted)
   }
 
+  onReconnecting = (): void => {
+    console.log('[LiveKitClient.onReconnecting] Reconnecting event fired')
+  }
+
+  onReconnected = (): void => {
+    console.log('[LiveKitClient.onReconnected] Reconnected event fired')
+    // Signal WorkbenchExtension to re-attach audio elements after reconnect
+    lkReconnected.update((v) => v + 1)
+  }
+
   onDisconnected = (): void => {
     console.log('[LiveKitClient.onDisconnected] Disconnected event fired')
     lkSessionConnected.set(false)
+    lkIsConnecting.set(false)
     this.liveKitRoom.off(RoomEvent.ParticipantConnected, this.onParticipantConnected)
     this.liveKitRoom.off(RoomEvent.ParticipantDisconnected, this.onParticipantDisconnected)
     this.liveKitRoom.off(RoomEvent.TrackSubscribed, this.onTrackSubscribed)
@@ -202,7 +228,26 @@ export class LiveKitClient {
     Analytics.handleEvent(LoveEvents.DisconnectedFromRoom)
   }
 
-  onParticipantConnected = (_participant: RemoteParticipant): void => {
+  onParticipantConnected = (participant: RemoteParticipant): void => {
+    console.log('[LiveKitClient.onParticipantConnected] Participant connected', {
+      participantId: participant.identity,
+      participantName: participant.name,
+      participantKind: participant.kind,
+      trackPublicationsCount: participant.trackPublications.size
+    })
+
+    // Log participant's audio tracks
+    participant.trackPublications.forEach((publication) => {
+      if (publication.track?.kind === Track.Kind.Audio) {
+        console.log('[LiveKitClient.onParticipantConnected] Participant audio track', {
+          participantId: participant.identity,
+          trackSid: publication.trackSid,
+          isMuted: publication.isMuted,
+          isSubscribed: publication.isSubscribed
+        })
+      }
+    })
+
     // Filter out agents/bots (kind === 4 is agent)
     const humanParticipants = Array.from(this.liveKitRoom.remoteParticipants.values()).filter(
       (p) => p.kind !== 4 && p.permissions?.agent !== true
@@ -214,7 +259,13 @@ export class LiveKitClient {
     }
   }
 
-  onParticipantDisconnected = (): void => {
+  onParticipantDisconnected = (participant: RemoteParticipant): void => {
+    console.log('[LiveKitClient.onParticipantDisconnected] Participant disconnected', {
+      participantId: participant.identity,
+      participantName: participant.name,
+      participantKind: participant.kind
+    })
+
     // Filter out agents/bots (kind === 4 is agent)
     const humanParticipants = Array.from(this.liveKitRoom.remoteParticipants.values()).filter(
       (p) => p.kind !== 4 && p.permissions?.agent !== true
@@ -230,25 +281,60 @@ export class LiveKitClient {
 
   onTrackSubscribed = (
     track: RemoteTrack,
-    _publication: RemoteTrackPublication,
-    _participant: RemoteParticipant
+    publication: RemoteTrackPublication,
+    participant: RemoteParticipant
   ): void => {
+    console.log('[LiveKitClient.onTrackSubscribed] Track subscribed', {
+      trackSid: publication.trackSid,
+      trackKind: track.kind,
+      trackSource: track.source,
+      participantId: participant.identity,
+      participantName: participant.name,
+      isMuted: track.isMuted,
+      mediaStreamTrackReadyState: track.mediaStreamTrack?.readyState,
+      mediaStreamTrackMuted: track.mediaStreamTrack?.muted
+    })
+
     if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
       screenSharingState.set(ScreenSharingState.Remote)
+    }
+
+    if (track.kind === Track.Kind.Audio) {
+      console.log('[LiveKitClient.onTrackSubscribed] Audio track details', {
+        trackSid: publication.trackSid,
+        participantId: participant.identity,
+        audioLevel: (participant as any).audioLevel,
+        isSpeaking: (participant as any).isSpeaking
+      })
     }
   }
 
   onTrackUnsubscribed = (
     track: RemoteTrack,
-    _publication: RemoteTrackPublication,
-    _participant: RemoteParticipant
+    publication: RemoteTrackPublication,
+    participant: RemoteParticipant
   ): void => {
+    console.log('[LiveKitClient.onTrackUnsubscribed] Track unsubscribed', {
+      trackSid: publication.trackSid,
+      trackKind: track.kind,
+      participantId: participant.identity,
+      participantName: participant.name
+    })
+
     if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
       screenSharingState.set(ScreenSharingState.Inactive)
     }
   }
 
-  onLocalTrackPublished = (publication: LocalTrackPublication, _participant: LocalParticipant): void => {
+  onLocalTrackPublished = (publication: LocalTrackPublication, participant: LocalParticipant): void => {
+    console.log('[LiveKitClient.onLocalTrackPublished] Local track published', {
+      trackSid: publication.trackSid,
+      trackKind: publication.track?.kind,
+      trackSource: publication.track?.source,
+      participantId: participant.identity,
+      isMuted: publication.isMuted
+    })
+
     const session = this.currentMediaSession
     const track = publication.track?.mediaStreamTrack
     const deviceId = track?.getSettings().deviceId
@@ -261,10 +347,22 @@ export class LiveKitClient {
       }
     } else if (publication.track?.kind === Track.Kind.Audio) {
       session?.setMicrophone({ enabled: true, track, deviceId })
+      console.log('[LiveKitClient.onLocalTrackPublished] Local microphone enabled', {
+        trackSid: publication.trackSid,
+        deviceId,
+        trackSettings: track?.getSettings()
+      })
     }
   }
 
-  onLocalTrackUnpublished = (publication: LocalTrackPublication, _participant: LocalParticipant): void => {
+  onLocalTrackUnpublished = (publication: LocalTrackPublication, participant: LocalParticipant): void => {
+    console.log('[LiveKitClient.onLocalTrackUnpublished] Local track unpublished', {
+      trackSid: publication.trackSid,
+      trackKind: publication.track?.kind,
+      trackSource: publication.track?.source,
+      participantId: participant.identity
+    })
+
     const session = this.currentMediaSession
     if (publication.track?.kind === Track.Kind.Video) {
       if (publication.track.source === Track.Source.ScreenShare) {
@@ -275,20 +373,40 @@ export class LiveKitClient {
       }
     } else if (publication.track?.kind === Track.Kind.Audio) {
       session?.setMicrophone({ enabled: false })
+      console.log('[LiveKitClient.onLocalTrackUnpublished] Local microphone disabled', {
+        trackSid: publication.trackSid
+      })
     }
   }
 
   onTrackMuted = (publication: TrackPublication, participant: Participant): void => {
+    console.log('[LiveKitClient.onTrackMuted] Track muted', {
+      trackSid: publication.trackSid,
+      trackKind: publication.track?.kind,
+      participantId: participant.identity,
+      isLocal: participant.isLocal
+    })
+
     if (!participant.isLocal) return
     const session = this.currentMediaSession
     if (publication.track?.kind === Track.Kind.Video && publication.track.source === Track.Source.Camera) {
       session?.setCamera({ enabled: false })
     } else if (publication.track?.kind === Track.Kind.Audio) {
       session?.setMicrophone({ enabled: false })
+      console.log('[LiveKitClient.onTrackMuted] Local microphone muted', {
+        trackSid: publication.trackSid
+      })
     }
   }
 
   onTrackUnmuted = (publication: TrackPublication, participant: Participant): void => {
+    console.log('[LiveKitClient.onTrackUnmuted] Track unmuted', {
+      trackSid: publication.trackSid,
+      trackKind: publication.track?.kind,
+      participantId: participant.identity,
+      isLocal: participant.isLocal
+    })
+
     if (!participant.isLocal) return
     const session = this.currentMediaSession
     const track = publication.track?.mediaStreamTrack
@@ -297,6 +415,11 @@ export class LiveKitClient {
       session?.setCamera({ enabled: true, track, deviceId })
     } else if (publication.track?.kind === Track.Kind.Audio) {
       session?.setMicrophone({ enabled: true, track, deviceId })
+      console.log('[LiveKitClient.onTrackUnmuted] Local microphone unmuted', {
+        trackSid: publication.trackSid,
+        deviceId,
+        trackSettings: track?.getSettings()
+      })
     }
   }
 
@@ -305,7 +428,12 @@ export class LiveKitClient {
       await translate(love.string.MeetingEmptyTitle, {}, getCurrentLanguage()),
       await translate(love.string.MeetingEmptyMessage, {}, getCurrentLanguage()),
       LastParticipantNotification,
-      undefined,
+      {
+        onRemove: () => {
+          clearTimeout(this.lastParticipantDisconnectTimeout)
+          this.lastParticipantDisconnectTimeout = -1
+        }
+      },
       NotificationSeverity.Info,
       'love'
     )

@@ -122,7 +122,7 @@ export function createModel (builder: Builder): void {
   )
 
   builder.createDoc(
-    notification.class.NotificationType,
+    notification.class.TxNotificationType,
     core.space.Model,
     {
       hidden: false,
@@ -132,19 +132,19 @@ export function createModel (builder: Builder): void {
       generated: false,
       group: request.ids.RequestNotificationGroup,
       label: request.string.NewRequest,
-      allowedForAuthor: true,
+      notifyAuthor: true,
       defaultEnabled: true,
       templates: {
-        textTemplate: '{sender} sent you a request for the {doc}',
-        htmlTemplate: '<p><b>{sender}</b> sent you a request for the {doc}</p>',
-        subjectTemplate: '{doc}'
+        text: request.emailTemplate.NewRequestNotificationText,
+        html: request.emailTemplate.NewRequestNotificationHtml,
+        subject: request.emailTemplate.NewRequestNotificationSubject
       }
     },
     request.ids.CreateRequestNotification
   )
 
   builder.createDoc(
-    notification.class.NotificationType,
+    notification.class.TxNotificationType,
     core.space.Model,
     {
       hidden: false,
@@ -154,12 +154,12 @@ export function createModel (builder: Builder): void {
       generated: false,
       group: request.ids.RequestNotificationGroup,
       label: request.string.CancelRequest,
-      allowedForAuthor: true,
+      notifyAuthor: true,
       defaultEnabled: true,
       templates: {
-        textTemplate: '{sender} canceled the request for the {doc}',
-        htmlTemplate: '<p><b>{sender}</b> canceled the request for the {doc}</p>',
-        subjectTemplate: '{doc}'
+        text: request.emailTemplate.CancelRequestNotificationText,
+        html: request.emailTemplate.CancelRequestNotificationHtml,
+        subject: request.emailTemplate.CancelRequestNotificationSubject
       }
     },
     request.ids.RemoveRequestNotification

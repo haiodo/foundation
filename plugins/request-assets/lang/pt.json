@@ -20,6 +20,16 @@
     "Cancel": "Cancelar",
     "Cancelled": "Cancelado",
     "NewRequest": "Nova solicitação",
-    "CancelRequest": "Cancelar solicitação"
+    "CancelRequest": "Cancelar solicitação",
+    "NewRequestNotification": "Nova {name}",
+    "CancelRequestNotification": "{name} cancelada"
+  },
+  "emailTemplate": {
+    "NewRequestNotificationText": "{sender} sent you a request for the {doc}",
+    "NewRequestNotificationHtml": "<p><b>{sender}</b> sent you a request for the {doc}</p> <p>{link}</p>",
+    "NewRequestNotificationSubject": "{doc}",
+    "CancelRequestNotificationText": "{sender} canceled the request for the {doc}",
+    "CancelRequestNotificationHtml": "<p><b>{sender}</b> canceled the request for the {doc}</p> <p>{link}</p>",
+    "CancelRequestNotificationSubject": "{doc}"
   }
 }

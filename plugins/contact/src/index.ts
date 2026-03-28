@@ -207,6 +207,7 @@ export interface ContactsTab extends Doc {
 export const contactId = 'contact' as Plugin
 
 export interface PersonSpace extends Space {
+  account: AccountUuid
   person: Ref<Person>
 }
 
@@ -215,6 +216,11 @@ export interface Translation extends Preference {
   enabled: boolean
   translateTo?: string
   dontTranslate: string[]
+}
+
+export interface RecentlyUsedPersonsPreference extends Preference {
+  attachedTo: AccountUuid
+  assignees: Ref<Person>[]
 }
 
 /**
@@ -236,7 +242,8 @@ export const contactPlugin = plugin(contactId, {
     SocialIdentity: '' as Ref<Class<SocialIdentity>>,
     UserProfile: '' as Ref<MasterTag>,
     UserRole: '' as Ref<Class<UserRole>>,
-    Translation: '' as Ref<Class<Translation>>
+    Translation: '' as Ref<Class<Translation>>,
+    RecentlyUsedPersonsPreference: '' as Ref<Class<RecentlyUsedPersonsPreference>>
   },
   mixin: {
     Employee: '' as Ref<Class<Employee>>

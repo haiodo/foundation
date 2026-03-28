@@ -16,7 +16,7 @@
 import core, { coreId, type Data, type PluginConfiguration, type Ref, type Tx, type Version } from '@hcengineering/core'
 
 import { Builder } from '@hcengineering/model'
-import { activityId, createModel as activityModel } from '@hcengineering/model-activity'
+import activity, { activityId, createModel as activityModel } from '@hcengineering/model-activity'
 import { aiBotId, createModel as aiBotModel } from '@hcengineering/model-ai-bot'
 import { attachmentId, createModel as attachmentModel } from '@hcengineering/model-attachment'
 import calendar, { calendarId, createModel as calendarModel } from '@hcengineering/model-calendar'
@@ -88,7 +88,6 @@ import { serverDocumentId, createModel as serverDocumentModel } from '@hcenginee
 import github, { githubId, createModel as githubModel } from '@hcengineering/model-github'
 import { serverGithubId, createModel as serverGithubModel } from '@hcengineering/server-github-model'
 
-import { analyticsCollectorId, createModel as analyticsCollectorModel } from '@hcengineering/model-analytics-collector'
 import { exportId, createModel as exportModel } from '@hcengineering/model-export'
 import love, { loveId, createModel as loveModel } from '@hcengineering/model-love'
 import { printId, createModel as printModel } from '@hcengineering/model-print'
@@ -113,7 +112,7 @@ import trainings, { trainingId, createModel as trainingModel } from '@hcengineer
 import { achievementId, createModel as achievementModel } from '@hcengineering/model-achievement'
 import { billingId, createModel as billingModel } from '@hcengineering/model-billing'
 import chat, { chatId, createModel as chatModel } from '@hcengineering/model-chat'
-import { communicationId, createModel as communicationModel } from '@hcengineering/model-communication'
+import communication, { communicationId, createModel as communicationModel } from '@hcengineering/model-communication'
 import { emojiId, createModel as emojiModel } from '@hcengineering/model-emoji'
 import { inboxId, createModel as inboxModel } from '@hcengineering/model-inbox'
 import { presenceId, createModel as presenceModel } from '@hcengineering/model-presence'
@@ -157,13 +156,19 @@ export default function buildModel (): Builder {
     presentation.class.ComponentPointExtension,
     presentation.class.ObjectSearchCategory,
     notification.class.NotificationGroup,
+    notification.class.NotificationType,
+    notification.class.TxNotificationType,
+    notification.class.MessageNotificationType,
     view.class.Action,
     contact.class.ChannelProvider,
     setting.class.IntegrationType,
     setting.class.WorkspaceSettingCategory,
     setting.class.SettingsCategory,
-    workbench.class.Widget
+    workbench.class.Widget,
+    core.class.SpaceTypeDescriptor
   ]
+
+  const defaultMixinFilter = [activity.mixin.ActivityDoc]
 
   const builders: BuilderConfig[] = [
     [coreModel, coreId],
@@ -179,10 +184,11 @@ export default function buildModel (): Builder {
       {
         label: card.string.Cards,
         description: card.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: false,
         icon: card.icon.Card,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -195,7 +201,8 @@ export default function buildModel (): Builder {
         system: true,
         beta: false,
         icon: contact.icon.ContactApplication,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -207,7 +214,8 @@ export default function buildModel (): Builder {
         enabled: true,
         beta: false,
         icon: chunter.icon.Chunter,
-        classFilter: [workbench.class.Application]
+        classFilter: [workbench.class.Application],
+        mixinFilter: defaultMixinFilter
       }
     ],
     [taskModel, taskId],
@@ -220,7 +228,8 @@ export default function buildModel (): Builder {
         enabled: true,
         beta: true,
         icon: calendar.icon.Calendar,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -229,10 +238,11 @@ export default function buildModel (): Builder {
       {
         label: recruit.string.ConfigLabel,
         description: recruit.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: false,
         icon: recruit.icon.RecruitApplication,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [settingModel, settingId],
@@ -244,7 +254,8 @@ export default function buildModel (): Builder {
         description: telegram.string.ConfigDescription,
         enabled: true,
         beta: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -256,7 +267,8 @@ export default function buildModel (): Builder {
         enabled: false,
         beta: true,
         icon: lead.icon.LeadApplication,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -265,9 +277,10 @@ export default function buildModel (): Builder {
       {
         label: gmail.string.ConfigLabel,
         description: gmail.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -279,7 +292,8 @@ export default function buildModel (): Builder {
         enabled: false,
         beta: true,
         icon: inventory.icon.InventoryApplication,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [presentationModel, presentationId],
@@ -290,17 +304,17 @@ export default function buildModel (): Builder {
     [mediaModel, mediaId],
     [notificationModel, notificationId],
     [preferenceModel, preferenceId],
-    [analyticsCollectorModel, analyticsCollectorId],
     [
       hrModel,
       hrId,
       {
         label: hr.string.ConfigLabel,
         description: hr.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: true,
         icon: hr.icon.Structure,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -312,7 +326,8 @@ export default function buildModel (): Builder {
         enabled: true,
         beta: false,
         icon: tracker.icon.TrackerApplication,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -324,7 +339,8 @@ export default function buildModel (): Builder {
         enabled: true,
         beta: false,
         icon: document.icon.DocumentApplication,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -336,7 +352,8 @@ export default function buildModel (): Builder {
         enabled: false,
         beta: false,
         hidden: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [timeModel, timeId],
@@ -350,10 +367,11 @@ export default function buildModel (): Builder {
       {
         label: github.string.ConfigLabel,
         description: github.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: false,
         icon: github.icon.Github,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -365,7 +383,8 @@ export default function buildModel (): Builder {
         enabled: true,
         beta: false,
         icon: love.icon.Love,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [printModel, printId],
@@ -377,10 +396,11 @@ export default function buildModel (): Builder {
       {
         label: processes.string.ConfigLabel,
         description: processes.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: false,
         icon: processes.icon.Process,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [driveModel, driveId],
@@ -392,7 +412,8 @@ export default function buildModel (): Builder {
         description: documents.string.ConfigDescription,
         enabled: false,
         beta: false,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -403,7 +424,8 @@ export default function buildModel (): Builder {
         enabled: false,
         beta: false,
         hidden: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -414,7 +436,8 @@ export default function buildModel (): Builder {
         description: trainings.string.ConfigDescription,
         enabled: false,
         beta: false,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -425,7 +448,8 @@ export default function buildModel (): Builder {
         description: products.string.ConfigDescription,
         enabled: false,
         beta: false,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -434,9 +458,10 @@ export default function buildModel (): Builder {
       {
         label: testManagement.string.ConfigLabel,
         description: testManagement.string.ConfigDescription,
-        enabled: true,
+        enabled: false,
         beta: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -447,19 +472,49 @@ export default function buildModel (): Builder {
         description: survey.string.ConfigDescription,
         enabled: false,
         beta: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [presenceModel, presenceId],
     [
       chatModel,
       chatId,
-      { label: chat.string.Chat, hidden: true, enabled: false, beta: true, classFilter: defaultFilter }
+      {
+        label: chat.string.Chat,
+        hidden: true,
+        enabled: false,
+        beta: true,
+        classFilter: [...defaultFilter, card.class.MasterTag, chat.masterTag.Thread],
+        mixinFilter: defaultMixinFilter
+      }
     ],
-    [inboxModel, inboxId],
+    [
+      inboxModel,
+      inboxId,
+      {
+        label: setting.string.Configure,
+        hidden: true,
+        enabled: false,
+        beta: true,
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
+      }
+    ],
     [achievementModel, achievementId],
     [emojiModel, emojiId],
-    [communicationModel, communicationId],
+    [
+      communicationModel,
+      communicationId,
+      {
+        label: setting.string.Configure,
+        hidden: true,
+        enabled: false,
+        beta: true,
+        classFilter: [...defaultFilter, card.class.MasterTag, communication.type.Direct, communication.type.Poll],
+        mixinFilter: defaultMixinFilter
+      }
+    ],
     [mailModel, mailId],
     [
       billingModel,
@@ -481,7 +536,8 @@ export default function buildModel (): Builder {
         hidden: true,
         enabled: false,
         beta: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [
@@ -494,7 +550,8 @@ export default function buildModel (): Builder {
         hidden: false,
         enabled: false,
         beta: true,
-        classFilter: defaultFilter
+        classFilter: defaultFilter,
+        mixinFilter: defaultMixinFilter
       }
     ],
     [converterModel, converterId],

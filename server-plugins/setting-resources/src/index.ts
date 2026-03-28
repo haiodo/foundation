@@ -17,22 +17,13 @@ import core, { PersonId, Doc, Role, Tx, TxUpdateDoc } from '@hcengineering/core'
 import { getEmbeddedLabel, translate } from '@hcengineering/platform'
 import type { TriggerControl } from '@hcengineering/server-core'
 import setting, { Integration } from '@hcengineering/setting'
+import { Presenter, PresenterControl } from '@hcengineering/server-activity'
 
-/**
- * @public
- */
-export async function integrationHTMLPresenter (doc: Doc, control: TriggerControl): Promise<string> {
-  return await integrationTextPresenter(doc, control)
-}
-
-/**
- * @public
- */
-export async function integrationTextPresenter (doc: Doc, control: TriggerControl): Promise<string> {
+const integrationTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const integration = doc as Integration
   const type = (await control.modelDb.findAll(setting.class.IntegrationType, { _id: integration.type }))[0]
   if (type === undefined) return ''
-  const label = await translate(type.label, {})
+  const label = await translate(type.label, {}, control.branding?.defaultLanguage)
   return `${label} (${integration.value})`
 }
 
@@ -122,8 +113,7 @@ export async function OnRoleNameUpdate (txes: Tx[], control: TriggerControl): Pr
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   function: {
-    IntegrationHTMLPresenter: integrationHTMLPresenter,
-    IntegrationTextPresenter: integrationTextPresenter,
+    IntegrationTitlePresenter: integrationTitlePresenter,
     GetValue: getValue,
     GetFirstName: getOwnerFirstName,
     GetLastName: getOwnerLastName,

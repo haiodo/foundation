@@ -168,6 +168,9 @@ class BackupWorker {
 
     const infoTo = setInterval(() => {
       const avgTime = this.allBackupTime / (this.processed + 1)
+      if (this.activeWorkspaces.size === 0 && this.workspacesToBackup.size === 0) {
+        return
+      }
       ctx.warn('********** backup info **********', {
         processed: this.processed,
         toGo: this.workspacesToBackup.size,
@@ -476,7 +479,7 @@ export async function doRestoreWorkspace (
       'restore',
       {},
       (ctx) =>
-        restore(ctx, pipeline as Pipeline, wsIds, storage, {
+        restore(ctx, pipeline as Pipeline, wsIds, storage, undefined, {
           date: -1,
           skip: new Set(skipDomains),
           recheck: false, // Do not need to recheck

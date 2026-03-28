@@ -46,6 +46,7 @@
     "SelectWorkspaceToExportSpace": "Alanın belgelerini dışa aktarmak için çalışma alanı seç",
     "SelectSpace": "Alan seç",
     "NoSelectedDocuments": "Seçili belge yok",
+    "NoDocumentsMatchedFilters": "Geçerli filtrelerle dışa aktarılacak belge bulunamadı. Filtreleri veya seçimi düzenleyip tekrar deneyin.",
     "RequestPermissionToImport": "Belgeleri içe aktarmak için lütfen hedef çalışma alanı sahibinden izin isteyin.",
     "ExportOnlyEffective": "Yalnızca geçerli durumdaki belgeleri dışa aktar",
     "ExportFilterMode": "Dışa aktarılacak belgeler",
@@ -53,5 +54,10 @@
     "ExportFilterSkipArchivedObsolete": "Arşivlenmiş ve geçersiz hariç tümü",
     "ExportFilterAll": "Tüm belgeler",
     "ExportResultRecordTitle": "{workspace} çalışma alanından belge dışa aktarma ({date})"
+  },
+  "emailTemplate": {
+    "ImportedDocumentsNotificationText": "{body}",
+    "ImportedDocumentsNotificationHtml": "<p>{body}</p><p>{link}</p>",
+    "ImportedDocumentsNotificationSubject": "{title}"
   }
 }

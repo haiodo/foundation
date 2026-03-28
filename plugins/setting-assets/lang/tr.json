@@ -125,6 +125,8 @@
     "WorkspaceName": "Çalışma alanı adı",
     "Workspace": "Çalışma alanı",
     "OwnerOrMaintainerRequired": "Çalışma alanı Sahibi veya Bakımcısı olmanız gerekiyor",
+    "LastOwnerLeaveTitle": "Çalışma alanından ayrılamazsınız",
+    "LastOwnerLeaveMessage": "Bu çalışma alanının tek sahibisiniz. Ayrılmak için önce başka bir üyeye sahiplik yetkisi verin. Bu çalışma alanına artık kimsenin ihtiyacı yoksa, silmeyi de düşünebilirsiniz.",
     "Backup": "Yedek",
     "BackupLast": "Son yedekleme",
     "BackupTotalSnapshots": "Toplam Anlık Görüntü",
@@ -214,5 +216,10 @@
     "SelectUsers": "Kullanıcıları seç",
     "ShowInTitle": "Başlıkta göster",
     "SpaceMembersOnly": "Yalnızca alan üyeleri"
+  },
+  "emailTemplate": {
+    "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",
+    "IntegrationDisabledNotificationHtml": "<p>Integration with {doc} was disabled</p> <p>{link}</p>",
+    "IntegrationDisabledNotificationSubject": "Integration with {doc} was disabled"
   }
 }

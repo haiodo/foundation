@@ -71,6 +71,9 @@
     "RelationCopyDescr": "Which relations do you want to copy?",
     "Import": "Import",
     "Export": "Export",
-    "CardUpdated": "Card updated"
+    "CardUpdated": "Card updated",
+    "CardCreated": "Card created",
+    "MyCards": "My cards",
+    "GotoMyCards": "Go to my cards"
   }
 }

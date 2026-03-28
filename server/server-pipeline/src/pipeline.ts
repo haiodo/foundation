@@ -42,6 +42,7 @@ import {
   PrivateMiddleware,
   QueryJoinMiddleware,
   QueueMiddleware,
+  RankMiddleware,
   SpacePermissionsMiddleware,
   SpaceSecurityMiddleware,
   VersioningMiddleware,
@@ -73,6 +74,8 @@ import { createStorageDataAdapter } from './blobStorage'
 import { CommunicationMiddleware, type CommunicationApiFactory } from './communication'
 
 import { RatingMiddleware } from '@hcengineering/server-rating'
+import { ChunterMiddleware } from '@hcengineering/server-chunter'
+import { NotificationMiddleware } from '@hcengineering/server-notification'
 
 /**
  * @public
@@ -139,11 +142,14 @@ export function createServerPipeline (
     const wsMetrics = metricsCtx.newChild('🧲 session', {}, { span: false })
     const conf = getConfig(metrics, dbUrl, wsMetrics, opt, extensions)
 
+    ctx.info('Pipeline created with branding:', { branding })
+
     const middlewares: MiddlewareCreator[] = [
       LookupMiddleware.create,
       NormalizeTxMiddleware.create,
       IdentityMiddleware.create,
       ModifiedMiddleware.create,
+      RankMiddleware.create,
       FindSecurityMiddleware.create,
       PluginConfigurationMiddleware.create,
       PrivateMiddleware.create,
@@ -163,6 +169,8 @@ export function createServerPipeline (
       IdentifierMiddleware.create, // After ApplyTx to ensure that it pass
       RatingMiddleware.create, // Rating editing restrictions
       TransientMiddleware.create,
+      ChunterMiddleware.create,
+      NotificationMiddleware.create,
       TxMiddleware.create, // Store tx into transaction domain
       ...(opt.disableTriggers === true ? [] : [TriggersMiddleware.create]),
       ...(opt.fulltextUrl !== undefined

@@ -49,6 +49,7 @@
     "Required": "必須",
     "ParallelExecutionForbidden": "並列実行は禁止されています",
     "StartAutomatically": "自動的に開始",
+    "AutomationOnly": "自動化のみ",
     "Error": "エラー",
     "Continue": "続行",
     "RequestFromUser": "ユーザーからのリクエスト",
@@ -145,7 +146,17 @@
     "Approvers": "承認者",
     "UnlockCard": "カードのロックを解除",
     "UnlockSection": "セクションのロックを解除",
-    "CancelToDo": "アクションをキャンセル"
+    "CancelToDo": "アクションをキャンセル",
+    "Export": "エクスポート",
+    "Import": "インポート",
+    "CancelProcess": "プロセスをキャンセル",
+    "SyncWithField": "フィールドと同期",
+    "ActionType": "タイプ",
+    "ApproveAction": "承認",
+    "ReviewAction": "レビュー",
+    "Review": "レビュー",
+    "LockField": "フィールドをロック",
+    "UnlockField": "フィールドのロックを解除"
   },
   "error": {
     "MethodNotFound": "メソッドが見つかりません: {methodId}",

@@ -44,10 +44,12 @@ export default plugin(serverProcessId, {
   },
   rollbacks: {
     ToDoCloseRollback: '' as Resource<RollbackFunc>,
-    ToDoCancellRollback: '' as Resource<RollbackFunc>
+    ToDoCancellRollback: '' as Resource<RollbackFunc>,
+    FieldChangedRollback: '' as Resource<RollbackFunc>
   },
   func: {
     RunSubProcess: '' as Resource<ExecuteFunc>,
+    CancelSubProcess: '' as Resource<ExecuteFunc>,
     CreateToDo: '' as Resource<ExecuteFunc>,
     UpdateCard: '' as Resource<ExecuteFunc>,
     CreateCard: '' as Resource<ExecuteFunc>,
@@ -59,6 +61,8 @@ export default plugin(serverProcessId, {
     LockSection: '' as Resource<ExecuteFunc>,
     UnlockCard: '' as Resource<ExecuteFunc>,
     UnlockSection: '' as Resource<ExecuteFunc>,
+    LockField: '' as Resource<ExecuteFunc>,
+    UnlockField: '' as Resource<ExecuteFunc>,
     CheckToDoDone: '' as Resource<CheckFunc>,
     CheckToDoCancelled: '' as Resource<CheckFunc>,
     MatchCardCheck: '' as Resource<CheckFunc>,

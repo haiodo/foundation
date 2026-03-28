@@ -22,7 +22,7 @@ import { mergeIds, type Resource } from '@hcengineering/platform'
 import { type TagCategory } from '@hcengineering/tags'
 import { type Location, type ResolvedLocation } from '@hcengineering/ui/src/types'
 import { type LocationData } from '@hcengineering/workbench'
-import { type NotificationGroup, type NotificationType } from '@hcengineering/notification'
+import { type NotificationGroup } from '@hcengineering/notification'
 
 export default mergeIds(cardId, card, {
   app: {
@@ -31,14 +31,16 @@ export default mergeIds(cardId, card, {
   actionImpl: {
     DeleteMasterTag: '' as ViewAction,
     DuplicateCard: '' as ViewAction,
-    EditSpace: '' as ViewAction
+    EditSpace: '' as ViewAction,
+    CreateChild: '' as ViewAction
   },
   action: {
     DeleteMasterTag: '' as Ref<Action>,
     SetParent: '' as Ref<Action<Doc, any>>,
     UnsetParent: '' as Ref<Action<Doc, any>>,
     PublicLink: '' as Ref<Action<Doc, any>>,
-    Duplicate: '' as Ref<Action>
+    Duplicate: '' as Ref<Action>,
+    CreateChild: '' as Ref<Action>
   },
   category: {
     Card: '' as Ref<ActionCategory>,
@@ -54,9 +56,8 @@ export default mergeIds(cardId, card, {
     MasterTags: '' as Ref<Doc>,
     ManageMasterTags: '' as Ref<Doc>,
     TagRelations: '' as Ref<Doc>,
-    CardNotificationGroup: '' as Ref<NotificationGroup>,
-    CardNotification: '' as Ref<NotificationType>,
-    CardMessageNotification: '' as Ref<NotificationType>
+    FileNotificationGroup: '' as Ref<NotificationGroup>,
+    DocumentNotificationGroup: '' as Ref<NotificationGroup>
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,

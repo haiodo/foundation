@@ -18,7 +18,7 @@ import { PlatformQueueProducer } from '@hcengineering/server-core'
 import { Readable } from 'stream'
 
 import { type Cache, type CacheEntry, createCache, streamToBuffer } from './cache'
-import { type BlobDB, WorkspaceStatsResult } from './db'
+import { type BlobDB, WorkspaceStatsResult, WorkspaceStatsByTypeResult } from './db'
 import { digestToUUID, stringToUUID } from './encodings'
 import { type BlobHead, type BlobBody, type BlobList, type BlobStorage, type Datalake, type Location } from './types'
 import { type S3Bucket } from '../s3'
@@ -277,7 +277,7 @@ export class DatalakeImpl implements Datalake {
 
     const data = await this.db.getData(ctx, { hash, location })
     if (data !== null) {
-      await Promise.all([bucket.delete(ctx, filename), this.db.createBlob(ctx, { workspace, name, hash, location })])
+      await this.db.createBlob(ctx, { workspace, name, hash, location })
     } else {
       await this.db.createBlobData(ctx, { workspace, name, hash, location, filename, size, type: contentType })
     }
@@ -319,6 +319,10 @@ export class DatalakeImpl implements Datalake {
 
   async getWorkspaceStats (ctx: MeasureContext, workspace: string): Promise<WorkspaceStatsResult> {
     return await this.db.getWorkspaceStats(ctx, workspace)
+  }
+
+  async getWorkspaceStatsByType (ctx: MeasureContext, workspace: string): Promise<WorkspaceStatsByTypeResult[]> {
+    return await this.db.getWorkspaceStatsByType(ctx, workspace)
   }
 
   selectLocation (workspace: string): Location {

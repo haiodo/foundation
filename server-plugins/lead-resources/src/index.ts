@@ -16,25 +16,25 @@
 import { concatLink, Doc } from '@hcengineering/core'
 import { Lead, leadId } from '@hcengineering/lead'
 import { getMetadata } from '@hcengineering/platform'
-import serverCore, { TriggerControl } from '@hcengineering/server-core'
+import serverCore from '@hcengineering/server-core'
 import view from '@hcengineering/view'
 import { workbenchId } from '@hcengineering/workbench'
+import { Presenter, PresenterControl } from '@hcengineering/server-activity'
 
 /**
  * @public
  */
-export async function leadHTMLPresenter (doc: Doc, control: TriggerControl): Promise<string> {
+const leadUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const lead = doc as Lead
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${leadId}/${lead.space}/#${view.component.EditDoc}|${lead._id}|${lead._class}|content`
-  const link = concatLink(front, path)
-  return `<a href="${link}">${lead.title}</a>`
+  return concatLink(front, path)
 }
 
 /**
  * @public
  */
-export async function leadTextPresenter (doc: Doc): Promise<string> {
+const leadIdentifierPresenter: Presenter = async (doc: Doc): Promise<string> => {
   const lead = doc as Lead
   return `LEAD-${lead.number}`
 }
@@ -42,7 +42,7 @@ export async function leadTextPresenter (doc: Doc): Promise<string> {
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   function: {
-    LeadHTMLPresenter: leadHTMLPresenter,
-    LeadTextPresenter: leadTextPresenter
+    LeadUrlPresenter: leadUrlPresenter,
+    LeadIdentifierPresenter: leadIdentifierPresenter
   }
 })

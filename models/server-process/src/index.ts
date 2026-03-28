@@ -66,7 +66,7 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(process.trigger.WhenFieldChanges, process.class.Trigger, serverProcess.mixin.TriggerImpl, {
-    preventRollback: true,
+    rollbackFunc: serverProcess.rollbacks.FieldChangedRollback, // set to null for now
     serverCheckFunc: serverProcess.func.FieldChangedCheck
   })
 
@@ -105,6 +105,10 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(process.method.RunSubProcess, process.class.Method, serverProcess.mixin.MethodImpl, {
     func: serverProcess.func.RunSubProcess
+  })
+
+  builder.mixin(process.method.CancelSubProcess, process.class.Method, serverProcess.mixin.MethodImpl, {
+    func: serverProcess.func.CancelSubProcess
   })
 
   builder.mixin(process.method.CreateToDo, process.class.Method, serverProcess.mixin.MethodImpl, {
@@ -149,6 +153,14 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(process.method.UnlockSection, process.class.Method, serverProcess.mixin.MethodImpl, {
     func: serverProcess.func.UnlockSection
+  })
+
+  builder.mixin(process.method.LockField, process.class.Method, serverProcess.mixin.MethodImpl, {
+    func: serverProcess.func.LockField
+  })
+
+  builder.mixin(process.method.UnlockField, process.class.Method, serverProcess.mixin.MethodImpl, {
+    func: serverProcess.func.UnlockField
   })
 
   builder.mixin(process.function.FirstValue, process.class.ProcessFunction, serverProcess.mixin.FuncImpl, {

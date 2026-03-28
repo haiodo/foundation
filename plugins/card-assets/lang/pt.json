@@ -71,6 +71,9 @@
     "RelationCopyDescr": "Quais relações você deseja copiar?",
     "Import": "Importar",
     "Export": "Exportar",
-    "CardUpdated": "Cartão atualizado"
+    "CardUpdated": "Cartão atualizado",
+    "CardCreated": "Cartão criado",
+    "MyCards": "Meus cartões",
+    "GotoMyCards": "Ir para meus cartões"
   }
 }

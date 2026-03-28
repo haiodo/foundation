@@ -32,7 +32,8 @@ import {
   type IgnoreActivity,
   type Reaction,
   type ReplyProvider,
-  type SavedMessage
+  type SavedMessage,
+  type UserMentionInfo
 } from '@hcengineering/activity'
 import contact, { type Person } from '@hcengineering/contact'
 import core, {
@@ -381,8 +382,22 @@ export function createModel (builder: Builder): void {
     txClasses: [core.class.TxCreateDoc]
   })
 
+  builder.mixin(activity.class.ActivityMessage, core.class.Class, view.mixin.ObjectTooltip, {
+    provider: activity.function.ActivityMessageTooltipProvider
+  })
+
   buildActions(builder)
   buildNotifications(builder)
+
+  builder.mixin<Class<UserMentionInfo>, IndexingConfiguration<UserMentionInfo>>(
+    activity.class.UserMentionInfo,
+    core.class.Class,
+    core.mixin.IndexConfiguration,
+    {
+      searchDisabled: true,
+      indexes: []
+    }
+  )
 }
 
 export default activity

@@ -20,6 +20,8 @@ import core, {
   Class,
   Data,
   Doc,
+  DocumentUpdate,
+  fillDefaults,
   findProperty,
   generateId,
   getObjectValue,
@@ -110,6 +112,7 @@ export async function CheckSubProcessMatch (
 
   const subExecutions = await control.client.findAll(process.class.Execution, {
     parentId: execution._id,
+    status: { $ne: ExecutionStatus.Cancelled },
     process: targetProcess
   })
 
@@ -126,7 +129,7 @@ export async function CheckSubProcessMatch (
   )
   if (predicate === '$all') {
     return res.length === subExecutions.length
-  } else if (predicate === '$any') {
+  } else if (predicate === '$in') {
     return res.length > 0
   } else if (predicate === '$nin') {
     return res.length === 0
@@ -167,9 +170,9 @@ export function FieldChangedCheck (
   const process = control.client.getModel().findObject(execution.process)
   if (process === undefined) return false
   if (context.operations === undefined) return false
-  const changedFields = Object.keys(context.operations)
+  const operations = context.operations as DocumentUpdate<Doc>
   const target = Object.keys(params)[0]
-  if (!changedFields.includes(target)) return false
+  if (!TxProcessor.hasUpdate(operations, target)) return false
   const res = matchQuery([context.card], params, process.masterTag, control.client.getHierarchy(), true)
   return res.length > 0
 }
@@ -315,19 +318,42 @@ export async function AddTag (
   const res: Tx[] = []
   const _process = control.client.getModel().findObject(execution.process)
   if (_process === undefined) throw processError(process.error.ObjectNotFound, { _id: execution.process })
+  // todo fill default for tag and set parent tags
   const tx = control.client.txFactory.createTxMixin(execution.card, _process.masterTag, execution.space, tagId, props)
   res.push(tx)
   const card = control.cache.get(execution.card)
+  if (card === undefined) throw processError(process.error.ObjectNotFound, { _id: execution.card })
   const cardWithMixin =
     card !== undefined ? TxProcessor.updateMixin4Doc(control.client.getHierarchy().clone(card), tx) : undefined
+  if (control.client.getHierarchy().hasMixin(card, tagId)) {
+    return {
+      txes: res,
+      rollback: [],
+      context: [
+        {
+          _id: execution.card,
+          value: cardWithMixin
+        }
+      ]
+    }
+  }
 
-  const rollback = control.client.txFactory.createTxUpdateDoc(_process.masterTag, execution.space, execution.card, {
-    $unset: { [tagId]: true }
-  })
+  const rollback: Tx[] = [
+    control.client.txFactory.createTxUpdateDoc(_process.masterTag, execution.space, execution.card, {
+      $unset: { [tagId]: true }
+    })
+  ]
+
+  const processes = control.client.getModel().findAllSync(process.class.Process, { masterTag: tagId, autoStart: true })
+  for (const proc of processes) {
+    const [txes, rbTxes] = await createExecution(proc._id, execution.card, execution, control)
+    res.push(...txes)
+    rollback.push(...rbTxes)
+  }
 
   return {
     txes: res,
-    rollback: [rollback],
+    rollback,
     context: [
       {
         _id: execution.card,
@@ -335,6 +361,38 @@ export async function AddTag (
       }
     ]
   }
+}
+
+export async function CancelSubProcess (
+  params: MethodParams<Execution>,
+  execution: Execution,
+  control: ProcessControl
+): Promise<ExecuteResult> {
+  const processId = params._id as Ref<Process>
+  if (processId === undefined) throw processError(process.error.RequiredParamsNotProvided, { params: '_id' })
+  const target = control.client.getModel().findObject(processId)
+  if (target === undefined) throw processError(process.error.ObjectNotFound, { _id: processId })
+  const res: Tx[] = []
+  const rollback: Tx[] = []
+  const executions = await control.client.findAll(process.class.Execution, {
+    card: execution.card,
+    process: processId,
+    status: ExecutionStatus.Active
+  })
+  for (const exec of executions) {
+    res.push(
+      control.client.txFactory.createTxUpdateDoc(process.class.Execution, execution.space, exec._id, {
+        status: ExecutionStatus.Cancelled
+      })
+    )
+    rollback.push(
+      control.client.txFactory.createTxUpdateDoc(process.class.Execution, execution.space, exec._id, {
+        status: ExecutionStatus.Active
+      })
+    )
+  }
+
+  return { txes: res, rollback, context: null }
 }
 
 export async function RunSubProcess (
@@ -362,9 +420,7 @@ export async function RunSubProcess (
         continue
       }
     }
-    const initTransition = control.client
-      .getModel()
-      .findAllSync(process.class.Transition, { process: target._id, from: null })[0]
+
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     const context = params.context ?? ({} as ExecutionContext)
     const _id = generateId<Execution>()
@@ -373,7 +429,7 @@ export async function RunSubProcess (
       execution.space,
       {
         process: processId,
-        currentState: initTransition.to,
+        currentState: null as any,
         card: _card,
         context,
         status: ExecutionStatus.Active,
@@ -400,7 +456,9 @@ export async function RequestApproval (
   control: ProcessControl,
   results: UserResult[] | undefined
 ): Promise<ExecuteResult> {
-  if (params.user === undefined) throw processError(process.error.RequiredParamsNotProvided, { params: 'user' })
+  if (params.user === undefined || params.user.length === 0) {
+    throw processError(process.error.RequiredParamsNotProvided, { params: 'user' })
+  }
   const group = generateId()
   const res: TxCreateDoc<ApproveRequest>[] = []
   const rollback: Tx[] = []
@@ -426,7 +484,9 @@ export async function RequestApproval (
         rank: '',
         withRollback: params.withRollback ?? false,
         results,
-        group
+        group,
+        actionType: params.actionType,
+        field: (params as any).field
       },
       id
     )
@@ -496,11 +556,11 @@ export async function LockSection (
   const rollback: Tx[] = []
   const card = await control.client.findOne(cardPlugin.class.Card, { _id: execution.card })
   if (card === undefined) throw processError(process.error.ObjectNotFound, { _id: execution.card })
-  const readonlySections = card.readonlySections ?? []
+  const readonlySections = new Set(card.readonlySections ?? [])
   const target = params._id as Ref<MasterTag>
-  readonlySections.push(target)
+  readonlySections.add(target)
   const tx = control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
-    readonlySections
+    readonlySections: [...readonlySections]
   })
   res.push(tx)
   rollback.push(
@@ -541,13 +601,78 @@ export async function UnlockSection (
   const card = await control.client.findOne(cardPlugin.class.Card, { _id: execution.card })
   if (card === undefined) throw processError(process.error.ObjectNotFound, { _id: execution.card })
   const target = params._id as Ref<MasterTag>
+  const readonlySections = new Set(card.readonlySections ?? [])
+  readonlySections.delete(target)
   const tx = control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
-    $pull: { readonlySections: target }
+    readonlySections: [...readonlySections]
   })
   res.push(tx)
   rollback.push(
     control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
       $push: { readonlySections: target }
+    })
+  )
+  return { txes: res, rollback, context: [] }
+}
+
+export async function LockField (
+  params: Record<string, any>,
+  execution: Execution,
+  control: ProcessControl
+): Promise<ExecuteResult> {
+  if (params.value === undefined) throw processError(process.error.RequiredParamsNotProvided, { params: 'value' })
+  const res: Tx[] = []
+  const rollback: Tx[] = []
+  const card = await control.client.findOne(cardPlugin.class.Card, { _id: execution.card })
+  if (card === undefined) throw processError(process.error.ObjectNotFound, { _id: execution.card })
+  const oldReadonlyFields = card.readonlyFields ?? []
+  const readonlyFields = [...oldReadonlyFields]
+  const targets = Array.isArray(params.value) ? params.value : [params.value]
+  let changed = false
+  for (const target of targets) {
+    if (!readonlyFields.includes(target)) {
+      readonlyFields.push(target)
+      changed = true
+    }
+  }
+  if (!changed) {
+    return { txes: [], rollback: [], context: [] }
+  }
+  const tx = control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
+    readonlyFields
+  })
+  res.push(tx)
+  rollback.push(
+    control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
+      readonlyFields: oldReadonlyFields
+    })
+  )
+  return { txes: res, rollback, context: [] }
+}
+
+export async function UnlockField (
+  params: Record<string, any>,
+  execution: Execution,
+  control: ProcessControl
+): Promise<ExecuteResult> {
+  if (params.value === undefined) throw processError(process.error.RequiredParamsNotProvided, { params: 'value' })
+  const res: Tx[] = []
+  const rollback: Tx[] = []
+  const card = await control.client.findOne(cardPlugin.class.Card, { _id: execution.card })
+  if (card === undefined) throw processError(process.error.ObjectNotFound, { _id: execution.card })
+  const oldReadonlyFields = card.readonlyFields ?? []
+  const targets = Array.isArray(params.value) ? params.value : [params.value]
+  const readonlyFields = oldReadonlyFields.filter((f: string) => !targets.includes(f))
+  if (readonlyFields.length === oldReadonlyFields.length) {
+    return { txes: [], rollback: [], context: [] }
+  }
+  const tx = control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
+    readonlyFields
+  })
+  res.push(tx)
+  rollback.push(
+    control.client.txFactory.createTxUpdateDoc(cardPlugin.class.Card, execution.space, execution.card, {
+      readonlyFields: oldReadonlyFields
     })
   )
   return { txes: res, rollback, context: [] }
@@ -587,7 +712,8 @@ export async function CreateToDo (
       doneOn: null,
       rank: '',
       withRollback: params.withRollback ?? false,
-      results
+      results,
+      field: (params as any).field
     },
     id
   )
@@ -611,7 +737,7 @@ export async function CancelToDo (
 ): Promise<ExecuteResult> {
   if (params._id === undefined) throw processError(process.error.RequiredParamsNotProvided, { params: '_id' })
   const todo = await control.client.findOne(process.class.ProcessToDo, { _id: params._id as any })
-  if (todo === undefined) throw processError(process.error.ObjectNotFound, { _id: params._id })
+  if (todo === undefined) return { txes: [], rollback: [], context: null }
   if (todo.doneOn !== null) throw processError(process.error.ToDoAlreadyCompleted, { _id: params._id })
   const res: Tx[] = [control.client.txFactory.createTxRemoveDoc(todo._class, todo.space, todo._id)]
   const rollback: Tx[] = [
@@ -672,21 +798,37 @@ export async function CreateCard (
       throw processError(process.error.RequiredParamsNotProvided, { params: key })
     }
   }
+  const masterTag = _class as Ref<MasterTag>
   const _id = generateId<Card>()
   const newContent =
-    content !== undefined && !isEmpty(content)
-      ? await getContent(control, content, _id, _class as Ref<Class<Card>>)
-      : content
+    content !== undefined && !isEmpty(content) ? await getContent(control, content, _id, masterTag) : content
   const data = {
     title,
     ...attrs
   } as any
   if (newContent !== undefined) {
-    data.content = content
+    data.content = newContent
   }
-  const tx = control.client.txFactory.createTxCreateDoc(_class as Ref<MasterTag>, execution.space, data, _id)
+  const filledData = fillDefaults(control.client.getHierarchy(), data, masterTag)
+
+  const tx = control.client.txFactory.createTxCreateDoc(masterTag, execution.space, filledData, _id)
   const res: Tx[] = [tx]
-  const rollback: Tx[] = [control.client.txFactory.createTxRemoveDoc(_class as Ref<MasterTag>, execution.space, _id)]
+  const rollback: Tx[] = [control.client.txFactory.createTxRemoveDoc(masterTag, execution.space, _id)]
+
+  const ancestors = control.client
+    .getHierarchy()
+    .getAncestors(masterTag)
+    .filter((p) => control.client.getHierarchy().isDerived(p, cardPlugin.class.Card))
+
+  const processes = control.client.getModel().findAllSync(process.class.Process, {
+    masterTag: { $in: ancestors },
+    autoStart: true
+  })
+  for (const proc of processes) {
+    const [txes, rbTxes] = await createExecution(proc._id, _id, execution, control)
+    res.push(...txes)
+    rollback.push(...rbTxes)
+  }
   return {
     txes: res,
     rollback,
@@ -701,4 +843,37 @@ export async function CreateCard (
 
 function isEmpty (value: any): boolean {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '')
+}
+
+async function createExecution (
+  proc: Ref<Process>,
+  _id: Ref<Card>,
+  execution: Execution,
+  control: ProcessControl
+): Promise<[Tx[], Tx[]]> {
+  const res: Tx[] = []
+  const rollback: Tx[] = []
+  const initTransition = control.client.getModel().findAllSync(process.class.Transition, {
+    process: proc,
+    from: null
+  })[0]
+  if (initTransition === undefined) return [res, rollback]
+  const execId = generateId()
+  const tx = control.client.txFactory.createTxCreateDoc(
+    process.class.Execution,
+    execution.space,
+    {
+      process: proc,
+      currentState: null as any,
+      card: _id,
+      rollback: [],
+      context: {},
+      status: ExecutionStatus.Active
+    },
+    execId
+  )
+
+  res.push(tx)
+  rollback.push(control.client.txFactory.createTxRemoveDoc(process.class.Execution, execution.space, execId))
+  return [res, rollback]
 }

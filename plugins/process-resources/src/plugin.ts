@@ -30,6 +30,7 @@ export default mergeIds(processId, process, {
     ProcessEditor: '' as AnyComponent,
     ProcessesSettingSection: '' as AnyComponent,
     SubProcessEditor: '' as AnyComponent,
+    CancelSubProcessEditor: '' as AnyComponent,
     ApproveRequestEditor: '' as AnyComponent,
     ApproveRequestPresenter: '' as AnyComponent,
     ApproveRequestTriggerEditor: '' as AnyComponent,
@@ -88,8 +89,13 @@ export default mergeIds(processId, process, {
     LockSectionEditor: '' as AnyComponent,
     LockSectionPresenter: '' as AnyComponent,
     UnLockSectionPresenter: '' as AnyComponent,
+    LockFieldEditor: '' as AnyComponent,
+    LockFieldPresenter: '' as AnyComponent,
+    UnLockFieldPresenter: '' as AnyComponent,
     CancelToDoEditor: '' as AnyComponent,
-    ToDoValuePresenter: '' as AnyComponent
+    ToDoValuePresenter: '' as AnyComponent,
+    ActionTypePresenter: '' as AnyComponent,
+    ExecutionRefPresenter: '' as AnyComponent
   },
   criteriaEditor: {
     BaseCriteria: '' as AnyComponent,
@@ -121,6 +127,7 @@ export default mergeIds(processId, process, {
     DeleteState: '' as IntlString,
     DeleteStateConfirm: '' as IntlString,
     RunProcess: '' as IntlString,
+    CancelProcess: '' as IntlString,
     Processes: '' as IntlString,
     Untitled: '' as IntlString,
     States: '' as IntlString,
@@ -179,6 +186,7 @@ export default mergeIds(processId, process, {
     Required: '' as IntlString,
     ParallelExecutionForbidden: '' as IntlString,
     StartAutomatically: '' as IntlString,
+    AutomationOnly: '' as IntlString,
     Continue: '' as IntlString,
     RequestFromUser: '' as IntlString,
     EnterValue: '' as IntlString,
@@ -249,7 +257,11 @@ export default mergeIds(processId, process, {
     LockCard: '' as IntlString,
     LockSection: '' as IntlString,
     UnlockCard: '' as IntlString,
-    UnlockSection: '' as IntlString
+    UnlockSection: '' as IntlString,
+    LockField: '' as IntlString,
+    UnlockField: '' as IntlString,
+    Export: '' as IntlString,
+    Import: '' as IntlString
   },
   permission: {
     RunProcess: '' as Ref<Permission>,

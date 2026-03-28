@@ -18,9 +18,9 @@ import { SortingOrder } from '@hcengineering/core'
 import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
 import task from '@hcengineering/model-task'
-import view, { showColorsViewOption } from '@hcengineering/model-view'
+import view, { showColorsViewOption, showDaysViewOption } from '@hcengineering/model-view'
 import tags from '@hcengineering/tags'
-import { type BuildModelKey, type ViewOptionsModel } from '@hcengineering/view'
+import { type ViewOptionModel, type BuildModelKey, type ViewOptionsModel } from '@hcengineering/view'
 import tracker from './plugin'
 
 export const issuesOptions = (kanban: boolean): ViewOptionsModel => ({
@@ -29,6 +29,7 @@ export const issuesOptions = (kanban: boolean): ViewOptionsModel => ({
     'kind',
     'assignee',
     'priority',
+    'space',
     'component',
     'milestone',
     'attachedTo',
@@ -75,7 +76,7 @@ export const issuesOptions = (kanban: boolean): ViewOptionsModel => ({
       action: view.function.HideArchived,
       label: view.string.HideArchived
     },
-    ...(!kanban ? [showColorsViewOption] : [])
+    ...(!kanban ? [showColorsViewOption, showDaysViewOption] : [showDaysViewOption])
   ]
 })
 
@@ -266,7 +267,7 @@ export function defineViewlets (builder: Builder): void {
       ['dueDate', SortingOrder.Ascending]
     ],
     groupDepth: 1,
-    other: [showColorsViewOption]
+    other: [showColorsViewOption, showDaysViewOption]
   }
 
   builder.createDoc(
@@ -308,7 +309,7 @@ export function defineViewlets (builder: Builder): void {
       ['dueDate', SortingOrder.Ascending]
     ],
     groupDepth: 1,
-    other: [showColorsViewOption]
+    other: [showColorsViewOption, showDaysViewOption]
   }
 
   builder.createDoc(
@@ -350,7 +351,7 @@ export function defineViewlets (builder: Builder): void {
       ['dueDate', SortingOrder.Ascending]
     ],
     groupDepth: 1,
-    other: [showColorsViewOption]
+    other: [showColorsViewOption, showDaysViewOption]
   }
 
   builder.createDoc(
@@ -395,7 +396,7 @@ export function defineViewlets (builder: Builder): void {
           ['dueDate', SortingOrder.Ascending],
           ['rank', SortingOrder.Ascending]
         ],
-        other: [showColorsViewOption]
+        other: [showColorsViewOption, showDaysViewOption]
       },
       configOptions: {
         strict: true,
@@ -501,7 +502,7 @@ export function defineViewlets (builder: Builder): void {
       ['modifiedOn', SortingOrder.Descending],
       ['createdOn', SortingOrder.Descending]
     ],
-    other: [showColorsViewOption]
+    other: [showColorsViewOption, showDaysViewOption]
   }
 
   builder.createDoc(
@@ -537,14 +538,42 @@ export function defineViewlets (builder: Builder): void {
     tracker.viewlet.ComponentList
   )
 
+  const hideArchivedOption: ViewOptionModel = {
+    key: 'hideArchived',
+    type: 'toggle',
+    defaultValue: false,
+    actionTarget: 'options',
+    action: view.function.HideArchived,
+    label: view.string.HideArchived
+  }
+
+  const tableOptions: ViewOptionsModel = {
+    groupBy: [],
+    orderBy: [],
+    other: [hideArchivedOption]
+  }
+
+  const projectListOptions: ViewOptionsModel = {
+    groupBy: ['createdBy', 'modifiedBy'],
+    orderBy: [
+      ['name', SortingOrder.Ascending],
+      ['identifier', SortingOrder.Ascending],
+      ['modifiedOn', SortingOrder.Descending],
+      ['createdOn', SortingOrder.Descending]
+    ],
+    other: [hideArchivedOption]
+  }
+
   builder.createDoc(
     view.class.Viewlet,
     core.space.Model,
     {
       attachTo: tracker.class.Project,
       descriptor: view.viewlet.Table,
+      viewOptions: tableOptions,
       configOptions: {
-        hiddenKeys: ['identifier', 'name', 'description']
+        hiddenKeys: ['identifier', 'name', 'description'],
+        sortable: true
       },
       config: [
         {
@@ -572,6 +601,44 @@ export function defineViewlets (builder: Builder): void {
     tracker.viewlet.ProjectList
   )
 
+  builder.createDoc(
+    view.class.Viewlet,
+    core.space.Model,
+    {
+      attachTo: tracker.class.Project,
+      descriptor: view.viewlet.List,
+      viewOptions: projectListOptions,
+      configOptions: {
+        strict: true,
+        hiddenKeys: ['identifier', 'name', 'description']
+      },
+      config: [
+        {
+          key: '',
+          presenter: tracker.component.ProjectPresenter,
+          props: {
+            openIssues: true,
+            shouldUseMargin: true
+          }
+        },
+        'members',
+        {
+          key: 'defaultAssignee',
+          props: { kind: 'list' }
+        },
+        {
+          key: 'modifiedOn',
+          presenter: tracker.component.ModificationDatePresenter,
+          displayProps: { fixed: 'right', dividerBefore: true }
+        }
+      ],
+      options: {
+        showArchived: true
+      }
+    },
+    tracker.viewlet.ProjectListGrouped
+  )
+
   const milestoneOptions: ViewOptionsModel = {
     groupBy: ['status', 'createdBy', 'modifiedBy'],
     orderBy: [
@@ -579,7 +646,7 @@ export function defineViewlets (builder: Builder): void {
       ['targetDate', SortingOrder.Descending],
       ['createdOn', SortingOrder.Descending]
     ],
-    other: [showColorsViewOption]
+    other: [showColorsViewOption, showDaysViewOption]
   }
 
   builder.createDoc(

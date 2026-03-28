@@ -15,7 +15,7 @@
 <script lang="ts">
   import { Contact, getCurrentEmployee, Person } from '@hcengineering/contact'
   import { DocumentQuery, FindOptions, Ref } from '@hcengineering/core'
-  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { Asset, IntlString } from '@hcengineering/platform'
   import presentation, { createQuery } from '@hcengineering/presentation'
   import {
     AnySvelteComponent,
@@ -35,6 +35,7 @@
   import { createEventDispatcher } from 'svelte'
   import { AssigneeCategory } from '../assignee'
   import contact from '../plugin'
+  import { addRecentlyUsedAssignee, getRecentlyUsedAssignees } from '../recentAssignees'
   import UserInfo from './UserInfo.svelte'
 
   export let options: FindOptions<Contact> | undefined = undefined
@@ -48,11 +49,9 @@
   export let ignoreUsers: Ref<Person>[] = []
   export let shadows: boolean = true
   export let width: 'medium' | 'large' | 'full' = 'medium'
-  export let searchField: string = 'name'
   export let icon: Asset | AnySvelteComponent | undefined = undefined
   export let loading = false
-
-  $: showCategories = categories !== undefined && categories.length > 0
+  export let showCategories = true
 
   let search: string = ''
   let objects: Contact[] = []
@@ -67,7 +66,7 @@
     contact.mixin.Employee,
     {
       ...(docQuery ?? {}),
-      [searchField]: { $like: '%' + search + '%' },
+      $search: search,
       _id: {
         ...(typeof docQuery?._id === 'object' ? docQuery._id : {}),
         $nin: ignoreUsers
@@ -96,10 +95,17 @@
     }
   }
 
-  const assigned: AssigneeCategory = {
+  const assignedCategory: AssigneeCategory = {
     label: contact.string.Assigned,
     func: async () => {
       return selected ? [selected] : []
+    }
+  }
+
+  const recentlyUsedCategory: AssigneeCategory = {
+    label: contact.string.RecentlyUsed,
+    func: async () => {
+      return await getRecentlyUsedAssignees()
     }
   }
 
@@ -113,14 +119,22 @@
   async function updateCategories (objects: Contact[], categories: AssigneeCategory[] | undefined) {
     const refs = objects.map((e) => e._id)
 
-    for (const category of [currentUserCategory, assigned, ...(categories ?? []), otherCategory]) {
+    for (const category of [
+      currentUserCategory,
+      assignedCategory,
+      recentlyUsedCategory,
+      ...(categories ?? []),
+      otherCategory
+    ]) {
       const res = await category.func(refs)
+      console.log('Category:', category.label, 'Result:', res)
       for (const contact of res) {
         if (categorizedPersons.has(contact)) continue
         categorizedPersons.set(contact, category)
       }
     }
     contacts = []
+    console.log('Categorized Persons:', categorizedPersons)
     categorizedPersons.forEach((p, k) => {
       const c = objects.find((e) => e._id === k)
       if (c) {
@@ -136,6 +150,9 @@
   async function handleSelection (evt: Event | undefined, selection: number): Promise<void> {
     const person = contacts[selection]
     selected = allowDeselect && person?._id === selected ? undefined : person?._id
+    if (selected !== undefined) {
+      void addRecentlyUsedAssignee(selected)
+    }
     dispatch('close', selected !== undefined ? person : undefined)
   }
 

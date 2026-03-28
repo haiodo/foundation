@@ -151,6 +151,21 @@ export interface Relation extends Doc {
 }
 
 /**
+ * Describes an existing class field with reference to other document: which relations to follow when building documents graph.
+ * @public
+ */
+export interface RelationMetadata extends Doc {
+  /** Class (source) */
+  sourceClass: Ref<Class<Doc>>
+  /** Class referenced by the field (target) */
+  targetClass: Ref<Class<Doc>>
+  /** Field on the source class */
+  field: string
+  /** Whether this is a forward (source→target) or inverse (target→source) relation */
+  direction?: 'forward' | 'inverse'
+}
+
+/**
  * @public
  */
 export interface AttachedDoc<
@@ -299,6 +314,7 @@ export interface PluginConfiguration extends Doc {
 
   // If defined, will only remove classes in list.
   classFilter?: Ref<Class<Obj>>[]
+  mixinFilter?: Ref<Mixin<Doc>>[]
 }
 
 /**
@@ -402,6 +418,13 @@ export interface TypeHyperlink extends Type<Hyperlink> {}
 
 /**
  * @public
+ */
+export interface TypeRank extends Type<Rank> {
+  pos?: 'start' | 'end'
+}
+
+/**
+ * @public
  *
  * A type for some custom serialized field with a set of editors
  */
@@ -482,6 +505,7 @@ export interface Space extends Doc {
   archived: boolean
   owners?: AccountUuid[]
   autoJoin?: boolean
+  referenceId?: string
 }
 
 /**

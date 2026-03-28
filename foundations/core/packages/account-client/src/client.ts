@@ -54,6 +54,7 @@ import type {
   Subscription,
   SubscriptionData,
   UserProfile,
+  WorkspaceInviteInfo,
   WorkspaceLoginInfo,
   WorkspaceOperation
 } from './types'
@@ -124,7 +125,9 @@ export interface AccountClient {
     }
   ) => Promise<string>
   checkJoin: (inviteId: string) => Promise<WorkspaceLoginInfo>
+  joinByInvite: (inviteId: string) => Promise<WorkspaceLoginInfo>
   checkAutoJoin: (inviteId: string, firstName?: string, lastName?: string) => Promise<WorkspaceLoginInfo>
+  getInviteInfo: (inviteId: string) => Promise<WorkspaceInviteInfo>
   getWorkspaceInfo: (updateLastVisit?: boolean) => Promise<WorkspaceInfoWithStatus>
   getWorkspacesInfo: (workspaces: WorkspaceUuid[]) => Promise<WorkspaceInfoWithStatus[]>
   updateLastVisit: (workspaces: WorkspaceUuid[]) => Promise<void>
@@ -263,12 +266,17 @@ export interface AccountClient {
 }
 
 /** @public */
-export function getClient (accountsUrl?: string, token?: string, retryTimeoutMs?: number): AccountClient {
+export function getClient (
+  accountsUrl?: string,
+  token?: string,
+  retryTimeoutMs?: number,
+  origin?: string
+): AccountClient {
   if (accountsUrl === undefined) {
     throw new Error('Accounts url not specified')
   }
 
-  return new AccountClientImpl(accountsUrl, token, retryTimeoutMs)
+  return new AccountClientImpl(accountsUrl, token, retryTimeoutMs, origin)
 }
 
 interface Request {
@@ -283,7 +291,8 @@ class AccountClientImpl implements AccountClient {
   constructor (
     private readonly url: string,
     private readonly token?: string,
-    retryTimeoutMs?: number
+    retryTimeoutMs?: number,
+    private readonly origin?: string
   ) {
     if (url === '') {
       throw new Error('Accounts url not specified')
@@ -298,7 +307,8 @@ class AccountClientImpl implements AccountClient {
           ? {}
           : {
               Authorization: 'Bearer ' + this.token
-            })
+            }),
+        ...(origin !== undefined ? { 'X-Origin': origin } : {})
       },
       ...(isBrowser ? { credentials: 'include' } : {})
     }
@@ -586,10 +596,28 @@ class AccountClientImpl implements AccountClient {
     return await this.rpc(request)
   }
 
+  async joinByInvite (inviteId: string): Promise<WorkspaceLoginInfo> {
+    const request = {
+      method: 'joinByInvite' as const,
+      params: { inviteId }
+    }
+
+    return await this.rpc(request)
+  }
+
   async checkAutoJoin (inviteId: string, firstName?: string, lastName?: string): Promise<WorkspaceLoginInfo> {
     const request = {
       method: 'checkAutoJoin' as const,
       params: { inviteId, firstName, lastName }
+    }
+
+    return await this.rpc(request)
+  }
+
+  async getInviteInfo (inviteId: string): Promise<WorkspaceInviteInfo> {
+    const request = {
+      method: 'getInviteInfo' as const,
+      params: { inviteId }
     }
 
     return await this.rpc(request)

@@ -16,6 +16,7 @@
   import { Loading, Scroller, formatDuration, formatNumberCompact, themeStore } from '@hcengineering/ui'
   import { getCurrentWorkspaceUuid } from '@hcengineering/presentation'
   import billingPlugin from '@hcengineering/billing'
+  import type { DatalakeStatsByType } from '@hcengineering/billing-client'
   import love from '@hcengineering/love'
   import view from '@hcengineering/view'
   import filesize from 'filesize'
@@ -23,42 +24,58 @@
   import drivePlugin from '@hcengineering/drive'
   import Category from './Category.svelte'
   import ChartCard from './ChartCard.svelte'
-  import { getBillingClient } from '../utils'
+  import StorageBreakdown from './StorageBreakdown.svelte'
+  import { getBillingClient, calculateLimits } from '../utils'
+  import { subscriptionStore } from '../stores/subscription'
 
   const billingClient = getBillingClient()
 
   let totalDatalakeSize = 0
   let totalDatalakeCount = 0
-  let totalSessionsDuration = 0
-  let totalSessionsBandwidth = 0
   let totalEgressDuration = 0
-  let sessionsDurationByDay: { date: number, value: number }[] = []
-  let sessionsBandwidthByDay: { date: number, value: number }[] = []
   let egressDurationByDay: { date: number, value: number }[] = []
   let totalTranscriptDuration = 0
   let totalTokensCount = 0
+  let totalMeetingMinutes = 0
+  let maxParticipants = 0
+  let avgMeetingDuration = 0
+  let maxMeetingDuration = 0
+  let meetingMinutesByDay: { date: number, value: number }[] = []
+  let transcriptByDay: { date: number, value: number }[] = []
+  let datalakeByType: DatalakeStatsByType[] = []
 
   async function loadBillingData (): Promise<void> {
     if (billingClient == null) return
     const billingStats = await billingClient.getBillingStats(getCurrentWorkspaceUuid())
     totalDatalakeSize = billingStats.datalakeStats.size
     totalDatalakeCount = billingStats.datalakeStats.count
-    totalSessionsDuration = billingStats.liveKitStats.sessions.reduce((sum, s) => sum + s.minutes, 0) * 60000
-    totalSessionsBandwidth = billingStats.liveKitStats.sessions.reduce((sum, s) => sum + s.bandwidth, 0)
+    datalakeByType = billingStats.datalakeStats.byType ?? []
     totalEgressDuration = billingStats.liveKitStats.egress.reduce((sum, e) => sum + e.minutes, 0) * 60000
     totalTranscriptDuration = billingStats.aiStats.transcript.totalDurationSeconds * 1000
     totalTokensCount = billingStats.aiStats.tokens.reduce((sum, s) => sum + s.totalTokens, 0)
 
-    sessionsDurationByDay = billingStats.liveKitStats.sessions.map((s) => {
-      const date = new Date(Date.parse(s.day))
+    // Participant daily stats
+    const participantDaily = billingStats.participantDailyStats ?? []
+    totalMeetingMinutes = participantDaily.reduce((sum, d) => sum + d.totalMinutes, 0)
+    maxParticipants = participantDaily.reduce((max, d) => Math.max(max, d.maxParticipants), 0)
+    avgMeetingDuration =
+      participantDaily.length > 0
+        ? participantDaily.reduce((sum, d) => sum + d.avgMeetingDurationMinutes, 0) / participantDaily.length
+        : 0
+    maxMeetingDuration = participantDaily.reduce((max, d) => Math.max(max, d.maxMeetingDurationMinutes), 0)
+
+    meetingMinutesByDay = participantDaily.map((d) => {
+      const date = new Date(Date.parse(d.day))
       date.setHours(0, 0, 0, 0)
-      return { date: date.getTime(), value: s.minutes * 60000 }
+      return { date: date.getTime(), value: d.totalMinutes * 60000 }
     })
 
-    sessionsBandwidthByDay = billingStats.liveKitStats.sessions.map((s) => {
-      const date = new Date(Date.parse(s.day))
+    // Transcript daily stats
+    const transcriptDaily = billingStats.transcriptDailyStats ?? []
+    transcriptByDay = transcriptDaily.map((d) => {
+      const date = new Date(Date.parse(d.day))
       date.setHours(0, 0, 0, 0)
-      return { date: date.getTime(), value: s.bandwidth }
+      return { date: date.getTime(), value: d.totalDurationSeconds * 1000 }
     })
 
     egressDurationByDay = billingStats.liveKitStats.egress.map((s) => {
@@ -72,13 +89,20 @@
 {#await loadBillingData()}
   <Loading />
 {:then _}
-  <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
-    <div class="hulyComponent-content gapV-8">
+  <Scroller align={'center'} padding={'var(--spacing-2)'} bottomPadding={'var(--spacing-2)'}>
+    <div class="hulyComponent-content gapV-4">
       <Category icon={drivePlugin.icon.DriveApplication} label={drivePlugin.string.Drive}>
         <div class="row">
           <StatsCard label={billingPlugin.string.DriveSize} text={filesize(totalDatalakeSize, { spacer: ' ' })} />
           <StatsCard label={billingPlugin.string.DriveCount} text={totalDatalakeCount.toString()} />
         </div>
+        {#if datalakeByType.length > 0}
+          <StorageBreakdown
+            byType={datalakeByType}
+            totalSize={totalDatalakeSize}
+            limit={calculateLimits($subscriptionStore.currentTier).storageLimit}
+          />
+        {/if}
       </Category>
       <Category icon={view.icon.AiStar} label={billingPlugin.string.AI}>
         <div class="row">
@@ -92,12 +116,8 @@
       <Category icon={love.icon.Love} label={love.string.Office}>
         <div class="row">
           <StatsCard
-            label={billingPlugin.string.OfficeSessionsDuration}
-            text={formatDuration(totalSessionsDuration, $themeStore.language)}
-          />
-          <StatsCard
-            label={billingPlugin.string.OfficeSessionsBandwidth}
-            text={filesize(totalSessionsBandwidth, { spacer: ' ' })}
+            label={billingPlugin.string.MeetingMinutesUsage}
+            text={formatDuration(totalMeetingMinutes * 60000, $themeStore.language)}
           />
           <StatsCard
             label={billingPlugin.string.OfficeEgressDuration}
@@ -105,24 +125,37 @@
           />
         </div>
         <div class="row">
-          <ChartCard
-            label={billingPlugin.string.OfficeSessionsDuration}
-            valueFormatter={(v) => formatDuration(v, $themeStore.language)}
-            data={sessionsDurationByDay}
+          <StatsCard label={billingPlugin.string.MaxParticipants} text={maxParticipants.toString()} />
+          <StatsCard
+            label={billingPlugin.string.AvgMeetingDuration}
+            text={formatDuration(avgMeetingDuration * 60000, $themeStore.language)}
+          />
+          <StatsCard
+            label={billingPlugin.string.MaxMeetingDuration}
+            text={formatDuration(maxMeetingDuration * 60000, $themeStore.language)}
           />
         </div>
         <div class="row">
           <ChartCard
-            label={billingPlugin.string.OfficeSessionsBandwidth}
-            valueFormatter={(v) => Promise.resolve(filesize(v, { spacer: ' ' }))}
-            data={sessionsBandwidthByDay}
-          />
-        </div>
-        <div class="row">
-          <ChartCard
-            label={billingPlugin.string.OfficeEgressDuration}
+            label={love.string.Office}
             valueFormatter={(v) => formatDuration(v, $themeStore.language)}
-            data={egressDurationByDay}
+            series={[
+              {
+                label: billingPlugin.string.MeetingMinutesUsage,
+                color: 'var(--theme-state-primary-color)',
+                data: meetingMinutesByDay
+              },
+              {
+                label: billingPlugin.string.TranscriptionTime,
+                color: 'var(--theme-state-positive-color)',
+                data: transcriptByDay
+              },
+              {
+                label: billingPlugin.string.OfficeEgressDuration,
+                color: 'var(--theme-state-negative-color)',
+                data: egressDurationByDay
+              }
+            ]}
           />
         </div>
       </Category>
@@ -134,6 +167,6 @@
   .row {
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 8px;
   }
 </style>
