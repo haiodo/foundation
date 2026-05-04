@@ -1,5 +1,5 @@
 
-FROM haiodo/print-base:v20250811
+FROM haiodo/print-base:v20260504
 
 WORKDIR /usr/src/app
 COPY bundle/bundle.js ./
