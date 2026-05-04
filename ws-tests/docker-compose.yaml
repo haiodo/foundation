@@ -130,7 +130,7 @@ services:
       - QUEUE_CONFIG=${QUEUE_CONFIG}
     restart: unless-stopped
   elastic-plugins:
-    image: haiodo/elastic-plugins:8.19.1-slim
+    image: intabiafusion/elastic-plugins:8.19.1-slim
     command:
       - sh
       - -c

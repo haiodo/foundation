@@ -140,7 +140,7 @@ services:
       interval: 5s
       retries: 10
   elastic-plugins:
-    image: haiodo/elastic-plugins:8.19.1-slim
+    image: intabiafusion/elastic-plugins:8.19.1-slim
     command:
       - sh
       - -c
