@@ -42,7 +42,7 @@ runs:
         else
           if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/prepare-server.log; then
             echo "Rate limit hit, logging in to Docker Hub and retrying..."
-            echo "$DOCKER_ACCESS_TOKEN" | docker login -u intabiafusion --password-stdin
+            echo "$DOCKER_ACCESS_TOKEN" | docker login -u haiodo --password-stdin
             ${{ inputs.prepare-script }}
           else
             echo "Prepare failed (not a rate limit issue)"
