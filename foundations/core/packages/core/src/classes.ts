@@ -139,6 +139,7 @@ export interface Association extends Doc {
   nameA: string
   nameB: string
   type: '1:1' | '1:N' | 'N:N'
+  automationOnly?: boolean
 }
 
 /**
@@ -205,6 +206,11 @@ export enum IndexKind {
   IndexedDsc
 }
 
+export interface IndexOptions {
+  // If true, will be added to searchTitle in Elastic
+  searchTitle?: boolean
+}
+
 /**
  * @public
  */
@@ -221,6 +227,7 @@ export interface Attribute<T extends PropertyType> extends Doc, UXObject {
   name: string
   type: Type<T>
   index?: IndexKind
+  indexOptions?: IndexOptions
   shortLabel?: IntlString
   isCustom?: boolean
   defaultValue?: any

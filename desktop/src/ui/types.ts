@@ -18,6 +18,7 @@ import { ScreenSource } from '@hcengineering/love'
 import { Plugin } from '@hcengineering/platform'
 import { Ref, Class, Doc } from '@hcengineering/core'
 import { IpcRendererEvent } from 'electron'
+import { ActivityMessage } from '@hcengineering/activity'
 
 export interface Config {
   ACCOUNTS_URL: string
@@ -26,7 +27,6 @@ export interface Config {
   BRANDING_URL?: string
   CALENDAR_URL: string
   COLLABORATOR?: string
-  COLLABORATOR_URL: string
   CONFIG_URL: string
   DESKTOP_UPDATES_CHANNEL?: string // deprecated, kept for backwards compatibility of old desktop versions that will still need to be upgraded
   DESKTOP_UPDATES_CHANNELS?: string
@@ -65,15 +65,20 @@ export interface Config {
   COMMUNICATION_API_ENABLED?: string
   BILLING_URL?: string
   PAYMENT_URL?: string
-  PULSE_URL?: string
   PASSWORD_STRICTNESS?: 'very_strict' | 'strict' | 'normal' | 'none'
   EXCLUDED_APPLICATIONS_FOR_ANONYMOUS?: string
   HULYLAKE_URL?: string
   DISABLED_FEATURES?: string
   SIGNUP_URL?: string
+  SUPPORT_EMAIL?: string
+  LICENSE_URL?: string
+  USERAGREEMENT_URL?: string
+  CONFIDENTIAL_URL?: string
+  PERSONAL_DATA_URL?: string
 
   ACCENT_THEME?: string
   LOGIN_THEME?: string
+  COPYRIGHT?: string
 }
 
 export interface Branding {
@@ -128,6 +133,8 @@ export interface NotificationParams {
   cardId?: string
   objectId?: Ref<Doc>
   objectClass?: Ref<Class<Doc>>
+  messageId?: Ref<ActivityMessage>
+  threadId?: Ref<ActivityMessage>
 }
 
 export const MenuBarActions = [

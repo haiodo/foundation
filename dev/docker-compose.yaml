@@ -155,6 +155,15 @@ services:
       interval: 5s
       retries: 10
     restart: unless-stopped
+  elastic-plugins:
+    image: haiodo/elastic-plugins:8.19.1-slim
+    command:
+      - sh
+      - -c
+      - |
+        cp -pr /usr/share/elasticsearch/plugins/* /mnt/plugins/
+    volumes:
+      - elastic-plugins:/mnt/plugins
   elastic:
     image: 'elasticsearch:8.19.1'
     command: >
@@ -165,6 +174,10 @@ services:
       - 'huly.local:host-gateway'
     volumes:
       - elastic:/usr/share/elasticsearch/data
+      - elastic-plugins:/usr/share/elasticsearch/plugins
+    depends_on:
+      elastic-plugins:
+        condition: service_completed_successfully
     ports:
       - 9200:9200
     environment:
@@ -199,6 +212,7 @@ services:
       - 3000:3000
     volumes:
       - ./branding.json:/var/cfg/branding.json
+      - ./region-config.yaml:/var/cfg/region-config.yaml
     environment:
       - ACCOUNT_PORT=3000
       - IGNORE_EMAIL_SIGNUP=false # Set to true if you want to disable email/otp confirmations
@@ -208,10 +222,7 @@ services:
       - STATS_URL=http://huly.local:4900
       - WORKSPACE_LIMIT_PER_USER=10000
       - DB_URL=${DB_URL_PG}
-      # - DB_NS=account-2
-      # Pass only one region to disallow selection for new workspaces.
-      - REGION_INFO=|Default
-      - TRANSACTOR_URL=ws://huly.local:3332;;
+      - REGION_CONFIG=/var/cfg/region-config.yaml
       - MAIL_URL=
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - FRONT_URL=http://huly.local:8087
@@ -282,7 +293,7 @@ services:
       # - INIT_WORKSPACE=staging-dev
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
     restart: unless-stopped
-  collaborator:
+  collaborator0:
     image: haiodo/collaborator
     extra_hosts:
       - 'huly.local:host-gateway'
@@ -294,6 +305,24 @@ services:
       - 3078:3078
     environment:
       - COLLABORATOR_PORT=3078
+      - SECRET=secret
+      - ACCOUNTS_URL=http://huly.local:3000
+      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - STATS_URL=http://huly.local:4900
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+    restart: unless-stopped
+  collaborator1:
+    image: haiodo/collaborator
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    links:
+      - minio
+      - transactor
+      - stats
+    ports:
+      - 3077:3077
+    environment:
+      - COLLABORATOR_PORT=3077
       - SECRET=secret
       - ACCOUNTS_URL=http://huly.local:3000
       - STORAGE_CONFIG=${STORAGE_CONFIG}
@@ -321,7 +350,6 @@ services:
       - CALENDAR_URL=http://huly.local:8095
       - TELEGRAM_URL=http://huly.local:8086
       - REKONI_URL=http://huly.local:4004
-      - COLLABORATOR_URL=ws://huly.local:3078
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - GITHUB_URL=http://huly.local:3500
       - PRINT_URL=http://huly.local:4005
@@ -339,16 +367,22 @@ services:
       - EXCLUDED_APPLICATIONS_FOR_ANONYMOUS=["chunter", "notification"]
       # - DISABLE_SIGNUP=true
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-      - PULSE_URL=ws://huly.local:8099/ws
       - DATALAKE_URL=http://huly.local:4030
       # - HULYLAKE_URL=http://huly.local:8096
       - AI_URL=http://huly.local:4010
-      - LANDING_URL=http://huly.local:9078/landing/
+      # - LANDING_URL=http://huly.local:9078/landing/
       - LOVE_ENDPOINT=http://huly.local:8096
       - LIVEKIT_WS=ws://huly.local:7880
       - EXPORT_URL=http://huly.local:4009
       - LINK_PREVIEW_URL=http://huly.local:4042
       - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
+      - USAGE_URL=http://huly.local:8080/terms
+      - SUPPORT_URL=https://t.me/intabia
+      - LICENSE_URL=https://huly.local:8080/legal/license
+      - USERAGREEMENT_URL=https://huly.local:8080/legal/user-agreement
+      - CONFIDENTIAL_URL=https://huly.local:8080/legal/confidential
+      - SUPPORT_EMAIL=platform@intabia.ru
+      - PERSONAL_DATA_URL=https://huly.local:8080/legal/agreement
     restart: unless-stopped
   transactor:
     image: haiodo/transactor
@@ -364,9 +398,11 @@ services:
         condition: service_started
     ports:
       - 3332:3332
+      - 9229:9229
     volumes:
       - ./branding.json:/var/cfg/branding.json
     environment:
+      - NODE_OPTIONS=--inspect=0.0.0.0:9229
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - SERVER_PORT=3332
       - REGION=
@@ -750,18 +786,6 @@ services:
   #     - HULY_TOKEN_SECRET=secret
   #     - HULY_ACCOUNT_SERVICE=http://huly.local:3000
   #   restart: unless-stopped
-  hulypulse:
-    image: haiodo/hulypulse
-    depends_on:
-      redis:
-        condition: service_started
-    ports:
-      - 8099:8099
-    environment:
-      - HULY_REDIS_URLS=redis://redis:6379
-      - HULY_BIND_PORT=8099
-    restart: unless-stopped
-    pull_policy: never
 
   process-service:
     image: haiodo/process
@@ -1032,6 +1056,55 @@ services:
     ports:
       - 4042:4042
     restart: unless-stopped
+  activity:
+    image: haiodo/activity
+    extra_hosts:
+      - 'huly.local:host-gateway'
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+      postgres:
+        condition: service_started
+      transactor:
+        condition: service_started
+    volumes:
+      - ./branding.json:/var/cfg/branding.json
+    environment:
+      - SECRET=secret
+      - ACCOUNTS_URL=http://huly.local:3000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      - DB_URL=${DB_URL_PG}
+      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - APPLY_TX_BATCH_SIZE=100
+      - BRANDING_PATH=/var/cfg/branding.json
+    restart: unless-stopped
+  # crm:
+  #   image: haiodo/crm
+  #   ports:
+  #     - '3001:3001'
+  #   extra_hosts:
+  #     - 'huly.local:host-gateway'
+  #   depends_on:
+  #     redpanda:
+  #       condition: service_started
+  #     account:
+  #       condition: service_started
+  #   environment:
+  #     - QUEUE_CONFIG=${QUEUE_CONFIG}
+  #     - QUEUE_REGION=
+  #     - STATS_URL=http://huly.local:4900
+  #     - SERVICE_ID=crm
+  #     - SECRET=secret
+  #     - ENABLE_CONSOLE=true
+  #     - PORT=3001
+  #     - AMO_CRM_DOMAIN=
+  #     - AMO_CRM_PIPELINE_ID=
+  #     - AMO_CRM_TOKEN=
+  #     - AMO_CRM_RESPONSIBLE_USER_ID=
+  #   restart: unless-stopped
   notifications:
     image: haiodo/notifications
     extra_hosts:
@@ -1043,6 +1116,8 @@ services:
         condition: service_started
       transactor:
         condition: service_started
+    volumes:
+      - ./branding.json:/var/cfg/branding.json
     environment:
       - SECRET=secret
       - ACCOUNTS_URL=http://huly.local:3000
@@ -1050,7 +1125,9 @@ services:
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
+      - FRONT_URL=http://huly.local:8087
       - STATS_URL=http://huly.local:4900
+      - BRANDING_PATH=/var/cfg/branding.json
   notification:
     image: haiodo/notification
     environment:
@@ -1061,11 +1138,17 @@ services:
       - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
       - PUSH_PRIVATE_KEY=${PUSH_PRIVATE_KEY}
     restart: unless-stopped
+  # landing:
+  #   image: haiodo/platform-landing:0.7
+  #   restart: unless-stopped
+  #   ports:
+  #     - 9078:80
 volumes:
   db:
   dbpg:
   files:
   elastic:
+  elastic-plugins:
   redpanda:
   telemetry:
   pgbouncer_logs:

@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import activity, {
-  type ActivityMessage,
-  type DisplayActivityMessage,
-  type DisplayDocUpdateMessage
-} from '@hcengineering/activity'
+import { type ActivityMessage } from '@hcengineering/activity'
 import aiBot from '@hcengineering/ai-bot'
 import { summarizeMessages as aiSummarizeMessages, translate as aiTranslate } from '@hcengineering/ai-bot-resources'
 import {
@@ -199,9 +195,7 @@ export async function ChannelTitleProvider (client: Client, id: Ref<Channel>, do
 
 export enum SearchType {
   Messages,
-  Files,
-  Channels,
-  Directs
+  Files
 }
 
 export async function getTitle (doc: Doc): Promise<string> {
@@ -308,17 +302,8 @@ const lastViewTimestampStore = writable<Map<Ref<Doc>, number>>(new Map())
 // NOTE: Sometimes user can read message before notification is created and we should mark it as viewed when notification is received
 export const chatReadMessagesStore = writable<Set<Ref<ActivityMessage>>>(new Set())
 
-function getAllIds (messages: DisplayActivityMessage[]): Array<Ref<ActivityMessage>> {
-  return messages
-    .map((message) => {
-      const combined =
-        message._class === activity.class.DocUpdateMessage
-          ? (message as DisplayDocUpdateMessage)?.combinedMessagesIds
-          : undefined
-
-      return [message._id, ...(combined ?? [])]
-    })
-    .flat()
+function getAllIds (messages: ActivityMessage[]): Array<Ref<ActivityMessage>> {
+  return messages.map((message) => message._id)
 }
 
 let toReadTimer: any
@@ -366,10 +351,7 @@ export function recheckNotifications (context: DocNotifyContext): void {
   }, 500)
 }
 
-export async function readChannelMessages (
-  messages: DisplayActivityMessage[],
-  readState?: ReadState | null
-): Promise<void> {
+export async function readChannelMessages (messages: ActivityMessage[], readState?: ReadState | null): Promise<void> {
   if (messages.length === 0) {
     return
   }
@@ -379,19 +361,37 @@ export async function readChannelMessages (
 
   try {
     const allIds = getAllIds(messages)
+    const newTimestamp = messages[messages.length - 1]?.createdOn ?? 0
+    const contextId = readState != null ? get(inboxClient.contextByDoc)?.get(readState.attachedTo)?._id : undefined
+
+    const shouldReadNotification = (n: InboxNotification, isTarget: boolean, msg?: ActivityMessage): boolean => {
+      if (n.isViewed) return false
+      if (isTarget) return true
+
+      if (contextId != null && n.docNotifyContext === contextId) {
+        const msgTs = msg != null ? msg.createdOn : (n.createdOn ?? n.modifiedOn)
+        if ((msgTs ?? 0) > 0 && (msgTs ?? 0) <= newTimestamp) {
+          return true
+        }
+      }
+      return false
+    }
+
     const notifications = get(inboxClient.activityInboxNotifications)
-      .filter(({ attachedTo, $lookup, isViewed }) => {
-        if (isViewed) return false
-        return allIds.includes(attachedTo)
-      })
+      .filter((n) =>
+        shouldReadNotification(n, allIds.includes(n.attachedTo), n.$lookup?.attachedTo as ActivityMessage | undefined)
+      )
       .map((n) => n._id)
 
     const relatedMentions = get(inboxClient.otherInboxNotifications)
-      .filter((n) => !n.isViewed && isMentionNotification(n) && allIds.includes(n.mentionedIn as Ref<ActivityMessage>))
+      .filter(
+        (n) =>
+          isMentionNotification(n) && shouldReadNotification(n, allIds.includes(n.mentionedIn as Ref<ActivityMessage>))
+      )
       .map((n) => n._id)
 
     const reactionNotifications = get(inboxClient.otherInboxNotifications)
-      .filter((n) => !n.isViewed && isReactionNotification(n) && allIds.includes(n.attachedTo))
+      .filter((n) => isReactionNotification(n) && shouldReadNotification(n, allIds.includes(n.attachedTo)))
       .map((n) => n._id)
 
     chatReadMessagesStore.update((store) => new Set([...store, ...allIds]))
@@ -420,6 +420,12 @@ export async function readChannelMessages (
             [getCurrentAccount().uuid]: { messageId: lastMessage._id, timestamp: newTimestamp }
           }
         )
+      } else {
+        const contextByDoc = get(inboxClient.contextByDoc)
+        const context = contextByDoc?.get(readState.attachedTo)
+        if (context != null && (context.lastView ?? 0) < prevTimestamp) {
+          await op.update(context, { lastView: prevTimestamp })
+        }
       }
     }
     await inboxClient.readNotifications(op, [...notifications, ...relatedMentions, ...reactionNotifications])
@@ -499,4 +505,15 @@ export async function startConversationAction (docs?: Employee | Employee[]): Pr
   if (dm == null) return
 
   await openChannelInSidebar(dm, chunter.class.DirectMessage, undefined, undefined, true)
+}
+
+export async function toggleChannelIcon (channel: Channel, icon?: Asset, emoji?: number | number[]): Promise<void> {
+  const client = getClient()
+  const curEmoji = channel?.emoji == null || Array.isArray(channel.emoji) ? channel.emoji?.join('') : channel.emoji
+  const newEmoji = emoji == null || Array.isArray(emoji) ? emoji?.join('') : emoji
+  if (channel.icon === icon && curEmoji === newEmoji) {
+    await client.update(channel, { $unset: { icon: true, emoji: true } })
+  } else {
+    await client.update(channel, { icon, emoji })
+  }
 }

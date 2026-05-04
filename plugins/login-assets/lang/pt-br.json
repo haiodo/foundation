@@ -82,6 +82,8 @@
     "Proceed": "Continuar",
     "SetPasswordLater": "Vou definir uma senha mais tarde",
     "SetPasswordNow": "Vou definir uma senha agora",
+    "AgreedRules": "Aceito o <a href=\"{linkLicense}\" target=\"_blank\">Contrato de Licença</a>, o <a href=\"{linkUserAgreement}\" target=\"_blank\">Contrato do Usuário</a> e a <a href=\"{linkConfidential}\" target=\"_blank\">Política de Privacidade</a>",
+    "AgreedPersonalData": "Dou o meu <a href=\"{link}\" target=\"_blank\">Consentimento para o processamento de dados pessoais</a>",
     "LoginAsGuest": "Continuar como convidado",
     "SignUpToCreateWorkspace": "Não há espaços de trabalho com acesso de convidado. Por favor, cadastre-se para criar o seu.",
     "WhatIsYourName": "Qual é o seu nome?",
@@ -100,6 +102,8 @@
     "HowToLogin": "Como você gostaria de fazer login?",
     "AlreadySignedIn": "Entrar com conta existente",
     "ExpiredLink": "Este link de convite expirou",
-    "ExpiredLinkDescription": "Por favor, solicite um novo link de convite"
+    "ExpiredLinkDescription": "Por favor, solicite um novo link de convite",
+    "UsageConditions": "Condições de uso",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

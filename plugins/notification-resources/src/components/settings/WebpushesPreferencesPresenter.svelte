@@ -66,6 +66,15 @@
             await client.remove(setting)
           }
           await client.remove(sub)
+          if (sub.endpoint === currentEndpoint) {
+            const loc = getCurrentLocation()
+            const registration = await navigator.serviceWorker.getRegistration(`/${loc.path[0]}/${loc.path[1]}`)
+            const browserSub = await registration?.pushManager.getSubscription()
+            if (browserSub !== undefined) {
+              await browserSub?.unsubscribe()
+            }
+          }
+          await updateCurrentEndpoint()
         }
       },
       undefined
@@ -92,14 +101,26 @@
 
   $: alreadySubscribed = currentEndpoint !== undefined && subscriptions.some((s) => s.endpoint === currentEndpoint)
 
+  let subscribing = false
+
   async function subscribe (): Promise<void> {
-    const isSubscribed = await subscribePush()
-    if (isSubscribed) {
+    if (subscribing) return
+    subscribing = true
+    const subscribeResult = await subscribePush()
+    subscribing = false
+    if (subscribeResult === 'success') {
       await updateCurrentEndpoint()
     } else {
       showPopup(MessageBox, {
         label: notification.string.PushSubscribeError,
-        message: notification.string.PushSubscribeErrorMessage,
+        message:
+          subscribeResult === 'permission_denied'
+            ? notification.string.PushSubscribeErrorPermissionDenied
+            : subscribeResult === 'network_error'
+              ? notification.string.PushSubscribeErrorNetwork
+              : subscribeResult === 'not_supported'
+                ? notification.string.PushSubscribeErrorNotSupported
+                : notification.string.PushSubscribeErrorDefault,
         canSubmit: false
       })
     }
@@ -127,6 +148,7 @@
 <div class="flex mb-4">
   <div use:tooltip={{ label: disabledReason }}>
     <Button
+      loading={subscribing}
       kind="primary"
       disabled={buttonDisabled}
       label={notification.string.Subscribe}

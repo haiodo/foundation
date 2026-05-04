@@ -1,242 +1,126 @@
-# Foundation Platform - AI Agent Instructions
+# Foundation Platform
 
-TypeScript/Svelte 4 monorepo using Rush.js (pnpm 10.15.1), Node >=20 <25, Webpack 5, Electron, Jest.
+TypeScript/Svelte 4 monorepo. Rush.js (pnpm), Node >=24 <25, Webpack 5, Electron, Jest.
 
-## Interaction preferences
+## Repository Structure
 
-Respond to user using Russian language, all comments should be in English.
-
-## Code Style
-
-**TypeScript**: Strict types, interfaces over types, avoid `any`, export types separately
-**Svelte**: Script/style/markup order, reactive `$:`, stores for state, small focused components
-**Naming**: Files `kebab-case`, Components `PascalCase`, functions `camelCase`, constants `UPPER_SNAKE_CASE`
-
-## Structure
-
-- `models/*` - Shared types/models
-  - If add resources like component: '' as AnyComponent, ensure is it added into one of api package/resources package or model package. It should be defined only once. It could be IntlString as well or any other '' as Ref<something> declaration.
-- `server-*` - Server packages
+- `models/*` - Shared types/models. New components go to api/resources/model package
+- `server/*`, `server-*`, `server-plugins/*` - Server packages
 - `plugins/*` - Client plugins
 - `packages/*` - Reusable utilities
-- Projects 2-3 levels deep, each with `package.json`
+- `pods/*` - Deployable service bundles
+- `services/*` - Standalone services
+- `desktop/`, `desktop-package/` - Electron app
+- `dev/` - Dev-server, docker-compose, local tooling
+- `tests/`, `ws-tests/`, `qms-tests/` - Integration/e2e (Playwright, Docker)
+- `common/` - Shared Rush config, scripts
+- `docs/` - Project documentation (per-topic files)
 
-## Rush Commands
+Projects sit 2-3 levels deep, each with its own `package.json`.
+
+## Build & Validation
+
+Use `rush fast-build:*`. All accept `--to PKG` to scope to a package + dependencies.
 
 ```bash
-rush install         # Install deps
-rush build           # Build all
-rush build --to PKG  # Build specific
-rush add -p PKG      # Add dependency
+rush update                       # Install/update deps
+rush fast-build:validate          # Compile + validate
+rush fast-build:bundle            # Compile + bundle
+rush fast-build:package           # Compile + bundle + package
+rush fast-build:docker-build      # Compile + bundle + docker build
+rush svelte-check                 # Compile + validate + svelte-check
+rush fast-build:watch:validate    # Watch + validate
+rush add -p PKG                   # Add dependency
 ```
 
-## Docker Build Workflow
+Flags: `--to PKG`, `--list`, `-v/--verbose`, `--force` (disable cache).
 
-**IMPORTANT**: After making changes to service code (in `services/`, `pods/`, etc.), you must rebuild Docker images:
-
-**Note**: If you're running the UI via `rush dev` (dev-server), you don't need to restart the `front` Docker container. Changes will be picked up automatically by the dev server.
+### Scoped validation after edits
 
 ```bash
-# Build Docker images for specific service
-rush docker:build --to @hcengineering/pod-ai-bot
-rush docker:build --to @hcengineering/love-agent
+# Strict: compile + typecheck + eslint. Default check.
+rush fast-build:lint --to @hcengineering/<pkg>
 
-# Restart Docker containers to use new images
-docker compose -f dev/docker-compose.yaml restart aibot
-docker compose -f dev/docker-compose.yaml restart love-agent
+# Lighter: compile + typecheck only.
+rush fast-build:validate --to @hcengineering/<pkg>
 ```
 
-**Workflow for service changes:**
-1. Make code changes to service
-2. Run `rush build --to <package>` (builds TypeScript)
-3. Never Run `rushx format` in the package directory (format & lint) - MAY CAUSE FILE CORRUPTIONS. Lets user do it.
-4. Run `diagnostics` to check for errors
-5. Run `rush docker:build --to <package>` (builds Docker image)
-6. Restart the Docker container
+`fast-build:lint` is a superset of `fast-build:validate`. Cache is content-hashed; add `--force` to bypass.
 
-Example for ai-bot service:
-```bash
-# After editing services/ai-bot/pod-ai-bot/src/workspace/love.ts
-cd services/ai-bot/pod-ai-bot
-diagnostics path: "services/ai-bot/pod-ai-bot/src/workspace/love.ts"
-cd ../../..
-rush docker:build --to @hcengineering/pod-ai-bot
-docker compose -f dev/docker-compose.yaml restart aibot
-```
-
-## Error Checking
-
-**IMPORTANT**: Use `diagnostics` tool to check for TypeScript/Svelte errors, NOT `rush build`:
-
-- ✅ `diagnostics()` - Check all files for errors/warnings (fast, uses language server)
-- ✅ `diagnostics({ path: "plugins/tracker-resources/src/utils.ts" })` - Check specific file
-- ❌ `rush build` - Don't use for error checking (runs full transpilation, slower)
-
-`rush build` performs transpilation which may succeed even with type errors. Always use `diagnostics` to verify code correctness.
-
-### Validation in Modified Projects
-
-After making changes, always validate the affected packages to ensure diagnostics are accurate:
+Per-package direct (fastest inside one package):
 
 ```bash
-# Navigate to each modified package and run:
-cd <modified-package-directory>
-rushx build
+cd <package-dir>
 rushx _phase:validate
-
-# Examples:
-cd plugins/love-resources
 rushx build
-rushx _phase:validate
-
-cd models/love
-rushx build
-rushx _phase:validate
-
-cd server-plugins/love-resources
-rushx build
-rushx _phase:validate
 ```
 
-This ensures that the language server has the correct build artifacts and validation passes for the specific packages you modified.
+Not every package defines `lint`. On "command not defined", use `rushx _phase:validate` or `rush fast-build:lint --to <pkg>`.
 
-## Formatting and Linting
+Do NOT:
+- Run `rush fast-build:validate` without `--to` (hits unrelated broken packages).
+- Run `rush build` for error checking.
+- Run `rushx format` (user handles it).
 
-**AI AGENTS: DO NOT run formatting commands automatically.** Formatting can corrupt or erase files. Let the user handle formatting.
+### Docker Workflow
 
-This ensures code style consistency and catches linting errors before commit.
+Changes under `services/` or `pods/` require Docker rebuild:
 
-### ⚠️ CRITICAL: Formatting Safety Rules
-
-**NEVER run formatting commands in parallel or concurrently.** The formatter can corrupt or completely erase file contents when run simultaneously on multiple packages.
-
-Rules:
-- ❌ **DO NOT** run `rushx format` commands
-- ❌ **DO NOT** use `--force` flag with formatting - it can cause content loss
-- ✅ **DO** run formatting sequentially, one package at a time
-- ✅ **DO** verify file contents after formatting with `git diff` or `git status`
-- ✅ **DO** restore files immediately with `git checkout -- <file>` if content is lost
-
-If you see files becoming empty or losing content after formatting, immediately restore them:
 ```bash
-git checkout -- <affected-files>
+rush fast-build:docker-build --to @hcengineering/pod-ai-bot
+docker compose -f dev/docker-compose.yaml up -d aibot --force-recreate
 ```
 
-## Changelog generation
+UI via `rush dev` auto-picks changes, no container restart needed.
 
-When generating changelogs (the "All commits" lists), follow these rules:
-
-- Exclude commits whose subject contains `Merge remote-tracking` (filter them out).
-- Strip `Signed-off-by:` footers from commit messages (remove the footer content and any lines that are only `Signed-off-by:`).
-- Recommended pipeline (example):
+## Changelog
 
 ```bash
 git log --pretty=format:'- %h %s' <range> | grep -v -F 'Merge remote-tracking' | sed -E 's/\s*Signed-off-by:.*$//'
 ```
 
-- Note: `git log --no-merges` removes all merge commits; use it only if you intentionally want to omit all merges.
+Full workflow: `docs/changelog.update.task.md`.
 
-Apply these filters when updating `changelog.md` or generating release notes so the generated logs exclude noisy merge-tracking commits and signed-off-by lines.
+## License Headers
 
-## Patterns
+**Existing files**: NEVER replace or rewrite the existing license header. Only ADD a `Copyright © <year> Intabia Fusion.` line alongside the original copyright (keep original Hardcore Engineering / other copyrights intact). Do not touch the license terms block.
 
-- Always handle errors (proper Error subclasses, catch promises)
-- Use async/await, Promise.all() for parallel ops
-- Svelte stores for shared state, separate business logic
-- JSDoc public APIs, tests alongside code
-- Check with `diagnostics` before making changes; do not commit locally — use diffs for review and let maintainers handle commits
+**New files only**: use the full header below.
 
-## Debugging Workflow
-
-When debugging issues:
-
-1. **Add comprehensive logging first** - use `console.log` with structured objects showing state, parameters, IDs
-2. **Test and analyze logs** - let user run the app and provide actual console output
-3. **Propose options before applying fixes or workarounds** - when you identify multiple possible approaches (including quick or temporary workarounds), outline each option clearly (pros, cons, risks, and how invasive the change is) and ask the user which variant to proceed with. Do not implement non-trivial temporary workarounds without explicit approval.
-4. **Identify root cause** from logs - trace the flow, compare expected vs actual values
-5. **Fix the issue** based on findings
-6. **Remove all logging** after fix is confirmed - keep production code clean
-
-Logging format:
-
-```typescript
-console.log('[ComponentName.methodName] Description', {
-  key1: value1,
-  key2: value2,
-  objectId: object?._id // Use optional chaining for safety
-})
-```
-
-## Avoid
-
-❌ `any` without reason
-❌ `console.log()` in production
-❌ Mixed concerns
-❌ Circular deps
-❌ Ignoring TS errors
-❌ Using `rush build` to check for errors
-❌ Running formatting in parallel (causes content loss!)
-❌ Using `--force` flag with formatter
-
-❌ **Git policy**: do NOT make commits, resets, reverts, or switch branches. Use git only for read-only operations (diff, status, log).
-
-## When Coding
-
-- Infer location from context (models/server/plugins/packages)
-- Match existing patterns in codebase
-- Include proper imports/types
-- When adding a new `IntlString` key, add corresponding entries to the component language files under `component-assets/lang` for every supported locale (at minimum include the English entry) and update translations as needed; ensure you run `diagnostics()`. Do not commit changes locally — prepare a diff for review and let maintainers perform commits. !!! If diagnostics are not disappearing for fixed items, stop and inform user to reload language servers or wait for build. Wait for continue request from user.
-- Add error handling
-- Use existing utils first
-- When fixing bugs:
-  - Read existing code thoroughly before changing
-  - Use logging to understand actual runtime behavior
-  - Trace data flow through components
-  - Verify assumptions with logs before implementing fixes
-  - Remove debug code when done
-
-## Navigation & Selection Architecture
-
-The app uses a provider-based selection/focus system:
-
-- `focusStore` - global focus state
-- `selectionStore` - global selection state
-- `ListSelectionProvider` - manages list navigation, delegates to view-specific handlers
-- `SelectDirection` - `'vertical'` (up/down) or `'horizontal'` (left/right in tables, first/last in lists)
-
-Key principles:
-
-- Navigation uses **actual displayed order** (from `getLimited()`) not projection order
-- Focus changes propagate through `updateFocus()`
-- Selection follows focus via provider delegation
-- Scroll happens automatically via `scrollIntoView()` on navigation
-
-## License
-
-For every new files please add a 2026 Intabia Fusion license header like this:
-
+**TypeScript** (new files):
 ```ts
-/**
-  Copyright © 2026 Intabia Fusion.
-
-  Licensed under the Eclipse Public License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License. You may
-  obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
-  
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  
-  See the License for the specific language governing permissions and
-  limitations under the License.
-*/
+//
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 ```
 
-For Svelte files (`.svelte`) use an HTML comment wrapper and prefix each line with `//` (to avoid interfering with markup and ensure clear in-file commenting). Example Svelte header:
+**TypeScript** (modified files with prior copyright):
+```ts
+//
+// Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// ...
+```
+Keep existing copyright lines, add `Intabia Fusion` line if missing.
 
+**Svelte** (HTML comment, `//` prefix):
 ```svelte
 <!--
 // Copyright © 2026 Intabia Fusion.
+//
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
 // obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
@@ -249,3 +133,38 @@ For Svelte files (`.svelte`) use an HTML comment wrapper and prefix each line wi
 // limitations under the License.
 -->
 ```
+
+**Existing file example** (add Intabia line, keep original):
+```ts
+//
+// Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// ... (rest unchanged)
+//
+```
+
+## Sanity tests (Playwright)
+
+Run from `tests/sanity/`. Stand must be up at `localhost:8083` (front) and `localhost:3003` (LOCAL_URL). Tests build their own bundle via setup project; do NOT use `rushx uitest` without permission (it opens dev UI).
+
+Required: load `.env` and pass `LOCAL_URL`. Iteration loop must be fast — disable retries and html report server.
+
+```bash
+cd tests/sanity
+LOCAL_URL=http://localhost:3003/ DEV_URL= \
+  npx playwright test -c ./tests/playwright.config.ts \
+  tests/tracker/kanban.spec.ts \
+  --reporter=list \
+  --retries=0 \
+  --workers=1
+```
+
+Flags:
+- `--reporter=list` — no html server pops up at the end (config defaults include `html`).
+- `--retries=0` — fail fast, see first error and fix instead of waiting 3x for the same failure (config default is 2).
+- `--workers=1` — serial; sanity tests share workspace state.
+- `-g "<name>"` or append `:LINE` to the spec path to run a single test.
+
+Do not run the bare `npx playwright test` — without `-c ./tests/playwright.config.ts` neither dotenv nor `storageState` load and every test fails on login with `BadRequest`.

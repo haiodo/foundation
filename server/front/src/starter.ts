@@ -62,14 +62,6 @@ export function startFront (ctx: MeasureContext, extraConfig?: Record<string, st
     process.exit(1)
   }
 
-  const collaboratorUrl = process.env.COLLABORATOR_URL
-  if (collaboratorUrl === undefined) {
-    console.error('please provide collaborator url')
-    process.exit(1)
-  }
-
-  const collaborator = process.env.COLLABORATOR
-
   const modelVersion = process.env.MODEL_VERSION
   if (modelVersion === undefined) {
     console.error('please provide model version requirement')
@@ -96,11 +88,6 @@ export function startFront (ctx: MeasureContext, extraConfig?: Record<string, st
   let filesUrl = process.env.FILES_URL
   if (filesUrl === undefined) {
     filesUrl = `${uploadUrl}/:workspace/:filename?file=:blobId&workspace=:workspace`
-  }
-
-  let pulseUrl = process.env.PULSE_URL
-  if (pulseUrl === undefined) {
-    pulseUrl = ''
   }
 
   const pushPublicKey = process.env.PUSH_PUBLIC_KEY
@@ -141,8 +128,6 @@ export function startFront (ctx: MeasureContext, extraConfig?: Record<string, st
     telegramUrl,
     rekoniUrl,
     calendarUrl,
-    collaboratorUrl,
-    collaborator,
     brandingUrl,
     previewUrl,
     pushPublicKey,
@@ -152,7 +137,6 @@ export function startFront (ctx: MeasureContext, extraConfig?: Record<string, st
     streamUrl,
     billingUrl,
     paymentUrl,
-    pulseUrl,
     hulylakeUrl,
     datalakeUrl
   }

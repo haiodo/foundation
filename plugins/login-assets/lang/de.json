@@ -82,6 +82,8 @@
     "Proceed": "Fortfahren",
     "SetPasswordLater": "Ich werde später ein Passwort festlegen",
     "SetPasswordNow": "Passwort jetzt setzen",
+    "AgreedRules": "Ich stimme der <a href=\"{linkLicense}\" target=\"_blank\">Lizenzvereinbarung</a>, der <a href=\"{linkUserAgreement}\" target=\"_blank\">Nutzervereinbarung</a> und der <a href=\"{linkConfidential}\" target=\"_blank\">Datenschutzerklärung</a> zu",
+    "AgreedPersonalData": "Ich erteile die <a href=\"{link}\" target=\"_blank\">Einwilligung zur Verarbeitung personenbezogener Daten</a>",
     "LoginAsGuest": "Als Gast fortfahren",
     "SignUpToCreateWorkspace": "Keine Arbeitsbereiche mit Gastzugang. Bitte registrieren Sie sich, um Ihren eigenen zu erstellen.",
     "WhatIsYourName": "Wie ist Ihr Name?",
@@ -100,6 +102,8 @@
     "HowToLogin": "Wie möchten Sie sich anmelden?",
     "AlreadySignedIn": "Mit bestehendem Konto beitreten",
     "ExpiredLink": "Dieser Einladungslink ist abgelaufen",
-    "ExpiredLinkDescription": "Bitte fordern Sie einen neuen Einladungslink an"
+    "ExpiredLinkDescription": "Bitte fordern Sie einen neuen Einladungslink an",
+    "UsageConditions": "Nutzungsbedingungen",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

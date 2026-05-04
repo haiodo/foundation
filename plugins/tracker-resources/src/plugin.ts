@@ -18,7 +18,7 @@ import { mergeIds } from '@hcengineering/platform'
 import type { ObjectSearchCategory, ObjectSearchFactory } from '@hcengineering/presentation/src/types'
 import { type ProjectType, type TaskType } from '@hcengineering/task'
 import tracker, { trackerId, type IssueDraft, type Issue } from '@hcengineering/tracker'
-import { type AnyComponent, type Location } from '@hcengineering/ui/src/types'
+import { type AnyComponent, type ComponentExtensionId, type Location } from '@hcengineering/ui/src/types'
 import {
   type CreateAggregationManagerFunc,
   type GetAllValuesFunc,
@@ -166,10 +166,16 @@ export default mergeIds(trackerId, tracker, {
     DocumentColor: '' as IntlString,
     Rank: '' as IntlString,
     Grouping: '' as IntlString,
+    SwimLaneBy: '' as IntlString,
+    SwimLaneNone: '' as IntlString,
+    CollapseAll: '' as IntlString,
+    ExpandAll: '' as IntlString,
+    CompactMode: '' as IntlString,
     Ordering: '' as IntlString,
     CompletedIssues: '' as IntlString,
     NoGrouping: '' as IntlString,
     NoAssignee: '' as IntlString,
+    NoParent: '' as IntlString,
     LastUpdated: '' as IntlString,
     DueDate: '' as IntlString,
     Manual: '' as IntlString,
@@ -275,6 +281,10 @@ export default mergeIds(trackerId, tracker, {
     TimeSpendDays: '' as IntlString,
     TimeSpendHours: '' as IntlString,
     TimeSpendMinutes: '' as IntlString,
+    TimeRangeWeek: '' as IntlString,
+    TimeRangeTwoWeeks: '' as IntlString,
+    TimeRangeMonth: '' as IntlString,
+    TimeRangePeriodTotal: '' as IntlString,
 
     ChildEstimation: '' as IntlString,
     ChildReportedTime: '' as IntlString,
@@ -299,6 +309,9 @@ export default mergeIds(trackerId, tracker, {
     SevenHoursLength: '' as IntlString,
     EightHoursLength: '' as IntlString,
     HourLabel: '' as IntlString,
+    MinuteLabel: '' as IntlString,
+    AlreadyReportedThisDay: '' as IntlString,
+    FixToEightHours: '' as IntlString,
     Saved: '' as IntlString,
     CreatedIssue: '' as IntlString,
     CreatedSubIssue: '' as IntlString,
@@ -348,6 +361,7 @@ export default mergeIds(trackerId, tracker, {
     EditComponent: '' as AnyComponent,
     IssuesView: '' as AnyComponent,
     KanbanView: '' as AnyComponent,
+    KanbanSwimLaneActions: '' as AnyComponent,
     ProjectComponents: '' as AnyComponent,
     IssuePreview: '' as AnyComponent,
     RelationsPopup: '' as AnyComponent,
@@ -377,6 +391,9 @@ export default mergeIds(trackerId, tracker, {
     IssueStatusIcon: '' as AnyComponent,
     MilestoneStatusIcon: '' as AnyComponent,
     ParentIssuePresenter: '' as AnyComponent
+  },
+  extensions: {
+    KanbanSwimLaneActions: '' as ComponentExtensionId
   },
   metadata: {
     CreateIssueDraft: '' as Metadata<IssueDraft>

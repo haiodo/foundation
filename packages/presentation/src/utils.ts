@@ -34,6 +34,7 @@ import core, {
   type FindResult,
   generateId,
   getCurrentAccount,
+  platformNow,
   hasAccountRole,
   type Hierarchy,
   MeasureMetricsContext,
@@ -105,6 +106,22 @@ export function removeTxListener (l: TxListener): void {
 }
 
 export const uiContext = new MeasureMetricsContext('client-ui', {})
+uiContext.externalMetricSink = (name, value, labels) => {
+  Analytics.handleMetric(name, value, labels)
+}
+
+// Browser memory sampler (Chromium-only). Emits client.memory.* gauges every 30s.
+if (typeof window !== 'undefined') {
+  const memSample = (): void => {
+    const mem = (performance as any).memory
+    if (mem == null) return
+    uiContext.measure('client.memory.used_mb', Math.round(mem.usedJSHeapSize / 1048576))
+    uiContext.measure('client.memory.total_mb', Math.round(mem.totalJSHeapSize / 1048576))
+    uiContext.measure('client.memory.limit_mb', Math.round(mem.jsHeapSizeLimit / 1048576))
+  }
+  setInterval(memSample, 30000)
+  setTimeout(memSample, 5000)
+}
 
 export const pendingCreatedDocs = writable<Record<Ref<Doc>, boolean>>({})
 
@@ -221,7 +238,13 @@ class UIClient extends TxOperations implements Client {
     query: DocumentQuery<T>,
     options?: FindOptions<T>
   ): Promise<FindResult<T>> {
-    return await this.liveQuery.findAll(_class, query, options)
+    return await uiContext.with(
+      'findAll',
+      { _class },
+      async () => await this.liveQuery.findAll(_class, query, options),
+      undefined,
+      { metric: 'client.find.duration' }
+    )
   }
 
   override async findOne<T extends Doc>(
@@ -229,14 +252,22 @@ class UIClient extends TxOperations implements Client {
     query: DocumentQuery<T>,
     options?: FindOptions<T>
   ): Promise<WithLookup<T> | undefined> {
-    return await this.liveQuery.findOne(_class, query, options)
+    return await uiContext.with(
+      'findOne',
+      { _class },
+      async () => await this.liveQuery.findOne(_class, query, options),
+      undefined,
+      { metric: 'client.find.duration' }
+    )
   }
 
   override async tx (tx: Tx): Promise<TxResult> {
     void this.notifyEarly(tx).catch((err) => {
       console.error(err)
     })
-    return await this.client.tx(tx)
+    return await uiContext.with('tx', { _class: tx._class }, async () => await this.client.tx(tx), undefined, {
+      metric: 'client.tx.duration'
+    })
   }
 
   private async notifyEarly (tx: Tx): Promise<void> {
@@ -368,10 +399,18 @@ class ClientHookImpl implements Client {
     query: DocumentQuery<T>,
     options?: FindOptions<T>
   ): Promise<WithLookup<T> | undefined> {
-    if (this.hook !== undefined) {
-      return await this.hook.findOne(this.client, _class, query, options)
-    }
-    return await this.client.findOne(_class, query, options)
+    return await uiContext.with(
+      'findOne',
+      { _class },
+      async () => {
+        if (this.hook !== undefined) {
+          return await this.hook.findOne(this.client, _class, query, options)
+        }
+        return await this.client.findOne(_class, query, options)
+      },
+      undefined,
+      { metric: 'client.find.duration' }
+    )
   }
 
   async close (): Promise<void> {
@@ -383,10 +422,18 @@ class ClientHookImpl implements Client {
     query: DocumentQuery<T>,
     options?: FindOptions<T>
   ): Promise<FindResult<T>> {
-    if (this.hook !== undefined) {
-      return await this.hook.findAll(this.client, _class, query, options)
-    }
-    return await this.client.findAll(_class, query, options)
+    return await uiContext.with(
+      'findAll',
+      { _class },
+      async () => {
+        if (this.hook !== undefined) {
+          return await this.hook.findAll(this.client, _class, query, options)
+        }
+        return await this.client.findAll(_class, query, options)
+      },
+      undefined,
+      { metric: 'client.find.duration' }
+    )
   }
 
   async domainRequest<T>(
@@ -401,10 +448,18 @@ class ClientHookImpl implements Client {
   }
 
   async tx (tx: Tx): Promise<TxResult> {
-    if (this.hook !== undefined) {
-      return await this.hook.tx(this.client, tx)
-    }
-    return await this.client.tx(tx)
+    return await uiContext.with(
+      'tx',
+      { _class: tx._class },
+      async () => {
+        if (this.hook !== undefined) {
+          return await this.hook.tx(this.client, tx)
+        }
+        return await this.client.tx(tx)
+      },
+      undefined,
+      { metric: 'client.tx.duration' }
+    )
   }
 
   async searchFulltext (query: SearchQuery, options: SearchOptions): Promise<SearchResult> {
@@ -472,9 +527,29 @@ export async function setClient (_client: Client): Promise<void> {
 /**
  * @public
  */
-export async function refreshClient (clean: boolean): Promise<void> {
+export async function refreshClient (clean: boolean, lastReconnectGapMs: number = 0): Promise<void> {
   if (!(liveQuery?.isClosed() ?? true)) {
-    await liveQuery?.refreshConnect(clean)
+    const startedAt = platformNow()
+    const stats = await liveQuery?.refreshConnect(clean, lastReconnectGapMs)
+    const elapsedMs = platformNow() - startedAt
+    if (stats !== undefined && elapsedMs > 1000) {
+      const fmt = (m: Map<string, { count: number, docs: number }>): string[] =>
+        [...m.entries()]
+          .sort((a, b) => b[1].docs - a[1].docs)
+          .slice(0, 10)
+          .map(([cls, v]) => `${cls}=${v.count}q/${v.docs}d`)
+      console.error('[refresh] slow liveQuery refreshConnect', {
+        elapsedMs,
+        gapMs: stats.gapMs,
+        dropIdle: stats.dropIdle,
+        droppedQueries: stats.droppedQueries,
+        droppedDocs: stats.droppedDocs,
+        activeQueries: stats.activeQueries,
+        activeDocs: stats.activeDocs,
+        topDropped: fmt(stats.droppedByClass),
+        topActive: fmt(stats.activeByClass)
+      })
+    }
     for (const q of globalQueries) {
       q.refreshClient()
     }

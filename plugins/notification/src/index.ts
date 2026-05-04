@@ -45,6 +45,7 @@ import { PersonSpace } from '@hcengineering/contact'
 import { Readable, Writable } from './types'
 
 export * from './types'
+export * from './utils'
 
 export const DOMAIN_NOTIFICATION = 'notification' as Domain
 export const DOMAIN_DOC_NOTIFY = 'notification-dnc' as Domain
@@ -504,7 +505,10 @@ const notification = plugin(notificationId, {
     PushNotSupported: '' as IntlString,
     PushDenied: '' as IntlString,
     PushSubscribeError: '' as IntlString,
-    PushSubscribeErrorMessage: '' as IntlString,
+    PushSubscribeErrorPermissionDenied: '' as IntlString,
+    PushSubscribeErrorNetwork: '' as IntlString,
+    PushSubscribeErrorNotSupported: '' as IntlString,
+    PushSubscribeErrorDefault: '' as IntlString,
     Subscribe: '' as IntlString,
     AllNotifications: '' as IntlString,
     JustMentions: '' as IntlString,

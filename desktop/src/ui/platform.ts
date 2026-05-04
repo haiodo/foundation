@@ -50,6 +50,7 @@ import login, { loginId } from '@hcengineering/login'
 import notification, { notificationId } from '@hcengineering/notification'
 import onboard, { onboardId } from '@hcengineering/onboard'
 import presence, { presenceId } from '@hcengineering/presence'
+import { pulseId } from '@hcengineering/pulse'
 import { processId } from '@hcengineering/process'
 import { productsId } from '@hcengineering/products'
 import { questionsId } from '@hcengineering/questions'
@@ -57,7 +58,7 @@ import { recruitId } from '@hcengineering/recruit'
 import rekoni from '@hcengineering/rekoni'
 import { requestId } from '@hcengineering/request'
 import setting, { settingId } from '@hcengineering/setting'
-import support, { supportId, supportLink, reportBugLink, privacyPolicyLink } from '@hcengineering/support'
+import support, { supportId, supportLink, reportBugLink, privacyPolicyLink, defaultSupportEmail } from '@hcengineering/support'
 import { surveyId } from '@hcengineering/survey'
 import { tagsId } from '@hcengineering/tags'
 import { taskId } from '@hcengineering/task'
@@ -340,6 +341,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
   setMetadata(login.metadata.LoginTheme, config.LOGIN_THEME ?? 'intabia')
 
+  setMetadata(login.metadata.Copyright, config.COPYRIGHT ?? login.string.IntabiaFusion)
   setMetadata(presentation.metadata.UploadURL, config.UPLOAD_URL)
   setMetadata(presentation.metadata.UploadURL, config.FILES_URL)
   setMetadata(presentation.metadata.DatalakeUrl, config.DATALAKE_URL ?? '')
@@ -347,7 +349,6 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
     presentation.metadata.FileStorage,
     createFileStorage(config.UPLOAD_URL, config.DATALAKE_URL, config.HULYLAKE_URL)
   )
-  setMetadata(presentation.metadata.CollaboratorUrl, config.COLLABORATOR_URL)
   setMetadata(presentation.metadata.PreviewUrl, config.PREVIEW_URL)
   setMetadata(presentation.metadata.FrontUrl, config.FRONT_URL)
   setMetadata(presentation.metadata.LinkPreviewUrl, config.LINK_PREVIEW_URL ?? '')
@@ -355,7 +356,6 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   setMetadata(recorder.metadata.StreamUrl, config.STREAM_URL ?? '')
   setMetadata(presentation.metadata.StatsUrl, config.STATS_URL)
   setMetadata(presentation.metadata.HulylakeUrl, config.HULYLAKE_URL ?? '')
-  setMetadata(presentation.metadata.PulseUrl, config.PULSE_URL ?? '')
 
   const disabledFeatures = (config.DISABLED_FEATURES ?? '').split(',').map(it => it.trim()).filter(it => it.length > 0)
   setMetadata(presentation.metadata.DisabledFeatures, new Set(disabledFeatures))
@@ -385,7 +385,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
     setMetadata(presentation.metadata.FrontVersion, config.VERSION)
   }
   setMetadata(telegram.metadata.TelegramURL, config.TELEGRAM_URL ?? 'http://localhost:8086')
-  setMetadata(telegram.metadata.BotUrl, config.TELEGRAM_BOT_URL ?? 'http://huly.local:4020')
+  setMetadata(telegram.metadata.BotUrl, config.TELEGRAM_BOT_URL)
   setMetadata(gmail.metadata.GmailURL, config.GMAIL_URL ?? 'http://localhost:8087')
   setMetadata(calendar.metadata.CalendarServiceURL, config.CALENDAR_URL ?? 'http://localhost:8095')
   setMetadata(calendar.metadata.PublicScheduleURL, config.PUBLIC_SCHEDULE_URL)
@@ -413,8 +413,13 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
 
   const frontUrl = config.FRONT_URL ?? window.location.origin
   setMetadata(support.metadata.DocsLink, myBranding.support?.docsLink ?? concatLink(frontUrl, 'docs'))
+  setMetadata(login.metadata.LicenseUrl, config.LICENSE_URL ?? `${frontUrl}/legal/license`)
+  setMetadata(login.metadata.UserAgreementUrl, config.USERAGREEMENT_URL ?? `${frontUrl}/legal/user-agreement`)
+  setMetadata(login.metadata.ConfidentialUrl, config.CONFIDENTIAL_URL ?? `${frontUrl}/legal/confidential`)
+  setMetadata(login.metadata.PersonalDataUrl, config.PERSONAL_DATA_URL ?? `${frontUrl}/legal/agreement`)
 
   setMetadata(support.metadata.PrivacyPolicyLink, myBranding.support?.privacyPolicyLink ?? privacyPolicyLink)
+  setMetadata(support.metadata.SupportEmail, config.SUPPORT_EMAIL ?? defaultSupportEmail)
 
   const languages =
     myBranding.languages !== undefined && myBranding.languages !== ''
@@ -431,7 +436,8 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
       [onboardId, onboard.component.OnboardApp],
       [calendarId, calendar.component.ConnectApp],
       [guestId, guest.component.GuestApp],
-      [globalProfileRoute, globalProfile.component.GlobalProfileApp]
+      [globalProfileRoute, globalProfile.component.GlobalProfileApp],
+      ['meetings', love.component.GuestMeetingApp]
     ])
   )
 
@@ -525,7 +531,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
 
   setMetadata(client.metadata.FilterModel, 'ui')
   setMetadata(client.metadata.ExtraFilter, disabledFeatures)
-  setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin])
+  setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin, pulseId as Plugin])
 
   // Use binary response transfer for faster performance and small transfer sizes.
   setMetadata(client.metadata.UseBinaryProtocol, true)

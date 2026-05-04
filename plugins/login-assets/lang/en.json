@@ -82,6 +82,8 @@
     "Proceed": "Proceed",
     "SetPasswordLater": "I'll set a password later",
     "SetPasswordNow": "Set password now",
+    "AgreedRules": "I agree to the <a href=\"{linkLicense}\" target=\"_blank\">License Agreement</a>, <a href=\"{linkUserAgreement}\" target=\"_blank\">User Agreement</a>, and <a href=\"{linkConfidential}\" target=\"_blank\">Privacy Policy</a>",
+    "AgreedPersonalData": "I give <a href=\"{link}\" target=\"_blank\">Consent to the processing of personal data</a>",
     "LoginAsGuest": "Continue as a guest",
     "SignUpToCreateWorkspace": "There are no workspaces with guest access. Please sign up to create your own.",
     "WhatIsYourName": "What is your name?",
@@ -100,6 +102,8 @@
     "HowToLogin": "How would you like to log in?",
     "AlreadySignedIn": "Join with existing account",
     "ExpiredLink": "This invite link has expired",
-    "ExpiredLinkDescription": "Please request a new invite link"
+    "ExpiredLinkDescription": "Please request a new invite link",
+    "UsageConditions": "Terms of Use",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

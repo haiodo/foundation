@@ -20,7 +20,7 @@
     "bundle": "node ../../common/scripts/esbuild.js --keep-names=true --sourcemap=external",
     "docker:build": "../../common/scripts/docker_build.sh haiodo/link-preview",
     "docker:staging": "../../common/scripts/docker_tag.sh haiodo/link-preview staging",
-    "docker:abuild": "docker build -t haiodo/link-preview . --platform=linux/arm64 && ../../common/scripts/docker_tag_push.sh intabiafusion/link-preview",
+    "docker:abuild": "docker build -t haiodo/link-preview . --platform=linux/arm64 && ../../common/scripts/docker_tag_push.sh haiodo/link-preview",
     "docker:push": "../../common/scripts/docker_tag.sh haiodo/link-preview",
     "run-bundle": "rushx bundle --to @hcengineering/pod-link-preview && cross-env NODE_ENV=production node --inspect bundle/bundle.js",
     "run-local": "ts-node src/index.ts",

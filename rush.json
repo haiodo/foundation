@@ -602,6 +602,11 @@
       "shouldPublish": false
     },
     {
+      "packageName": "@hcengineering/benchmarks",
+      "projectFolder": "dev/benchmarks",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/importer",
       "projectFolder": "packages/importer",
       "shouldPublish": false
@@ -1019,6 +1024,11 @@
     {
       "packageName": "@hcengineering/tool",
       "projectFolder": "dev/tool",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@intabiafusion/api-bundle-builder",
+      "projectFolder": "dev/api",
       "shouldPublish": false
     },
     {
@@ -2157,6 +2167,16 @@
       "shouldPublish": false
     },
     {
+      "packageName": "@hcengineering/pulse",
+      "projectFolder": "plugins/pulse",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/model-pulse",
+      "projectFolder": "models/pulse",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/desktop-downloads-assets",
       "projectFolder": "plugins/desktop-downloads-assets",
       "shouldPublish": false
@@ -2512,11 +2532,6 @@
       "shouldPublish": false
     },
     {
-      "packageName": "@hcengineering/hulypulse-client",
-      "projectFolder": "packages/hulypulse-client",
-      "shouldPublish": false
-    },
-    {
       "packageName": "@hcengineering/communication",
       "projectFolder": "plugins/communication",
       "shouldPublish": false
@@ -2644,6 +2659,16 @@
     {
       "packageName": "@hcengineering/pod-translate",
       "projectFolder": "services/translate",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/pod-activity",
+      "projectFolder": "services/activity",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/pod-crm",
+      "projectFolder": "services/crm/pod-crm",
       "shouldPublish": false
     },
     {

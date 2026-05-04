@@ -16,6 +16,7 @@
 import { Analytics } from '@hcengineering/analytics'
 import core, {
   docKey,
+  hashWorkspace,
   isFullTextAttribute,
   isIndexedAttribute,
   toFindResult,
@@ -55,12 +56,8 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     super(context, next)
     const fulltextEndpoints = fulltextUrl.split(';').map((it) => it.trim())
 
-    const hash = this.hashWorkspace(context.workspace.uuid)
+    const hash = hashWorkspace(context.workspace.uuid)
     this.fulltextEndpoint = fulltextEndpoints[Math.abs(hash % fulltextEndpoints.length)]
-  }
-
-  hashWorkspace (dbWorkspaceName: string): number {
-    return [...dbWorkspaceName].reduce((hash, c) => (Math.imul(31, hash) + c.charCodeAt(0)) | 0, 0)
   }
 
   static create (url: string, token: string): MiddlewareCreator {
@@ -123,7 +120,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
       return await this.provideFindAll(ctx, _class, query, options)
     }
 
-    const { _id, $search, ...mainQuery } = query
+    const { _id, $search, $searchStrict, ...mainQuery } = query
     if ($search === undefined) {
       return toFindResult<T>([])
     }
@@ -143,7 +140,8 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
 
     // We need to filter all non indexed fields from query to make it work properly
     const findQuery: DocumentQuery<Doc> = {
-      $search: _search
+      $search: _search,
+      $searchStrict
     }
 
     const childClasses = new Set<Ref<Class<Doc>>>()
@@ -167,7 +165,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
             }
           }
         }
-        if (attr.type._class === core.class.Collection) {
+        if (attr.type._class === core.class.Collection && $searchStrict !== true) {
           // we need attached documents to be in classes
           const coll = attr.type as Collection<AttachedDoc>
           const dsc = this.context.hierarchy.getDescendants(coll.of).filter((it) => !this.context.hierarchy.isMixin(it))
@@ -176,7 +174,10 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
           }
         }
       }
-      this.addExtraFind?.(baseClass, childClasses)
+
+      if ($searchStrict !== true) {
+        this.addExtraFind?.(baseClass, childClasses)
+      }
     } catch (err: any) {
       Analytics.handleError(err)
     }
@@ -206,14 +207,17 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     }
 
     const childQuery: DocumentQuery<AttachedDoc> = {
-      $search: findQuery.$search,
+      $search:
+        findQuery.$search != null && findQuery.$search?.startsWith('*')
+          ? findQuery.$search.slice(1)
+          : findQuery.$search,
       attachedToClass: { $in: classes }
     }
     if (findQuery.space !== undefined) {
       childQuery.space = findQuery.space
     }
     const { childDocs, childIndexedDocMap } =
-      childClasses !== undefined && childClasses.size > 0
+      childClasses !== undefined && childClasses.size > 0 && $searchStrict !== true
         ? await this.findChildDocuments(ctx, Array.from(childClasses), childQuery, fullTextLimit, baseClass, childIds)
         : {
             childDocs: [],
@@ -239,12 +243,12 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     // Just assign scores based on idex
     result.forEach((it) => {
       const idDoc = indexedDocMap.get(it._id) ?? childIndexedDocMap.get(it._id)
-      const { _score } = idDoc
-
-      const maxScore = childDocs.reduceRight((p, cur) => (p > cur.$score ? p : cur.$score), _score)
-
-      it.$source = {
-        $score: maxScore
+      if (idDoc !== undefined) {
+        const { _score } = idDoc
+        const maxScore = childDocs.reduceRight((p, cur) => (p > cur._score ? p : cur._score), _score)
+        it.$source = {
+          $score: maxScore
+        }
       }
     })
     if (scoreSearch !== undefined) {

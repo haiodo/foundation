@@ -140,7 +140,10 @@
     "HideFromChatList": "Ocultar de la lista de chat",
     "Leave": "Abandonar {label}",
     "HideAll": "Ocultar todo",
-    "Seen": "Leído"
+    "Seen": "Leído",
+    "ChannelsAndDMs": "Canal y Mensajes privados",
+    "CreateDirect": "Crear mensaje directo",
+    "ChangeIcon": "Cambiar icono"
   },
   "emailTemplate": {
     "DMNotificationText": "{sender} te ha enviado un mensaje: \n\n{message}",

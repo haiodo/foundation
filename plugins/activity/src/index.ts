@@ -33,7 +33,7 @@ import {
 import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import { Preference } from '@hcengineering/preference'
-import type { AnyComponent, ComponentExtensionId, LabelAndProps } from '@hcengineering/ui'
+import type { AnyComponent, ComponentExtensionId, LabelAndProps } from '@hcengineering/ui/src/types'
 import type { Action } from '@hcengineering/view'
 
 /**
@@ -56,13 +56,6 @@ export interface ActivityMessage extends AttachedDoc {
   replies?: number
   reactions?: number
   editedOn?: Timestamp
-}
-
-export type DisplayActivityMessage = DisplayDocUpdateMessage | ActivityMessage
-
-export interface DisplayDocUpdateMessage extends DocUpdateMessage {
-  previousMessages?: DocUpdateMessage[]
-  combinedMessagesIds?: Ref<DocUpdateMessage>[]
 }
 
 /**
@@ -97,6 +90,18 @@ export interface ActivityInfoMessage extends ActivityMessage {
   links?: { _class: Ref<Class<Doc>>, _id: Ref<Doc> }[]
 }
 
+export interface DocUpdateMessageHistory {
+  action: DocUpdateAction
+  createdOn: Timestamp
+
+  objectId: Ref<Doc>
+  objectClass: Ref<Class<Doc>>
+  objectTitle?: string
+  objectAttributes?: Record<string, any>
+
+  update?: DocAttributeUpdates
+}
+
 /**
  * @public
  */
@@ -112,6 +117,8 @@ export interface DocUpdateMessage extends ActivityMessage {
   action: DocUpdateAction
   updateCollection?: string
   attributeUpdates?: DocAttributeUpdates
+
+  history: DocUpdateMessageHistory[]
 }
 
 export interface ActivityReference extends ActivityMessage {

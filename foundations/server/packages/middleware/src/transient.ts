@@ -58,12 +58,11 @@ export class TransientMiddleware extends BaseMiddleware implements Middleware {
       this.ttlValues.set(cl._id as Ref<Class<Doc>>, cl.ttl)
     }
 
-    this.dbProvider = context.adapterManager?.getAdapter?.(DOMAIN_TRANSIENT, true)
-    if (this.dbProvider !== undefined) {
-      this.ttlChecker = setInterval(() => {
-        void this.checkTTL()
-      }, 1000)
-    }
+    // adapterManager is initialized later in the pipeline by DBAdapterMiddleware,
+    // so resolve the provider lazily inside checkTTL.
+    this.ttlChecker = setInterval(() => {
+      void this.checkTTL()
+    }, 1000)
   }
 
   async close (): Promise<void> {
@@ -83,7 +82,8 @@ export class TransientMiddleware extends BaseMiddleware implements Middleware {
 
   checkTTL = reduceCalls(async () => {
     if (this.dbProvider === undefined) {
-      return
+      this.dbProvider = this.context.adapterManager?.getAdapter?.(DOMAIN_TRANSIENT, true)
+      if (this.dbProvider === undefined) return
     }
     this.now = Date.now() / 1000 // Now in seconds
 
@@ -94,17 +94,27 @@ export class TransientMiddleware extends BaseMiddleware implements Middleware {
       }
     }
 
-    if (docsToRemove.length > 0) {
-      const f = new TxFactory(core.account.System)
-      const docs = await this.dbProvider.load(this.ctx, DOMAIN_TRANSIENT, docsToRemove)
-      // We need to remove all of this docs
-      await this.dbProvider.clean(this.ctx, DOMAIN_TRANSIENT, docsToRemove)
+    if (docsToRemove.length === 0) return
 
-      await this.context.broadcastEvent?.(
-        this.ctx,
-        docs.map((it) => f.createTxRemoveDoc(it._class, it.space, it._id))
-      )
+    // Drop expired entries from the map immediately to avoid re-processing them every tick
+    for (const id of docsToRemove) {
+      this.ttlObjectMap.delete(id)
     }
+
+    const docs = await this.dbProvider.load(this.ctx, DOMAIN_TRANSIENT, docsToRemove)
+    if (docs.length === 0) return
+
+    await this.dbProvider.clean(
+      this.ctx,
+      DOMAIN_TRANSIENT,
+      docs.map((it) => it._id)
+    )
+
+    const f = new TxFactory(core.account.System)
+    await this.context.broadcastEvent?.(
+      this.ctx,
+      docs.map((it) => f.createTxRemoveDoc(it._class, it.space, it._id))
+    )
   })
 
   tx (ctx: MeasureContext<SessionData>, txes: Tx[]): Promise<TxMiddlewareResult> {

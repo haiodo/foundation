@@ -23,6 +23,12 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      run-cockroach:
+        description: 'Run CockroachDB tests (with profiling)'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   CacheFolders: |
@@ -91,14 +97,27 @@ jobs:
       - name: Model version from git tags
         run: node common/scripts/install-run-rush.js model-version
 
-      - name: Building...
-        run: node common/scripts/install-run-rush.js build
-
       - name: Bundle...
-        run: node common/scripts/install-run-rush.js bundle
+        run: node common/scripts/install-run-rush.js fast-build:bundle
 
       - name: Validate...
-        run: node common/scripts/install-run-rush.js validate
+        run: node common/scripts/install-run-rush.js fast-build:validate
+
+      - name: Build @intabia-fusion/api bundle
+        run: |
+          cd dev/api
+          node scripts/build-bundle.js
+          cd bundle
+          npm install
+          npx tsc
+          npm pack
+
+      - name: Upload @intabia-fusion/api bundle artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: intabia-fusion-api-bundle
+          path: dev/api/bundle/intabia-fusion-api-*.tgz
+          if-no-files-found: error
 
       - name: Cache build results
         uses: actions/cache@v5
@@ -133,7 +152,7 @@ jobs:
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Checking svelte sources...
-        run: node common/scripts/install-run-rush.js svelte-check -v
+        run: node common/scripts/install-run-rush.js fast-build:svelte-check
   formatting:
     needs: build
     runs-on: ubuntu-latest
@@ -186,20 +205,26 @@ jobs:
           path: ${{ env.CacheFolders}}
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-      - name: Login to Docker Hub
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
-      - name: Prepare server
+      - name: Prepare server (with rate limit retry)
         run: |
+          set -o pipefail
           cd ./tests
-          ./prepare-tests.sh
+          if ./prepare-tests.sh 2>&1 | tee /tmp/prepare-tests.log; then
+            echo "Prepare succeeded"
+          else
+            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/prepare-tests.log; then
+              echo "Rate limit hit, logging in to Docker Hub and retrying..."
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
+              ./prepare-tests.sh
+            else
+              echo "Prepare failed (not a rate limit issue)"
+              cat /tmp/prepare-tests.log
+              exit 1
+            fi
+          fi
       - name: Testing...
-        run: node common/scripts/install-run-rush.js test --verbose
+        run: node common/scripts/install-run-rush.js fast-build:test --verbose
         env:
           DB_URL: 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
           ELASTIC_URL: 'http://localhost:9201'
@@ -207,6 +232,7 @@ jobs:
           POSTGRES_URL: 'postgresql://postgres:postgres@localhost:5433/postgres'
 
   uitest-cockroach:
+    if: inputs.run-cockroach == true
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -240,71 +266,42 @@ jobs:
       - name: Installing...
         run: node common/scripts/install-run-rush.js install
 
-      - name: Login to Docker Hub
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
       - name: Free space
         uses: ./.github/actions/free-disk-space
-      - name: Docker Build
-        run: node common/scripts/install-run-rush.js docker
+      - name: Docker Build (with rate limit retry)
+        run: |
+          set -o pipefail
+          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+            echo "Docker build succeeded"
+          else
+            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
+              echo "Rate limit hit, logging in to Docker Hub and retrying..."
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
+              node common/scripts/install-run-rush.js fast-build:docker
+            else
+              echo "Docker build failed (not a rate limit issue)"
+              cat /tmp/docker-build.log
+              exit 1
+            fi
+          fi
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1
       - name: Configure /etc/hosts
         run: |
           sudo echo "127.0.0.1 huly.local" | sudo tee -a /etc/hosts
-      - name: Prepare server
-        run: |
-          cd ./tests
-          export DO_CLEAN="true"
-          ./prepare-cockroach.sh
-      - name: Install Playwright
-        run: |
-          cd ./tests/sanity
-          node ../../common/scripts/install-run-rushx.js ci
-      - name: Start profiling
-        run: |
-          cd ./tests
-          ./profile-start.sh
-      - name: Run UI tests
-        run: |
-          cd ./tests/sanity
-          node ../../common/scripts/install-run-rushx.js uitest
-      - name: Download profile
-        run: |
-          cd ./tests
-          ./profile-download.sh
-          npm install -g cpupro
-          ./profile-generate.sh
-      - name: Upload profiling results
-        if: always()
-        uses: actions/upload-artifact@v4
+
+      # CockroachDB tests with profiling
+      - name: Run UI tests (CockroachDB)
+        uses: ./.github/actions/ui-test
         with:
-          name: profiling-cockroach
-          path: ./tests/profiles
-      - name: 'Store docker logs'
-        if: always()
-        run: |
-          cd ./tests/sanity
-          mkdir logs
-          cd logs
-          docker ps -a --format '{{.Names}}' | xargs -I {} sh -c 'docker logs {} > {}_logs.log 2>&1'
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-results-cockroach
-          path: ./tests/sanity/playwright-report/
-      - name: Upload Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-logs-cockroach
-          path: ./tests/sanity/logs
+          test-folder: tests
+          prepare-script: ./prepare-cockroach.sh
+          build-package: '@hcengineering/tests-sanity'
+          artifact-name-suffix: cockroach
+          enable-profiling: 'true'
+          docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
   uitest-pg:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -339,71 +336,42 @@ jobs:
       - name: Installing...
         run: node common/scripts/install-run-rush.js install
 
-      - name: Login to Docker Hub
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
       - name: Free space
         uses: ./.github/actions/free-disk-space
-      - name: Docker Build
-        run: node common/scripts/install-run-rush.js docker
+      - name: Docker Build (with rate limit retry)
+        run: |
+          set -o pipefail
+          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+            echo "Docker build succeeded"
+          else
+            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
+              echo "Rate limit hit, logging in to Docker Hub and retrying..."
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
+              node common/scripts/install-run-rush.js fast-build:docker
+            else
+              echo "Docker build failed (not a rate limit issue)"
+              cat /tmp/docker-build.log
+              exit 1
+            fi
+          fi
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1
       - name: Configure /etc/hosts
         run: |
           sudo echo "127.0.0.1 huly.local" | sudo tee -a /etc/hosts
-      - name: Prepare server
-        run: |
-          cd ./tests
-          export DO_CLEAN="true"
-          ./prepare-pg.sh
-      - name: Install Playwright
-        run: |
-          cd ./tests/sanity
-          node ../../common/scripts/install-run-rushx.js ci
-      - name: Start profiling
-        run: |
-          cd ./tests
-          ./profile-start.sh
-      - name: Run UI tests
-        run: |
-          cd ./tests/sanity
-          node ../../common/scripts/install-run-rushx.js uitest
-      - name: Download profile
-        run: |
-          cd ./tests
-          ./profile-download.sh
-          npm install -g cpupro
-          ./profile-generate.sh
-      - name: Upload profiling results
-        if: always()
-        uses: actions/upload-artifact@v4
+
+      # PostgreSQL tests
+      - name: Run UI tests (PostgreSQL)
+        uses: ./.github/actions/ui-test
         with:
-          name: profiling-pg
-          path: ./tests/profiles
-      - name: 'Store docker logs'
-        if: always()
-        run: |
-          cd ./tests/sanity
-          mkdir logs
-          cd logs
-          docker ps -a --format '{{.Names}}' | xargs -I {} sh -c 'docker logs {} > {}_logs.log 2>&1'
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-results-pg
-          path: ./tests/sanity/playwright-report/
-      - name: Upload Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-logs-pg
-          path: ./tests/sanity/logs
+          test-folder: tests
+          prepare-script: ./prepare-pg.sh
+          build-package: '@hcengineering/tests-sanity'
+          artifact-name-suffix: pg
+          enable-profiling: 'true'
+          docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
   uitest-workspaces:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -438,69 +406,42 @@ jobs:
       - name: Installing...
         run: node common/scripts/install-run-rush.js install
 
-      - name: Build sanity-tests suite
-        run: node common/scripts/install-run-rush.js build -t @hcengineering/tests-sanity
-
-      - name: Login to Docker Hub
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
       - name: Free space
         uses: ./.github/actions/free-disk-space
-      - name: Docker Build
-        run: node common/scripts/install-run-rush.js docker
+      - name: Docker Build (with rate limit retry)
+        run: |
+          set -o pipefail
+          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+            echo "Docker build succeeded"
+          else
+            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
+              echo "Rate limit hit, logging in to Docker Hub and retrying..."
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
+              node common/scripts/install-run-rush.js fast-build:docker
+            else
+              echo "Docker build failed (not a rate limit issue)"
+              cat /tmp/docker-build.log
+              exit 1
+            fi
+          fi
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1
       - name: Configure /etc/hosts
         run: |
           sudo echo "127.0.0.1 huly.local" | sudo tee -a /etc/hosts
-      - name: Prepare server
-        run: |
-          cd ./ws-tests
-          export DO_CLEAN=true
-          ./prepare.sh
-      - name: Run API tests
-        run: |
-          cd ./ws-tests/api-tests
-          node ../../common/scripts/install-run-rush.js validate --to @hcengineering/api-tests
-          node ../../common/scripts/install-run-rushx.js api-test --verbose
-      - name: Install Playwright
-        run: |
-          cd ./ws-tests/sanity
-          node ../../common/scripts/install-run-rushx.js ci
-      - name: Run UI tests
-        run: |
-          cd ./ws-tests/sanity
-          node ../../common/scripts/install-run-rushx.js uitest
-      - name: 'Store docker logs'
-        if: always()
-        run: |
-          cd ./ws-tests/sanity
-          mkdir logs
-          cd logs
-          docker ps -a --format '{{.Names}}' | xargs -I {} sh -c 'docker logs {} > {}_logs.log 2>&1'
-      - name: Upload API test results
-        if: always()
-        uses: actions/upload-artifact@v4
+
+      # Workspace tests with API tests (first, fastest)
+      - name: Run UI tests (Workspaces)
+        uses: ./.github/actions/ui-test
         with:
-          name: playwright-results-api
-          path: ./ws-tests/api-tests/playwright-report/
-      - name: Upload UI test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-results-ws
-          path: ./ws-tests/sanity/playwright-report/
-      - name: Upload Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-logs-ws
-          path: ./ws-tests/sanity/logs
+          test-folder: ws-tests
+          prepare-script: ./prepare.sh
+          build-package: '@hcengineering/tests-ws-sanity'
+          artifact-name-suffix: ws
+          run-api-tests: 'true'
+          docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
   docker-build:
     needs: [uitest-workspaces]
     runs-on: ubuntu-latest
@@ -548,118 +489,35 @@ jobs:
       - name: Model version from git tags
         run: node common/scripts/install-run-rush.js model-version
 
-      - name: Login to Docker Hub
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-
-      - name: Docker build
+      - name: Docker build (with rate limit retry)
         run: |
+          set -o pipefail
           docker system prune -a -f
-          node common/scripts/install-run-rush.js docker:build -v
+          if node common/scripts/install-run-rush.js fast-build:docker-build -v  2>&1 | tee /tmp/docker-build.log; then
+            echo "Docker build succeeded"
+          else
+            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
+              echo "Rate limit hit, logging in to Docker Hub and retrying..."
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
+              node common/scripts/install-run-rush.js fast-build:docker-build -v
+            else
+              echo "Docker build failed (not a rate limit issue)"
+              cat /tmp/docker-build.log
+              exit 1
+            fi
+          fi
           docker builder prune -a -f
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_EXTRA: --platform=linux/amd64,linux/arm64
           DOCKER_BUILDKIT: 1
           DOCKER_BUILD_CLEANUP: true
-      - name: Login to Docker Hub
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-      # - name: Docker push staging
-      #   if: ${{ github.ref == 'refs/heads/main' }}
-      #   run: node common/scripts/install-run-rush.js docker:staging -v
       - name: Docker push tag
         if: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
         run: |
           echo Pushing release of tag ${{ github.ref }}
+          echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
           node common/scripts/install-run-rush.js docker:push -v
-  build-hulypulse:
-    needs: [uitest-workspaces]
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      # https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
-      - name: Free disk space
-        run: |
-          echo "Disk space before cleanup:"
-          df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          echo "Disk space after cleanup:"
-          df -h
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Configure docker
-        uses: docker/setup-docker-action@v4
-        with:
-          daemon-config: |
-            {
-              "features": {
-                "containerd-snapshotter": true
-              }
-            }
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          filter: tree:0
-          submodules: recursive
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: '.nvmrc'
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
-      - name: Cache node modules
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-
-      - name: Login to Docker Hub
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-
-      - name: Docker build huly pulse
-        run: |
-          cd ./foundations/hulypulse
-          ../../common/scripts/docker_build.sh haiodo/hulypulse
-        env:
-          DOCKER_CLI_HINTS: false
-          DOCKER_EXTRA: --platform=linux/amd64,linux/arm64
-      - name: Login to Docker Hub
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
-        uses: docker/login-action@v3
-        with:
-          username: haiodo
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-      # - name: Docker push staging
-      #   if: ${{ github.ref == 'refs/heads/main' }}
-      #   run: node common/scripts/install-run-rush.js docker:staging -v
-      - name: Docker push tag
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
-        run: |
-          echo Pushing release of tag ${{ github.ref }}
-          cd ./foundations/hulypulse
-          ../../common/scripts/docker_tag.sh haiodo/hulypulse
 
   dist-build:
     # if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
@@ -698,7 +556,7 @@ jobs:
       - name: Model version from git tags
         run: node common/scripts/install-run-rush.js model-version
       - name: Package
-        run: node common/scripts/install-run-rush.js package --to desktop -v
+        run: node common/scripts/install-run-rush.js fast-build:package --to desktop -v
       - name: Bump package JSON version
         run: |
           cd desktop-package
@@ -747,43 +605,43 @@ jobs:
       #     source-dir: desktop-package/${{ env.PublishTempFolder}}
       #     destination-dir: ./
       - name: Upload MacOS
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-MacOS-x64
           path: ./desktop-package/deploy/Platform-macos-*-x64.dmg
       - name: Upload MacOS Zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-MacOS-zip
           path: ./desktop-package/deploy/Platform-macos*.zip
       - name: Upload MacOS arm64
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-MacOS-arm64
           path: ./desktop-package/deploy/Platform-macos-*-arm64.dmg
       - name: Upload Windows
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-Windows
           path: ./desktop-package/deploy/Platform-windows-*.exe
       - name: Upload Windows zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-Windows-zip
           path: ./desktop-package/deploy/Platform-windows-*.zip
       - name: Upload Linux
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-Linux-arm64
           path: ./desktop-package/deploy/Platform-linux-*-arm64.zip
       - name: Upload Linux
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-Linux-x64
           path: ./desktop-package/deploy/Platform-linux-*-x64.zip
 
       - name: Upload Linux App image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Platform-Linux-AppImage
           path: ./desktop-package/deploy/Platform-linux-*.AppImage
@@ -800,12 +658,12 @@ jobs:
           node ../common/scripts/install-run-rushx.js bundle:server
 
       - name: Upload server bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: server-bundle
           path: ./desktop-package/bundle
       - name: Upload manifests (yml + blockmap)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: desktop-manifests
           path: |
@@ -841,52 +699,52 @@ jobs:
             }
 
       - name: Download Platform-MacOS-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-MacOS-x64
           path: ./desktop-package/deploy
       - name: Download Platform-MacOS-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-MacOS-arm64
           path: ./desktop-package/deploy
       - name: Download Platform-MacOS-zip
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-MacOS-zip
           path: ./desktop-package/deploy
       - name: Download Platform-Windows
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-Windows
           path: ./desktop-package/deploy
       - name: Download Platform-Windows-zip
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-Windows-zip
           path: ./desktop-package/deploy
       # - name: Download Platform-Linux-arm64
-      #   uses: actions/download-artifact@v4
+      #   uses: actions/download-artifact@v5
       #   with:
       #     name: Platform-Linux-arm64
       #     path: ./desktop-package/deploy
       - name: Download Platform-Linux-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-Linux-x64
           path: ./desktop-package/deploy
       - name: Download Platform-Linux-AppImage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: Platform-Linux-AppImage
           path: ./desktop-package/deploy
       - name: Download server-bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: server-bundle
           path: ./desktop-package/bundle
       - name: Download desktop-manifests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: desktop-manifests
           path: ./desktop-package/deploy
@@ -899,7 +757,7 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: haiodo
+          username: intabiafusion
           password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
       - name: Build and push Docker image (via package script)

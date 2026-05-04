@@ -50,6 +50,7 @@
     "WrongEmail": "メールアドレスが間違っていますか？",
     "ChangeEmail": "メールアドレスを変更",
     "SentTo": "コードを送信しました ",
+    "EnterCode": "コードを入力",
     "CanFindCode": "コードが見つかりませんか？迷惑メールフォルダを確認してください。",
     "LoginWithPassword": "パスワードでログイン",
     "LoginWithCode": "コードでログイン",
@@ -74,6 +75,8 @@
     "Proceed": "続行",
     "SetPasswordLater": "後でパスワードを設定します",
     "SetPasswordNow": "今すぐパスワードを設定する",
+    "AgreedRules": "<a href=\"{linkLicense}\" target=\"_blank\">ライセンス契約</a>、<a href=\"{linkUserAgreement}\" target=\"_blank\">利用規約</a>、<a href=\"{linkConfidential}\" target=\"_blank\">プライバシーポリシー</a>に同意します",
+    "AgreedPersonalData": "<a href=\"{link}\" target=\"_blank\">個人情報の取り扱い</a>に同意します",
     "LoginAsGuest": "ゲストとして続行",
     "SignUpToCreateWorkspace": "ゲストアクセス可能なワークスペースはありません。登録して独自のワークスペースを作成してください。",
     "WhatIsYourName": "お名前は何ですか？",
@@ -86,7 +89,6 @@
     "EnterCurrentPassword": "現在のパスワードを入力",
     "EnterNewPassword": "新しいパスワードを入力",
     "RepeatNewPassword": "新しいパスワードを再入力",
-    "PasswordExpiredDesc": "パスワードの有効期限が切れています。続行するには新しいパスワードを設定してください",
     "BackLabel": "戻る",
     "PasswordExpiredDesc": "パスワードの有効期限が切れています。続行するには新しいパスワードを設定してください。",
     "JoinWithThisAccount": "このアカウントで参加",
@@ -100,6 +102,8 @@
     "HowToLogin": "どのようにログインしますか？",
     "AlreadySignedIn": "既存のアカウントで参加",
     "ExpiredLink": "この招待リンクは有効期限が切れています",
-    "ExpiredLinkDescription": "新しい招待リンクをリクエストしてください"
+    "ExpiredLinkDescription": "新しい招待リンクをリクエストしてください",
+    "UsageConditions": "利用規約",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

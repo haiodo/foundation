@@ -143,6 +143,13 @@ export interface WorkspaceInvite {
   autoJoin?: boolean
 }
 
+export interface ShortLink {
+  id: string
+  payload: string
+  workspaceId: string
+  createdAt: number
+}
+
 export interface WorkspacePermission {
   workspaceUuid: WorkspaceUuid
   accountUuid: AccountUuid
@@ -316,6 +323,7 @@ export interface AccountDB {
   accountEvent: DbCollection<AccountEvent>
   otp: DbCollection<OTP>
   invite: DbCollection<WorkspaceInvite>
+  shortLink: DbCollection<ShortLink>
   mailbox: DbCollection<Mailbox>
   mailboxSecret: DbCollection<MailboxSecret>
   integration: DbCollection<Integration>
@@ -449,6 +457,7 @@ export interface LoginInfoWorkspace {
   mode: WorkspaceMode
   version: WorkspaceVersion
   endpoint: EndpointInfo
+  collaboratorEndpoint: EndpointInfo
   role: AccountRole | null
 
   progress?: number
@@ -467,6 +476,7 @@ export interface WorkspaceLoginInfo extends LoginInfo {
   workspaceUrl: string
   workspaceDataId?: WorkspaceDataId
   endpoint: string
+  collaboratorEndpoint?: string
   role: AccountRole
   allowGuestSignUp?: boolean
 }
@@ -499,6 +509,7 @@ export type ClientNetworkPosition = 'internal' | 'external'
 export interface Meta {
   timezone?: string
   clientNetworkPosition?: ClientNetworkPosition
+  cookies?: string
 }
 
 export interface AccountAggregatedInfo extends Omit<Account, 'hash' | 'salt'>, Person {

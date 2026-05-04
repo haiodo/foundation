@@ -86,6 +86,7 @@ import { ReviewCommentSyncManager } from './sync/reviewComments'
 import { ReviewThreadSyncManager } from './sync/reviewThreads'
 import { ReviewSyncManager } from './sync/reviews'
 import { UsersSyncManager, fetchViewerDetails } from './sync/users'
+import { appendGuestLinkToImage } from './sync/guest'
 import { errorToObj } from './sync/utils'
 import {
   ContainerFocus,
@@ -128,8 +129,6 @@ export class GithubWorker implements IntegrationManager {
   liveQuery: LiveQuery
 
   repositoryManager: RepositorySyncMapper
-
-  collaborator: CollaboratorClient
 
   periodicTimer: any
 
@@ -243,7 +242,10 @@ export class GithubWorker implements IntegrationManager {
       concatLink(this.getBranding()?.front ?? config.FrontURL, `/browse/?workspace=${this.workspace.uuid}`),
       // TODO storage URL
       concatLink(this.getBranding()?.front ?? config.FrontURL, `/files/${this.workspace.uuid}/`),
-      preprocessor
+      preprocessor ??
+        (async (nodes) => {
+          appendGuestLinkToImage(nodes, this.workspace.uuid)
+        })
     )
   }
 
@@ -391,6 +393,7 @@ export class GithubWorker implements IntegrationManager {
     readonly storageAdapter: StorageAdapter,
     readonly workspace: WorkspaceIds,
     readonly branding: Branding | null,
+    readonly collaborator: CollaboratorClient,
     readonly periodicSyncInterval = 60 * 60 * 1000
   ) {
     const token = generateToken(systemAccountUuid, this.workspace.uuid, { service: 'github', mode: 'github' })
@@ -400,8 +403,6 @@ export class GithubWorker implements IntegrationManager {
     this.liveQuery = new LiveQuery(client)
 
     this.repositoryManager = new RepositorySyncMapper(this._client, this.app)
-
-    this.collaborator = createCollaboratorClient(this.workspace.uuid)
 
     this.personMapper = new UsersSyncManager(
       this.ctx.newChild('users', {}, { span: false }),
@@ -1799,6 +1800,8 @@ export class GithubWorker implements IntegrationManager {
 
       await GithubWorker.checkIntegrations(client, installations)
 
+      const collaborator = await createCollaboratorClient(workspace.uuid)
+
       worker = new GithubWorker(
         ctx,
         platformWorker.getRateLimiter(endpoint ?? ''),
@@ -1808,7 +1811,8 @@ export class GithubWorker implements IntegrationManager {
         app,
         storageAdapter,
         workspace,
-        branding
+        branding,
+        collaborator
       )
       ctx.info('Init worker', { workspace: workspace.url, workspaceId: workspace.uuid })
       void worker.init().catch((err) => {

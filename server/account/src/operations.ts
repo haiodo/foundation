@@ -39,7 +39,7 @@ import platform, { getMetadata, PlatformError, Severity, Status, translate } fro
 import { decodeToken, decodeTokenVerbose, generateToken, type PermissionsGrant } from '@hcengineering/server-token'
 
 import { isAdminEmail } from './admin'
-import { accountPlugin } from './plugin'
+import { accountPlugin, type CrmNotification } from './plugin'
 import { type AccountServiceMethods, getServiceMethods } from './serviceOperations'
 import {
   AccountEventType,
@@ -86,7 +86,9 @@ import {
   getPersonName,
   getRegions,
   getRolePower,
+  getCollaboratorEndpoint,
   getWorkspaceById,
+  getWorkspaceCollaboratorEndpoint,
   getWorkspaceEndpoint,
   getWorkspaceInfoWithStatusById,
   getWorkspaceInvite,
@@ -359,6 +361,36 @@ export async function signUpOtp (
 }
 
 /**
+ * Sends CRM notification for newly created account if user has no pending invites.
+ * Only users who came to create their own workspace (not invited) should be sent to CRM.
+ */
+async function sendCrmNotificationIfNotInvited (
+  ctx: MeasureContext,
+  db: AccountDB,
+  email: string,
+  personUuid: PersonUuid,
+  meta?: Meta
+): Promise<void> {
+  const crmQueue = getMetadata(accountPlugin.metadata.CrmQueue)
+
+  const person = await db.person.findOne({ uuid: personUuid })
+  if (person == null) {
+    ctx.warn('CRM notification skipped: person not found', { personUuid })
+    return
+  }
+
+  const body: CrmNotification = {
+    firstName: person.firstName,
+    lastName: person.lastName,
+    email,
+    cookies: meta?.cookies
+  }
+
+  await crmQueue?.send(ctx, '' as WorkspaceUuid, [body], personUuid)
+  ctx.info('CRM notification sending', body)
+}
+
+/**
  * Validates email OTP for login/sign up/new social id
  */
 export async function validateOtp (
@@ -522,7 +554,8 @@ export async function createWorkspace (
   params: {
     workspaceName: string
     region?: string
-  }
+  },
+  meta?: Meta
 ): Promise<WorkspaceLoginInfo> {
   const { workspaceName, region } = params
 
@@ -568,12 +601,23 @@ export async function createWorkspace (
 
   ctx.info('Creating workspace record done', { workspaceName, region, account: socialId.personUuid })
 
+  // Send CRM notification for newly created workspace
+  const emailSocialId = await db.socialId.findOne({
+    type: SocialIdType.EMAIL,
+    personUuid: socialId.personUuid,
+    verifiedOn: { $gt: 0 }
+  })
+  if (emailSocialId != null) {
+    await sendCrmNotificationIfNotInvited(ctx, db, emailSocialId.value, socialId.personUuid, meta)
+  }
+
   return {
     account,
     socialId: socialId._id,
     name: getPersonName(person),
     token: generateToken(account, workspaceUuid, extra),
     endpoint: getEndpoint(workspaceUuid, region, EndpointKind.External),
+    collaboratorEndpoint: getCollaboratorEndpoint(workspaceUuid, region, EndpointKind.External),
     workspace: workspaceUuid,
     workspaceUrl,
     role: AccountRole.Owner
@@ -1880,6 +1924,7 @@ export async function getLoginInfoByToken (
 
     const endpointKind = meta?.clientNetworkPosition === 'internal' ? EndpointKind.Internal : EndpointKind.External
     const endpoint = getEndpoint(workspace.uuid, workspace.region, endpointKind)
+    const collaboratorEndpoint = getCollaboratorEndpoint(workspace.uuid, workspace.region, endpointKind)
 
     if (isDocGuest) {
       return {
@@ -1888,6 +1933,7 @@ export async function getLoginInfoByToken (
         workspaceDataId: workspace.dataId,
         workspaceUrl: workspace.url,
         endpoint,
+        collaboratorEndpoint,
         role: AccountRole.DocGuest
       } satisfies WorkspaceLoginInfo
     }
@@ -1908,6 +1954,7 @@ export async function getLoginInfoByToken (
       workspaceDataId: workspace.dataId,
       workspaceUrl: workspace.url,
       endpoint,
+      collaboratorEndpoint,
       role
     } satisfies WorkspaceLoginInfo
   } else {
@@ -1995,6 +2042,7 @@ export async function getLoginWithWorkspaceInfo (
             dataId: it.dataId,
             mode: it.status.mode,
             endpoint: getWorkspaceEndpoint(info, it.uuid, it.region),
+            collaboratorEndpoint: getWorkspaceCollaboratorEndpoint(it.uuid, it.region),
             role: roles.get(it.uuid) ?? null,
             version: {
               versionMajor: it.status.versionMajor,

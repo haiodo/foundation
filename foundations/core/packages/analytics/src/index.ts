@@ -13,6 +13,7 @@ export interface AnalyticProvider {
   setWorkspace: (ws: string, guest: boolean) => void
   handleEvent: (event: string, params: Record<string, string>) => void
   handleError: (error: Error) => void
+  handleMetric?: (name: string, value: number, labels?: Record<string, any>) => void
   navigate: (path: string) => void
   logout: () => void
 }
@@ -63,6 +64,12 @@ export const Analytics = {
     })
   },
 
+  handleMetric (name: string, value: number, labels?: Record<string, any>): void {
+    providers.forEach((provider) => {
+      provider.handleMetric?.(name, value, labels)
+    })
+  },
+
   navigate (path: string): void {
     providers.forEach((provider) => {
       provider.navigate(path)
@@ -78,7 +85,8 @@ export const Analytics = {
 
 addEventListener(PlatformEvent, async (_event, _status: Status) => {
   if (_status.severity === Severity.ERROR) {
-    const label = await translate(_status.code, _status.params, 'en')
+    // Skip error broadcast in translate to avoid infinite loop
+    const label = await translate(_status.code, _status.params, 'en', true)
     Analytics.handleError(new Error(label))
   }
 })

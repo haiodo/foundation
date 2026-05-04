@@ -13,17 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import activity, {
-  type ActivityMessage,
-  type DisplayDocUpdateMessage,
-  type DocUpdateMessage
-} from '@hcengineering/activity'
-import {
-  activityMessagesComparator,
-  combineActivityMessages,
-  isActivityMessageClass,
-  messageInFocus
-} from '@hcengineering/activity-resources'
+import activity, { type ActivityMessage, type DocUpdateMessage } from '@hcengineering/activity'
+import { isActivityMessageClass, messageInFocus, sortActivityMessages } from '@hcengineering/activity-resources'
 import { Analytics } from '@hcengineering/analytics'
 import chunter, { type ThreadMessage } from '@hcengineering/chunter'
 import core, {
@@ -286,12 +277,12 @@ export function getDisplayInboxNotifications (
       return (message as DocUpdateMessage).objectClass === objectClass
     })
 
-  const combinedMessages = combineActivityMessages(messages.sort(activityMessagesComparator), SortingOrder.Descending)
+  const combinedMessages = sortActivityMessages(messages, SortingOrder.Descending)
 
   for (const message of combinedMessages) {
     if (message._class === activity.class.DocUpdateMessage) {
-      const displayMessage = message as DisplayDocUpdateMessage
-      const ids: Array<Ref<ActivityMessage>> = displayMessage.combinedMessagesIds ?? [displayMessage._id]
+      const displayMessage = message as DocUpdateMessage
+      const ids: Array<Ref<ActivityMessage>> = [displayMessage._id]
       const activityNotification = activityNotifications.find(({ attachedTo }) => attachedTo === message._id)
 
       if (activityNotification === undefined) {
@@ -638,7 +629,9 @@ export function pushAvailable (): boolean {
   )
 }
 
-export async function subscribePush (): Promise<boolean> {
+export type PushSubscribeResult = 'success' | 'permission_denied' | 'network_error' | 'not_supported'
+
+export async function subscribePush (): Promise<PushSubscribeResult> {
   const client = getClient()
   const publicKey = getMetadata(notification.metadata.PushPublicKey)
   if ('serviceWorker' in navigator && 'PushManager' in window && publicKey !== undefined) {
@@ -654,6 +647,10 @@ export async function subscribePush (): Promise<boolean> {
       }
       const current = await registration.pushManager.getSubscription()
       if (current == null) {
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') {
+          return 'permission_denied'
+        }
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: publicKey
@@ -686,15 +683,18 @@ export async function subscribePush (): Promise<boolean> {
       }
       addWorkerListener()
       pushAllowed.set(true)
-      return true
+      return 'success'
     } catch (err) {
-      console.error('Service Worker registration failed:', err)
+      const error = err as Error
+      console.error('Service Worker registration failed:', error)
       pushAllowed.set(false)
-      return false
+      if (error?.name === 'AbortError') return 'network_error'
+      if (error?.name === 'NotAllowedError') return 'permission_denied'
+      return 'network_error'
     }
   }
   pushAllowed.set(false)
-  return false
+  return 'not_supported'
 }
 
 async function cleanTag (_id: Ref<Doc>): Promise<void> {
@@ -719,17 +719,14 @@ function arrayBufferToBase64 (buffer: ArrayBuffer | null): string {
 }
 
 export function notificationsComparator (notifications1: InboxNotification, notifications2: InboxNotification): number {
-  const createdOn1 = notifications1.createdOn ?? 0
-  const createdOn2 = notifications2.createdOn ?? 0
+  const time1 = notifications1.createdOn ?? notifications1.modifiedOn ?? 0
+  const time2 = notifications2.createdOn ?? notifications2.modifiedOn ?? 0
 
-  if (createdOn1 > createdOn2) {
-    return -1
-  }
-  if (createdOn1 < createdOn2) {
-    return 1
+  if (time1 !== time2) {
+    return time2 - time1
   }
 
-  return 0
+  return notifications1._id.localeCompare(notifications2._id)
 }
 
 export function isNotificationAllowed (type: NotificationType, providerId: Ref<NotificationProvider>): boolean {

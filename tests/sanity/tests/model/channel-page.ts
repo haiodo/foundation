@@ -26,6 +26,9 @@ export class ChannelPage extends CommonPage {
     this.page.locator('[data-testid="section-chunter:class:Channel"]').getByRole('button', { name: channel })
 
   readonly browserTab = (): Locator => this.page.getByRole('link', { name: 'Browser' }).getByRole('button')
+  readonly channelsAndDmsTab = (): Locator =>
+    this.page.getByRole('link', { name: 'Channels & DMs' }).getByRole('button')
+
   readonly channelsTab = (): Locator =>
     this.page.locator('label.switcher-element__wrapper[data-view="chunter:string:Channels"]')
 
@@ -88,7 +91,6 @@ export class ChannelPage extends CommonPage {
   private readonly addMemberPreview = (): Locator => this.page.getByRole('button', { name: 'Add members' })
   private readonly addButtonPreview = (): Locator => this.page.getByRole('button', { name: 'Add', exact: true })
 
-  readonly inputSearchIcon = (): Locator => this.page.locator('.searchInput-wrapper')
   readonly inputSearchChannel = (): Locator => this.page.locator('.hulyHeader-container').getByPlaceholder('Search')
 
   readonly channelContainers = (): Locator => this.page.locator('.hulyNavItem-container')
@@ -283,7 +285,7 @@ export class ChannelPage extends CommonPage {
   }
 
   async clickChannelTab (): Promise<void> {
-    await this.browserTab().click()
+    await this.channelsAndDmsTab().click()
     await this.channelsTab().click()
   }
 

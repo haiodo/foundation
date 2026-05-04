@@ -13,7 +13,9 @@ import account, {
   getMethods,
   cleanExpiredOtp,
   accountPlugin,
-  type AccountNotification
+  type AccountNotification,
+  type CrmNotification,
+  initRegionConfig
 } from '@hcengineering/account'
 import accountEn from '@hcengineering/account/lang/en.json'
 import accountRu from '@hcengineering/account/lang/ru.json'
@@ -33,6 +35,7 @@ import { migrateFromOldAccounts } from './migration/migration'
 
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { QueueTopic } from '@hcengineering/server-core'
+import { randomBytes } from 'crypto'
 
 export * from './migration/utils'
 export * from './migration/types'
@@ -83,9 +86,10 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   const oldAccsUrl = process.env.OLD_ACCOUNTS_URL ?? (dbUrl.startsWith('mongodb://') ? dbUrl : undefined)
   const oldAccsNs = process.env.OLD_ACCOUNTS_NS
 
+  const hasRegionConfig = process.env.REGION_CONFIG !== undefined || process.env.REGION_CONFIG_JSON !== undefined
   const transactorUri = process.env.TRANSACTOR_URL
-  if (transactorUri === undefined) {
-    console.log('Please provide transactor url')
+  if (transactorUri === undefined && !hasRegionConfig) {
+    console.log('Please provide transactor url or region config')
     process.exit(1)
   }
 
@@ -99,6 +103,9 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
 
   const notificationProducer = platformQueue.getProducer<AccountNotification>(measureCtx, QueueTopic.NotificationQueue)
   setMetadata(accountPlugin.metadata.MailQueue, notificationProducer)
+
+  const crmProducer = platformQueue.getProducer<CrmNotification>(measureCtx, QueueTopic.CrmQueue)
+  setMetadata(accountPlugin.metadata.CrmQueue, crmProducer)
 
   addStringsLoader(accountId, async (lang: string) => {
     switch (lang) {
@@ -127,6 +134,7 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   }
 
   setMetadata(account.metadata.Transactors, transactorUri)
+  initRegionConfig()
   setMetadata(platform.metadata.locale, lang)
   setMetadata(account.metadata.ProductName, productName)
   setMetadata(account.metadata.OtpTimeToLiveSec, parseInt(process.env.OTP_TIME_TO_LIVE ?? '60'))
@@ -211,6 +219,16 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     return extractAuthorizationToken(headers) ?? extractCookieToken(headers)
   }
 
+  function generateShortId (length = 12): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    const bytes = randomBytes(length)
+    let result = ''
+    for (let i = 0; i < length; i++) {
+      result += chars[bytes[i] % chars.length]
+    }
+    return result
+  }
+
   const getRequestMeta = (headers: IncomingHttpHeaders, isServiceRequest: boolean): Meta => {
     const meta: Meta = {}
 
@@ -223,6 +241,10 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
       if (['internal', 'external'].includes(val)) {
         meta.clientNetworkPosition = val as ClientNetworkPosition
       }
+    }
+
+    if (headers?.cookie !== undefined) {
+      meta.cookies = headers.cookie
     }
 
     return meta
@@ -475,8 +497,88 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
           ctx.res.end(JSON.stringify(response))
         }
       },
-      { method: request.method }
+      { method: request.method },
+      { metric: 'account.rpc.duration' }
     )
+  })
+
+  // ======= S H O R T   L I N K S =======
+
+  router.post('/api/v1/createShortLink', async (ctx) => {
+    const token = extractToken(ctx.request.headers)
+    if (token === undefined) {
+      ctx.res.writeHead(401, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ error: 'Unauthorized' }))
+      return
+    }
+
+    try {
+      const decoded = decodeToken(token)
+      if (decoded.extra?.service === undefined) {
+        ctx.res.writeHead(403, KEEP_ALIVE_HEADERS)
+        ctx.res.end(JSON.stringify({ error: 'Forbidden: service token required' }))
+        return
+      }
+    } catch {
+      ctx.res.writeHead(401, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ error: 'Invalid token' }))
+      return
+    }
+
+    const { payload, workspaceId } = ctx.request.body as any
+
+    if (typeof payload !== 'string' || typeof workspaceId !== 'string') {
+      ctx.res.writeHead(400, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ error: 'payload and workspaceId are required' }))
+      return
+    }
+
+    try {
+      const [db] = await accountsDb
+      await migrations
+
+      const shortId = generateShortId()
+      await db.shortLink.insertOne({ id: shortId, payload, workspaceId })
+
+      ctx.res.writeHead(200, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ shortId }))
+    } catch (err: any) {
+      Analytics.handleError(err)
+      measureCtx.error('createShortLink failed', { error: err })
+      ctx.res.writeHead(500, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ error: 'Internal server error' }))
+    }
+  })
+
+  router.get('/api/v1/resolveShortLink/:shortId', async (ctx) => {
+    const shortId = ctx.params.shortId
+
+    if (typeof shortId !== 'string' || shortId.length === 0) {
+      ctx.res.writeHead(400, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ error: 'shortId is required' }))
+      return
+    }
+
+    try {
+      const [db] = await accountsDb
+      await migrations
+
+      const link = await db.shortLink.findOne({ id: shortId })
+
+      if (link === null) {
+        ctx.res.writeHead(404, KEEP_ALIVE_HEADERS)
+        ctx.res.end(JSON.stringify({ error: 'Link not found' }))
+        return
+      }
+
+      ctx.res.writeHead(200, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ payload: link.payload }))
+    } catch (err: any) {
+      Analytics.handleError(err)
+      measureCtx.error('resolveShortLink failed', { error: err })
+      ctx.res.writeHead(500, KEEP_ALIVE_HEADERS)
+      ctx.res.end(JSON.stringify({ error: 'Internal server error' }))
+    }
   })
 
   app.use(router.routes()).use(router.allowedMethods())
@@ -488,6 +590,7 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   const close = (): void => {
     onClose?.()
     void notificationProducer.close()
+    void crmProducer.close()
     void platformQueue.shutdown()
     void accountsDb.then(([, closeAccountsDb]) => {
       closeAccountsDb()

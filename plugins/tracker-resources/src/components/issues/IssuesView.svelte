@@ -8,6 +8,7 @@
   import {
     FilterBar,
     selectionStore,
+    setViewOptions,
     SpaceHeader,
     ViewletContentView,
     ViewletSettingButton
@@ -24,7 +25,7 @@
   export let icon: Asset | undefined = undefined
   export let modeSelectorProps: IModeSelector | undefined = undefined
 
-  let viewlet: WithLookup<Viewlet> | undefined = undefined
+  export let viewlet: WithLookup<Viewlet> | undefined = undefined
   const viewlets: WithLookup<Viewlet>[] | undefined = undefined
   let viewOptions: ViewOptions | undefined
 
@@ -42,21 +43,28 @@
     })
   }
 
-  let finalQuery: DocumentQuery<Doc> | undefined
-
   $: $useShowDaysStore = (viewOptions as any)?.shouldShowDays === true
+
+  // Prevent groupBy and swimLaneBy from being the same field.
+  $: if (viewlet != null && viewOptions != null) {
+    const groupBy = (viewOptions.groupBy ?? [])[0]
+    const swimLaneBy = (viewOptions as any).swimLaneBy as string | undefined
+    if (swimLaneBy != null && swimLaneBy !== 'none' && groupBy === swimLaneBy) {
+      const fixed = { ...(viewOptions as any), swimLaneBy: 'none' }
+      setViewOptions(viewlet, fixed)
+      viewOptions = fixed
+    }
+  }
 
   function filterIssues (docs: Doc[]): Issue[] {
     const h = getClient().getHierarchy()
-    const result = (docs ?? []).filter(
+    return (docs ?? []).filter(
       (it) =>
         h.isDerived(it._class, tracker.class.Issue) &&
         (it as Issue).estimation != null &&
         (it as Issue).reportedTime != null &&
         (it as Issue).remainingTime != null
     ) as Issue[]
-    console.log('##', docs, result)
-    return result
   }
 </script>
 

@@ -16,6 +16,7 @@
 
 import core, {
   AccountUuid,
+  Branding,
   Class,
   Data,
   Doc,
@@ -97,7 +98,7 @@ class Workspace {
   private inProgress = false
   private lastTxDate: Timestamp | undefined = undefined
 
-  private readonly txFactory = new TxFactory(core.account.System)
+  private readonly txFactory = new TxFactory(core.account.System, true)
   private readonly client: Client
 
   private constructor (
@@ -108,6 +109,7 @@ class Workspace {
     private readonly model: ModelDb,
     private readonly rest: RestClient,
     private readonly storage: StorageAdapter,
+    private readonly branding: Branding | undefined,
     private readonly txTypes: TxNotificationType[]
   ) {
     this.client = this.getClient()
@@ -116,7 +118,11 @@ class Workspace {
 
   async tx (tx: TxCUD<Doc>): Promise<void> {
     this.inProgress = true
-    const domain = this.hierarchy.getDomain(tx.objectClass)
+    const domain = this.hierarchy.findDomain(tx.objectClass)
+    if (domain == null) {
+      this.inProgress = false
+      return
+    }
 
     if (domain === 'model') {
       this.model.addTxes(this.ctx, [tx], true)
@@ -156,7 +162,15 @@ class Workspace {
   private async applyTxes (txes: TxCUD<Doc>[]): Promise<void> {
     for (let i = 0; i < txes.length; i += config.ApplyTxBatchSize) {
       const batch = txes.slice(i, i + config.ApplyTxBatchSize)
-      const txApply = this.txFactory.createTxApplyIf(core.space.Tx, 'notifications', [], [], batch, undefined, true)
+      const txApply = this.txFactory.createTxApplyIf(
+        core.space.DerivedTx,
+        'notifications',
+        [],
+        [],
+        batch,
+        undefined,
+        true
+      )
       try {
         await this.rest.tx(txApply)
       } catch (e) {
@@ -174,6 +188,7 @@ class Workspace {
       storage: this.storage,
       hierarchy: this.hierarchy,
       model: this.model,
+      branding: this.branding,
       findAll: async <T extends Doc>(
         _class: Ref<Class<T>>,
         query: DocumentQuery<T>,
@@ -208,7 +223,8 @@ class Workspace {
 
       for (const context of ctx) {
         const current = context.lastView ?? 0
-        if (current >= ts) continue
+        if (current === ts) continue
+        context.lastView = ts
         res.push(
           this.txFactory.createTxUpdateDoc(context._class, context.space, context._id, {
             lastView: ts
@@ -259,8 +275,18 @@ class Workspace {
     const mentionType = matched.find((it) => it._id === notification.ids.MentionNotificationType)
 
     if (mentionType != null) {
-      if (hierarchy.isDerived(txObject._class, activity.class.ActivityMessage)) {
-        res.push(...this.updateContextLastUpdate(contexts, tx.createdOn ?? tx.modifiedOn, sender.account, []))
+      if (
+        tx._class === core.class.TxCreateDoc &&
+        hierarchy.isDerived(txObject._class, activity.class.ActivityMessage)
+      ) {
+        res.push(
+          ...this.updateContextLastUpdate(
+            contexts,
+            (txObject as ActivityMessage).createdOn ?? tx.modifiedOn,
+            sender.account,
+            []
+          )
+        )
       }
       const result = await createMentionsData(
         client,
@@ -286,7 +312,9 @@ class Workspace {
             d.context,
             d.receiver,
             d.notifyResult,
-            hierarchy.isDerived(txObject._class, activity.class.ActivityMessage)
+            hierarchy.isDerived(txObject._class, activity.class.ActivityMessage),
+            [],
+            (txObject as ActivityMessage).createdOn
           ))
         )
       }
@@ -327,7 +355,7 @@ class Workspace {
         } else {
           const intlParams: Record<string, string | number> = {
             ...data.props,
-            senderName: getSenderName(sender, config.LastNameFirst)
+            senderName: getSenderName(sender, client.branding?.lastNameFirst)
           }
           const intlParamsNotLocalized: Record<string, IntlString> = { ...data.propsIntl }
 
@@ -431,7 +459,7 @@ class Workspace {
     const txes = await this.createNotifications(
       notification.class.ReactionInboxNotification,
       data,
-      getReactionNotificationContent(message, reaction, sender),
+      getReactionNotificationContent(this.client, message, reaction, sender),
       doc,
       reaction.modifiedOn,
       reaction.modifiedBy,
@@ -461,6 +489,21 @@ class Workspace {
       return await this.processCreateMessage(tx as TxCreateDoc<ActivityMessage>, notifiedUsers, _res)
     } else if (tx._class === core.class.TxRemoveDoc) {
       return await this.processRemoveMessage(tx as TxRemoveDoc<ActivityMessage>)
+    } else if (tx._class === core.class.TxUpdateDoc) {
+      if (!this.client.hierarchy.isDerived(tx.objectClass, activity.class.DocUpdateMessage)) return []
+
+      const updateTx = tx as TxUpdateDoc<DocUpdateMessage>
+      const ops = updateTx.operations ?? {}
+      const historyChanged =
+        ops.history !== undefined || ops.$push?.history !== undefined || ops.$pull?.history !== undefined
+
+      // Skip processing if it's a simple aggregation of history within CREATE_COMBINE_THRESHOLD.
+      // This aggregation ONLY uses $push: { history: ... } and doesn't change the main message content.
+      const isCombine = ops.$push?.history !== undefined && Object.keys(ops).length === 1
+
+      if (historyChanged && !isCombine) {
+        return await this.processUpdateMessage(updateTx, notifiedUsers, _res)
+      }
     }
 
     return []
@@ -503,6 +546,7 @@ class Workspace {
     const receivers = await this.cache.getReceivers(collaborators)
 
     if (receivers.length === 0) return res
+    const contentByType = new Map<Ref<NotificationType>, NotificationContent>()
 
     for (const receiver of receivers) {
       const context = contexts.find((it) => it.user === receiver.account)
@@ -514,6 +558,10 @@ class Workspace {
       const type = types[0]
       if (type == null) continue
 
+      const content =
+        contentByType.get(type._id) ?? (await getMessageNotificationContent(client, type, doc, message, sender))
+      contentByType.set(type._id, content)
+
       res.push(
         ...(await this.createNotifications(
           notification.class.ActivityInboxNotification,
@@ -521,7 +569,7 @@ class Workspace {
             attachedTo: message._id,
             attachedToClass: message._class
           },
-          await getMessageNotificationContent(client, type, doc, message, sender),
+          content,
           doc,
           message.modifiedOn,
           message.modifiedBy,
@@ -529,7 +577,8 @@ class Workspace {
           receiver,
           notifyResult,
           true,
-          res
+          res,
+          message.createdOn
         ))
       )
     }
@@ -547,7 +596,8 @@ class Workspace {
     receiver: Receiver,
     notifyResult: NotifyResult,
     isMessageNotify: boolean,
-    txes: TxCUD<Doc>[] = []
+    txes: TxCUD<Doc>[] = [],
+    messageCreatedOn?: Timestamp
   ): Promise<TxCUD<Doc>[]> {
     const res: TxCUD<Doc>[] = []
 
@@ -571,7 +621,7 @@ class Workspace {
     } else {
       const readState = await this.cache.getDocReadState(doc._id)
       const lastView = readState?.[receiver.account]?.timestamp ?? 0
-      const contextTx = this.getCreateContextTx(doc, receiver, modifiedOn, lastView, isMessageNotify)
+      const contextTx = this.getCreateContextTx(doc, receiver, modifiedOn, lastView, isMessageNotify, messageCreatedOn)
       res.push(contextTx)
       contextId = TxProcessor.createDoc2Doc(contextTx)._id
     }
@@ -602,7 +652,8 @@ class Workspace {
     receiver: Receiver,
     createdOn: Timestamp,
     lastView: Timestamp,
-    isMessageNotify: boolean
+    isMessageNotify: boolean,
+    messageCreatedOn?: Timestamp
   ): TxCreateDoc<DocNotifyContext> {
     const createTx = this.txFactory.createTxCreateDoc(notification.class.DocNotifyContext, receiver.space, {
       user: receiver.account,
@@ -610,7 +661,7 @@ class Workspace {
       objectClass: doc._class,
       objectSpace: doc.space,
       lastView,
-      lastUpdate: isMessageNotify ? createdOn : undefined,
+      lastUpdate: isMessageNotify ? (messageCreatedOn ?? createdOn) : undefined,
       lastNotify: createdOn,
       lastNotifiedMessage: isMessageNotify ? createdOn : undefined
     })
@@ -621,6 +672,82 @@ class Workspace {
 
   private async processRemoveMessage (tx: TxRemoveDoc<ActivityMessage>): Promise<TxCUD<Doc>[]> {
     return []
+  }
+
+  private async processUpdateMessage (
+    tx: TxUpdateDoc<DocUpdateMessage>,
+    notifiedUsers: AccountUuid[],
+    _res: TxCUD<Doc>[]
+  ): Promise<TxCUD<Doc>[]> {
+    const client = this.client
+    const _message = await this.cache.getDoc(tx.objectId, tx.objectClass)
+    if (_message === undefined) return []
+
+    const message = TxProcessor.updateDoc2Doc(_message, tx)
+
+    const doc = await this.cache.getDoc(message.attachedTo, message.attachedToClass)
+    if (doc === undefined) return []
+
+    const space = await this.cache.getDocSpace(doc)
+    if (space === undefined) return []
+
+    const res: TxCUD<Doc>[] = []
+    const contexts = await this.cache.getContexts(doc._id)
+    const sender = await this.cache.getSender(tx.modifiedBy)
+
+    const collaborators = (await this.getCollaboratorAccounts(doc, space)).filter((it) => !notifiedUsers.includes(it))
+
+    if (message.objectClass === core.class.Collaborator) {
+      const acc = message.objectAttributes?.collaborator as AccountUuid | undefined
+      if (acc != null && !collaborators.includes(acc)) collaborators.push(acc)
+    }
+
+    if (collaborators.length === 0) return res
+
+    const settings = await this.cache.getSettings()
+    const receivers = await this.cache.getReceivers(collaborators)
+
+    if (receivers.length === 0) return res
+
+    const oldNotifications = (await this.client.findAll(notification.class.ActivityInboxNotification, {
+      attachedTo: message._id
+    })) as InboxNotification[]
+
+    for (const receiver of receivers) {
+      const context = contexts.find((it) => it.user === receiver.account)
+      const mode = context?.settings?.mode ?? 'all'
+      if (mode === 'mute') continue
+
+      const notifyResult = await getMessageNotifyResult(client, message, doc, receiver, settings, mode)
+      const types = notifyResult[notification.providers.InboxNotificationProvider] ?? []
+      const type = types[0]
+      if (type == null) continue
+
+      const oldNotification = oldNotifications.find((it) => it.user === receiver.account)
+      if (oldNotification != null) {
+        res.push(this.txFactory.createTxRemoveDoc(oldNotification._class, oldNotification.space, oldNotification._id))
+      }
+
+      res.push(
+        ...(await this.createNotifications(
+          notification.class.ActivityInboxNotification,
+          {
+            attachedTo: message._id,
+            attachedToClass: message._class
+          },
+          await getMessageNotificationContent(client, type, doc, message, sender),
+          doc,
+          tx.modifiedOn,
+          tx.modifiedBy,
+          context,
+          receiver,
+          notifyResult,
+          true,
+          res
+        ))
+      )
+    }
+    return res
   }
 
   private async getCollaboratorAccounts (doc: Doc, space: Space): Promise<AccountUuid[]> {
@@ -695,6 +822,7 @@ class Workspace {
     sysModel: Tx[],
     storage: StorageAdapter,
     rest: RestClient,
+    branding: Branding | undefined,
     txTypes: TxNotificationType[]
   ): Promise<Workspace> {
     const dbConf = getConfig(ctx, config.DbUrl, ctx, {
@@ -717,7 +845,7 @@ class Workspace {
         uuid: ws.uuid,
         url: ws.url
       },
-      branding: null,
+      branding: branding ?? null,
       modelDb,
       hierarchy,
       storageAdapter: storage,
@@ -734,7 +862,7 @@ class Workspace {
       throw new Error('Low level storage is not defined')
     }
 
-    return new Workspace(ctx, ws, pipeline, hierarchy, modelDb, rest, storage, txTypes)
+    return new Workspace(ctx, ws, pipeline, hierarchy, modelDb, rest, storage, branding, txTypes)
   }
 
   async close (): Promise<void> {

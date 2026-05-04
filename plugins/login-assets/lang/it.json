@@ -82,6 +82,8 @@
     "Proceed": "Procedere",
     "SetPasswordLater": "Imposterò una password più tardi",
     "SetPasswordNow": "Impostare la password ora",
+    "AgreedRules": "Accetto l&#39;<a href=\"{linkLicense}\" target=\"_blank\">Accordo di licenza</a>, l&#39;<a href=\"{linkUserAgreement}\" target=\"_blank\">Accordo per l&#39;utente</a> e l&#39;<a href=\"{linkConfidential}\" target=\"_blank\">Informativa sulla privacy</a>",
+    "AgreedPersonalData": "Presto il <a href=\"{link}\" target=\"_blank\">Consenso al trattamento dei dati personali</a>",
     "LoginAsGuest": "Continua come ospite",
     "SignUpToCreateWorkspace": "Nessuna area di lavoro con accesso ospite. Per favore, registrati per crearne una tua.",
     "WhatIsYourName": "Come ti chiami?",
@@ -100,6 +102,8 @@
     "HowToLogin": "Come desideri accedere?",
     "AlreadySignedIn": "Unisciti con un account esistente",
     "ExpiredLink": "Questo link di invito è scaduto",
-    "ExpiredLinkDescription": "Richiedi un nuovo link di invito"
+    "ExpiredLinkDescription": "Richiedi un nuovo link di invito",
+    "UsageConditions": "Condizioni d'uso",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

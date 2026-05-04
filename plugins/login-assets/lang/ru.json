@@ -78,10 +78,12 @@
     "RestoreArchivedWorkspace": "Восстановить",
     "Hello": "Привет {name},",
     "ProcessingInvite": "Обработка приглашения, пожалуйста, подождите...",
-    "SignToProceed": "Интабия. Платформа",
+    "SignToProceed": "Интабия Платформа",
     "Proceed": "Продолжить",
     "SetPasswordLater": "Я установлю пароль позже",
     "SetPasswordNow": "Установить пароль сейчас",
+    "AgreedRules": "Я согласен с <a href=\"{linkLicense}\" target=\"_blank\">Лицензионным договором</a>, <a href=\"{linkUserAgreement}\" target=\"_blank\">Пользовательским соглашением</a>, <a href=\"{linkConfidential}\" target=\"_blank\">Политикой конфиденциальности</a>",
+    "AgreedPersonalData": "Я даю <a href=\"{link}\" target=\"_blank\">Согласие на обработку персональных данных</a>",
     "LoginAsGuest": "Продолжить как гость",
     "SignUpToCreateWorkspace": "Нет рабочих пространств с гостевым доступом. Пожалуйста, зарегистрируйтесь, чтобы создать своё.",
     "WhatIsYourName": "Как вас зовут?",
@@ -100,6 +102,8 @@
     "HowToLogin": "Как вы хотите войти?",
     "AlreadySignedIn": "Присоединиться с существующим аккаунтом",
     "ExpiredLink": "Срок приглашения истёк",
-    "ExpiredLinkDescription": "Пожалуйста, запросите новую ссылку"
+    "ExpiredLinkDescription": "Пожалуйста, запросите новую ссылку",
+    "UsageConditions": "Условия использования",
+    "IntabiaFusion": "Интабия Фьюжн"
   }
 }

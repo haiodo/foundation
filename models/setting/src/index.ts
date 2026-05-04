@@ -281,19 +281,19 @@ export function createModel (builder: Builder): void {
     },
     setting.ids.Owners
   )
-  builder.createDoc(
-    setting.class.WorkspaceSettingCategory,
-    core.space.Model,
-    {
-      name: 'allSpaces',
-      label: setting.string.Spaces,
-      icon: setting.icon.Views,
-      component: setting.component.Spaces,
-      order: 1100,
-      role: AccountRole.Maintainer
-    },
-    setting.ids.Spaces
-  )
+  // builder.createDoc(
+  //   setting.class.WorkspaceSettingCategory,
+  //   core.space.Model,
+  //   {
+  //     name: 'allSpaces',
+  //     label: setting.string.Spaces,
+  //     icon: setting.icon.Views,
+  //     component: setting.component.Spaces,
+  //     order: 1100,
+  //     role: AccountRole.Maintainer
+  //   },
+  //   setting.ids.Spaces
+  // )
   builder.createDoc(
     setting.class.WorkspaceSettingCategory,
     core.space.Model,
@@ -307,20 +307,20 @@ export function createModel (builder: Builder): void {
     },
     setting.ids.Configure
   )
-  builder.createDoc(
-    setting.class.WorkspaceSettingCategory,
-    core.space.Model,
-    {
-      name: 'classes',
-      label: setting.string.Classes,
-      icon: setting.icon.Clazz,
-      component: setting.component.ClassSetting,
-      group: 'settings-editor',
-      role: AccountRole.Maintainer,
-      order: 4500
-    },
-    setting.ids.ClassSetting
-  )
+  // builder.createDoc(
+  //   setting.class.WorkspaceSettingCategory,
+  //   core.space.Model,
+  //   {
+  //     name: 'classes',
+  //     label: setting.string.Classes,
+  //     icon: setting.icon.Clazz,
+  //     component: setting.component.ClassSetting,
+  //     group: 'settings-editor',
+  //     role: AccountRole.Maintainer,
+  //     order: 4500
+  //   },
+  //   setting.ids.ClassSetting
+  // )
   builder.createDoc(
     setting.class.WorkspaceSettingCategory,
     core.space.Model,

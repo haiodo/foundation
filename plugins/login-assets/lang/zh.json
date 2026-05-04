@@ -82,6 +82,8 @@
     "Proceed": "继续",
     "SetPasswordLater": "稍后设置密码",
     "SetPasswordNow": "现在设置密码",
+    "AgreedRules": "我同意<a href=\"{linkLicense}\" target=\"_blank\">许可协议</a>、<a href=\"{linkUserAgreement}\" target=\"_blank\">用户协议</a>和<a href=\"{linkConfidential}\" target=\"_blank\">隐私政策</a>",
+    "AgreedPersonalData": "我同意<a href=\"{link}\" target=\"_blank\">个人数据处理同意书</a>",
     "LoginAsGuest": "以访客身份继续",
     "SignUpToCreateWorkspace": "没有支持访客访问的工作区。请注册以创建您自己的工作区。",
     "WhatIsYourName": "您的姓名是什么？",
@@ -100,6 +102,8 @@
     "HowToLogin": "您想如何登录？",
     "AlreadySignedIn": "使用现有账户加入",
     "ExpiredLink": "此邀请链接已过期",
-    "ExpiredLinkDescription": "请申请新的邀请链接"
+    "ExpiredLinkDescription": "请申请新的邀请链接",
+    "UsageConditions": "使用条款",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

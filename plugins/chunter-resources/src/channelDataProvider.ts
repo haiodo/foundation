@@ -29,7 +29,7 @@ import {
 import { derived, get, type Readable, writable } from 'svelte/store'
 import activity, { type ActivityMessage, type ActivityReference } from '@hcengineering/activity'
 import attachment from '@hcengineering/attachment'
-import { combineActivityMessages, sortActivityMessages } from '@hcengineering/activity-resources'
+import { sortActivityMessages } from '@hcengineering/activity-resources'
 import notification, { type DocNotifyContext } from '@hcengineering/notification'
 
 export type LoadMode = 'forward' | 'backward'
@@ -40,6 +40,7 @@ export interface MessageMetadata {
   createdOn?: Timestamp
   modifiedOn: Timestamp
   createdBy?: PersonId
+  replies?: number
 }
 
 interface Chunk {
@@ -208,7 +209,16 @@ export class ChannelDataProvider implements IChannelDataProvider {
         void this.loadInitialMessages(undefined, loadAll)
       },
       {
-        projection: { _id: 1, _class: 1, space: 1, createdOn: 1, createdBy: 1, attachedTo: 1, modifiedOn: 1 },
+        projection: {
+          _id: 1,
+          _class: 1,
+          space: 1,
+          createdOn: 1,
+          createdBy: 1,
+          attachedTo: 1,
+          modifiedOn: 1,
+          replies: 1
+        },
         sort: { createdOn: SortingOrder.Ascending }
       }
     )
@@ -294,7 +304,7 @@ export class ChannelDataProvider implements IChannelDataProvider {
         ...(this.tailStart !== undefined ? { createdOn: { $gte: this.tailStart } } : {})
       },
       async (res) => {
-        const result = combineActivityMessages(res.reverse())
+        const result = res.reverse()
         this.tailStore.set(result)
 
         this.isTailLoaded.set(true)
@@ -371,7 +381,7 @@ export class ChannelDataProvider implements IChannelDataProvider {
     return {
       from: from.createdOn ?? from.modifiedOn,
       to: to.createdOn ?? to.modifiedOn,
-      data: isBackward ? combineActivityMessages(messages.reverse()) : combineActivityMessages(messages)
+      data: isBackward ? messages.reverse() : messages
     }
   }
 

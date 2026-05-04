@@ -33,6 +33,7 @@ import {
   type ModelDb,
   type Obj,
   type OperationDomain,
+  type ParamsType,
   type PersonId,
   type Ref,
   type SearchOptions,
@@ -438,7 +439,7 @@ export interface WithFind {
     ctx: MeasureContext,
     clazz: Ref<Class<T>>,
     query: DocumentQuery<T>,
-    options?: FindOptions<T>
+    options?: ServerFindOptions<T>
   ) => Promise<FindResult<T>>
 }
 
@@ -469,8 +470,10 @@ export type SearchPresenterProvider = (
   parent: Doc | undefined,
   space: Space | undefined,
   hierarchy: Hierarchy,
-  mode: string
-) => string
+  mode: string,
+  ctx: MeasureContext,
+  storage: WithFind
+) => string | Promise<string>
 
 export type FieldParamKind = 'space' | 'parent'
 
@@ -577,7 +580,7 @@ export interface ClientSessionCtx {
 //
 export interface OneSecondCounters {
   // Will increment and decrement on any issue or timeout.
-  withCounter: <T>(counter: string, count: number, op: () => Promise<T>) => Promise<T>
+  withCounter: <T>(counter: string, count: number, op: () => Promise<T>, labels?: ParamsType) => Promise<T>
 }
 
 /**

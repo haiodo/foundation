@@ -82,6 +82,8 @@
     "Proceed": "Pokračovat",
     "SetPasswordLater": "Nastavím heslo později",
     "SetPasswordNow": "Nastavit heslo nyní",
+    "AgreedRules": "Souhlasím s <a href=\"{linkLicense}\" target=\"_blank\">Licenční smlouvou</a>, <a href=\"{linkUserAgreement}\" target=\"_blank\">Uživatelskou smlouvou</a> a <a href=\"{linkConfidential}\" target=\"_blank\">Zásadami ochrany osobních údajů</a>",
+    "AgreedPersonalData": "Udělením <a href=\"{link}\" target=\"_blank\">Souhlasu se zpracováním osobních údajů</a>",
     "LoginAsGuest": "Pokračovat jako host",
     "SignUpToCreateWorkspace": "Neexistují žádné pracovní prostory s přístupem pro hosty. Prosím, zaregistrujte se a vytvořte si vlastní.",
     "WhatIsYourName": "Jak se jmenujete?",
@@ -100,6 +102,8 @@
     "HowToLogin": "Jak se chcete přihlásit?",
     "AlreadySignedIn": "Připojit se s existujícím účtem",
     "ExpiredLink": "Platnost odkazu na pozvánku vypršela",
-    "ExpiredLinkDescription": "Požádejte prosím o nový odkaz na pozvánku"
+    "ExpiredLinkDescription": "Požádejte prosím o nový odkaz na pozvánku",
+    "UsageConditions": "Podmínky použití",
+    "IntabiaFusion": "Intabia Fusion"
   }
 }

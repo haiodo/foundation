@@ -41,6 +41,7 @@ import {
   pickPrimarySocialId
 } from '@hcengineering/core'
 import { addLocation, getResource } from '@hcengineering/platform'
+import { LiveQuery } from '@hcengineering/query'
 
 import { type ServerConfig, loadServerConfig } from './config'
 import {
@@ -76,7 +77,16 @@ export async function connect (url: string, options: ConnectOptions): Promise<Pl
     fullSocialIds: socialIds
   }
 
-  return await createClient(url, endpoint, token, wsLoginInfo.workspace, account, config, options)
+  return await createClient(
+    url,
+    endpoint,
+    token,
+    wsLoginInfo.workspace,
+    account,
+    config,
+    options,
+    wsLoginInfo.collaboratorEndpoint
+  )
 }
 
 async function createClient (
@@ -86,9 +96,19 @@ async function createClient (
   workspaceUuid: WorkspaceUuid,
   account: Account,
   config: ServerConfig,
-  options: ConnectOptions
+  options: ConnectOptions,
+  collaboratorEndpoint?: string
 ): Promise<PlatformClient> {
-  addLocation(clientId, () => import(/* webpackChunkName: "client" */ '@hcengineering/client-resources'))
+  addLocation(clientId, () => {
+    // In Node/Jest environments, dynamic import callbacks can fail without
+    // --experimental-vm-modules. Use require there and keep dynamic import
+    // for browser/bundler environments.
+    if (typeof window === 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      return Promise.resolve(require('@hcengineering/client-resources'))
+    }
+    return import(/* webpackChunkName: "client" */ '@hcengineering/client-resources')
+  })
 
   const { socketFactory, connectionTimeout } = options
 
@@ -98,12 +118,14 @@ async function createClient (
     connectionTimeout
   })
 
-  return new PlatformClientImpl(url, workspaceUuid, token, config, connection, account)
+  return new PlatformClientImpl(url, workspaceUuid, token, config, connection, account, collaboratorEndpoint)
 }
 
 class PlatformClientImpl implements PlatformClient {
   private readonly client: TxOperations
   private readonly markup: MarkupOperations
+  private liveQueries: Array<WeakRef<LiveQuery>> = []
+  private notifyInstalled = false
 
   constructor (
     private readonly url: string,
@@ -111,10 +133,11 @@ class PlatformClientImpl implements PlatformClient {
     private readonly token: string,
     private readonly config: ServerConfig,
     private readonly connection: Client,
-    private readonly account: Account
+    private readonly account: Account,
+    collaboratorEndpoint?: string
   ) {
     this.client = new TxOperations(connection, account.primarySocialId)
-    this.markup = createMarkupOperations(url, workspace, token, config)
+    this.markup = createMarkupOperations(url, workspace, token, collaboratorEndpoint ?? '')
   }
 
   // Client
@@ -129,6 +152,28 @@ class PlatformClientImpl implements PlatformClient {
 
   async getAccount (): Promise<Account> {
     return this.account
+  }
+
+  createLiveQuery (): LiveQuery {
+    const lq = new LiveQuery(this.connection)
+    this.liveQueries.push(new WeakRef(lq))
+    if (!this.notifyInstalled) {
+      const prev = this.connection.notify?.bind(this.connection)
+      this.connection.notify = (...tx) => {
+        prev?.(...tx)
+        const alive: Array<WeakRef<LiveQuery>> = []
+        for (const ref of this.liveQueries) {
+          const q = ref.deref()
+          if (q !== undefined) {
+            alive.push(ref)
+            void q.tx(...tx)
+          }
+        }
+        this.liveQueries = alive
+      }
+      this.notifyInstalled = true
+    }
+    return lq
   }
 
   async findOne<T extends Doc>(

@@ -43,6 +43,7 @@ import love, { loveId } from '@hcengineering/love'
 import notification, { notificationId } from '@hcengineering/notification'
 import onboard, { onboardId } from '@hcengineering/onboard'
 import presence, { presenceId } from '@hcengineering/presence'
+import { pulseId } from '@hcengineering/pulse'
 import print, { printId } from '@hcengineering/print'
 import { processId } from '@hcengineering/process'
 import { productsId } from '@hcengineering/products'
@@ -52,7 +53,7 @@ import rekoni from '@hcengineering/rekoni'
 import { requestId } from '@hcengineering/request'
 import setting, { settingId } from '@hcengineering/setting'
 import sign from '@hcengineering/sign'
-import support, { supportId, supportLink, reportBugLink,  privacyPolicyLink } from '@hcengineering/support'
+import support, { supportId, supportLink, reportBugLink, privacyPolicyLink, defaultSupportEmail } from '@hcengineering/support'
 import { surveyId } from '@hcengineering/survey'
 import { tagsId } from '@hcengineering/tags'
 import { taskId } from '@hcengineering/task'
@@ -165,7 +166,6 @@ export interface Config {
   DATALAKE_URL?: string
   MODEL_VERSION: string
   VERSION: string
-  COLLABORATOR_URL: string
   COLLABORATOR?: string
   REKONI_URL: string
   TELEGRAM_URL: string
@@ -206,7 +206,6 @@ export interface Config {
   BILLING_URL?: string
   PAYMENT_URL?: string
   EXCLUDED_APPLICATIONS_FOR_ANONYMOUS?: string
-  PULSE_URL?: string
   HULYLAKE_URL?: string
   DISABLED_FEATURES?: string
   SIGNUP_URL?: string
@@ -217,6 +216,14 @@ export interface Config {
 
   ACCENT_THEME?: string
   LOGIN_THEME?: string
+  COPYRIGHT?: string
+  USAGE_URL?: string
+  SUPPORT_URL?: string
+  LICENSE_URL?: string
+  USERAGREEMENT_URL?: string
+  CONFIDENTIAL_URL?: string
+  SUPPORT_EMAIL?: string
+  PERSONAL_DATA_URL?: string
 }
 
 export interface Branding {
@@ -501,6 +508,10 @@ export async function configurePlatform() {
   setMetadata(login.metadata.DesktopUpdatesUrl, updatesUrl)
   setMetadata(login.metadata.DesktopUpdatesChannel, updatesChannels)
 
+  setMetadata(login.metadata.Copyright, config.COPYRIGHT ?? login.string.IntabiaFusion)
+  setMetadata(login.metadata.UsageUrl, config.USAGE_URL)
+  setMetadata(login.metadata.SupportUrl, config.SUPPORT_URL)
+
   setMetadata(login.metadata.PasswordValidations, PASSWORD_REQUIREMENTS[config.PASSWORD_STRICTNESS ?? 'none'])
 
   setMetadata(presentation.metadata.UploadURL, config.UPLOAD_URL)
@@ -509,7 +520,6 @@ export async function configurePlatform() {
     presentation.metadata.FileStorage,
     createFileStorage(config.UPLOAD_URL, config.DATALAKE_URL, config.HULYLAKE_URL)
   )
-  setMetadata(presentation.metadata.CollaboratorUrl, config.COLLABORATOR_URL)
 
   const testingAccentTheme = localStorage.getItem('#testing.accent.theme')
 
@@ -544,7 +554,7 @@ export async function configurePlatform() {
     setMetadata(presentation.metadata.FrontVersion, config.VERSION)
   }
   setMetadata(telegram.metadata.TelegramURL, config.TELEGRAM_URL ?? 'http://localhost:8086')
-  setMetadata(telegram.metadata.BotUrl, config.TELEGRAM_BOT_URL ?? 'http://huly.local:4020')
+  setMetadata(telegram.metadata.BotUrl, config.TELEGRAM_BOT_URL)
   setMetadata(gmail.metadata.GmailURL, config.GMAIL_URL ?? 'http://localhost:8087')
   setMetadata(calendar.metadata.CalendarServiceURL, config.CALENDAR_URL ?? 'http://localhost:8095')
   setMetadata(calendar.metadata.PublicScheduleURL, config.PUBLIC_SCHEDULE_URL)
@@ -571,7 +581,6 @@ export async function configurePlatform() {
   setMetadata(billingPlugin.metadata.BillingURL, config.BILLING_URL ?? '')
   setMetadata(presentation.metadata.PaymentUrl, config.PAYMENT_URL ?? '')
 
-  setMetadata(presentation.metadata.PulseUrl, config.PULSE_URL)
   setMetadata(presentation.metadata.HulylakeUrl, config.HULYLAKE_URL ?? '')
 
   setMetadata(support.metadata.SupportLink, myBranding.support?.supportLink ?? supportLink)
@@ -580,7 +589,13 @@ export async function configurePlatform() {
   const frontUrl = config.FRONT_URL ?? window.location.origin
   setMetadata(support.metadata.DocsLink, myBranding.support?.docsLink ?? concatLink(frontUrl, 'docs'))
 
+  setMetadata(login.metadata.LicenseUrl, config.LICENSE_URL ?? `${frontUrl}/legal/license`)
+  setMetadata(login.metadata.UserAgreementUrl, config.USERAGREEMENT_URL ?? `${frontUrl}/legal/user-agreement`)
+  setMetadata(login.metadata.ConfidentialUrl, config.CONFIDENTIAL_URL ?? `${frontUrl}/legal/confidential`)
+  setMetadata(login.metadata.PersonalDataUrl, config.PERSONAL_DATA_URL ?? `${frontUrl}/legal/agreement`)
+
   setMetadata(support.metadata.PrivacyPolicyLink, myBranding.support?.privacyPolicyLink ?? privacyPolicyLink)
+  setMetadata(support.metadata.SupportEmail, config.SUPPORT_EMAIL ?? defaultSupportEmail)
 
   const languages = myBranding.languages
     ? myBranding.languages.split(',').map((l) => l.trim())
@@ -757,7 +772,7 @@ export async function configurePlatform() {
 
   setMetadata(client.metadata.FilterModel, 'ui')
   setMetadata(client.metadata.ExtraFilter, disabledFeatures)
-  setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin])
+  setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin, pulseId as Plugin])
   setMetadata(login.metadata.TransactorOverride, config.TRANSACTOR_OVERRIDE)
 
   // Use binary response transfer for faster performance and small transfer sizes.

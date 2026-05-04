@@ -24,7 +24,7 @@
   import { areEqualMarkups, isEmptyMarkup } from '@hcengineering/text'
   import { showPopup, ThrottledCaller } from '@hcengineering/ui'
   import { FileUploadCallbackParams, getUploadHandlers, UploadHandlerDefinition } from '@hcengineering/uploader'
-  import { createEventDispatcher, tick } from 'svelte'
+  import { createEventDispatcher, onDestroy, tick } from 'svelte'
 
   import { getDraft, getEmptyDraft, messageToDraft, removeDraft, saveDraft } from '../../draft'
   import communication from '../../plugin'
@@ -96,6 +96,10 @@
     }
   }
 
+  function typingObjectId (card: Card): string {
+    return card.peerId != null ? `peer:${card.peerId}` : card._id
+  }
+
   async function handleSubmit (event: CustomEvent<Markup>): Promise<void> {
     event.preventDefault()
     event.stopPropagation()
@@ -127,8 +131,15 @@
       dispatch('edited')
     }
 
-    void clearTyping(acc.primarySocialId, card._id)
+    void clearTyping(acc.primarySocialId, typingObjectId(card))
   }
+
+  onDestroy(() => {
+    void clearTyping(acc.primarySocialId, card._id)
+    if (card.peerId) {
+      void clearTyping(acc.primarySocialId, `peer:${card.peerId}`)
+    }
+  })
 
   async function fileSelected (): Promise<void> {
     progress = true
@@ -306,7 +317,7 @@
     if (message !== undefined) return
     if (!isEmptyMarkup(markup)) {
       throttle.call(() => {
-        void setTyping(acc.primarySocialId, card.peerId ? `peer:${card.peerId}` : card._id)
+        void setTyping(acc.primarySocialId, typingObjectId(card), card.space)
       })
     }
   }
