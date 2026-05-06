@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+set -eo pipefail
 version=$(git rev-parse HEAD)
 
 # Check for cleanup flag from environment
