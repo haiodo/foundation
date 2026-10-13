@@ -35,7 +35,8 @@ import core, {
   type SearchOptions,
   type SearchQuery,
   type SearchResult,
-  type SessionData
+  type SessionData,
+  notEmpty
 } from '@hcengineering/core'
 import type { IndexedDoc, Middleware, MiddlewareCreator, PipelineContext } from '@hcengineering/server-core'
 import { BaseMiddleware } from '@hcengineering/server-core'
@@ -208,7 +209,8 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
 
     // A re-check by _id must find the doc beyond the first fullTextLimit hits.
     // Long id lists stay unfiltered: Elastic caps the terms of a filter.
-    const askedIds = typeof _id === 'string' ? [_id] : _id?.$in
+    // Elastic rejects the whole query for a null in `terms`
+    const askedIds = typeof _id === 'string' ? [_id] : _id?.$in?.filter(notEmpty)
     const knownIds = askedIds !== undefined && askedIds.length <= fullTextLimit ? askedIds : undefined
     if (knownIds !== undefined) {
       findQuery.$filter = { id: knownIds }
