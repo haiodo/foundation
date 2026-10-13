@@ -66,7 +66,8 @@ test.describe('Tracker filter search', () => {
       await issuesPage.selectFilter('Assignee')
       await expect(issuesPage.menuPopupItemButton('Not selected')).toBeVisible()
 
-      await issuesPage.inputSearch().fill('Appleseed')
+      // IssuesPage.inputSearch is the list header search, not the popup one
+      await page.locator('div.selectPopup input[placeholder="Search..."]').fill('Appleseed')
       await expect(issuesPage.menuPopupItemButton('Appleseed John')).toBeVisible({ timeout: 15000 })
     })
 
