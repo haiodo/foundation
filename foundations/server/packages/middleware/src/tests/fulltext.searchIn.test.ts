@@ -148,6 +148,13 @@ describe('FullTextMiddleware $searchIn', () => {
     expect(searches.map((it) => it.query.$filter)).toEqual([{ id: ['i1'] }, { attachedTo: ['i1'] }])
   })
 
+  it('leaves null out of the ids restricting the index', async () => {
+    // A filter over an empty reference asks for null among the ids
+    await mw.findAll(ctx, ISSUE, { $search: 'release', _id: { $in: ['i1' as Ref<Doc>, null as any] } })
+
+    expect(searches.map((it) => it.query.$filter)).toEqual([{ id: ['i1'] }, { attachedTo: ['i1'] }])
+  })
+
   it('does not restrict the index by an id list longer than fullTextLimit', async () => {
     // limit 1: fullTextLimit is 100
     const many = Array.from({ length: 101 }, (_, i) => `i${i}` as Ref<Doc>)
