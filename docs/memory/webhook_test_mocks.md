@@ -27,3 +27,9 @@ Express-приложение (`PORT` 4044, `WEBHOOK_URL` -> `http://webhook:4043
 - `POST /api/send`, `POST /api/job` - реле в настоящий `pod-webhook`, чтобы браузеру не нужен был
   CORS и прямой доступ.
 - UI на `/` держит открытые блоки доставок при автообновлении списка.
+
+## Mock на sanity-стенде
+
+- `tests/docker-compose.yaml`: сервис `webhook-mock` (образ `webhook-mock`, `PORT=4044`, `WEBHOOK_URL=http://webhook:4043`); собирается `pnpm docker:build` (`common/scripts/docker-fast.sh`).
+- Наружу через nginx стенда: `http://localhost:8083/_webhook-mock` (`tests/nginx.conf`), отдельного хостового порта нет; nginx `depends_on` включает `webhook-mock`, иначе upstream не резолвится.
+- Sanity `webhook` получил `ALLOW_INSECURE_WEBHOOK_HTTP=true` и `DEV_ALLOWED_WEBHOOK_HOSTS=webhook-mock`, иначе SSRF-guard (`ssrf.ts`) блокирует `http://webhook-mock:4044`.
