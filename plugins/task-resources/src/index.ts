@@ -82,6 +82,7 @@ import TaskTypeDiagramPopup from './components/taskTypes/TaskTypeDiagramPopup.sv
 
 export { default as AssigneePresenter } from './components/AssigneePresenter.svelte'
 export { default as TypeSelector } from './components/TypeSelector.svelte'
+export { default as StatusCategoryIcon } from './components/state/StatusCategoryIcon.svelte'
 export * from './utils'
 export {
   StatePresenter,
@@ -294,7 +295,7 @@ function whenStoresHave (taskTypes: TaskType[], fn: () => void): void {
   const unsubscribeStatuses = statusStore.subscribe(check)
 }
 
-async function getProjectType (space: Ref<Space> | undefined): Promise<Ref<ProjectType> | undefined> {
+export async function getProjectType (space: Ref<Space> | undefined): Promise<Ref<ProjectType> | undefined> {
   if (space === undefined) return undefined
   const projectId = space as Ref<Project>
   // activeProjects has no archived projects, the server has every project the user can open

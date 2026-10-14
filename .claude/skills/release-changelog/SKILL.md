@@ -51,6 +51,7 @@ git log -1 --pretty=format:'%s%n%b' <sha>
 
 Правила:
 - Новые версии вставлять сверху, перед предыдущей секцией (файл в обратном порядке).
+- Пункты только на английском: русский заголовок коммита перевести.
 - Группы: 🚀 FEATURES / 🐛 BUG FIXES / 🧩 OTHER (catch-all, НЕ "MISCELLANEOUS TASKS").
 - Каждый пункт - ссылка на issue по номеру PR из заголовка коммита.
 - Дата секции = дата тега (`git for-each-ref --format='%(taggerdate:short)' refs/tags/vX.Y.Z`),

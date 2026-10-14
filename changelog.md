@@ -2,6 +2,17 @@
 
 Changelog.
 
+## [0.8.57] - 2026-10-14
+
+* 🚀 FEATURES: · fusio-1553: support status category in validators ([#567](https://github.com/hcengineering/platform/issues/567))
+* 🐛 BUG FIXES: · FUSIO-1554: Fix memory leak ([#565](https://github.com/hcengineering/platform/issues/565)) · FUSIO-1555: Fix attributes filter ([#566](https://github.com/hcengineering/platform/issues/566)) · FUSIO-1067 Fix logo z-index in Windows desktop ([#564](https://github.com/hcengineering/platform/issues/564)) · fusio-1538: Limit status filter to the current project's type ([#562](https://github.com/hcengineering/platform/issues/562)) · fusio-1549: Fix fulltext search failing on a null id in the query ([#557](https://github.com/hcengineering/platform/issues/557)) · FUSIO-1542: Fix webhook docs ([#555](https://github.com/hcengineering/platform/issues/555)) · fix: Show planner work slots in the activity feed ([#556](https://github.com/hcengineering/platform/issues/556)) · style: Fix login page scroll ([#559](https://github.com/hcengineering/platform/issues/559))
+* 🧩 OTHER: · Fix flaky api-key-emails: don't clear the shared mailbox ([#561](https://github.com/hcengineering/platform/issues/561))
+
+## [0.8.56] - 2026-10-13
+
+* 🐛 BUG FIXES: · FUSIO-1547: Fix workspace switch glitches ([#558](https://github.com/hcengineering/platform/issues/558)) · FUSIO-1498: Mark expired API keys in the UI ([#540](https://github.com/hcengineering/platform/issues/540)) · Tx security fixes ([#554](https://github.com/hcengineering/platform/issues/554)) · Small glitch fixes ([#550](https://github.com/hcengineering/platform/issues/550))
+* 🧩 OTHER: · Lay out subscription emails like the OTP emails ([#553](https://github.com/hcengineering/platform/issues/553))
+
 ## [0.8.55] - 2026-10-12
 
 * 🚀 FEATURES: · reports ([#549](https://github.com/hcengineering/platform/issues/549)) · fusio-1522: support createdBy in workflow post-functions ([#538](https://github.com/hcengineering/platform/issues/538)) · fusio-1232: extract fulltextExtra + $searchIn ([#539](https://github.com/hcengineering/platform/issues/539)) · [fulltext]: Deffered reindex ([#532](https://github.com/hcengineering/platform/issues/532)) · Show attribute usage on remove ([#533](https://github.com/hcengineering/platform/issues/533)) · FUSIO-1402 - Отображение пустых групп по умолчанию ([#509](https://github.com/hcengineering/platform/issues/509)) · FUSIO-1445 - Убраны некоторые варианты группировки в трекере ([#521](https://github.com/hcengineering/platform/issues/521)) · FUSIO-1512 - Доработана логика работы организаторов встреч ([#534](https://github.com/hcengineering/platform/issues/534)) · FUSIO-1417 - Доработки отображения полноэкранного режима звонков ([#527](https://github.com/hcengineering/platform/issues/527))
