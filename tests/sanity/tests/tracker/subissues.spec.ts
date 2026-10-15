@@ -179,7 +179,7 @@ test.describe('Tracker sub-issues tests', () => {
       .toHaveText(/SECON-\d+/)
       .catch(async (err) => {
         // Tells a move that never reached the server from a panel that missed its update (1/5, unresolved).
-        throw new Error(`${err.message}\nstored ${await readIssueIdentifier(newIssue.title)}`)
+        throw new Error(`${err.message}\nstored ${await readIssueIdentifier(newIssue.title)}\nurl ${page.url()}`)
       })
     await issuesDetailsPage.openSubIssueByName(newSubIssue.title)
     await expect(issuesDetailsPage.textIdentifier()).toHaveText(/SECON-\d+/)

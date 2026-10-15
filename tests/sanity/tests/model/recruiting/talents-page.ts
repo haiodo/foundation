@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { TalentName } from './types'
 import { generateId } from '../../utils'
+import { retry } from '../../retry'
 import { CommonRecruitingPage } from './common-recruiting-page'
 
 export class TalentsPage extends CommonRecruitingPage {
@@ -59,7 +60,6 @@ export class TalentsPage extends CommonRecruitingPage {
   createSkillInput = (): Locator => this.page.getByPlaceholder('Please type skill title')
 
   createSkillButton = (): Locator => this.page.locator('form[id="tags:string:AddTag"]  button:has-text("Create")')
-  selectSkillButton = (skillName: string): Locator => this.page.locator(`button:has-text("${skillName}") .check`)
   createCandidateButton = (): Locator => this.page.locator('button:has-text("Create")')
   openOtherSkills = (): Locator => this.page.getByText('Other')
   skillsLink = (): Locator => this.page.locator('.antiPanel-navigator').locator('text=Skills')
@@ -261,8 +261,10 @@ export class TalentsPage extends CommonRecruitingPage {
     await this.openOtherSkills().click()
   }
 
-  async selectSkill (skillName: string): Promise<void> {
-    await this.selectSkillButton(skillName).click()
+  // The popup selects a skill it creates: a click on it would unselect it, and a fresh skill can be
+  // past the popup's 50-per-category cut anyway.
+  async checkSkillAdded (skillName: string): Promise<void> {
+    await expect(this.page.locator('form.antiCard').getByText(skillName, { exact: true })).toBeVisible()
     await this.closeSkillsPopup()
   }
 
@@ -313,8 +315,18 @@ export class TalentsPage extends CommonRecruitingPage {
     await this.lastNameInput().fill(lastName)
     await this.skillsButton().click()
     await this.clickOpenOtherSkills()
+    const search = this.page.getByPlaceholder('Search...', { exact: true })
     for (const skill of skills) {
-      await this.page.click(`text=${skill}`)
+      const chip = this.page.locator('form.antiCard').getByText(skill, { exact: true })
+      // Through the search: a fresh skill can be past the popup's 50-per-category cut. Proved by the chip on
+      // the form, an unchecked click left the candidate without it; a click on a picked row unpicks it.
+      await retry(async () => {
+        if (await chip.isVisible()) return
+        await search.fill(skill, { timeout: 5000 })
+        const row = new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`)
+        await this.page.getByRole('button', { name: row }).click({ timeout: 5000 })
+        await expect(chip).toBeVisible({ timeout: 3000 })
+      })
     }
     await this.closeSkillsPopup()
     await this.createCandidateButton().click()
