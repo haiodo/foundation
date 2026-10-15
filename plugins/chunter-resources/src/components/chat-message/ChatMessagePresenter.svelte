@@ -272,11 +272,23 @@
     ) {
       return
     }
+    // Double click on a word selects it; reply only on empty space
+    if (isOverText(e.clientX, e.clientY)) return
 
     e.preventDefault()
     e.stopPropagation()
+    window.getSelection()?.removeAllRanges()
 
     await replyToMessage(value)
+  }
+
+  function isOverText (x: number, y: number): boolean {
+    const node =
+      document.caretPositionFromPoint?.(x, y)?.offsetNode ?? document.caretRangeFromPoint?.(x, y)?.startContainer
+    if (node?.nodeType !== Node.TEXT_NODE) return false
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    return Array.from(range.getClientRects()).some((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
   }
 </script>
 
