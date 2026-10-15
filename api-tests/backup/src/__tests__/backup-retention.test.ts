@@ -48,6 +48,8 @@ const DAY = 24 * 3600 * 1000
 
 describe('backup retention', () => {
   const bucket = env('BACKUP_BUCKET_NAME')
+  // The stand's backup pod sweeps region '' every few seconds and could drop a seeded archive first.
+  const region = 'backup-retention-tests'
 
   let ctx: MeasureContext
   let adapter: StorageAdapter
@@ -63,7 +65,7 @@ describe('backup retention', () => {
           url: dataId,
           name: dataId,
           dataId,
-          region: '',
+          region,
           allowGuestSignUp: false,
           allowReadOnlyGuest: false
         },
@@ -164,7 +166,7 @@ describe('backup retention', () => {
   it('drops the archive once the grace period is over', async () => {
     const dataId = await seedWorkspace('deleted', 8)
 
-    const cleaned = await cleanupDeletedBackups(ctx, adapter, config, '')
+    const cleaned = await cleanupDeletedBackups(ctx, adapter, config, region)
 
     const ws = await withAccountDb(async (db) => await db.workspace.findOne({ url: dataId }))
     expect(cleaned).toContain(ws?.uuid)
@@ -177,7 +179,7 @@ describe('backup retention', () => {
   it('keeps the archive while the workspace is still within the grace period', async () => {
     const dataId = await seedWorkspace('deleted', 2)
 
-    await cleanupDeletedBackups(ctx, adapter, config, '')
+    await cleanupDeletedBackups(ctx, adapter, config, region)
 
     expect(await archiveFiles(dataId)).toHaveLength(4)
     expect(await backupsRecorded(dataId)).toBe(1)
@@ -186,7 +188,7 @@ describe('backup retention', () => {
   it('never touches a workspace that is still alive', async () => {
     const dataId = await seedWorkspace('active', 400)
 
-    await cleanupDeletedBackups(ctx, adapter, config, '')
+    await cleanupDeletedBackups(ctx, adapter, config, region)
 
     expect(await archiveFiles(dataId)).toHaveLength(4)
     expect(await backupsRecorded(dataId)).toBe(1)
@@ -195,8 +197,8 @@ describe('backup retention', () => {
   it('does nothing on a second pass', async () => {
     const dataId = await seedWorkspace('deleted', 8)
 
-    await cleanupDeletedBackups(ctx, adapter, config, '')
-    const again = await cleanupDeletedBackups(ctx, adapter, config, '')
+    await cleanupDeletedBackups(ctx, adapter, config, region)
+    const again = await cleanupDeletedBackups(ctx, adapter, config, region)
 
     const ws = await withAccountDb(async (db) => await db.workspace.findOne({ url: dataId }))
     expect(again).not.toContain(ws?.uuid)
@@ -205,7 +207,7 @@ describe('backup retention', () => {
   it('is disabled by a zero retention', async () => {
     const dataId = await seedWorkspace('deleted', 400)
 
-    const cleaned = await cleanupDeletedBackups(ctx, adapter, { ...config, DeletedRetentionDays: 0 }, '')
+    const cleaned = await cleanupDeletedBackups(ctx, adapter, { ...config, DeletedRetentionDays: 0 }, region)
 
     expect(cleaned).toEqual([])
     expect(await archiveFiles(dataId)).toHaveLength(4)
