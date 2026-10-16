@@ -133,7 +133,7 @@
     isSub={false}
     withoutActivity
     contentClasses="h-full"
-    adaptive={'default'}
+    adaptive="default"
     on:close
   >
     <svelte:fragment slot="title">
@@ -148,7 +148,7 @@
     </svelte:fragment>
 
     <svelte:fragment slot="post-utils">
-      <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind={'icon'} on:click={showContextMenu} />
+      <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind="icon" on:click={showContextMenu} />
     </svelte:fragment>
     <svelte:fragment slot="aside">
       <TrainingAttributes {object} />

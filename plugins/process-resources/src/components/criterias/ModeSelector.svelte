@@ -32,8 +32,8 @@
   selected={mode}
   disabled={readonly}
   minW0={false}
-  kind={'no-border'}
-  width={'100%'}
+  kind="no-border"
+  width="100%"
   on:selected={(e) => {
     mode = e.detail
     const prevEditor = (selectedMode.editor ?? selectedMode.withoutEditor) ? null : undefined

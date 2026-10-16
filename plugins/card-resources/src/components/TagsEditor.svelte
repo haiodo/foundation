@@ -127,7 +127,7 @@
         <CircleButton
           id={id ? `${id}-dropdown` : undefined}
           icon={IconDownOutline}
-          size={'small'}
+          size="small"
           on:click={handleDrop}
         />
       {:else}
@@ -142,7 +142,7 @@
           />
         {/each}
         {#if !readonly && dropdownItems.length > 0 && !checkAddPermission($permissionsStore)}
-          <CircleButton id={id ? `${id}-add` : undefined} icon={IconAdd} size={'small'} ghost on:click={add} />
+          <CircleButton id={id ? `${id}-add` : undefined} icon={IconAdd} size="small" ghost on:click={add} />
         {/if}
       {/if}
     </div>

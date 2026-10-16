@@ -198,7 +198,7 @@
             <div class="flex-presenter not-selected" class:cursor-default={readonly}>
               {#if icon}
                 <div class="icon w-4 flex-no-shrink" class:small-gap={size === 'inline' || size === 'small'}>
-                  <Icon {icon} size={'small'} />
+                  <Icon {icon} size="small" />
                 </div>
               {/if}
               <div class="label no-underline">
@@ -210,7 +210,7 @@
         {#if selected && showNavigate}
           <ActionIcon
             icon={view.icon.Open}
-            size={'small'}
+            size="small"
             action={() => {
               if (selected) {
                 void openDoc(client.getHierarchy(), selected)

@@ -103,7 +103,7 @@
       {#each messages as message}
         <div class="item">
           <Lazy>
-            <ChatMessagePresenter value={message} type={'default'} />
+            <ChatMessagePresenter value={message} type="default" />
           </Lazy>
         </div>
       {/each}

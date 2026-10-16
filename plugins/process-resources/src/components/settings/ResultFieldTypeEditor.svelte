@@ -74,8 +74,8 @@
 <DropdownLabelsIntl
   label={plugin.string.Attribute}
   {items}
-  size={'large'}
-  width={'100%'}
+  size="large"
+  width="100%"
   shouldUpdateUndefined={false}
   bind:selected={key}
 />

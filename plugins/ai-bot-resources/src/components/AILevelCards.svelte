@@ -34,7 +34,7 @@
     {@const active = info.level === selected}
     <ModernButton
       title={info.label}
-      size={'small'}
+      size="small"
       kind={active ? 'primary' : 'tertiary'}
       pressed={active}
       {disabled}

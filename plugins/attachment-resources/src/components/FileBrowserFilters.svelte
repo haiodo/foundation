@@ -45,8 +45,8 @@
     _classes={requestedSpaceClasses}
     label={attachment.string.FileBrowserFilterIn}
     selectedItems={selectedSpaces}
-    kind={'ghost'}
-    size={'medium'}
+    kind="ghost"
+    size="medium"
     on:update={(evt) => {
       selectedSpaces = evt.detail
     }}
@@ -55,15 +55,15 @@
     items={dateFileBrowserFilters}
     label={attachment.string.FileBrowserFilterDate}
     bind:selected={selectedDateId}
-    kind={'ghost'}
-    size={'medium'}
+    kind="ghost"
+    size="medium"
   />
   <DropdownLabelsIntl
     items={fileTypeFileBrowserFilters}
     label={attachment.string.FileBrowserFilterFileType}
     bind:selected={selectedFileTypeId}
-    kind={'ghost'}
-    size={'medium'}
+    kind="ghost"
+    size="medium"
   />
 </div>
 

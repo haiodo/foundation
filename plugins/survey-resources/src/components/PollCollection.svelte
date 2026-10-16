@@ -72,9 +72,9 @@
         bind:loading
         viewletQuery={{ _id: survey.viewlet.TablePoll }}
       />
-      <ViewletSettingButton kind={'tertiary'} bind:viewlet />
+      <ViewletSettingButton kind="tertiary" bind:viewlet />
       {#if !readonly}
-        <Button id={survey.string.CreatePoll} icon={IconAdd} kind={'ghost'} on:click={selectSurvey} />
+        <Button id={survey.string.CreatePoll} icon={IconAdd} kind="ghost" on:click={selectSurvey} />
       {/if}
     </div>
   </svelte:fragment>

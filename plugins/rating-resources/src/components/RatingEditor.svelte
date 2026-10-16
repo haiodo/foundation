@@ -145,8 +145,8 @@
     <Button
       icon={hasSelectedStar ? ratingPlugin.icon.StarYellow : ratingPlugin.icon.Rating}
       on:click={addStarReaction}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       disabled={operating}
       showTooltip={{ label: ratingPlugin.string.AddStar }}
       label={showMy && starCount > 0 ? getEmbeddedLabel(starCount.toString()) : undefined}

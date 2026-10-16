@@ -77,7 +77,7 @@
       <Blurhash blurhash={value.metadata.thumbnail.blurhash} />
     {/if}
     <div class="image-overlay">
-      <BrokenImage size={'large'} />
+      <BrokenImage size="large" />
     </div>
   {:else}
     <Image

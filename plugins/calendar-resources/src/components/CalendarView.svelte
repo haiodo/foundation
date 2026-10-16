@@ -331,7 +331,7 @@
 {/if}
 {#if mode === CalendarMode.Year}
   <YearCalendar
-    cellHeight={'2.5rem'}
+    cellHeight="2.5rem"
     bind:selectedDate
     bind:currentDate
     on:change={(e) => {
@@ -347,12 +347,12 @@
     </svelte:fragment>
   </YearCalendar>
 {:else if mode === CalendarMode.Month}
-  <MonthCalendar cellHeight={'8.5rem'} bind:selectedDate bind:currentDate>
+  <MonthCalendar cellHeight="8.5rem" bind:selectedDate bind:currentDate>
     <svelte:fragment slot="cell" let:date let:today let:selected let:wrongMonth>
       <Day
         events={findEvents(objects, date)}
         {date}
-        size={'huge'}
+        size="huge"
         {today}
         {selected}
         {wrongMonth}

@@ -20,6 +20,6 @@
 </script>
 
 <div style:padding={$deviceInfo.docWidth <= 480 ? '.25rem 1.25rem' : '4rem 5rem'}>
-  <Tabs loginState={'login'} signUpDisabled={true} />
+  <Tabs loginState="login" signUpDisabled={true} />
   <Providers />
 </div>

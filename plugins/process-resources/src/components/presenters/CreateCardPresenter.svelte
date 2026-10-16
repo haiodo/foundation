@@ -48,7 +48,7 @@
       <Icon
         icon={icon === view.ids.IconWithEmoji ? IconWithEmoji : (icon ?? card.icon.Card)}
         iconProps={{ icon: _class?.color }}
-        size={'small'}
+        size="small"
       />
     </div>
   {/if}

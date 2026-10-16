@@ -46,7 +46,7 @@
 
 <div class="antiContactCard">
   <div class="label uppercase"><Label label={recruit.string.Talent} /></div>
-  <Avatar person={candidate} size={'large'} name={candidate?.name} />
+  <Avatar person={candidate} size="large" name={candidate?.name} />
   {#if candidate}
     <DocNavLink object={candidate} {disabled}>
       <div class="name lines-limit-2">
@@ -76,7 +76,7 @@
         <ChannelsEditor
           attachedTo={channels[0].attachedTo}
           attachedClass={channels[0].attachedToClass}
-          length={'short'}
+          length="short"
           editable={!disabled}
           focusIndex={10}
         />

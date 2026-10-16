@@ -43,7 +43,7 @@
     {object}
     {embedded}
     {readonly}
-    type={'drive'}
+    type="drive"
     on:contextmenu={(evt) => {
       showMenu(evt, { object })
     }}

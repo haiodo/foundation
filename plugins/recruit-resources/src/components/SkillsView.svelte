@@ -52,7 +52,7 @@
 >
   <Button
     label={getEmbeddedLabel('Optimize')}
-    kind={'regular'}
+    kind="regular"
     on:click={() => {
       showPopup(OptimizeSkills, { targetClass: recruit.mixin.Candidate })
     }}

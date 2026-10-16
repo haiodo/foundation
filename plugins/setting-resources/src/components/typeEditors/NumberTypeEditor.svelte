@@ -52,7 +52,7 @@
 <NumberInput
   bind:value={defaultValue}
   disabled={!editable}
-  maxWidth={'100%'}
+  maxWidth="100%"
   placeholder={setting.string.DefaultValue}
   on:change={updateType}
 />
@@ -60,7 +60,7 @@
 <NumberInput
   bind:value={min}
   disabled={!editable}
-  maxWidth={'100%'}
+  maxWidth="100%"
   placeholder={setting.string.MinValue}
   on:change={updateType}
 />
@@ -68,7 +68,7 @@
 <NumberInput
   bind:value={max}
   disabled={!editable}
-  maxWidth={'100%'}
+  maxWidth="100%"
   placeholder={setting.string.MaxValue}
   on:change={updateType}
 />

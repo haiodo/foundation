@@ -67,8 +67,8 @@
   {#if editable}
     <Button
       focusIndex={2}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       icon={IconClose}
       disabled={value === ''}
       on:click={() => {
@@ -81,8 +81,8 @@
     <Button
       id="channel-ok"
       focusIndex={3}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       icon={IconBlueCheck}
       on:click={() => {
         dispatch('close', value)
@@ -91,8 +91,8 @@
   {/if}
   <Button
     focusIndex={4}
-    kind={'ghost'}
-    size={'small'}
+    kind="ghost"
+    size="small"
     icon={IconCopy}
     disabled={value === undefined || value === ''}
     showTooltip={{ label: view.string.CopyToClipboard }}
@@ -102,8 +102,8 @@
   />
   <Button
     focusIndex={5}
-    kind={'ghost'}
-    size={'small'}
+    kind="ghost"
+    size="small"
     icon={IconArrowRight}
     disabled={value === undefined || value === ''}
     showTooltip={{ label: view.string.Open }}

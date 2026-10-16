@@ -124,7 +124,7 @@
       class:fly={$deviceInfo.navigator.float}
     >
       <div class="hulyComponent-content__column">
-        <Header adaptive={'disabled'}>
+        <Header adaptive="disabled">
           <ClassHeader _class={parentClass} />
           <svelte:fragment slot="actions">
             {#if createMasterComponent}
@@ -143,22 +143,22 @@
       </div>
       {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
         <Separator
-          name={'parentsNavigator'}
+          name="parentsNavigator"
           float={floatNavigator ? 'navigator' : true}
           index={0}
-          color={'var(--theme-divider-color)'}
+          color="var(--theme-divider-color)"
         />
       {/if}
     </div>
-    <Separator name={'parentsNavigator'} float={floatNavigator} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="parentsNavigator" float={floatNavigator} index={0} color="var(--theme-divider-color)" />
   {/if}
   <div class="hulyComponent-content__column">
-    <Header adaptive={'disabled'}>
+    <Header adaptive="disabled">
       <svelte:fragment slot="beforeTitle">
         <ButtonIcon
           icon={visibleNavigator ? IconMenuClose : IconMenuOpen}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           pressed={!visibleNavigator}
           on:click={toggleNavigator}
         />

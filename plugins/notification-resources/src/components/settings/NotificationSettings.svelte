@@ -103,11 +103,11 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <Breadcrumb
       icon={notification.icon.Notifications}
       label={notification.string.Notifications}
-      size={'large'}
+      size="large"
       isCurrent
     />
   </Header>
@@ -156,9 +156,9 @@
         <div class="antiNav-space" />
       </Scroller>
     </div>
-    <Separator name="notificationSettings" index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="notificationSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if loading}
             <Loading />

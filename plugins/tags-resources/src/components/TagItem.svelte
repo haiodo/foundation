@@ -74,14 +74,14 @@
     <span class="overflow-label max-w-40">{name}</span>
     {#if tag && tagIcon && schema !== '0'}
       <span class="ml-1">
-        <Icon icon={tagIcon} size={'small'} />
+        <Icon icon={tagIcon} size="small" />
       </span>
     {/if}
     {#if action}
       <div class="flex-center ml-1">
         <ActionIcon
           icon={action}
-          size={'small'}
+          size="small"
           action={() => {
             dispatch('action')
           }}

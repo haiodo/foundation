@@ -248,13 +248,13 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Integrations} label={setting.string.Integrations} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Integrations} label={setting.string.Integrations} size="large" isCurrent />
     <svelte:fragment slot="extra">
       <Switcher
-        name={'integrations-mode-view'}
+        name="integrations-mode-view"
         items={viewslist}
-        kind={'subtle'}
+        kind="subtle"
         selected={mode}
         on:select={(result) => {
           if (result.detail !== undefined) mode = result.detail.id

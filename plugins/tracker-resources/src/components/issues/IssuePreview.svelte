@@ -73,19 +73,19 @@
       <div class="flex-row-center gap-1">
         {#if parent}
           <span class="overflow-label content-color">{parent.title}</span>
-          <IconForward size={'x-small'} />
+          <IconForward size="x-small" />
         {/if}
         <span class="content-dark-color">{issue.identifier}</span>
       </div>
       <span class="overflow-label text-xl caption-color">{issue.title}</span>
     </div>
   </div>
-  <Scroller padding={'0.75rem 1.75rem 0'} noFade>
+  <Scroller padding="0.75rem 1.75rem 0" noFade>
     <div class="flex-row-center gap-2 mb-2">
-      <StatusEditor value={issue} shouldShowLabel kind={'regular'} />
-      <PriorityEditor value={issue} shouldShowLabel kind={'regular'} />
+      <StatusEditor value={issue} shouldShowLabel kind="regular" />
+      <PriorityEditor value={issue} shouldShowLabel kind="regular" />
       {#if issue.assignee}
-        <AssigneeEditor object={issue} kind={'regular'} />
+        <AssigneeEditor object={issue} kind="regular" />
       {/if}
     </div>
 

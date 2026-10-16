@@ -57,18 +57,18 @@
 {#if isAIContext}
   <Button
     icon={view.icon.Add}
-    kind={'ghost'}
-    size={'small'}
-    dataId={'btnAiNewContext'}
+    kind="ghost"
+    size="small"
+    dataId="btnAiNewContext"
     showTooltip={{ label: plugin.string.NewContextHint }}
     disabled={(root.replies ?? 0) === 0}
     on:click={newContext}
   />
   <Button
     icon={IconDownOutline}
-    kind={'ghost'}
-    size={'small'}
-    dataId={'btnAiExportChat'}
+    kind="ghost"
+    size="small"
+    dataId="btnAiExportChat"
     showTooltip={{ label: plugin.string.ExportChatHint }}
     on:click={() => {
       void exportChat()

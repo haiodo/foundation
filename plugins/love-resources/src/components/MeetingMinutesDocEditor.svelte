@@ -50,7 +50,7 @@
     />
     <ActionIcon
       icon={view.icon.Open}
-      size={'small'}
+      size="small"
       action={async () => {
         if (doc === undefined) return
         await openDoc(client.getHierarchy(), doc)

@@ -171,16 +171,16 @@
   labelProps={{ label: '' }}
   okAction={createReview}
   canSave={status.severity === Severity.OK && title.trim().length > 0 && doc.attachedTo !== undefined}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
   on:changeContent
 >
   <StatusControl slot="error" {status} />
-  <EditBox placeholder={recruit.string.Title} bind:value={title} kind={'large-style'} autoFocus />
-  <EditBox placeholder={recruit.string.Location} bind:value={location} kind={'small-style'} />
-  <StyledTextArea bind:content={description} placeholder={recruit.string.AddDescription} kind={'emphasized'} />
+  <EditBox placeholder={recruit.string.Title} bind:value={title} kind="large-style" autoFocus />
+  <EditBox placeholder={recruit.string.Location} bind:value={location} kind="small-style" />
+  <StyledTextArea bind:content={description} placeholder={recruit.string.AddDescription} kind="emphasized" />
   <svelte:fragment slot="pool">
     {#if !preserveCandidate}
       <UserBox
@@ -188,8 +188,8 @@
         bind:value={doc.attachedTo}
         label={recruit.string.Talent}
         placeholder={recruit.string.Talents}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         create={{ component: recruit.component.CreateCandidate, label: recruit.string.CreateTalent }}
       />
     {/if}
@@ -198,8 +198,8 @@
       bind:value={company}
       label={recruit.string.Company}
       icon={IconCompany}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       showNavigate={false}
       create={{ component: contact.component.CreateOrganization, label: contact.string.CreateOrganization }}
     />
@@ -208,9 +208,9 @@
       bind:value={application}
       label={recruit.string.Application}
       placeholder={recruit.string.ApplicationCreateLabel}
-      kind={'regular'}
-      size={'large'}
-      searchField={'number'}
+      kind="regular"
+      size="large"
+      searchField="number"
       showNavigate={false}
       allowCategory={[recruit.completion.ApplicationCategory]}
     />
@@ -219,8 +219,8 @@
       labelNull={recruit.string.StartDate}
       mode={DateRangeMode.DATETIME}
       editable
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       on:change={updateStart}
     />
     <DateRangePresenter
@@ -228,9 +228,9 @@
       labelNull={recruit.string.DueDate}
       mode={DateRangeMode.DATETIME}
       editable
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
-    <UserBoxList bind:items={doc.participants} label={calendar.string.Participants} kind={'regular'} size={'large'} />
+    <UserBoxList bind:items={doc.participants} label={calendar.string.Participants} kind="regular" size="large" />
   </svelte:fragment>
 </Card>

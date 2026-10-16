@@ -85,7 +85,7 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <Breadcrumb icon={setting.icon.Mailbox} label={setting.string.Mailboxes} size="large" isCurrent />
     <svelte:fragment slot="actions">
       {#if mailboxOptions !== undefined && mailboxOptions.availableDomains.length > 0}

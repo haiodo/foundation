@@ -146,7 +146,7 @@
 <div class="antiPopup popup" class:secure={isSecureContext}>
   <div class="flex-between fs-title mb-9">
     <Label label={login.string.InviteDescription} />
-    <InviteWorkspace size={'large'} />
+    <InviteWorkspace size="large" />
   </div>
   {#if isOwnerOrMaintainer && !ignoreSettings && seatsChecked}
     <Grid column={1} rowGap={1.5}>
@@ -161,7 +161,7 @@
         <EditBox
           label={login.string.LinkValidHours}
           bind:value={expHours}
-          format={'number'}
+          format="number"
           on:keypress={() => (link = undefined)}
           disabled={useDefault || !isOwnerOrMaintainer}
         />
@@ -170,7 +170,7 @@
           <EditBox
             label={login.string.InviteLimit}
             bind:value={limit}
-            format={'number'}
+            format="number"
             on:keypress={() => (link = undefined)}
             disabled={useDefault || !isOwnerOrMaintainer}
           />
@@ -191,22 +191,22 @@
     <div class="buttons">
       <Button
         label={login.string.Close}
-        size={'medium'}
-        kind={'primary'}
+        size="medium"
+        kind="primary"
         on:click={() => {
           dispatch('close')
         }}
       />
       {#if isSecureContext}
-        <Button label={copied ? login.string.Copied : login.string.Copy} size={'medium'} on:click={copy} />
+        <Button label={copied ? login.string.Copied : login.string.Copy} size="medium" on:click={copy} />
       {/if}
     </div>
   {:else}
     <div class="buttons">
       <Button
         label={login.string.GetLink}
-        size={'medium'}
-        kind={'primary'}
+        size="medium"
+        kind="primary"
         on:click={() => {
           void (((limit !== undefined && limit > 0) || noLimit) && getLink(expHours, emailMask, limit, role))
         }}

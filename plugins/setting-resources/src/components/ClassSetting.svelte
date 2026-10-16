@@ -166,15 +166,15 @@
 
 <div class="hulyComponent">
   {#if !withoutHeader}
-    <Header adaptive={'disabled'}>
-      <Breadcrumb icon={setting.icon.Clazz} label={setting.string.ClassSetting} size={'large'} isCurrent />
+    <Header adaptive="disabled">
+      <Breadcrumb icon={setting.icon.Clazz} label={setting.string.ClassSetting} size="large" isCurrent />
     </Header>
   {/if}
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column">
       <div class="hulyComponent-content__navHeader divide">
         <div class="hulyComponent-content__navHeader-menu">
-          <ButtonIcon kind={'tertiary'} icon={IconDescription} size={'small'} inheritColor />
+          <ButtonIcon kind="tertiary" icon={IconDescription} size="small" inheritColor />
         </div>
         <div class="hulyComponent-content__navHeader-hint paragraph-regular-14">
           <Label label={setting.string.ClassSettingHint} />
@@ -210,9 +210,9 @@
         {/each}
       </Scroller>
     </div>
-    <Separator name={'workspaceSettings'} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="workspaceSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if _class !== undefined}
             <ClassAttributes

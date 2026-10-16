@@ -53,7 +53,7 @@
   }
 </script>
 
-<Card on:close width={'small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="flex-row-center flex-gap-2">
     <DropdownLabelsIntl items={directions} bind:selected={direction} />
     <NumberInput bind:value={offset} autoFocus minValue={0} focusable maxDigitsAfterPoint={0} />

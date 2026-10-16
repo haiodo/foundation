@@ -94,7 +94,7 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         dataId="btnMoreActions"
         on:click={(e) => {
           showMenu(e, { object, excludedActions: [view.action.Open] })

@@ -40,7 +40,7 @@
     }}
   >
     <div slot="icon">
-      <IconScribble size={'small'} />
+      <IconScribble size="small" />
     </div>
     <div slot="content" style:margin-left={showCounter && !compactMode ? '.375rem' : '0'}>
       {#if showCounter && !compactMode}{count}{/if}

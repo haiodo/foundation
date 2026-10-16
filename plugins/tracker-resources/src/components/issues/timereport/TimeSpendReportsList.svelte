@@ -63,7 +63,7 @@
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<ListView count={reports.length} addClass={'step-tb-2-accent'}>
+<ListView count={reports.length} addClass="step-tb-2-accent">
   <svelte:fragment slot="item" let:item>
     {@const report = reports[item]}
     {@const currentProject = $activeProjects.get(toProjectId(report.space))}
@@ -84,18 +84,18 @@
       }}
     >
       <div class="flex-row-center clear-mins gap-2 flex-grow mr-4" class:p-text={twoRows}>
-        <FixedColumn key={'timespend_date'} justify={'left'}>
-          <DatePresenter value={report.date} kind={'ghost'} size={'small'} />
+        <FixedColumn key="timespend_date" justify="left">
+          <DatePresenter value={report.date} kind="ghost" size="small" />
         </FixedColumn>
 
-        <FixedColumn key={'timespend_reported'} justify={'center'}>
+        <FixedColumn key="timespend_reported" justify="center">
           <TimePresenter value={report.value} />
         </FixedColumn>
         <div class="flex-row-center clear-mins gap-2 self-end flex-no-shrink" class:p-text={twoRows}>
-          <FixedColumn key={'timespend_assignee'} justify={'left'}>
+          <FixedColumn key="timespend_assignee" justify="left">
             <UserBox
-              width={'100%'}
-              kind={'ghost'}
+              width="100%"
+              kind="ghost"
               label={tracker.string.Assignee}
               _class={contact.mixin.Employee}
               value={report.employee}
@@ -108,7 +108,7 @@
             />
           </FixedColumn>
         </div>
-        <FixedColumn key={'timespend_issue'} justify={'left'} addClass={'fs-bold'}>
+        <FixedColumn key="timespend_issue" justify="left" addClass="fs-bold">
           {#if report.$lookup?.attachedTo}
             {report.$lookup?.attachedTo?.identifier}
           {/if}

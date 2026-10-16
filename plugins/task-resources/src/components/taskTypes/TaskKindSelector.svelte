@@ -128,7 +128,7 @@
     {width}
     icon={TaskTypeIcon}
     iconProps={value !== undefined ? { value: $taskTypeStore.get(value) } : {}}
-    dataId={'btnSelectTaskType'}
+    dataId="btnSelectTaskType"
     bind:selected={value}
     on:selected={change}
   />

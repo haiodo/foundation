@@ -26,11 +26,11 @@
 {#if $issueAssistFits}
   <ModernButton
     icon={view.icon.AiStar}
-    iconSize={'small'}
-    size={'small'}
+    iconSize="small"
+    size="small"
     kind={$issueAssistOpened ? 'primary' : 'tertiary'}
     pressed={$issueAssistOpened}
-    dataId={'btnIssueAssist'}
+    dataId="btnIssueAssist"
     tooltip={{ label: aiBot.string.AssistIssue, props: { name: $aiBotNameStore } }}
     on:click={() => {
       issueAssistOpened.update((v) => !v)

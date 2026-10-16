@@ -39,9 +39,9 @@
 >
   <div class="hulyPopup-row__icon" class:avatar={isAvatar}>
     {#if item.doc !== undefined}
-      <SearchObjectIcon doc={item.doc} avatarSize={'smaller'} />
+      <SearchObjectIcon doc={item.doc} avatarSize="smaller" />
     {:else if item.icon !== undefined}
-      <Icon icon={item.icon} size={'small'} />
+      <Icon icon={item.icon} size="small" />
     {/if}
   </div>
   <span class="hulyPopup-row__label overflow-label">
@@ -51,7 +51,7 @@
     {item.title}
   </span>
   {#if selected}
-    <div class="hulyPopup-row__icon"><IconCheck size={'small'} /></div>
+    <div class="hulyPopup-row__icon"><IconCheck size="small" /></div>
   {/if}
 </button>
 

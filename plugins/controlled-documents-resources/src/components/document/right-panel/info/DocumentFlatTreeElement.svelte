@@ -48,7 +48,7 @@
         iconProps={{
           fill: 'currentColor'
         }}
-        size={'small'}
+        size="small"
       />
     </div>
   {/if}

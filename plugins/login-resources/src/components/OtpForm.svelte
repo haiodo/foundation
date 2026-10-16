@@ -262,7 +262,7 @@
       >
         <IconBack size="small" />
       </FormButton>
-      <div class="title"><Label label={login.string.EnterCode} variant={'heading'} /></div>
+      <div class="title"><Label label={login.string.EnterCode} variant="heading" /></div>
     </div>
     <div class="description">
       <Label label={login.string.SentTo} />
@@ -277,7 +277,7 @@
       {#if index === 3}
         <div class="separator" />
       {/if}
-      <div class={'form-row'}>
+      <div class="form-row">
         <LoginCodeInput
           id={field.id}
           name={field.name}

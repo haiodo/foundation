@@ -103,12 +103,12 @@
   <AccordionItem
     {id}
     label={title}
-    size={'large'}
+    size="large"
     bottomSpace={false}
     counter={todos.length}
     duration={showDuration ? split.spent : false}
     fixHeader
-    background={'var(--theme-navpanel-color)'}
+    background="var(--theme-navpanel-color)"
   >
     <svelte:fragment slot="duration">
       {#if showDuration && split.planned > 0}

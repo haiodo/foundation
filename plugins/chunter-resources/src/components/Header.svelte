@@ -119,7 +119,7 @@
     <div class="hulyHeader-titleGroup">
       {#if icon}
         <div class="content-color mr-2 pl-2">
-          <Icon {icon} size={'small'} {iconProps} />
+          <Icon {icon} size="small" {iconProps} />
         </div>
       {/if}
       {#if label}
@@ -166,7 +166,7 @@
       <Button
         icon={IconToDetails}
         iconProps={{ size: 'small' }}
-        kind={'icon'}
+        kind="icon"
         showTooltip={{ label: workbench.string.OpenInSidebar }}
         dataId="open-in-sidebar"
         on:click={() => {
@@ -180,7 +180,7 @@
       <Button
         icon={view.icon.Open}
         iconProps={{ size: 'small' }}
-        kind={'icon'}
+        kind="icon"
         showTooltip={{ label: view.string.Open }}
         on:click={() => {
           if (object !== undefined) {
@@ -193,7 +193,7 @@
       <Button
         icon={IconSettings}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         dataId="aside-toggle"
         showTooltip={{ label: chunter.string.Settings }}
         selected={isAsideShown}

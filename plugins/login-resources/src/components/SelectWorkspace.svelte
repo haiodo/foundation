@@ -293,7 +293,7 @@
       <IconBack size="small" />
     </FormButton>
     <div class="title">
-      <Label label={login.string.SelectWorkspace} variant={'heading'} />
+      <Label label={login.string.SelectWorkspace} variant="heading" />
     </div>
   </div>
   <div class="fs-title mt-2">
@@ -313,7 +313,7 @@
   {/if}
   {#if workspaces.length > 10}
     <div class="ml-2 mr-2 mb-2 flex-grow">
-      <SearchEdit bind:value={search} width={'100%'} />
+      <SearchEdit bind:value={search} width="100%" />
     </div>
   {/if}
   {#await _getWorkspaces()}
@@ -321,7 +321,7 @@
       <Spinner />
     </div>
   {:then}
-    <Scroller padding={'.125rem 0'} maxHeight={35}>
+    <Scroller padding=".125rem 0" maxHeight={35}>
       {#if workspaces.length === 0 && account?.token != null && isReadOnlyGuest}
         <span class="readonly-warning"><Label label={login.string.SignUpToCreateWorkspace} /></span>
       {/if}
@@ -368,7 +368,7 @@
           <div class="form-row send">
             <Button
               label={isReadOnlyGuest ? login.string.SignUp : login.string.CreateWorkspace}
-              kind={'primary'}
+              kind="primary"
               width="100%"
               on:click={() => {
                 goTo(isReadOnlyGuest ? 'signup' : 'createWorkspace')
@@ -387,7 +387,7 @@
             href={getHref('createWorkspace')}
             onClick={() => {
               goTo('createWorkspace')
-            }}><Label label={login.string.CreateWorkspace} variant={'link'} /></NavLink
+            }}><Label label={login.string.CreateWorkspace} variant="link" /></NavLink
           >
         </div>
       {/if}
@@ -400,7 +400,7 @@
             goTo('login')
           }}
         >
-          <Label label={login.string.ChangeAccount} variant={'link'} />
+          <Label label={login.string.ChangeAccount} variant="link" />
         </NavLink>
       </div>
       {#if showDeleteAccount}

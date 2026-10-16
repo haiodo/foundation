@@ -72,7 +72,7 @@
   getEditor()
 </script>
 
-<Card on:close width={'small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <ProcessAttribute
       {process}

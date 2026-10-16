@@ -55,8 +55,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Setting} label={setting.string.SidebarMenuSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Setting} label={setting.string.SidebarMenuSettings} size="large" isCurrent />
   </Header>
 
   <div class="flex-row-stretch flex-grow p-10">
@@ -65,7 +65,7 @@
         {#each filteredApps as app}
           <div class="flex-row-center flex-gap-4">
             <div class="w-6 h-6 flex-center flex-shrink-0">
-              <Icon icon={app.icon} size={'small'} />
+              <Icon icon={app.icon} size="small" />
             </div>
             <Label label={app.label} />
             <Toggle

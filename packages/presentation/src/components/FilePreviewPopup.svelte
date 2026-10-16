@@ -134,9 +134,9 @@
 
 <ActionContext context={{ mode: 'browser' }} />
 <Modal
-  type={'type-component'}
-  padding={'0.5rem'}
-  bottomPadding={'0'}
+  type="type-component"
+  padding="0.5rem"
+  bottomPadding="0"
   on:fullsize
   on:close={() => {
     dispatch('close')
@@ -145,8 +145,8 @@
   <svelte:fragment slot="beforeTitle">
     <ButtonIcon
       icon={IconClose}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       noPrint
       on:click={() => {
         dispatch('close')
@@ -155,8 +155,8 @@
     <div class="hulyHeader-divider short no-line no-print" />
     <ButtonIcon
       icon={!fullSize ? IconMaximize : IconMinimize}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       noPrint
       on:click={() => {
         fullSize = !fullSize

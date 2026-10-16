@@ -39,7 +39,7 @@
     <DocNavLink {disabled} object={value} {accent} {noUnderline} component={contact.component.EditOrganizationPanel}>
       <div class="flex-presenter" style:max-width={maxWidth} use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
         <div class="icon circle">
-          <Company size={'small'} />
+          <Company size="small" />
         </div>
         <span class="overflow-label label" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>
           {value.name}

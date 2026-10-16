@@ -59,7 +59,7 @@
 </script>
 
 <div class="buttons-group small-gap pr-2 relative">
-  <Button icon={view.icon.Configure} size={'small'} kind={'ghost'} on:click={handleOptions}>
+  <Button icon={view.icon.Configure} size="small" kind="ghost" on:click={handleOptions}>
     <svelte:fragment slot="iconRight">
       {#if enabledFilters != null && !filters.every((it) => enabledFilters?.includes(it._id))}
         <span class="marker" />

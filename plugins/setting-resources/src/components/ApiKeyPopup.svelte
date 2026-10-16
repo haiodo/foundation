@@ -64,14 +64,14 @@
   <div class="buttons">
     <Button
       label={presentation.string.Close}
-      size={'medium'}
-      kind={'primary'}
+      size="medium"
+      kind="primary"
       on:click={() => {
         dispatch('close')
       }}
     />
     {#if isSecureContext}
-      <Button label={copied ? view.string.Copied : view.string.CopyToClipboard} size={'medium'} on:click={copy} />
+      <Button label={copied ? view.string.Copied : view.string.CopyToClipboard} size="medium" on:click={copy} />
     {/if}
   </div>
 </div>

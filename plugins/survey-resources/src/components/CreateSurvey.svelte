@@ -60,7 +60,7 @@
 >
   <div class="flex-row-center">
     <div class="flex-grow flex-col">
-      <EditBox placeholder={survey.string.Name} bind:value={name} kind={'large-style'} autoFocus focusIndex={1} />
+      <EditBox placeholder={survey.string.Name} bind:value={name} kind="large-style" autoFocus focusIndex={1} />
     </div>
   </div>
 </Card>

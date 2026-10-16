@@ -57,16 +57,16 @@
 
 <button class="hulyTableAttr-content__row w-full" class:hovered class:selected on:contextmenu on:click>
   <button class="hulyTableAttr-content__row-dragMenu">
-    <IconMoreV2 size={'small'} />
+    <IconMoreV2 size="small" />
   </button>
   {#if attribute.automationOnly === true}
     <div class="hulyTableAttr-content__row-icon" use:tooltip={{ label: view.string.AutomationOnly }}>
-      <Icon icon={view.icon.Setting} size={'small'} />
+      <Icon icon={view.icon.Setting} size="small" />
     </div>
   {/if}
   {#if attribute.icon !== undefined && attribute.icon !== null}
     <div class="hulyTableAttr-content__row-icon">
-      <Icon icon={attribute.icon} size={'small'} />
+      <Icon icon={attribute.icon} size="small" />
     </div>
   {/if}
   <div class="hulyTableAttr-content__row-label font-regular-14 grow" class:accent={!attribute.hidden}>
@@ -104,7 +104,7 @@
     {/if}
   </div>
   <div class="hulyTableAttr-content__row-arrow">
-    <IconOpenedArrow size={'small'} />
+    <IconOpenedArrow size="small" />
   </div>
 </button>
 

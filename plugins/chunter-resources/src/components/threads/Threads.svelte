@@ -200,15 +200,15 @@
   }
 </script>
 
-<Header icon={chunter.icon.Thread} intlLabel={chunter.string.Threads} titleKind={'breadcrumbs'} withSearch={false}>
+<Header icon={chunter.icon.Thread} intlLabel={chunter.string.Threads} titleKind="breadcrumbs" withSearch={false}>
   <svelte:fragment slot="actions">
     <ModernDropdown
       items={sortItems}
       selected={sort}
       icon={IconOptions}
       iconSize="small"
-      kind={'secondary'}
-      size={'small'}
+      kind="secondary"
+      size="small"
       showDropdownIcon
       on:selected={(e) => {
         selectSort(e.detail === 'createdOn' ? 'createdOn' : 'lastReply')

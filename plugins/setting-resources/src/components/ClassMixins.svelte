@@ -96,11 +96,11 @@
 
 <div class="hulyTableAttr-header font-medium-12 withButton mixinsHeader">
   <div class="flex-row-center">
-    <IconSettings size={'small'} />
+    <IconSettings size="small" />
     <span class="ml-2"><Label label={setting.string.Mixins} /></span>
   </div>
   {#if !disabled}
-    <ModernButton icon={IconAdd} label={setting.string.CreateMixin} size={'small'} on:click={createMixin} />
+    <ModernButton icon={IconAdd} label={setting.string.CreateMixin} size="small" on:click={createMixin} />
   {/if}
 </div>
 {#if mixins.length > 0}

@@ -107,8 +107,8 @@
       <div class="flex-row-center gap-1-5 mr-1">
         {#if !(hideNavigator === 'left' || hideNavigator === 'all')}
           <Button
-            kind={'ghost'}
-            size={'medium'}
+            kind="ghost"
+            size="medium"
             icon={IconArrowLeft}
             on:click={() => {
               if (viewUpdate) {
@@ -121,8 +121,8 @@
         {/if}
         {#if !(hideNavigator === 'right' || hideNavigator === 'all')}
           <Button
-            kind={'ghost'}
-            size={'medium'}
+            kind="ghost"
+            size="medium"
             icon={IconArrowRight}
             on:click={() => {
               if (viewUpdate) {

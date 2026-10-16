@@ -170,8 +170,8 @@
     {#if states.length > 0}
       <Button
         focusIndex={3}
-        width={'min-content'}
-        size={'large'}
+        width="min-content"
+        size="large"
         bind:input={btn}
         on:click={() => {
           showPopup(

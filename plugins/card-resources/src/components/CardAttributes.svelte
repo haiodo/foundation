@@ -82,7 +82,7 @@
   {/each}
   {#if showCollaborators}
     <AttributeBarEditor
-      key={'collaborators'}
+      key="collaborators"
       _class={object._class}
       {object}
       {showHeader}

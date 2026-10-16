@@ -50,9 +50,9 @@
       <div class="ac-header__wrap-title" on:click={onSpaceEdit}>
         <div class="ac-header__icon">
           {#if dmPersonsToDisplay.length === 0 && dm.members.includes(systemAccountUuid)}
-            <SystemAvatar size={'x-small'} />
+            <SystemAvatar size="x-small" />
           {:else}
-            <CombineAvatars _class={contact.mixin.Employee} items={dmPersonsToDisplay} size={'x-small'} />
+            <CombineAvatars _class={contact.mixin.Employee} items={dmPersonsToDisplay} size="x-small" />
           {/if}
         </div>
         <span class="ac-header__title">{name}</span>

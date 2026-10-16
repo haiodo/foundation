@@ -115,7 +115,7 @@
     withoutInput={readonly}
   >
     <svelte:fragment slot="title">
-      <Breadcrumb icon={survey.icon.Survey} title={object.name} size={'large'} isCurrent />
+      <Breadcrumb icon={survey.icon.Survey} title={object.name} size="large" isCurrent />
     </svelte:fragment>
 
     <svelte:fragment slot="utils">
@@ -141,7 +141,7 @@
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           on:click={(e) => {
             showMenu(e, { object, excludedActions: [view.action.Open] })
           }}
@@ -153,7 +153,7 @@
       {#if preview}
         {#if poll !== undefined}
           <div class="antiSection-empty solid mb-8">
-            <Icon icon={survey.icon.Info} size={'large'} />
+            <Icon icon={survey.icon.Info} size="large" />
             <span class="content-dark-color text-balance" style="margin-left:1em">
               <Label label={survey.string.ValidateInfo} />
             </span>

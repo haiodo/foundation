@@ -56,7 +56,7 @@
       >
         <EmployeePresenter
           value={p}
-          avatarSize={'large'}
+          avatarSize="large"
           shouldShowName={false}
           {inline}
           tooltipLabels={{
@@ -69,7 +69,7 @@
     {#if showDragPerson && dragPerson !== undefined && persons.find((it) => it._id === dragPerson?._id) === undefined}
       <EmployeePresenter
         value={dragPerson}
-        avatarSize={'large'}
+        avatarSize="large"
         shouldShowName={false}
         {inline}
         tooltipLabels={{

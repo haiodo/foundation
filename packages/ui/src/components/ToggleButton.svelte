@@ -88,7 +88,7 @@
 >
   {#if icon}
     <div class="btn-icon mr-2 pointer-events-none">
-      <Icon bind:icon size={'small'} />
+      <Icon bind:icon size="small" />
     </div>
   {/if}
   <span class="overflow-label pointer-events-none">

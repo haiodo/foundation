@@ -78,9 +78,9 @@
         bind:loading
         viewletQuery={{ _id: contact.viewlet.TableMember }}
       />
-      <ViewletSettingButton kind={'tertiary'} bind:viewlet />
+      <ViewletSettingButton kind="tertiary" bind:viewlet />
       {#if !readonly}
-        <Button id={contact.string.AddMember} icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id={contact.string.AddMember} icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </svelte:fragment>

@@ -116,10 +116,10 @@
   {/if}
   <svelte:fragment slot="buttons">
     {#if revokable}
-      <Button label={guest.string.Revoke} kind={'dangerous'} size={'large'} on:click={revoke} />
+      <Button label={guest.string.Revoke} kind="dangerous" size="large" on:click={revoke} />
     {/if}
     {#if link?.url !== undefined && link.url !== ''}
-      <Button label={copied ? view.string.Copied : guest.string.Copy} size={'medium'} on:click={copy} />
+      <Button label={copied ? view.string.Copied : guest.string.Copy} size="medium" on:click={copy} />
     {/if}
   </svelte:fragment>
 </Card>

@@ -112,6 +112,6 @@
         on:click={() => draftTable?.deleteSelected()}
       />
     {/if}
-    <Button id="ReportsPopupAddButton" icon={IconAdd} size={'large'} on:click={addReport} />
+    <Button id="ReportsPopupAddButton" icon={IconAdd} size="large" on:click={addReport} />
   </svelte:fragment>
 </Card>

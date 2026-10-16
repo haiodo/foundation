@@ -44,7 +44,7 @@
             style="modern"
             /> -->
     {#if person != null}
-      <PersonPresenter value={person} avatarSize={'large'} shouldShowName={false} />
+      <PersonPresenter value={person} avatarSize="large" shouldShowName={false} />
     {/if}
   {/await}
 {/each}

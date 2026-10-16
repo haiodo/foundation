@@ -204,7 +204,7 @@
 {#if descriptor !== undefined}
   <input type="file" accept=".json" bind:this={fileInput} style="display: none;" on:change={handleFileInputChange} />
   <div class="hulyTableAttr-header font-medium-12">
-    <IconLayers size={'small'} />
+    <IconLayers size="small" />
     <span><Label label={task.string.TaskTypes} /></span>
     <div class="flex-row-center flex-gap-2">
       <ButtonIcon
@@ -226,7 +226,7 @@
         }}
         size="small"
         kind="tertiary"
-        dataId={'btnImportTaskTypes'}
+        dataId="btnImportTaskTypes"
         {disabled}
         noSelection
         items={importActions}
@@ -236,7 +236,7 @@
         kind="primary"
         icon={IconAdd}
         size="small"
-        dataId={'btnAdd'}
+        dataId="btnAdd"
         {disabled}
         tooltip={disabled ? { label: setting.string.OwnerOrMaintainerRequired } : undefined}
         on:click={() => {
@@ -258,7 +258,7 @@
           }}
         >
           <div class="hulyTableAttr-content__row-icon-wrapper">
-            <TaskTypeIcon value={taskType} size={'small'} />
+            <TaskTypeIcon value={taskType} size="small" />
           </div>
           {#if taskType.name}
             <div class="hulyTableAttr-content__row-label grow font-medium-14">

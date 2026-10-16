@@ -69,7 +69,7 @@
 {#if object !== undefined}
   <div class="flex-row-center">
     <div class="mr-8 flex-center flex-no-shrink logo">
-      <Company size={'large'} />
+      <Company size="large" />
     </div>
     <div class="flex-grow flex-col">
       <div class="name">
@@ -82,7 +82,7 @@
         />
       </div>
       <div class="separator" />
-      <Scroller contentDirection={'horizontal'} padding={'.125rem .125rem .5rem'} stickedScrollBars thinScrollBars>
+      <Scroller contentDirection="horizontal" padding=".125rem .125rem .5rem" stickedScrollBars thinScrollBars>
         <ChannelsEditor
           editable={!readonly}
           attachedTo={object._id}

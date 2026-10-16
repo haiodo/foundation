@@ -103,10 +103,10 @@
         <Label label={plugin.string.BillingPeriodLabel} />
         <div class="flex">
           <Switcher
-            name={'checkoutPeriod'}
+            name="checkoutPeriod"
             items={periodItems}
             selected={period}
-            kind={'subtle'}
+            kind="subtle"
             on:select={(e) => {
               if (e?.detail?.id !== undefined) period = e.detail.id
             }}
@@ -134,7 +134,7 @@
          subscription simply ends at period end instead of auto-renewing. -->
     {#if !hideRecurrent}
       <div class="flex-row-top flex-gap-2" data-id="checkoutRecurrentCheckbox">
-        <CheckBox id="recurrent-input" bind:checked={recurrent} kind={'primary'} />
+        <CheckBox id="recurrent-input" bind:checked={recurrent} kind="primary" />
         <span class="text-sm">
           <label for="recurrent-input" class="cursor-pointer">
             <Label

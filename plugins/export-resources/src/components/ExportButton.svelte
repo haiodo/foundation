@@ -86,8 +86,8 @@
   <Button
     icon={plugin.icon.Export}
     label={plugin.string.Export}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     showTooltip={{ label: plugin.string.Export }}
     on:click={handleExport}
   />

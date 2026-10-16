@@ -62,7 +62,7 @@
   label={recruit.string.Opinion}
   okAction={editOpinion}
   canSave={value.trim().length > 0}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -70,5 +70,5 @@
   on:changeContent
 >
   <EditBox label={recruit.string.OpinionValue} bind:value placeholder={recruit.string.OpinionValue} autoFocus />
-  <StyledTextArea placeholder={recruit.string.Description} bind:content={description} kind={'emphasized'} />
+  <StyledTextArea placeholder={recruit.string.Description} bind:content={description} kind="emphasized" />
 </Card>

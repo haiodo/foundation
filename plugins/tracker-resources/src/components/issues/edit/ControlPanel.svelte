@@ -133,12 +133,12 @@
     <ObjectBox
       _class={tracker.class.IssueTemplate}
       value={issue.template?.template}
-      size={'small'}
-      kind={'link'}
-      width={'100%'}
+      size="small"
+      kind="link"
+      width="100%"
       label={tracker.string.NoIssueTemplate}
       icon={tracker.icon.Issues}
-      searchField={'title'}
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       readonly
@@ -150,12 +150,12 @@
     <Label label={tracker.string.Status} />
   </span>
 
-  <StatusEditor value={issue} size={'medium'} iconSize={'small'} shouldShowLabel isEditable={!readonly} />
+  <StatusEditor value={issue} size="medium" iconSize="small" shouldShowLabel isEditable={!readonly} />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Priority} />
   </span>
-  <PriorityEditor value={issue} size={'medium'} shouldShowLabel isEditable={!readonly} width={'100%'} />
+  <PriorityEditor value={issue} size="medium" shouldShowLabel isEditable={!readonly} width="100%" />
 
   <span class="labelOnPanel">
     <Label label={core.string.CreatedBy} />
@@ -163,10 +163,10 @@
   <EmployeeBox
     value={creatorPersonRef}
     label={core.string.CreatedBy}
-    kind={'link'}
-    size={'medium'}
-    avatarSize={'card'}
-    width={'100%'}
+    kind="link"
+    size="medium"
+    avatarSize="card"
+    width="100%"
     showNavigate={false}
     readonly
   />
@@ -174,7 +174,7 @@
   <span class="labelOnPanel">
     <Label label={tracker.string.Assignee} />
   </span>
-  <AssigneeEditor object={issue} size={'medium'} avatarSize={'card'} width="100%" {readonly} />
+  <AssigneeEditor object={issue} size="medium" avatarSize="card" width="100%" {readonly} />
 
   <span class="labelTop">
     <Label label={tracker.string.Labels} />
@@ -189,17 +189,17 @@
   <span class="labelOnPanel">
     <Label label={task.string.TaskType} />
   </span>
-  <TaskTypeEditor value={issue} size={'medium'} iconSize={'small'} isEditable={!readonly} width={'100%'} />
+  <TaskTypeEditor value={issue} size="medium" iconSize="small" isEditable={!readonly} width="100%" />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Component} />
   </span>
-  <ComponentEditor value={issue} space={issue.space} size={'medium'} isEditable={!readonly} />
+  <ComponentEditor value={issue} space={issue.space} size="medium" isEditable={!readonly} />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Milestone} />
   </span>
-  <MilestoneEditor value={issue} space={issue.space} size={'medium'} isEditable={!readonly} />
+  <MilestoneEditor value={issue} space={issue.space} size="medium" isEditable={!readonly} />
 
   {#if issue.dueDate != null}
     <div class="divider" />
@@ -207,7 +207,7 @@
     <span class="labelOnPanel">
       <Label label={tracker.string.DueDate} />
     </span>
-    <DueDateEditor value={issue} width={'100%'} editable={!readonly} />
+    <DueDateEditor value={issue} width="100%" editable={!readonly} />
   {/if}
 
   {#if hasSubtasks}
@@ -219,7 +219,7 @@
         value={issue.estimation}
         object={issue}
         onChange={updateEstimation}
-        kind={'link'}
+        kind="link"
         {readonly}
       />
     </div>
@@ -244,7 +244,7 @@
         value={issue.reportedTime}
         {reports}
         showChildIssues={false}
-        kind={'link'}
+        kind="link"
         {readonly}
       />
     </div>
@@ -267,7 +267,7 @@
         value={issue.estimation}
         object={issue}
         onChange={updateEstimation}
-        kind={'link'}
+        kind="link"
         {readonly}
       />
     </div>
@@ -279,7 +279,7 @@
         object={issue}
         value={issue.reportedTime}
         {reports}
-        kind={'link'}
+        kind="link"
         {readonly}
       />
     </div>
@@ -301,7 +301,7 @@
         _class={issue._class}
         object={issue}
         showHeader={true}
-        size={'medium'}
+        size="medium"
       />
     {/each}
   {/if}
@@ -316,7 +316,7 @@
         _class={issue._class}
         object={issue}
         showHeader={true}
-        size={'medium'}
+        size="medium"
       />
     {/each}
   {/if}
@@ -333,7 +333,7 @@
           {readonly}
           object={hierarchy.as(issue, mixin._id)}
           showHeader={true}
-          size={'medium'}
+          size="medium"
         />
       {/each}
     {/if}

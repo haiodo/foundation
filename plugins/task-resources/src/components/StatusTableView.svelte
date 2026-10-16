@@ -153,8 +153,8 @@
 
 <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
   <Switcher
-    name={'status-table-states'}
-    kind={'subtle'}
+    name="status-table-states"
+    kind="subtle"
     selected={doneStatusesView ? 'DoneStates' : 'AllStates'}
     items={[
       { id: 'AllStates', labelIntl: task.string.AllStates },
@@ -163,14 +163,14 @@
     on:select={handleSelect}
   />
   {#if doneStatusesView}
-    <ScrollerBar gap={'none'} bind:scroller={divScroll}>
+    <ScrollerBar gap="none" bind:scroller={divScroll}>
       <TabList items={itemsDS} bind:selected={selectedDS} multiselect on:select={handleDoneSelect} />
     </ScrollerBar>
   {:else}
     <StatesBar
       bind:state
       {space}
-      gap={'none'}
+      gap="none"
       on:change={() => {
         updateQuery(query, selectedDoneStates)
       }}

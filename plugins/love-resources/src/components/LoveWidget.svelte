@@ -58,7 +58,7 @@
   <Breadcrumbs items={[{ label: love.string.Office }]} currentOnly />
   <svelte:fragment slot="extra">
     {#if editable}
-      <ButtonIcon icon={IconAdd} kind={'primary'} size={'small'} on:click={addFloor} />
+      <ButtonIcon icon={IconAdd} kind="primary" size="small" on:click={addFloor} />
     {/if}
   </svelte:fragment>
 </Header>
@@ -73,7 +73,7 @@
           configure={configure && floor?._id === _floor._id}
           rooms={getRooms($rooms, _floor._id)}
           selected={floor?._id === _floor._id}
-          background={'var(--theme-panel-color)'}
+          background="var(--theme-panel-color)"
           on:configure={() => {
             if (floor?._id === _floor._id) {
               configure = !configure

@@ -90,8 +90,8 @@
         <div class="flex-row-center flex-no-shrink gap-2 tertiary-textColor">
           <ButtonIcon
             icon={IconChevronLeft}
-            kind={'tertiary'}
-            size={'extra-small'}
+            kind="tertiary"
+            size="extra-small"
             inheritColor
             on:click={() => {
               viewDate.setDate(1)
@@ -100,8 +100,8 @@
           />
           <ButtonIcon
             icon={IconChevronRight}
-            kind={'tertiary'}
-            size={'extra-small'}
+            kind="tertiary"
+            size="extra-small"
             inheritColor
             on:click={() => {
               viewDate.setDate(1)

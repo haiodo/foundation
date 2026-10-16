@@ -254,7 +254,7 @@
           <Button
             icon={IconSearch}
             iconProps={{ size: 'small' }}
-            kind={'icon'}
+            kind="icon"
             dataId="channel-search"
             selected={searchOpened}
             showTooltip={{ label: searchOpened ? chunter.string.SearchClose : chunter.string.SearchInChannel }}
@@ -277,7 +277,7 @@
                   <Label label={chunter.string.JoinChannelText} />
                 </span>
                 <span class="mt-4"> </span>
-                <ModernButton label={view.string.Join} kind={'primary'} dataId={'btnJoin'} on:click={join} />
+                <ModernButton label={view.string.Join} kind="primary" dataId="btnJoin" on:click={join} />
               </div>
             </div>
           {:else}

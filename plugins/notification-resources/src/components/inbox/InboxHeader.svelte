@@ -148,7 +148,7 @@
 </div>
 
 <div class="tabs">
-  <TabList items={tabItems} selected={selectedTabId} on:select={selectTab} padding={'var(--spacing-1) 0'} />
+  <TabList items={tabItems} selected={selectedTabId} on:select={selectTab} padding="var(--spacing-1) 0" />
 </div>
 
 <style lang="scss">

@@ -80,11 +80,11 @@
   {allowDeselect}
   {titleDeselect}
   {placeholder}
-  type={'object'}
+  type="object"
   docQuery={readonly ? { ...docQuery, _id: { $in: selectedUsers } } : docQuery}
   {filter}
   {sort}
-  groupBy={'_class'}
+  groupBy="_class"
   bind:selectedObjects={selectedUsers}
   bind:ignoreObjects={ignoreUsers}
   {shadows}
@@ -100,7 +100,7 @@
 >
   <svelte:fragment slot="item" let:item={person}>
     <div class="flex-row-center flex-grow">
-      <UserInfo size={'smaller'} value={person} {icon} />
+      <UserInfo size="smaller" value={person} {icon} />
     </div>
   </svelte:fragment>
 

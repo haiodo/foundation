@@ -114,7 +114,7 @@
         if (!empty) isOpen = !isOpen
       }}
     >
-      {#if !empty}<IconDown size={'x-small'} />{/if}
+      {#if !empty}<IconDown size="x-small" />{/if}
     </button>
   {/if}
   {#if visibleIcon || (type === 'type-tag' && color)}

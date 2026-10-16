@@ -81,15 +81,15 @@
   <div class="flex-row-center flex-grow flex-gap-2">
     <div class="hulyToDoLine-statusPriority" class:isNew>
       {#if updating !== undefined}
-        <Spinner size={'small'} />
+        <Spinner size="small" />
       {:else}
         <button class="hulyToDoLine-dragbox" on:contextmenu={onMenuClick}>
-          <Icon icon={IconMoreV2} size={'small'} />
+          <Icon icon={IconMoreV2} size="small" />
         </button>
         <ToDoPriorityPresenter value={todo.priority} muted={isDone} />
       {/if}
     </div>
-    <WorkItemPresenter {todo} kind={'todo-line'} withoutSpace />
+    <WorkItemPresenter {todo} kind="todo-line" withoutSpace />
     <div class="hulyToDoLine-title text-left font-regular-14 line-height-auto overflow-label">
       {todo.title}
     </div>

@@ -293,8 +293,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={settingsRes.icon.Setting} label={settingsRes.string.WorkspaceSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={settingsRes.icon.Setting} label={settingsRes.string.WorkspaceSettings} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
     {#if loading}
@@ -302,7 +302,7 @@
         <Loading />
       </div>
     {:else}
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content flex-col flex-gap-4">
           <div class="title"><Label label={settingsRes.string.Workspace} /></div>
           <div class="ws">
@@ -355,7 +355,7 @@
               {#if passwordAgingRule}
                 <div class="w-32">
                   <EditBox
-                    format={'number'}
+                    format="number"
                     minValue={1}
                     maxDigitsAfterPoint={0}
                     bind:value={passwordAgingRule}
@@ -373,8 +373,8 @@
               <Label label={settingsRes.string.StartOfTheWeek} />
               <DropdownLabels
                 {items}
-                kind={'regular'}
-                size={'medium'}
+                kind="regular"
+                size="medium"
                 {selected}
                 enableSearch={false}
                 on:selected={onSelected}

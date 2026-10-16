@@ -52,7 +52,7 @@
 </script>
 
 <TreeNode
-  _id={'tree-stared'}
+  _id="tree-stared"
   {label}
   highlighted={spaces.some((s) => s._id === currentSpace) && !deselect}
   isFold

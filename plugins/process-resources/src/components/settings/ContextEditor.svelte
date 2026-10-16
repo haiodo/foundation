@@ -54,7 +54,7 @@
 
 <Modal
   label={plugin.string.Data}
-  type={'type-aside'}
+  type="type-aside"
   canSave={!readonly}
   okLabel={presentation.string.Save}
   okAction={save}
@@ -69,7 +69,7 @@
           <ProcessContextRawPresenter context={val[1]} />
         </div>
         <EditBox
-          kind={'ghost'}
+          kind="ghost"
           value={val[1].name ?? ''}
           placeholder={core.string.Name}
           disabled={readonly}

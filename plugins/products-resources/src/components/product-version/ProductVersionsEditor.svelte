@@ -58,7 +58,7 @@
         <Button
           id={products.string.CreateProductVersion}
           icon={IconAdd}
-          kind={'ghost'}
+          kind="ghost"
           on:click={createProductVersion}
         />
       </div>

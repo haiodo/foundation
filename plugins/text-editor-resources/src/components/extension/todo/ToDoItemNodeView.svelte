@@ -231,7 +231,7 @@
     {/if}
 
     <div class="flex-center todo-check" contenteditable="false">
-      <CheckBox {readonly} {checked} on:value={markDone} kind={'positive'} size={'medium'} />
+      <CheckBox {readonly} {checked} on:value={markDone} kind="positive" size="medium" />
     </div>
 
     <NodeViewContent style="outline: none;" class="flex-grow" />

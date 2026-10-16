@@ -22,7 +22,7 @@
   export let space: Ref<Project> | undefined
 </script>
 
-{#each ids.map((id) => $statusStore.byId.get(id)) as value, i}{#if i > 0},{' '}{/if}<span class="status"
+{#each ids.map((id) => $statusStore.byId.get(id)) as value, i}{#if i > 0},{' '}<!-- eslint-disable-line svelte/no-useless-mustaches -->{/if}<span class="status"
     ><StatePresenter {value} {space} inline shouldShowName={false} /><span class="name">{value?.name ?? ''}</span></span
   >{/each}
 

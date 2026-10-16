@@ -24,5 +24,5 @@
 </script>
 
 {#if isOwnerOrMaintainer()}
-  <ButtonIcon id={'new-space-type'} icon={IconAdd} kind={'tertiary'} size={'extra-small'} on:click={handleAdd} />
+  <ButtonIcon id="new-space-type" icon={IconAdd} kind="tertiary" size="extra-small" on:click={handleAdd} />
 {/if}

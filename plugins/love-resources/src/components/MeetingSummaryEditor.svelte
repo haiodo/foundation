@@ -40,7 +40,7 @@
 
 {#if generating}
   <div class="p-3" data-id="meeting-summary-spinner">
-    <Spinner size={'small'} />
+    <Spinner size="small" />
   </div>
 {:else}
   <CollaborativeDocEditor {object} {key} {draft} {onChange} />

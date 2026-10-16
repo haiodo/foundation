@@ -37,7 +37,7 @@
     <DocNavLink object={value} {disabled} {noUnderline} {accent}>
       <div class="flex-presenter">
         {#if shouldShowAvatar}
-          <div class="icon"><Icon icon={lead.icon.Lead} size={'small'} /></div>
+          <div class="icon"><Icon icon={lead.icon.Lead} size="small" /></div>
         {/if}
         <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>
           {value.identifier}

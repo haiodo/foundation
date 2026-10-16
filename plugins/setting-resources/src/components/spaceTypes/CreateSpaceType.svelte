@@ -124,9 +124,9 @@
       label={core.string.SpaceType}
       searchField="name"
       showNavigate={false}
-      groupBy={'baseClass'}
+      groupBy="baseClass"
       focusIndex={20000}
-      id={'selectSpaceType'}
+      id="selectSpaceType"
     />
   </svelte:fragment>
   <div class="flex-col flex-gap-2">

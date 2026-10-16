@@ -20,7 +20,7 @@
   const kb = (b: number): string => (b / 1024).toFixed(1)
 </script>
 
-<div class="antiPopup connStats" style:padding={'12px'}>
+<div class="antiPopup connStats" style:padding="12px">
   <div class="fs-title"><Label label={uiPlugin.string.Connection} /></div>
   <div class="row">
     <Label label={$connOnline ? uiPlugin.string.Connected : uiPlugin.string.Reconnecting} />

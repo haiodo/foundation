@@ -65,5 +65,5 @@
     <span class="content-dark-color"><Label label={placeholder} /></span>
   {/if}
 {:else}
-  <EditBox {placeholder} value={value ?? undefined} format={'number'} {autoFocus} on:change={onEditBoxChange} />
+  <EditBox {placeholder} value={value ?? undefined} format="number" {autoFocus} on:change={onEditBoxChange} />
 {/if}

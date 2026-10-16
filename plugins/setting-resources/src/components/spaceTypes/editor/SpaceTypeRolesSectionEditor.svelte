@@ -70,7 +70,7 @@
       kind="primary"
       icon={IconAdd}
       size="small"
-      dataId={'btnAdd'}
+      dataId="btnAdd"
       {disabled}
       tooltip={disabled ? { label: settingRes.string.OwnerOrMaintainerRequired } : undefined}
       on:click={(ev) => {

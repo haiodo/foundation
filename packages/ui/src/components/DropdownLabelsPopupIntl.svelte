@@ -86,8 +86,8 @@
     <div class="search">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         on:change={() => dispatch('search', search)}
@@ -134,7 +134,7 @@
             <Label label={item.label} params={item.params ?? params} />
           </div>
           <div class="check">
-            {#if isSelected(selected, item)}<IconCheck size={'small'} />{/if}
+            {#if isSelected(selected, item)}<IconCheck size="small" />{/if}
           </div>
         </button>
       {/each}

@@ -71,7 +71,7 @@
 >
   <div class="bg-image clear-mins p-4 back">
     {#if activeTheme.backgroundComponent}
-      <div class="back-image" style:display={'block'}>
+      <div class="back-image" style:display="block">
         <svelte:component this={activeTheme.backgroundComponent} />
       </div>
     {:else}
@@ -82,7 +82,7 @@
         <img
           class="back-image"
           src={loginBack}
-          style:display={'block'}
+          style:display="block"
           srcset={`${loginBack} 1x, ${loginBack2x} 2x`}
           alt=""
         />
@@ -104,7 +104,7 @@
       </div>
 
       {#if getMetadata(platform.metadata.DevModel)}
-        <div style:position="fixed" style:left={'0px'} style:top={'0px'} style:z-index={10000} class="flex-row-center">
+        <div style:position="fixed" style:left="0px" style:top="0px" style:z-index={10000} class="flex-row-center">
           <select class="select small" value={$loginTheme.name} on:change={onDevThemeChange}>
             <option value="intabia">Intabia</option>
             <option value="huly">Huly</option>
@@ -113,7 +113,7 @@
       {/if}
 
       <div class:panel-base={!wide} class="panel" class:wide>
-        <Scroller padding={'1rem 0'} noStretch={!wide}>
+        <Scroller padding="1rem 0" noStretch={!wide}>
           <div class="form-content">
             <slot name="form-content" />
           </div>
@@ -131,9 +131,9 @@
       {#if getMetadata(login.metadata.SupportUrl)}
         <span class="support">
           <Button
-            kind={'regular'}
-            borderStyle={'none'}
-            size={'small'}
+            kind="regular"
+            borderStyle="none"
+            size="small"
             label={setting.string.Support}
             on:click={() => {
               window.open(getMetadata(login.metadata.SupportUrl), '_blank')

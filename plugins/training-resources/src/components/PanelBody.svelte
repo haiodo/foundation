@@ -21,7 +21,7 @@
     <TabList
       items={tabItems}
       selected={modes.mode}
-      kind={'plain'}
+      kind="plain"
       adaptiveShrink={null}
       on:select={(event) => {
         modes.onChange(event.detail.id)

@@ -83,7 +83,7 @@
 </script>
 
 {#if enabled}
-  <DropdownLabels kind={'link'} {items} on:selected={selectHandler} selected={value._id} />
+  <DropdownLabels kind="link" {items} on:selected={selectHandler} selected={value._id} />
   {#if value.isLatest}
     <Button label={card.string.NewVersion} on:click={newVersion} />
   {/if}

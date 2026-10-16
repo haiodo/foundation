@@ -102,7 +102,7 @@
     <div class="channel-item">
       <Button
         icon={item.icon}
-        kind={'link-bordered'}
+        kind="link-bordered"
         {size}
         highlight={item.integration || item.notification}
         showTooltip={{ component: ChannelsPopup, props: { value: item }, label: undefined, anchor: divHTML }}

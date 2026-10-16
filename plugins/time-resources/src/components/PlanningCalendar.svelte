@@ -327,7 +327,7 @@
     showLabel = showLabel ? element.clientWidth > rem(3.5) + 399 : element.clientWidth > rem(3.5) + 400
   }}
 >
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <PlannerViewSwitch bind:calMode bind:showToDos />
     <!-- On a narrow panel the day columns already carry the date, and the heading would push
          the actions out of the header. -->
@@ -341,8 +341,8 @@
     <svelte:fragment slot="actions">
       <ButtonIcon
         icon={contact.icon.Person}
-        kind={'secondary'}
-        size={'small'}
+        kind="secondary"
+        size="small"
         pressed={showMine}
         tooltip={{ label: time.string.Schedule }}
         on:click={() => {
@@ -353,8 +353,8 @@
       <UserBoxList
         items={extraPersons}
         docQuery={{ _id: { $nin: [getCurrentEmployee()] } }}
-        kind={'regular'}
-        size={'small'}
+        kind="regular"
+        size="small"
         on:update={(e) => {
           extraPersons = e.detail
           localStorage.setItem(extraPersonsKey, JSON.stringify(extraPersons))
@@ -362,9 +362,9 @@
       />
       <ButtonIcon
         icon={IconChevronLeft}
-        kind={'secondary'}
-        size={'small'}
-        dataId={'btnPrev'}
+        kind="secondary"
+        size="small"
+        dataId="btnPrev"
         on:click={() => {
           inc(-1)
         }}
@@ -375,8 +375,8 @@
           label={showLabel ? time.string.TodayColon : undefined}
           title={showLabel ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
           type={showLabel ? 'type-button' : 'type-button-icon'}
-          kind={'secondary'}
-          size={'small'}
+          kind="secondary"
+          size="small"
           inheritFont
           hasMenu
           disabled={isToday}
@@ -387,9 +387,9 @@
       {/key}
       <ButtonIcon
         icon={IconChevronRight}
-        kind={'secondary'}
-        size={'small'}
-        dataId={'btnNext'}
+        kind="secondary"
+        size="small"
+        dataId="btnNext"
         on:click={() => {
           inc(1)
         }}

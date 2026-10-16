@@ -129,9 +129,9 @@
       <div class="antiOption step-tb25" tabindex={focusIndex + shortListLength - 2}>
         <Button
           icon={IconMoreV}
-          kind={'ghost'}
-          size={'x-small'}
-          padding={'0 .5rem'}
+          kind="ghost"
+          size="x-small"
+          padding="0 .5rem"
           focusIndex={-1}
           on:click={() => (shown = true)}
         />

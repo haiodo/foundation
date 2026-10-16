@@ -83,8 +83,8 @@
 <ChunterSpacesView bind:search={$userSearch} _class={current.id} label={current.label} {...current.props}>
   <svelte:fragment slot="extra">
     <Switcher
-      name={'channels_and_dms'}
-      kind={'subtle'}
+      name="channels_and_dms"
+      kind="subtle"
       selected={currentTab}
       items={tabs}
       on:select={(result) => {

@@ -60,7 +60,7 @@
   <div class="flex-row-center clear-mins">
     <Button
       icon={IconArrowLeft}
-      kind={'ghost'}
+      kind="ghost"
       on:click={() => {
         dispatch('close')
       }}
@@ -97,7 +97,7 @@
 </div>
 {#if attachments.length}
   <div class="flex-row-center background-bg-accent-color bottom-divider">
-    <Scroller padding={'.5rem'} gap={'gap-2'} horizontal contentDirection={'horizontal'} noFade={false}>
+    <Scroller padding=".5rem" gap="gap-2" horizontal contentDirection="horizontal" noFade={false}>
       {#each attachments as attachment}
         <AttachmentPresenter value={attachment} showPreview />
       {/each}
@@ -106,6 +106,6 @@
   </div>
 {/if}
 
-<Scroller padding={'1rem'}>
+<Scroller padding="1rem">
   <FullMessageContent content={currentMessage.content} />
 </Scroller>

@@ -74,7 +74,7 @@
   }
 </script>
 
-<AccordionItem {id} {icon} {iconProps} {title} {label} size={'medium'} nested hiddenHeader={project === false}>
+<AccordionItem {id} {icon} {iconProps} {title} {label} size="medium" nested hiddenHeader={project === false}>
   {#each todos as todo, index}
     <ToDoDraggable {todo} {index} {groupName} {projectId} on:drop={handleDrop}>
       <ToDoElement {todo} planned={mode !== 'unplanned'} />

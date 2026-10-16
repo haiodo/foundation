@@ -332,7 +332,7 @@
   <div class="flex-row-center flex-gap-3 text-base pr-2" on:click={focusQuestion}>
     {#if isNewQuestion}
       <div class="self-start">
-        <ButtonIcon size={'small'} disabled icon={questionIcon} />
+        <ButtonIcon size="small" disabled icon={questionIcon} />
       </div>
     {:else}
       <div
@@ -342,12 +342,12 @@
         on:dragstart={onRootDragStart}
         on:dragend={onRootDragEnd}
       >
-        <ButtonIcon size={'small'} disabled={readonly} icon={questionIcon} on:click={showQuestionParams} />
+        <ButtonIcon size="small" disabled={readonly} icon={questionIcon} on:click={showQuestionParams} />
       </div>
     {/if}
     <EditBox
       bind:this={inputNameEditBox}
-      format={'text-multiline'}
+      format="text-multiline"
       disabled={readonly}
       placeholder={survey.string.QuestionPlaceholderEmpty}
       bind:value={inputName}
@@ -358,12 +358,12 @@
     {#if !isNewQuestion}
       {#if question.hasCustomOption && question.kind !== QuestionKind.STRING}
         <div class="flex-no-shrink" use:tooltip={{ label: survey.string.QuestionTooltipCustomOption }}>
-          <Icon icon={survey.icon.QuestionHasCustomOption} size={'small'} />
+          <Icon icon={survey.icon.QuestionHasCustomOption} size="small" />
         </div>
       {/if}
       {#if question.isMandatory}
         <div class="flex-no-shrink" use:tooltip={{ label: survey.string.QuestionTooltipMandatory }}>
-          <Icon icon={survey.icon.QuestionIsMandatory} size={'small'} />
+          <Icon icon={survey.icon.QuestionIsMandatory} size="small" />
         </div>
       {/if}
     {/if}
@@ -398,9 +398,9 @@
           <ButtonIcon
             disabled={readonly}
             icon={questionIcon}
-            iconSize={'x-small'}
-            kind={'tertiary'}
-            size={'extra-small'}
+            iconSize="x-small"
+            kind="tertiary"
+            size="extra-small"
             on:click={(ev) => {
               showOptionParams(ev, index)
             }}
@@ -429,7 +429,7 @@
         on:drop={onOptionDrop}
         class:dragged-over={draggedOverIndex === inputOptions.length && draggedIndex !== inputOptions.length - 1}
       >
-        <ButtonIcon disabled icon={survey.icon.Question} iconSize={'x-small'} kind={'tertiary'} size={'extra-small'} />
+        <ButtonIcon disabled icon={survey.icon.Question} iconSize="x-small" kind="tertiary" size="extra-small" />
         <EditBox
           placeholder={survey.string.QuestionPlaceholderOption}
           bind:value={inputNewOption}

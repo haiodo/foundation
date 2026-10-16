@@ -31,8 +31,8 @@
 
 <ButtonIcon
   icon={time.icon.All}
-  size={'small'}
-  kind={'tertiary'}
+  size="small"
+  kind="tertiary"
   pressed={showToDos}
   tooltip={{ label: time.string.ToDos }}
   on:click={() => {
@@ -40,4 +40,4 @@
     localStorage.setItem(`planner_show_todos_${calMode}`, showToDos ? 'true' : 'false')
   }}
 />
-<DropdownLabelsIntl {items} bind:selected={calMode} kind={'regular'} size={'medium'} dataId={'planner-mode'} />
+<DropdownLabelsIntl {items} bind:selected={calMode} kind="regular" size="medium" dataId="planner-mode" />

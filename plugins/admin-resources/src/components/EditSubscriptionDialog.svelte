@@ -115,7 +115,7 @@
       <div class="flex-row-center mb-2">
         <span class="mr-2"><Label label={adminRes.string.Seats} />:</span>
         <div class="num-input">
-          <EditBox bind:value={seats} format={'number'} kind={'default'} placeholder={adminRes.string.EnterNumber} />
+          <EditBox bind:value={seats} format="number" kind="default" placeholder={adminRes.string.EnterNumber} />
         </div>
       </div>
     {/if}
@@ -126,11 +126,11 @@
     <div class="flex-row-center">
       <span class="mr-2"><Label label={adminRes.string.PricePerPeriod} />, {currency}:</span>
       <div class="price-input">
-        <EditBox bind:value={amountRub} format={'number'} kind={'default'} placeholder={adminRes.string.EnterNumber} />
+        <EditBox bind:value={amountRub} format="number" kind="default" placeholder={adminRes.string.EnterNumber} />
       </div>
       {#if canRecalc}
         <div class="ml-2">
-          <Button label={adminRes.string.RecalculatePrice} size={'small'} on:click={recalcPrice} />
+          <Button label={adminRes.string.RecalculatePrice} size="small" on:click={recalcPrice} />
         </div>
       {/if}
     </div>

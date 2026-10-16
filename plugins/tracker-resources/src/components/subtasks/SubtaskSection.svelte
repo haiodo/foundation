@@ -85,8 +85,8 @@
       width="min-content"
       icon={hasSubIssues ? IconAdd : undefined}
       label={hasSubIssues ? undefined : tracker.string.AddSubIssues}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       showTooltip={{ label: tracker.string.AddSubIssues }}
       on:click={() => {
         closeTooltip()

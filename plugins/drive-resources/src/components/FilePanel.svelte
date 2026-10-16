@@ -107,7 +107,7 @@
     allowClose={!embedded}
     isHeader={false}
     useMaxWidth={false}
-    adaptive={'default'}
+    adaptive="default"
     on:open
     on:close
     on:update
@@ -121,7 +121,7 @@
         <Button
           icon={IconDownload}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           showTooltip={{ label: drive.string.Download }}
           on:click={handleDownloadFile}
         />
@@ -130,7 +130,7 @@
         <Button
           icon={IconUpload}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           showTooltip={{ label: drive.string.Upload }}
           on:click={handleUploadFile}
         />
@@ -138,7 +138,7 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         showTooltip={{ label: view.string.MoreActions }}
         on:click={(ev) => {
           showMenu(ev, { object })

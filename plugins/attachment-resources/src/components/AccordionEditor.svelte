@@ -119,15 +119,15 @@
           {/if}
         </div>
         <Button
-          size={'medium'}
-          kind={'ghost'}
+          size="medium"
+          kind="ghost"
           on:click={(ev) => {
             flip(i, ev)
           }}
         >
           <svelte:fragment slot="icon">
             <div class="rotated-icon {item.state}">
-              <IconDownOutline size={'medium'} />
+              <IconDownOutline size="medium" />
             </div>
           </svelte:fragment>
         </Button>

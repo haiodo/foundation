@@ -118,7 +118,7 @@
   }
 </script>
 
-<Card label={card.string.Duplicate} canSave={true} width={'medium'} okAction={save} on:close>
+<Card label={card.string.Duplicate} canSave={true} width="medium" okAction={save} on:close>
   <div class="flex-col flex-gap-2">
     {#if allProperties.length > 0}
       <div class="flex-between">

@@ -38,7 +38,7 @@
 <div class="flex-presenter">
   {#each icons as icon}
     <div class="icon small-gap flow">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
   {/each}
 </div>

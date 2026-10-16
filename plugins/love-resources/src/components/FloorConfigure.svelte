@@ -308,29 +308,29 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <DropdownLabels
       {items}
       selected={selected?._id}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       enableSearch={false}
       autoSelect={false}
       on:selected={changeFloor}
     />
     <svelte:fragment slot="actions">
-      <ButtonIcon icon={IconAdd} size={'small'} on:click={addRoom} />
+      <ButtonIcon icon={IconAdd} size="small" on:click={addRoom} />
       <div class="hulyHeader-divider short" />
       <ModernButton
         label={lovePlg.string.FinalizeEditing}
-        kind={'primary'}
-        size={'small'}
+        kind="primary"
+        size="small"
         on:click={() => dispatch('configure')}
       />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__column content">
-    <Scroller bind:divScroll padding={'1rem'} bottomPadding={'1rem'} horizontal>
+    <Scroller bind:divScroll padding="1rem" bottomPadding="1rem" horizontal>
       <FloorGrid
         bind:floorContainer
         {rows}

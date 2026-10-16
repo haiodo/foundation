@@ -110,11 +110,11 @@
               focusTarget(btns[i])
             }}
           >
-            <div class="icon mr-2"><Icon icon={app.icon} size={'small'} /></div>
+            <div class="icon mr-2"><Icon icon={app.icon} size="small" /></div>
             <span class="label overflow-label flex-grow"><Label label={app.label} /></span>
             <div class="ap-check">
               {#if !hiddenAppsIds.includes(app._id)}
-                <IconCheck size={'small'} />
+                <IconCheck size="small" />
               {/if}
             </div>
           </button>

@@ -79,8 +79,8 @@
       {#if action.icon}
         <ButtonIcon
           icon={action.icon}
-          kind={'tertiary'}
-          size={'extra-small'}
+          kind="tertiary"
+          size="extra-small"
           dataId={action.label}
           tooltip={{ label: action.label, direction: 'top' }}
           on:click={(evt) => action.action({}, evt)}
@@ -89,10 +89,10 @@
     {/each}
     <ButtonIcon
       icon={IconMoreH}
-      kind={'tertiary'}
-      size={'extra-small'}
+      kind="tertiary"
+      size="extra-small"
       pressed={hovered}
-      dataId={'btnDocMore'}
+      dataId="btnDocMore"
       tooltip={{ label: view.string.MoreActions, direction: 'top' }}
       on:click={onMenuClick}
     />

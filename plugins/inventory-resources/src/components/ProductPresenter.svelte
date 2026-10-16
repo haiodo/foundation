@@ -30,7 +30,7 @@
   {:else}
     <DocNavLink object={value}>
       <div class="flex-presenter">
-        <div class="icon"><Icon icon={inventory.icon.Products} size={'small'} /></div>
+        <div class="icon"><Icon icon={inventory.icon.Products} size="small" /></div>
         <span class="label">{value.name}</span>
       </div>
     </DocNavLink>

@@ -221,8 +221,8 @@
           bind:space={_space}
           focus={false}
           clearInvalidValue={true}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       </div>
     {/if}

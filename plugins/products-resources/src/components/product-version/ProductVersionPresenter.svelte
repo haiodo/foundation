@@ -52,7 +52,7 @@
       <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(name) }}>
         {#if shouldShowAvatar && product}
           <div class="icon">
-            <DocIcon value={product} size={'small'} defaultIcon={products.icon.ProductVersion} />
+            <DocIcon value={product} size="small" defaultIcon={products.icon.ProductVersion} />
           </div>
         {/if}
         <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>

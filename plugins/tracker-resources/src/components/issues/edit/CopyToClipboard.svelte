@@ -27,7 +27,7 @@
     icon={view.icon.CopyLink}
     title={tracker.string.CopyIssueUrl}
     text={issueUrl}
-    dataId={'btnCopyIssueUrl'}
+    dataId="btnCopyIssueUrl"
   />
 {/if}
 
@@ -36,7 +36,7 @@
     icon={view.icon.CopyId}
     title={tracker.string.CopyIssueId}
     text={issueId}
-    dataId={'btnCopyIssueId'}
+    dataId="btnCopyIssueId"
   />
 {/if}
 
@@ -45,6 +45,6 @@
     icon={tracker.icon.CopyBranch}
     title={tracker.string.CopyIssueBranch}
     text={issueBranch}
-    dataId={'btnCopyIssueBranch'}
+    dataId="btnCopyIssueBranch"
   />
 {/if}

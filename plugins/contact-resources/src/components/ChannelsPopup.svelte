@@ -34,7 +34,7 @@
 </script>
 
 <div class="flex-row-center">
-  <CircleButton icon={value.icon} size={'x-large'} />
+  <CircleButton icon={value.icon} size="x-large" />
   <div class="flex-col caption-color clear-mins ml-3">
     <div class="text-sm font-medium"><Label label={value.label} /></div>
     <div class="overflow-label">{value.value}</div>
@@ -42,7 +42,7 @@
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="button" on:click|preventDefault={copyLink}>
-    <IconCopy size={'small'} />
+    <IconCopy size="small" />
   </div>
 </div>
 

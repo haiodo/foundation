@@ -60,9 +60,9 @@
 <Button
   {disabled}
   label={calendar.string.TimeZone}
-  kind={'ghost'}
-  padding={'0 .5rem'}
-  justify={'left'}
+  kind="ghost"
+  padding="0 .5rem"
+  justify="left"
   {flex}
   on:click={open}
 >

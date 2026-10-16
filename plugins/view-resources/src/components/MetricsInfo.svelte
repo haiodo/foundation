@@ -70,7 +70,7 @@
           on:click={() => {
             showPopup(Params, { params: metrics.namedParams ?? {}, opLog: metrics.opLog }, 'full')
           }}
-          kind={'ghost'}
+          kind="ghost"
         />
       {/if}
     </div>

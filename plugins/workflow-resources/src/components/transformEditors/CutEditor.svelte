@@ -33,14 +33,14 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <Label label={plugin.string.Start} />
     <NumberEditor
       bind:value={start}
-      size={'large'}
-      kind={'regular'}
-      justify={'left'}
+      size="large"
+      kind="regular"
+      justify="left"
       onChange={(res) => {
         if (res !== undefined) start = res
       }}
@@ -49,9 +49,9 @@
     <Label label={plugin.string.End} />
     <NumberEditor
       bind:value={end}
-      size={'large'}
-      kind={'regular'}
-      justify={'left'}
+      size="large"
+      kind="regular"
+      justify="left"
       onChange={(res) => {
         if (res !== undefined) end = res
       }}

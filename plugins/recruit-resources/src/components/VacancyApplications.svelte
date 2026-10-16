@@ -52,7 +52,7 @@
 <div class="antiSection max-h-125 clear-mins">
   <div class="antiSection-header">
     <div class="antiSection-header__icon">
-      <Icon icon={IconApplication} size={'small'} />
+      <Icon icon={IconApplication} size="small" />
     </div>
     <span class="antiSection-header__title">
       <NavLink app={recruitId} space={objectId}>
@@ -62,13 +62,13 @@
     <div class="flex-row-center gap-2 reverse">
       <ViewletsSettingButton
         viewletQuery={{ _id: recruit.viewlet.VacancyApplicationsShort }}
-        kind={'tertiary'}
+        kind="tertiary"
         bind:viewlet
         bind:preference
         bind:loading
       />
       {#if !readonly}
-        <Button id="appls.add" icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id="appls.add" icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </div>

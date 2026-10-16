@@ -41,7 +41,7 @@
 <div class="antiContactCard">
   <div class="label uppercase"><Label label={contact.string.Organization} /></div>
   <div class="flex-center logo">
-    <Avatar person={organization} size={'large'} icon={contact.icon.Company} />
+    <Avatar person={organization} size="large" icon={contact.icon.Company} />
   </div>
   {#if organization}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -61,7 +61,7 @@
         <ChannelsEditor
           attachedTo={channels[0].attachedTo}
           attachedClass={channels[0].attachedToClass}
-          length={'short'}
+          length="short"
           editable={false}
         />
       {/if}

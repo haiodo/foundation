@@ -60,7 +60,7 @@
       <span class="overflow-label fs-bold text-base caption-color"><slot name="title">{title}</slot></span>
     </div>
     {#if onClose !== undefined}
-      <Button icon={Close} kind="ghost" size="small" dataId={'btnNotifyClose'} on:click={onClose} />
+      <Button icon={Close} kind="ghost" size="small" dataId="btnNotifyClose" on:click={onClose} />
     {/if}
   </div>
 

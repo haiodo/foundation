@@ -107,8 +107,8 @@
     {#if hasProject}
       <ButtonWithDropdown
         icon={IconAdd}
-        justify={'left'}
-        kind={'primary'}
+        justify="left"
+        kind="primary"
         label={testManagement.string.CreateTestCase}
         dropdownIcon={IconDropdown}
         {dropdownItems}
@@ -122,10 +122,10 @@
       <Button
         icon={IconAdd}
         label={testManagement.string.CreateProject}
-        justify={'left'}
-        width={'100%'}
-        kind={'primary'}
-        gap={'large'}
+        justify="left"
+        width="100%"
+        kind="primary"
+        gap="large"
         on:click={showCreateProjectPopup}
       />
     {/if}

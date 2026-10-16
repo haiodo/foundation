@@ -64,7 +64,7 @@
 </script>
 
 <Card
-  width={'small'}
+  width="small"
   on:close
   label={plugin.string.Result}
   canSave={Object.values(values).filter((v) => v != null).length === results.length}

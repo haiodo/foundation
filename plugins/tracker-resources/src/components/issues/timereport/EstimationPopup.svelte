@@ -78,7 +78,7 @@
     dispatch('close')
   }}
   okLabel={presentation.string.Ok}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close', null)
   }}
@@ -150,7 +150,7 @@
   <svelte:fragment slot="buttons">
     <Button
       icon={IconAdd}
-      size={'large'}
+      size="large"
       on:click={() => {
         showPopup(
           TimeSpendReportPopup,

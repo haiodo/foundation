@@ -58,12 +58,12 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <DropdownLabels
       {items}
       selected={selected?._id}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       enableSearch={false}
       autoSelect={false}
       on:selected={changeFloor}
@@ -76,7 +76,7 @@
         <ModernButton
           icon={IconEdit}
           label={lovePlg.string.EditOffice}
-          size={'small'}
+          size="small"
           on:click={() => dispatch('configure')}
         />
       {/if}

@@ -59,10 +59,10 @@
     icon={view.icon.Configure}
     {disabled}
     {kind}
-    size={'small'}
+    size="small"
     {pressed}
     tooltip={{ label: view.string.CustomizeView, direction: 'bottom' }}
-    dataId={'btn-viewSetting'}
+    dataId="btn-viewSetting"
     bind:element={btn}
     on:click={clickHandler}
   />

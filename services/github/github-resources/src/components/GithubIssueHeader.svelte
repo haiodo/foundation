@@ -51,7 +51,7 @@
     {#if ghIssue?.repository == null}
       <RepositoryPresenterRefEditor
         label={github.string.CreateGithubIssue}
-        kind={'regular'}
+        kind="regular"
         showIcon={true}
         {space}
         disabled={readonly}
@@ -64,7 +64,7 @@
     {:else if ghIssue.url !== ''}
       <div class="flex flex-row-center">
         {#if repository !== undefined}
-          <Icon icon={github.icon.Github} size={'small'} />
+          <Icon icon={github.icon.Github} size="small" />
           <span class="ml-1">
             {repository?.name}
           </span>

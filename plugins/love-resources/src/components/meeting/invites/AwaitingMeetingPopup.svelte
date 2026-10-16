@@ -41,7 +41,7 @@
 <div class="antiPopup invite-popup flex-gap-4" data-id="awaiting-meeting-popup">
   <div class="popup-header">
     <div class="inviter-info">
-      <Avatar {person} size={'small'} name={person.name} />
+      <Avatar {person} size="small" name={person.name} />
       <span class="inviter-name">{formatName(person.name)}</span>
     </div>
   </div>
@@ -51,7 +51,7 @@
   </div>
 
   <div class="popup-actions">
-    <ModernButton label={love.string.Cancel} kind={'secondary'} size={'medium'} on:click={handleCancel} />
+    <ModernButton label={love.string.Cancel} kind="secondary" size="medium" on:click={handleCancel} />
   </div>
 </div>
 

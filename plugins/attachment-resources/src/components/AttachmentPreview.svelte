@@ -84,7 +84,7 @@
   <div class="buttonContainer" class:hovered>
     <AudioPlayer {value} />
     {#if withActions}
-      <div class="actions" style:padding={'0.125rem 0.25rem'}>
+      <div class="actions" style:padding="0.125rem 0.25rem">
         <AttachmentActions attachment={value} {isSaved} {removable} />
       </div>
     {/if}

@@ -173,7 +173,7 @@
           {value}
           element={elements.get(value.tag)}
           isEditable={!readonly}
-          kind={'list'}
+          kind="list"
           on:remove={(res) => removeTag(res.detail)}
         />
       </div>
@@ -181,7 +181,7 @@
     {#if !readonly}
       <div class="step-container clear-mins">
         <button class="tag-button" on:click|stopPropagation={tagsHandler}>
-          <div class="icon"><Icon icon={TagIcon} size={'full'} /></div>
+          <div class="icon"><Icon icon={TagIcon} size="full" /></div>
           <span class="overflow-label label"><Label {label} /></span>
         </button>
       </div>
@@ -189,7 +189,7 @@
   </div>
 {:else if !readonly}
   <button class="tag-button" style="width: min-content" on:click|stopPropagation={tagsHandler}>
-    <div class="icon"><Icon icon={TagIcon} size={'full'} /></div>
+    <div class="icon"><Icon icon={TagIcon} size="full" /></div>
     <span class="overflow-label label"><Label {label} /></span>
   </button>
 {/if}

@@ -165,8 +165,8 @@
             selected={$store.sort}
             icon={IconOptions}
             iconSize="small"
-            kind={'secondary'}
-            size={'small'}
+            kind="secondary"
+            size="small"
             showDropdownIcon
             on:selected={(e) => {
               handleSortSelected(e.detail)

@@ -191,8 +191,8 @@
   okAction={handleSave}
   {canSave}
   accentHeader
-  width={'medium'}
-  gap={'gapV-6'}
+  width="medium"
+  gap="gapV-6"
   onCancel={close}
   on:changeContent
 >
@@ -218,7 +218,7 @@
         <Label label={core.string.Name} />
       </div>
       <div class="padding">
-        <EditBox id="teamspace-title" bind:value={name} placeholder={core.string.Name} kind={'large-style'} autoFocus />
+        <EditBox id="teamspace-title" bind:value={name} placeholder={core.string.Name} kind="large-style" autoFocus />
       </div>
     </div>
 
@@ -241,8 +241,8 @@
         value={owners}
         label={core.string.Owners}
         onChange={handleOwnersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -262,8 +262,8 @@
         value={members}
         label={core.string.Members}
         onChange={handleMembersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         allowGuests
       />
     </div>
@@ -273,7 +273,7 @@
         <Label label={core.string.AutoJoin} />
         <span><Label label={core.string.AutoJoinDescr} /></span>
       </div>
-      <Toggle id={'space-autoJoin'} bind:on={autoJoin} />
+      <Toggle id="space-autoJoin" bind:on={autoJoin} />
     </div>
 
     <div class="antiGrid-row">
@@ -281,7 +281,7 @@
         <Label label={core.string.RBAC} />
         <span><Label label={core.string.RBACDescr} /></span>
       </div>
-      <Toggle id={'space-restricted'} bind:on={restricted} />
+      <Toggle id="space-restricted" bind:on={restricted} />
     </div>
 
     {#each roles as role}
@@ -297,8 +297,8 @@
           onChange={(refs) => {
             handleRoleAssignmentChanged(role._id, refs)
           }}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       </div>
     {/each}

@@ -66,9 +66,9 @@
 >
   <div slot="header">
     <ButtonIcon
-      kind={'secondary'}
+      kind="secondary"
       icon={card.icon.Lock}
-      size={'small'}
+      size="small"
       tooltip={{
         label: setting.string.Restricted
       }}

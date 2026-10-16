@@ -99,8 +99,8 @@
         cy={8}
         r={circle.radius}
         class="progress-circle"
-        style:stroke={'var(--theme-caption-color)'}
-        style:opacity={'.15'}
+        style:stroke="var(--theme-caption-color)"
+        style:opacity=".15"
         style:transform={`rotate(${-78 + ((circle.dashOffset + 1) * 360) / (circle.circumference + 1)}deg)`}
         style:stroke-dasharray={circle.circumference}
         style:stroke-dashoffset={circle.dashOffset === 0 ? 0 : circle.dashOffset + 3}
@@ -112,7 +112,7 @@
         class="progress-circle"
         style:stroke={circle.circleColor}
         style:opacity={circle.dashOffset === 0 ? 0 : 1}
-        style:transform={'rotate(-82deg)'}
+        style:transform="rotate(-82deg)"
         style:stroke-dasharray={circle.circumference}
         style:stroke-dashoffset={circle.dashOffset === 0
           ? circle.circumference

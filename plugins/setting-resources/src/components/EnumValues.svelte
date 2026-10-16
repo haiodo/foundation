@@ -149,8 +149,8 @@
   <ModernEditbox
     bind:value={value.name}
     label={setting.string.EnumTitle}
-    kind={'ghost'}
-    size={'large'}
+    kind="ghost"
+    size="large"
     on:change={() => update(value)}
   />
   <ModernButton
@@ -158,8 +158,8 @@
     label={setting.string.ProjectTypesCount}
     labelParams={{ count: 0 }}
     disabled
-    kind={'tertiary'}
-    size={'medium'}
+    kind="tertiary"
+    size="medium"
     hasMenu
   />
 </div>
@@ -176,13 +176,13 @@
 
 <div class="hulyTableAttr-container mt-6">
   <div class="hulyTableAttr-header font-medium-12">
-    <IconBulletList size={'small'} />
+    <IconBulletList size="small" />
     <span><Label label={setting.string.Options} /></span>
     <div class="buttons-group tertiary-textColor">
       <ButtonIcon
-        kind={'tertiary'}
+        kind="tertiary"
         icon={IconMoreV}
-        size={'small'}
+        size="small"
         pressed={opened}
         inheritColor
         hasMenu
@@ -191,9 +191,9 @@
         }}
       />
       <ButtonIcon
-        kind={'primary'}
+        kind="primary"
         icon={IconAdd}
-        size={'small'}
+        size="small"
         tooltip={{ label: setting.string.Add }}
         on:click={() => {
           newItem = true
@@ -212,12 +212,12 @@
       {#if newItem}
         <div class="hulyTableAttr-content__row hovered">
           <div class="hulyTableAttr-content__row-dragMenu">
-            <IconMoreV2 size={'small'} />
+            <IconMoreV2 size="small" />
           </div>
           <div class="hulyTableAttr-content__row-label font-regular-14 accent grow">
             <ModernEditbox
-              kind={'ghost'}
-              size={'small'}
+              kind="ghost"
+              size="small"
               label={setting.string.EnterOptionTitle}
               on:keydown={handleKeydown}
               on:blur={() => {
@@ -225,7 +225,7 @@
                 newItem = false
               }}
               bind:value={newValue}
-              width={'100%'}
+              width="100%"
               autoFocus
             />
           </div>
@@ -235,9 +235,9 @@
             </div>
           {/if}
           <ButtonIcon
-            kind={'tertiary'}
+            kind="tertiary"
             icon={IconDelete}
-            size={'small'}
+            size="small"
             on:click={() => {
               newValue = ''
               newItem = false

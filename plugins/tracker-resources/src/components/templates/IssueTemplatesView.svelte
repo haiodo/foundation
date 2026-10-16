@@ -47,7 +47,7 @@
   bind:viewlet
   bind:search
   showLabelSelector={$$slots.label_selector}
-  adaptive={'default'}
+  adaptive="default"
 >
   <svelte:fragment slot="header-tools">
     <ViewletSettingButton bind:viewOptions bind:viewlet />
@@ -56,7 +56,7 @@
     <slot name="label_selector" />
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={tracker.string.IssueTemplate} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={tracker.string.IssueTemplate} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </SpaceHeader>
 <slot name="afterHeader" />

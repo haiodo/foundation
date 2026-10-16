@@ -133,14 +133,14 @@
       </div>
 
       <div class="fs-title mt-4 flex-grow">
-        <TextArea placeholder={tags.string.TagDescriptionPlaceholder} bind:value={data.description} height={'10rem'} />
+        <TextArea placeholder={tags.string.TagDescriptionPlaceholder} bind:value={data.description} height="10rem" />
       </div>
 
       {#if categoryItems.length > 1}
         <div class="text-sm mt-4">
           <DropdownLabels
             label={tags.string.CategoryLabel}
-            kind={'regular'}
+            kind="regular"
             bind:selected={data.category}
             items={categoryItems}
           />

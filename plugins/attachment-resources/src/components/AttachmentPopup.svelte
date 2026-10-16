@@ -119,7 +119,7 @@
         {#if progress}
           <Loading />
         {:else}
-          <ActionIcon size={'medium'} icon={IconAdd} action={add} />
+          <ActionIcon size="medium" icon={IconAdd} action={add} />
         {/if}
       </div>
     {/if}

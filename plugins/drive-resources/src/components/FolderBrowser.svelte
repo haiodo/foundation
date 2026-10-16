@@ -86,7 +86,7 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         showTooltip={{ label: view.string.MoreActions, direction: 'bottom' }}
         on:click={(ev) => {
           showMenu(ev, { object })

@@ -78,7 +78,7 @@
 <div class="hulyTableAttr-header font-medium-12">
   <Icon icon={setting.icon.Relations} size="small" />
   <span><Label label={core.string.Relations} /></span>
-  <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnAdd'} on:click={addRelation} />
+  <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnAdd" on:click={addRelation} />
 </div>
 {#if filtered.length}
   <div class="hulyTableAttr-content task">

@@ -39,5 +39,5 @@
   canSave={name.trim().length > 0}
   on:close={() => dispatch('close')}
 >
-  <EditBox placeholder={love.string.Floor} bind:value={name} kind={'large-style'} autoFocus focusIndex={1} />
+  <EditBox placeholder={love.string.Floor} bind:value={name} kind="large-style" autoFocus focusIndex={1} />
 </Card>

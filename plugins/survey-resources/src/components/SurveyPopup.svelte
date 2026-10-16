@@ -19,7 +19,7 @@
   import survey from '../plugin'
 </script>
 
-<ObjectPopup _class={survey.class.Survey} type={'object'} on:close>
+<ObjectPopup _class={survey.class.Survey} type="object" on:close>
   <svelte:fragment slot="item" let:item>
     <div class="flex-row-center flex-grow">
       {item.name}

@@ -62,13 +62,13 @@
     {#if failed}
       <div class="error-color mb-2"><Label label={adminRes.string.LoadError} /></div>
     {/if}
-    <EditBox bind:value={name} placeholder={adminRes.string.Name} kind={'large-style'} autoFocus />
+    <EditBox bind:value={name} placeholder={adminRes.string.Name} kind="large-style" autoFocus />
     {#if regionInfo.length > 0}
       <div class="flex-row-center mt-2">
         <span class="mr-2"><Label label={adminRes.string.Region} />:</span>
         <ButtonMenu
           selected={region === '' ? '#' : region}
-          size={'small'}
+          size="small"
           label={getEmbeddedLabel(
             region === '' ? 'Default' : (regionInfo.find((r) => r.region === region)?.name ?? region)
           )}

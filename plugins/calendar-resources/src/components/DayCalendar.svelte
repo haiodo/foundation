@@ -1022,7 +1022,7 @@
       {#if showArrowAD}
         <ActionIcon
           icon={shownAD ? IconUpOutline : IconDownOutline}
-          size={'small'}
+          size="small"
           action={() => {
             shownAD = !shownAD
           }}
@@ -1115,8 +1115,8 @@
                 style:height={`${heightAD}rem`}
                 style:left={`${rect.left}px`}
                 style:width={`${rect.width}px`}
-                style:padding={'0 .5rem 0 1.25rem'}
-                style:--mask-image={'none'}
+                style:padding="0 .5rem 0 1.25rem"
+                style:--mask-image="none"
                 tabindex={500 + addon + day}
                 on:click={() => (shownAD = true)}
               >
@@ -1138,7 +1138,7 @@
       {:else if hourOfDay < displayedHours - startHour}
         <div
           class="time-cell"
-          style:grid-column={'time-col 1 / col-start 1'}
+          style:grid-column="time-col 1 / col-start 1"
           style:grid-row={`row-start ${hourOfDay * 2} / row-start ${hourOfDay * 2 + 2}`}
         >
           {getTimeFormat(hourOfDay + startHour)}
@@ -1175,7 +1175,7 @@
         {#if showFooter}
           <div
             class="time-cell"
-            style:grid-column={'time-col 1 / col-start 1'}
+            style:grid-column="time-col 1 / col-start 1"
             style:grid-row={`row-start ${hourOfDay * 2 + 2} / row-start ${hourOfDay * 2 + 4}`}
           >
             {getTimeFormat(displayedHours - startHour)}
@@ -1206,7 +1206,7 @@
             style:bottom={`${rect.bottom}px`}
             style:left={`${rect.left}px`}
             style:right={`${rect.right}px`}
-            style:--mask-image={'none'}
+            style:--mask-image="none"
             draggable={!ev.allDay && !resizeId}
             tabindex={1000 + i}
             on:dragstart={(e) => {

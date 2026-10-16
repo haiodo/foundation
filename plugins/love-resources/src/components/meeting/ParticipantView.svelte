@@ -211,18 +211,18 @@
 <div id={_id} class="parent" class:speach={isSpeaking}>
   <div bind:this={parent} class="cover" class:active={!videoMuted} class:mirror={mirror && !videoMuted} />
   <div class="ava">
-    <Avatar size={'full'} name={userName} person={user} showStatus={false} />
+    <Avatar size="full" name={userName} person={user} showStatus={false} />
   </div>
   {#if mirror && microphoneMuted && $speakingWhileMuted}
     <div class="speaking-muted-badge">
-      <MicDisabled fill={'#fff'} size={'small'} />
+      <MicDisabled fill="#fff" size="small" />
       <span><Label label={love.string.SpeakingWhileMuted} /></span>
     </div>
   {/if}
   <div class="label" class:withIcon={microphoneMuted || isBadConnection || participant === undefined}>
-    {#if participant === undefined}<Loading size={'small'} shrink />{/if}
-    {#if isBadConnection}<BadConnection fill={'var(--bg-negative-default)'} size={'small'} />{/if}
-    {#if microphoneMuted}<MicDisabled fill={'var(--bg-negative-default)'} size={'small'} />{/if}
+    {#if participant === undefined}<Loading size="small" shrink />{/if}
+    {#if isBadConnection}<BadConnection fill="var(--bg-negative-default)" size="small" />{/if}
+    {#if microphoneMuted}<MicDisabled fill="var(--bg-negative-default)" size="small" />{/if}
     <span class="overflow-label">{formatName(userName)}</span>
   </div>
   {#each reactions as reaction (reaction.id)}

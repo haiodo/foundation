@@ -52,8 +52,8 @@
     <span class="fs-title overflow-label"><Label label={calendar.string.Reminders} /></span>
     <Button
       icon={IconAdd}
-      size={'medium'}
-      kind={'ghost'}
+      size="medium"
+      kind="ghost"
       on:click={(e) => {
         click(e)
       }}

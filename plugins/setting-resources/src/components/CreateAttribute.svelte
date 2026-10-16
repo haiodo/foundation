@@ -131,7 +131,7 @@
 
 <Modal
   label={setting.string.CreatingAttribute}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Create}
   okAction={save}
   canSave={!(type === undefined || name === undefined || name.trim().length === 0)}
@@ -140,8 +140,8 @@
   }}
 >
   <svelte:fragment slot="actions">
-    <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} />
-    <ButtonIcon icon={IconCopy} size={'small'} kind={'tertiary'} />
+    <ButtonIcon icon={IconDelete} size="small" kind="tertiary" />
+    <ButtonIcon icon={IconCopy} size="small" kind="tertiary" />
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
     <div class="hulyChip-item font-medium-12">
@@ -150,12 +150,12 @@
     <div class="flex items-center">
       <ButtonIcon
         icon={icon ?? setting.icon.Enums}
-        size={'medium'}
-        iconSize={'large'}
-        kind={'tertiary'}
+        size="medium"
+        iconSize="large"
+        kind="tertiary"
         on:click={setIcon}
       />
-      <ModernEditbox bind:value={name} label={core.string.Name} size={'large'} kind={'ghost'} autoFocus />
+      <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" autoFocus />
     </div>
   </div>
   <div class="grid">
@@ -165,8 +165,8 @@
     <DropdownLabelsIntl
       label={setting.string.Type}
       {items}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       bind:selected={selectedType}
       on:selected={handleSelection}
     />

@@ -182,7 +182,7 @@
     isHeader={false}
     {embedded}
     {allowClose}
-    adaptive={'disabled'}
+    adaptive="disabled"
     overflowExtra
     on:resize={updateTitleGroup}
     on:open
@@ -197,7 +197,7 @@
     </svelte:fragment>
 
     <svelte:fragment slot="title">
-      <ParentNamesPresenter value={doc} maxWidth={'12rem'} compact={!expandedParents} />
+      <ParentNamesPresenter value={doc} maxWidth="12rem" compact={!expandedParents} />
       <div class="title flex-row-center">
         {#if !_readonly && !updatePermissionForbidden}
           <EditBox
@@ -279,7 +279,7 @@
           {#if $$slots.header}
             <slot name="header" />
           {/if}
-          <div class="buttons-group xsmall-gap ml-4" style:align-self={'flex-start'}>
+          <div class="buttons-group xsmall-gap ml-4" style:align-self="flex-start">
             <slot name="tools" />
           </div>
         </div>
@@ -297,7 +297,7 @@
           card: doc
         }}
       />
-      <TagsEditor {doc} {dropdownTags} readonly={_readonly} id={'cardHeader-tags'} />
+      <TagsEditor {doc} {dropdownTags} readonly={_readonly} id="cardHeader-tags" />
       <slot name="extra" />
     </svelte:fragment>
 

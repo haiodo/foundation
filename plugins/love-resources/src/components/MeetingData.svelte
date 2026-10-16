@@ -40,16 +40,16 @@
 <div class="flex-row-center gap-1-5 mt-1">
   <CheckBox
     bind:checked={isMeeting}
-    kind={'primary'}
+    kind="primary"
     on:value={(ev) => {
       changeIsMeeting(ev.detail)
     }}
   />
   <Button
     label={love.string.CreateMeeting}
-    kind={'ghost'}
-    padding={'0 .5rem'}
-    justify={'left'}
+    kind="ghost"
+    padding="0 .5rem"
+    justify="left"
     flex="1"
     on:click={() => {
       isMeeting = !isMeeting

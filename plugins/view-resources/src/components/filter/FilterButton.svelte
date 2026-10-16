@@ -94,8 +94,8 @@
   <Button
     icon={$filterStore.length === 0 ? IconFilter : IconClose}
     label={adaptive ? undefined : $filterStore.length === 0 ? view.string.Filter : view.string.ClearFilters}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     pressed={$filterStore.length > 0}
     showTooltip={{ label: $filterStore.length === 0 ? view.string.Filter : view.string.ClearFilters }}
     on:click={(ev) => {

@@ -53,7 +53,7 @@
 </script>
 
 <Header
-  adaptive={'freezeActions'}
+  adaptive="freezeActions"
   hideActions={!(project !== undefined && isCreateAllowed(tracker.class.Component, project))}
 >
   <svelte:fragment slot="beforeTitle">

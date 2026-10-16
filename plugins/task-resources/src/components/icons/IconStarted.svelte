@@ -26,7 +26,7 @@
   class="svg-{size}"
   fill={color?.icon ?? 'currentColor'}
   style:flex-shrink={0}
-  style:transform={'rotate(-90deg)'}
+  style:transform="rotate(-90deg)"
   viewBox="0 0 16 16"
   xmlns="http://www.w3.org/2000/svg"
 >

@@ -71,4 +71,4 @@
   }
 </script>
 
-<ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnCreateCard'} on:click={createCard} />
+<ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnCreateCard" on:click={createCard} />

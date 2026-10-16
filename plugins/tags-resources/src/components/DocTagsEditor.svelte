@@ -76,9 +76,9 @@
 {#if type === 'type-button-only'}
   <ButtonBase
     icon={TagIcon}
-    type={'type-button-icon'}
-    kind={'secondary'}
-    size={'small'}
+    type="type-button-icon"
+    kind="secondary"
+    size="small"
     {pressed}
     hasMenu
     {...buttonParams}
@@ -93,7 +93,7 @@
           attr={undefined}
           isEditable
           {value}
-          kind={'todo'}
+          kind="todo"
           {...contentParams}
           on:remove={(res) => removeTag(res.detail)}
         />

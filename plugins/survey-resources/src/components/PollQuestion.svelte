@@ -177,10 +177,10 @@
     {#if question.isMandatory && !readonly}
       <div
         class="flex-no-shrink"
-        style:transform={'translateY(-0.25rem)'}
+        style:transform="translateY(-0.25rem)"
         use:tooltip={{ label: survey.string.QuestionTooltipMandatory }}
       >
-        <Icon icon={survey.icon.QuestionIsMandatory} size={'xx-small'} fill="var(--theme-urgent-color)" />
+        <Icon icon={survey.icon.QuestionIsMandatory} size="xx-small" fill="var(--theme-urgent-color)" />
       </div>
     {/if}
   </div>
@@ -259,7 +259,7 @@
   {:else}
     <div>
       <EditBox
-        format={'text-multiline'}
+        format="text-multiline"
         bind:value={input.answer}
         placeholder={survey.string.AnswerPlaceholder}
         on:change={handleAnswerChange}

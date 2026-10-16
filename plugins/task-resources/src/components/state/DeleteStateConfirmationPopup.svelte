@@ -52,8 +52,8 @@
           {items}
           {selected}
           label={getEmbeddedLabel(selectedState?.name ?? '')}
-          kind={'secondary'}
-          size={'medium'}
+          kind="secondary"
+          size="medium"
           on:selected={(it) => {
             selected = it.detail
           }}

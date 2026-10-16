@@ -82,7 +82,7 @@
     {size}
     {disabled}
     {focusIndex}
-    id={'visibleButton'}
+    id="visibleButton"
     on:click={openPopup}
   />
 {:else}
@@ -95,7 +95,7 @@
     {size}
     {disabled}
     {focusIndex}
-    id={'visibleButton'}
+    id="visibleButton"
     on:selected={(event) => {
       change(event.detail)
     }}

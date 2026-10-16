@@ -115,7 +115,7 @@
     <Button
       focusIndex={2}
       label={presentation.string.Cancel}
-      size={'large'}
+      size="large"
       on:click={() => {
         dispatch('close', false)
       }}

@@ -103,8 +103,8 @@
       component={TeamspacePresenter}
       iconWithEmoji={view.ids.IconWithEmoji}
       defaultIcon={document.icon.Teamspace}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       on:change={() => {
         parent = document.ids.NoParent
       }}
@@ -114,9 +114,9 @@
       _class={document.class.Document}
       label={document.string.NoParentDocument}
       docQuery={{ space }}
-      kind={'regular'}
-      size={'small'}
-      searchField={'title'}
+      kind="regular"
+      size="small"
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}

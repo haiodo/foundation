@@ -104,7 +104,7 @@
   {#if showHeader}
     <div class="antiSection-header">
       <div class="antiSection-header__icon">
-        <Icon icon={IconAttachments} size={'small'} />
+        <Icon icon={IconAttachments} size="small" />
       </div>
       <span class="antiSection-header__title">
         <Label {label} />
@@ -113,7 +113,7 @@
         {#if loading}
           <Spinner />
         {:else if !readonly}
-          <ButtonIcon icon={IconAdd} kind={'tertiary'} size={'small'} on:click={openFile} />
+          <ButtonIcon icon={IconAdd} kind="tertiary" size="small" on:click={openFile} />
         {/if}
       </div>
     </div>
@@ -141,7 +141,7 @@
     >
       <div class="antiSection-empty attachments flex-col" class:mt-3={showHeader} class:solid={dragover}>
         <div class="flex-center caption-color">
-          <UploadDuo size={'large'} />
+          <UploadDuo size="large" />
         </div>
         <div class="text-sm content-dark-color" style:pointer-events="none">
           <Label label={attachment.string.NoAttachments} />

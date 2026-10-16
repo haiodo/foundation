@@ -129,15 +129,15 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'default'}
+    adaptive="default"
     on:open
     on:close={() => dispatch('close')}
   >
     <div class="flex-row-center clear-mins" style="gap: 1.5rem;">
       {#if canEdit}
         <Button
-          size={'medium'}
-          kind={'link-bordered'}
+          size="medium"
+          kind="link-bordered"
           noFocus
           icon={object.icon === view.ids.IconWithEmoji ? IconWithEmoji : (object.icon ?? products.icon.Product)}
           iconProps={object.icon === view.ids.IconWithEmoji
@@ -149,14 +149,14 @@
         />
       {:else}
         <div class="icon">
-          <DocIcon value={object} size={'small'} defaultIcon={products.icon.Product} />
+          <DocIcon value={object} size="small" defaultIcon={products.icon.Product} />
         </div>
       {/if}
       <EditBox
         bind:value={title}
         disabled={!canEdit}
         placeholder={products.string.ProductNamePlaceholder}
-        kind={'large-style'}
+        kind="large-style"
         on:blur={() => {
           const name = title.trim()
           if (name !== '') {
@@ -187,14 +187,14 @@
       <Button
         icon={IconMoreH}
         kind="ghost"
-        size={'medium'}
+        size="medium"
         on:click={(e) => {
           showMenu(e, { object })
         }}
       />
       <Button
         icon={IconMixin}
-        kind={'icon'}
+        kind="icon"
         iconProps={{ size: 'medium' }}
         selected={showAllMixins}
         on:click={() => {

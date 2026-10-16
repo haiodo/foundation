@@ -25,7 +25,7 @@
 {#if status.severity !== Severity.OK}
   <div class="flex-row-center container {status.severity}" class:error={status.severity === Severity.ERROR}>
     <!-- <StatusControl {status} overflow={false} /> -->
-    <IconInfo size={'small'} />
+    <IconInfo size="small" />
     <span class="text-sm ml-2 message" class:overflow-label={overflow}>
       <Label label={status.code} params={status.params} />
     </span>

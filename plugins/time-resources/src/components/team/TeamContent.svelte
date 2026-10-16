@@ -44,7 +44,7 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <PlannerViewSwitch bind:calMode bind:showToDos />
     <svelte:fragment slot="search">
       <FilterButton _class={time.class.ToDo} />

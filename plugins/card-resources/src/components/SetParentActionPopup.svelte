@@ -71,7 +71,7 @@
   {ignoreObjects}
   shadows={true}
   {width}
-  searchMode={'spotlight'}
+  searchMode="spotlight"
   on:update
   on:close={onClose}
 >

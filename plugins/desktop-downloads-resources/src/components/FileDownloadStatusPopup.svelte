@@ -47,9 +47,9 @@
         <div class="upload-file-row flex-row-center justify-start flex-gap-4">
           <div class="upload-file-row__status w-4">
             {#if item.state === 'completed'}
-              <IconCompleted size={'small'} fill={'var(--positive-button-default)'} />
+              <IconCompleted size="small" fill="var(--positive-button-default)" />
             {:else}
-              <ProgressCircle value={progress} size={'small'} primary />
+              <ProgressCircle value={progress} size="small" primary />
             {/if}
           </div>
 

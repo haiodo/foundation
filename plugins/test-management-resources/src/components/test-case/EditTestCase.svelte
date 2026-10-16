@@ -69,12 +69,12 @@
     isHeader={false}
     isAside={false}
     isSub={false}
-    adaptive={'disabled'}
+    adaptive="disabled"
     on:open
     on:close={() => dispatch('close')}
   >
     <svelte:fragment slot="title">
-      <Breadcrumb icon={testManagement.icon.TestCase} title={object.name} size={'large'} isCurrent />
+      <Breadcrumb icon={testManagement.icon.TestCase} title={object.name} size="large" isCurrent />
     </svelte:fragment>
 
     <EditBox

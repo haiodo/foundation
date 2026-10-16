@@ -55,10 +55,10 @@
     <svelte:fragment slot="left">
       {#if room._id !== love.ids.Reception && $lkSessionConnected}
         <InviteEmployeeButton
-          kind={'secondary'}
-          type={'type-button-icon'}
-          size={'large'}
-          iconSize={'medium'}
+          kind="secondary"
+          type="type-button-icon"
+          size="large"
+          iconSize="medium"
           withBackground={false}
         />
       {/if}
@@ -84,8 +84,8 @@
             label: $isFullScreen ? love.string.ExitingFullscreenMode : love.string.FullscreenMode,
             direction: 'top'
           }}
-          kind={'secondary'}
-          size={'large'}
+          kind="secondary"
+          size="large"
           on:click={() => {
             $isFullScreen = !$isFullScreen
           }}
@@ -99,9 +99,9 @@
             label: love.string.FullscreenMode,
             direction: 'top'
           }}
-          kind={'secondary'}
+          kind="secondary"
           iconSize="medium"
-          size={'large'}
+          size="large"
           on:click={maximize}
         />
       {/if}

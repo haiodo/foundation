@@ -69,7 +69,7 @@
   <div class="hulyTableAttr-header font-medium-12">
     <Icon icon={sectionIcon} size="small" />
     <span><Label label={card.string.MasterDetailViews} /></span>
-    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnAddViewConfig'} on:click={addViewConfig} />
+    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnAddViewConfig" on:click={addViewConfig} />
   </div>
 
   {#if viewConfigs.length > 0}
@@ -98,7 +98,7 @@
             />
           </div>
           <ButtonIcon
-            kind={'tertiary'}
+            kind="tertiary"
             icon={IconDelete}
             size="small"
             disabled={viewConfigs.length === 1}

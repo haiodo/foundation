@@ -59,10 +59,10 @@
   {#if $deviceInfo.navigator.visible}
     <Navigator {processes} {currentSpace} {specials} />
     <Separator
-      name={'workbench'}
+      name="workbench"
       float={$deviceInfo.navigator.float}
       index={0}
-      color={'transparent'}
+      color="transparent"
       separatorSize={0}
       short
     />

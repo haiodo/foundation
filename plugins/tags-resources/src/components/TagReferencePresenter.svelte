@@ -79,7 +79,7 @@
       </span>
       {#if isEditable}
         <button class="btn-close" on:click|stopPropagation={() => dispatch('remove', value)}>
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </button>
       {/if}
     </div>

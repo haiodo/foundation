@@ -47,7 +47,7 @@
   })
 </script>
 
-<Header type={'type-aside'} adaptive={'disabled'} closeOnEscape={false} on:close>
+<Header type="type-aside" adaptive="disabled" closeOnEscape={false} on:close>
   <Breadcrumbs items={breadcrumbs} currentOnly />
   <svelte:fragment slot="actions">
     {#if $currentRoom !== undefined}

@@ -24,12 +24,12 @@
   const dispatch = createEventDispatcher()
 </script>
 
-<Modal type={'type-component'} scrollableContent={false} on:fullsize on:close>
+<Modal type="type-component" scrollableContent={false} on:fullsize on:close>
   <svelte:fragment slot="beforeTitle">
     <ButtonIcon
       icon={IconClose}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       noPrint
       on:click={() => {
         dispatch('close')
@@ -38,8 +38,8 @@
     <div class="hulyHeader-divider short no-line no-print" />
     <ButtonIcon
       icon={!fullSize ? IconMaximize : IconMinimize}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       noPrint
       on:click={() => {
         fullSize = !fullSize

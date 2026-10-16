@@ -60,8 +60,8 @@
     <div class="mb-1 clear-mins">
       <Button
         label={contact.string.ContactCreateLabel}
-        kind={'primary'}
-        size={'medium'}
+        kind="primary"
+        size="medium"
         on:click={(ev) => {
           showCreateDialog(ev)
         }}

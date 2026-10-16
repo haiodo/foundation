@@ -206,7 +206,7 @@
     <EditBox
       bind:value={title}
       placeholder={calendar.string.EventTitlePlaceholder}
-      kind={'ghost-large'}
+      kind="ghost-large"
       fullSize
       focusable
       autoFocus
@@ -217,8 +217,8 @@
         id="card-close"
         focusIndex={10003}
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -242,16 +242,16 @@
       <ParticipantsBusy {participants} date={startDate} {dueDate} bind:busyPersons />
     </div>
     <div class="block">
-      <DocCreateExtComponent manager={docCreateManager} kind={'body'} />
+      <DocCreateExtComponent manager={docCreateManager} kind="body" />
     </div>
     <div class="block description">
       <div class="top-icon">
-        <Icon icon={calendar.icon.Description} size={'small'} />
+        <Icon icon={calendar.icon.Description} size="small" />
       </div>
       <StyledTextBox
         alwaysEdit={true}
         isScrollable={false}
-        kind={'indented'}
+        kind="indented"
         showButtons={false}
         focusIndex={10100}
         placeholder={calendar.string.Description}
@@ -261,7 +261,7 @@
     <div class="block rightCropPadding">
       <CalendarSelector bind:value={_calendar} focusIndex={10101} />
       <div class="flex-row-center flex-gap-1">
-        <Icon icon={calendar.icon.Hidden} size={'small'} />
+        <Icon icon={calendar.icon.Hidden} size="small" />
         <VisibilityEditor bind:value={visibility} kind="inline" size="medium" focusIndex={10102} withoutIcon />
       </div>
       <EventReminders bind:reminders focusIndex={10103} />

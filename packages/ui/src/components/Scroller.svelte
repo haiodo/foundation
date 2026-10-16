@@ -690,7 +690,7 @@
         {#if bottomStart}<div class="flex-grow flex-shrink" />{/if}
         <slot />
         {#if bottomPadding}
-          <div style:width={'100%'} style:min-height={bottomPadding} />
+          <div style:width="100%" style:min-height={bottomPadding} />
         {/if}
       </div>
     </div>
@@ -704,7 +704,7 @@
       }}
     >
       <div style:transform={orientir === 'horizontal' ? 'rotate(-90deg)' : ''}>
-        <IconUpOutline size={'medium'} />
+        <IconUpOutline size="medium" />
       </div>
     </button>
     <button
@@ -715,7 +715,7 @@
       }}
     >
       <div style:transform={orientir === 'horizontal' ? 'rotate(-90deg)' : ''}>
-        <IconDownOutline size={'medium'} />
+        <IconDownOutline size="medium" />
       </div>
     </button>
   {:else if buttons === 'union'}
@@ -786,7 +786,7 @@
   {#if showOverflowArrows}
     {#each ['up', 'right', 'down', 'left'] as dir, i}
       <button class="scrollArrow" data-direct={dir} class:shown={scrollArrows[i]} on:click={tapToScroll}>
-        <IconNavPrev size={'full'} />
+        <IconNavPrev size="full" />
       </button>
     {/each}
   {/if}

@@ -63,7 +63,7 @@
     kind="primary"
     icon={IconAdd}
     size="small"
-    dataId={'btnAdd'}
+    dataId="btnAdd"
     on:click={() => {
       showPopup(CreateTag, {
         parent: masterTag,

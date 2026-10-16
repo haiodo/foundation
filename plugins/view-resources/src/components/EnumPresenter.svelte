@@ -51,10 +51,10 @@
       bind:selected={value}
       {items}
       useFlexGrow={true}
-      justify={'left'}
-      size={'large'}
-      kind={'link'}
-      width={'100%'}
+      justify="left"
+      size="large"
+      kind="link"
+      width="100%"
       autoSelect={false}
       on:selected={(e) => {
         onChange?.(e.detail)

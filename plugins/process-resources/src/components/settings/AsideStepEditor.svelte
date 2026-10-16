@@ -67,7 +67,7 @@
 </script>
 
 <Modal
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={true}
@@ -76,7 +76,7 @@
 >
   <svelte:fragment slot="actions">
     {#if !readonly}
-      <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} on:click={remove} />
+      <ButtonIcon icon={IconDelete} size="small" kind="tertiary" on:click={remove} />
     {/if}
   </svelte:fragment>
   <div class="fs-title title text-xl" slot="title">

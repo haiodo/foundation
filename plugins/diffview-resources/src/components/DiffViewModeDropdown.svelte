@@ -36,4 +36,4 @@
   ]
 </script>
 
-<DropdownLabelsIntl {kind} {size} {label} items={viewModeDropdownItems} width={'6rem'} bind:selected on:selected />
+<DropdownLabelsIntl {kind} {size} {label} items={viewModeDropdownItems} width="6rem" bind:selected on:selected />

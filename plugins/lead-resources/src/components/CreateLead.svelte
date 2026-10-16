@@ -143,8 +143,8 @@
     <SpaceSelector
       _class={lead.class.Funnel}
       label={lead.string.FunnelName}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       bind:space={_space}
       create={hasAccountRole(getCurrentAccount(), AccountRole.User)
         ? {
@@ -166,8 +166,8 @@
           label={lead.string.Leads}
           placeholder={lead.string.Leads}
           bind:value={customer}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       {/if}
       <Label label={lead.string.CreateLead} />
@@ -177,13 +177,13 @@
   <StatusControl slot="error" {status} />
   <div class="flex-row-center clear-mins">
     <div class="mr-3">
-      <Button focusIndex={1} icon={lead.icon.Lead} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button focusIndex={1} icon={lead.icon.Lead} size="medium" kind="link-bordered" noFocus />
     </div>
     <EditBox
       focusIndex={1}
       bind:value={title}
       placeholder={lead.string.LeadPlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
     />
   </div>
@@ -196,8 +196,8 @@
         label={lead.string.Customer}
         placeholder={lead.string.SelectCustomer}
         bind:value={customer}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         create={{ component: lead.component.CreateCustomer, label: lead.string.CreateCustomer }}
       />
     {/if}

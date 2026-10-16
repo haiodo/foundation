@@ -152,8 +152,8 @@
           value={categoryValue}
           {...categoryRefDoc ? { object: categoryRefDoc } : {}}
           space={space ?? (items.every((i) => i?.space === items[0]?.space) ? items[0]?.space : undefined)}
-          size={'small'}
-          kind={'list-header'}
+          size="small"
+          kind="list-header"
           colorInherit={!$themeStore.dark && level === 0}
           accent={level === 0}
           disabled
@@ -166,7 +166,7 @@
 
       {#if loading && items.length === 0 && !(limited < itemsProj.length)}
         <div class="ml-2 p-1">
-          <Loading shrink size={'small'} />
+          <Loading shrink size="small" />
         </div>
       {:else}
         {#if selected.length > 0}
@@ -182,7 +182,7 @@
           </div>
           {#if loading && items.length === 0}
             <div class="ml-2 p-1">
-              <Loading shrink size={'small'} />
+              <Loading shrink size="small" />
             </div>
           {/if}
         {:else}
@@ -206,10 +206,10 @@
     </div>
     {#if createItemDialog !== undefined && createItemLabel !== undefined}
       <div class:on-hover={!mouseOver} class="flex-row-center">
-        <Button icon={IconAdd} kind={'ghost'} showTooltip={{ label: createItemLabel }} on:click={handleCreateItem} />
+        <Button icon={IconAdd} kind="ghost" showTooltip={{ label: createItemLabel }} on:click={handleCreateItem} />
         <Button
           icon={selected.length > 0 ? IconBack : IconCheck}
-          kind={'ghost'}
+          kind="ghost"
           showTooltip={{ label: view.string.Select }}
           on:click={() => {
             let newSelection = [...$selection]

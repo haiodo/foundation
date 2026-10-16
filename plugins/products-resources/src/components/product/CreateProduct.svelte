@@ -244,8 +244,8 @@
 
   <div class="flex-row-center flex-gap-3 clear-mins">
     <Button
-      size={'medium'}
-      kind={'link-bordered'}
+      size="medium"
+      kind="link-bordered"
       noFocus
       icon={object.icon === view.ids.IconWithEmoji ? IconWithEmoji : (object.icon ?? products.icon.Product)}
       iconProps={object.icon === view.ids.IconWithEmoji
@@ -273,7 +273,7 @@
       focusIndex={2}
       alwaysEdit
       showButtons={false}
-      kind={'indented'}
+      kind="indented"
       maxHeight="limited"
       kitOptions={{ reference: true }}
       enableAttachments={false}
@@ -298,8 +298,8 @@
   <svelte:fragment slot="pool">
     <DropdownLabelsIntl
       label={core.string.Private}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       items={[
         { id: products.string.Public, label: products.string.Public },
         { id: products.string.Private, label: products.string.Private }
@@ -316,8 +316,8 @@
       label={core.string.Owners}
       emptyLabel={core.string.Owners}
       onChange={handleOwnersChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
 
     <AccountArrayEditor
@@ -325,8 +325,8 @@
       label={products.string.Members}
       emptyLabel={products.string.Members}
       onChange={handleMembersChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       allowGuests
     />
 
@@ -340,8 +340,8 @@
         onChange={(refs) => {
           handleRoleAssignmentChanged(role._id, refs)
         }}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/each}
   </svelte:fragment>
@@ -368,8 +368,8 @@
       focusIndex={20}
       icon={IconAttachment}
       iconProps={{ fill: 'var(--theme-dark-color)' }}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       on:click={() => {
         descriptionBox.handleAttach()
       }}

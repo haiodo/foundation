@@ -165,11 +165,11 @@
 </script>
 
 <div class="hulyComponent flex-no-shrink">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Setting} label={setting.string.Backup} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Setting} label={setting.string.Backup} size="large" isCurrent />
   </Header>
 
-  <Scroller padding={'1.5rem'} noStretch>
+  <Scroller padding="1.5rem" noStretch>
     {#if loading}
       <Loading />
     {:else if backupInfo == null}
@@ -201,7 +201,7 @@
         </svelte:fragment>
         <div class="p-1">
           <div class="file-item">
-            <div class="file-name">{'index.json'}</div>
+            <div class="file-name">index.json</div>
             <div class="file-info">
               <span class="file-size">
                 {getSize(JSON.stringify(backupInfo).length)}
@@ -212,7 +212,7 @@
             </div>
           </div>
           <div class="file-item">
-            <div class="file-name">{'backup.json.gz'}</div>
+            <div class="file-name">backup.json.gz</div>
             <div class="file-info">
               <span class="file-size">
                 {getSize(fileSizes.get('backup.json.gz') ?? 0)}
@@ -223,7 +223,7 @@
             </div>
           </div>
           <div class="file-item">
-            <div class="file-name">{'blob-info.json.gz'}</div>
+            <div class="file-name">blob-info.json.gz</div>
             <div class="file-info">
               <span class="file-size">
                 {getSize(fileSizes.get('blob-info.json.gz') ?? 0)}
@@ -314,7 +314,7 @@
         </svelte:fragment>
         <div class="p-1">
           <div class="file-item">
-            <div class="file-name">{'index.json'}</div>
+            <div class="file-name">index.json</div>
             <div class="file-info">
               <div class="file-actions">
                 <Button label={setting.string.BackupFileDownload} on:click={() => downloadFile('index.json')} />
@@ -322,7 +322,7 @@
             </div>
           </div>
           <div class="file-item">
-            <div class="file-name">{'index.html'}</div>
+            <div class="file-name">index.html</div>
             <div class="file-info">
               <div class="file-actions">
                 <Button label={setting.string.BackupFileDownload} on:click={() => downloadFile('index.html')} />

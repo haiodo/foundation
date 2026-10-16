@@ -33,7 +33,7 @@
 
 {#if _class !== undefined && _value !== undefined}
   <span class="label flex-row-center gap-1 ml-1">
-    <TaskTypeIcon value={_value} size={'small'} />
+    <TaskTypeIcon value={_value} size="small" />
     <span class="flex-row-center no-word-wrap" class:ml-1={_class.icon !== undefined}>
       {#if withPrefix}
         {_parent?.name}

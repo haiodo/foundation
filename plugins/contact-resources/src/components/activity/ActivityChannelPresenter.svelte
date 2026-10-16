@@ -37,7 +37,7 @@
 
 <div class="flex-row-center" use:tooltip={{ label: getEmbeddedLabel(value.value) }}>
   {#if provider}
-    <CircleButton icon={provider.icon} size={'small'} />
+    <CircleButton icon={provider.icon} size="small" />
   {/if}
   {#if target}
     <div class="ml-1">

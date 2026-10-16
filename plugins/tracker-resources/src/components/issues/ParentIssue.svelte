@@ -33,8 +33,8 @@
   <Button
     icon={IconClose}
     showTooltip={{ label: tracker.string.RemoveParent, direction: 'bottom' }}
-    kind={'ghost'}
-    size={'small'}
+    kind="ghost"
+    size="small"
     on:click={() => dispatch('close')}
   />
 </div>

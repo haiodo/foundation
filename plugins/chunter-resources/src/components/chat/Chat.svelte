@@ -214,7 +214,7 @@
       name="chat"
       float={$deviceInfo.navigator.float}
       index={0}
-      color={'transparent'}
+      color="transparent"
       separatorSize={0}
       short
     />

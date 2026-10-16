@@ -608,7 +608,7 @@
   {:else}
     <div class="show-more-wrapper flex-center p-2">
       <Button
-        kind={'ghost'}
+        kind="ghost"
         label={ui.string.ShowMore}
         on:click={() => {
           // show spinner in the top-level Show More while categories are being revealed/loaded

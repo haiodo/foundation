@@ -140,13 +140,13 @@
 
 {#if showHeader}
   <!-- The back button replaces the aside's close cross, so the mobile header is a plain component one. -->
-  <Header type={withBackButton ? 'type-component' : 'type-aside'} adaptive={'disabled'} closeOnEscape={false} on:close>
+  <Header type={withBackButton ? 'type-component' : 'type-aside'} adaptive="disabled" closeOnEscape={false} on:close>
     <svelte:fragment slot="beforeTitle">
       {#if withBackButton}
         <ButtonIcon
           icon={IconBack}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => {
             dispatch('close')
           }}

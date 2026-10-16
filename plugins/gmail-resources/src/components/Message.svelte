@@ -45,7 +45,7 @@
         <span class="content-color">{message.sender}</span>
       </div>
       <div class="content-dark-color flex-row-center gap-3">
-        <AttachmentsPresenter value={message.attachments} object={message} size={'x-small'} />
+        <AttachmentsPresenter value={message.attachments} object={message} size="x-small" />
         <span class="content-color">{!isError ? getTime(message.sendOn) : getTime(message.modifiedOn)}</span>
       </div>
     </div>
@@ -69,7 +69,7 @@
     {/if}
   </div>
   {#if selectable}
-    <div class="ml-4"><CheckBox circle kind={'primary'} bind:checked={selected} /></div>
+    <div class="ml-4"><CheckBox circle kind="primary" bind:checked={selected} /></div>
   {/if}
 </div>
 

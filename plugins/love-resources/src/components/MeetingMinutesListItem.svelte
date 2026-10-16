@@ -36,7 +36,7 @@
 >
   <div class="flex-row-center flex-gap-2 min-w-0 flex-grow">
     <div class="icon flex-no-shrink">
-      <Icon icon={love.icon.MeetingMinutes} size={'small'} />
+      <Icon icon={love.icon.MeetingMinutes} size="small" />
     </div>
     <DocNavLink object={value} {disabled} accent noUnderline>
       <span class="overflow-label" use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
@@ -45,7 +45,7 @@
     </DocNavLink>
   </div>
   <div class="flex-row-center flex-gap-3 flex-no-shrink">
-    <MeetingMinutesStatusPresenter object={value} value={value.status} attributeKey={'status'} />
+    <MeetingMinutesStatusPresenter object={value} value={value.status} attributeKey="status" />
     {#if value.createdOn}
       <span class="text-sm content-dark-color">
         <TimeSince value={value.createdOn} />

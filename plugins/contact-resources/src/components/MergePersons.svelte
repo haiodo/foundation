@@ -400,10 +400,10 @@
       <ChannelsDropdown
         value={oldChannels}
         editable={false}
-        kind={'link-bordered'}
-        size={'small'}
-        length={'full'}
-        shape={'circle'}
+        kind="link-bordered"
+        size="small"
+        length="full"
+        shape="circle"
       />
     </div>
     <span class="mx-4">&gt;&gt;</span>
@@ -418,10 +418,10 @@
       <ChannelsDropdown
         value={targetChannels}
         editable={false}
-        kind={'link-bordered'}
-        size={'small'}
-        length={'full'}
-        shape={'circle'}
+        kind="link-bordered"
+        size="small"
+        length="full"
+        shape="circle"
       />
     </div>
   </div>
@@ -436,7 +436,7 @@
           selected={update.avatar !== undefined}
         >
           <svelte:fragment slot="item" let:item>
-            <Avatar person={item} size={'x-large'} icon={contact.icon.Person} name={item.name} />
+            <Avatar person={item} size="x-large" icon={contact.icon.Person} name={item.name} />
           </svelte:fragment>
         </MergeComparer>
         <MergeComparer key="name" value={sourcePerson} targetEmp={targetPerson} onChange={select} selected>

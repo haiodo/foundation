@@ -110,7 +110,7 @@
     {:else}
       <Button
         icon={IconAdd}
-        kind={'ghost'}
+        kind="ghost"
         on:click={() => {
           inputFile.click()
         }}
@@ -156,7 +156,7 @@
     {/each}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="flex-center item new-item" on:click={click}>
-      <UploadDuo size={'large'} />
+      <UploadDuo size="large" />
     </div>
   </div>
 </div>

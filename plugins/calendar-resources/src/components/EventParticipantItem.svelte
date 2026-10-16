@@ -36,16 +36,16 @@
     <ContactRefPresenter disabled value={participant} />
     {#if busy !== undefined}
       <div class="busy-mark" class:busy use:tooltip={busy ? { label: calendar.string.Busy } : undefined}>
-        <Icon icon={busy ? IconError : IconCheck} size={'small'} />
+        <Icon icon={busy ? IconError : IconCheck} size="small" />
       </div>
     {/if}
     {#if !disabled}
       <div class="tools">
         <Button
           icon={IconClose}
-          kind={'ghost'}
-          size={'x-small'}
-          padding={'0 .5rem'}
+          kind="ghost"
+          size="x-small"
+          padding="0 .5rem"
           focusIndex={-1}
           {disabled}
           noFocus
@@ -64,9 +64,9 @@
       <div class="tools">
         <Button
           icon={IconClose}
-          kind={'ghost'}
-          size={'x-small'}
-          padding={'0 .5rem'}
+          kind="ghost"
+          size="x-small"
+          padding="0 .5rem"
           focusIndex={-1}
           noFocus
           on:click={() => {

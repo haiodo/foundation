@@ -28,5 +28,5 @@
 </script>
 
 {#if st}
-  <IssueStatusIcon value={st} size={'small'} space={spaceProject} />
+  <IssueStatusIcon value={st} size="small" space={spaceProject} />
 {/if}

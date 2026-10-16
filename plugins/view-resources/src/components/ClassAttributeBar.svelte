@@ -117,8 +117,8 @@
       {#if canApply}
         <Button
           icon={IconAdd}
-          kind={'link'}
-          size={'medium'}
+          kind="link"
+          size="medium"
           showTooltip={{ label: presentation.string.Add }}
           on:click={(ev) => {
             ev.stopPropagation()
@@ -129,8 +129,8 @@
       {#if !$restrictionStore.disableNavigation && isEditable}
         <Button
           icon={setting.icon.Setting}
-          kind={'link'}
-          size={'medium'}
+          kind="link"
+          size="medium"
           showTooltip={{ label: setting.string.ClassSetting }}
           on:click={(ev) => {
             ev.stopPropagation()

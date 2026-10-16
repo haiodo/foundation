@@ -125,8 +125,8 @@
   <div class="header">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       placeholder={presentation.string.Search}
@@ -148,7 +148,7 @@
           </div>
           <div class="check pointer-events-none">
             {#if isSelected(undefined, selectedValues)}
-              <Icon icon={IconCheck} size={'small'} />
+              <Icon icon={IconCheck} size="small" />
             {/if}
           </div>
         </button>
@@ -159,7 +159,7 @@
             <div class="menu-separator" />
             <div class="menu-group__header">
               <div class="flex-row-center gap-2">
-                <Icon icon={status.icon} size={'small'} />
+                <Icon icon={status.icon} size="small" />
                 <span class="overflow-label"><Label label={status.label} /></span>
               </div>
             </div>
@@ -175,7 +175,7 @@
                 </div>
                 <div class="check pointer-events-none">
                   {#if isSelected(doc._id, selectedValues)}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </button>

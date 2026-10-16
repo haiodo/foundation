@@ -69,8 +69,8 @@
 <div use:resizeObserver={(element) => (width = element.clientWidth)}>
   {#if mixins.length > 0}
     <div class="flex btn flex-gap-2">
-      <Button label={card.string.MinimizeAll} kind={'ghost'} iconRight={IconUpOutline} on:click={collapseAll} />
-      <Button label={card.string.ExpandAll} kind={'ghost'} iconRight={IconDownOutline} on:click={expandAll} />
+      <Button label={card.string.MinimizeAll} kind="ghost" iconRight={IconUpOutline} on:click={collapseAll} />
+      <Button label={card.string.ExpandAll} kind="ghost" iconRight={IconDownOutline} on:click={expandAll} />
     </div>
     <div class="divider" />
   {/if}
@@ -79,7 +79,7 @@
   </div>
   {#if mixins.length > 0}
     <div class="divider" />
-    <Grid column={columns} columnGap={0} rowGap={0} alignItems={'start'}>
+    <Grid column={columns} columnGap={0} rowGap={0} alignItems="start">
       {#each mixins as tag, i (tag._id)}
         <div class="tag" class:withoutBorder={Math.ceil((i + 1) / columns) === Math.ceil(mixins.length / columns)}>
           <TagAttributes bind:this={tagAttributes[i]} {readonly} {tag} {value} {ignoreKeys} />

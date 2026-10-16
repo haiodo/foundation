@@ -49,14 +49,14 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Setting} label={setting.string.Configuration} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Setting} label={setting.string.Configuration} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
     <div class="flex-row-center flex-wrap m-4 px-4">
       <Label label={setting.string.BetaWarning} />
     </div>
-    <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+    <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
       <div class="flex-row-center flex-wrap gap-around-4">
         {#each $pluginConfigurationStore.list as config}
           {#if config.hidden !== true && config.system !== true && !isDisabled(config.pluginId)}
@@ -64,7 +64,7 @@
             <div class="cardBox flex-col clear-mins" class:enabled={config.enabled ?? true}>
               <div class="flex-row-center">
                 <span class="mr-2">
-                  <Icon icon={config.icon ?? IconInfo} size={'medium'} />
+                  <Icon icon={config.icon ?? IconInfo} size="medium" />
                 </span>
                 <span class="fs-title">
                   <Label label={config.label} />
@@ -86,7 +86,7 @@
                 <div class="flex-row-center flex-reverse flex-grow max-h-9">
                   <Button
                     label={(config.enabled ?? true) ? setting.string.ConfigDisable : setting.string.ConfigEnable}
-                    size={'large'}
+                    size="large"
                     on:click={() => change(config, !(config.enabled ?? true))}
                   />
                 </div>

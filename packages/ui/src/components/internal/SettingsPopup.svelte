@@ -242,7 +242,7 @@
             <!-- svelte-ignore a11y-no-static-element-interactions -->
             <div
               class="statusPopup-option"
-              style={'margin-right: 5px;'}
+              style="margin-right: 5px;"
               class:selected
               title={option.name}
               tabindex="0"
@@ -302,7 +302,7 @@
       >
         <div class="flex-between flex-grow">
           <div class="flex-row-center">
-            <div class="icon mr-2"><FontSize size={'16px'} /></div>
+            <div class="icon mr-2"><FontSize size="16px" /></div>
             <span class="label font-medium"><Label label={ui.string.FontSize} /></span>
           </div>
           <div class="flex-row-center pr-4">
@@ -330,7 +330,7 @@
       >
         <div class="flex-between flex-grow">
           <div class="flex-row-center">
-            <div class="icon mr-2"><EmojiStyle size={'16px'} /></div>
+            <div class="icon mr-2"><EmojiStyle size="16px" /></div>
             <span class="label font-medium"><Label label={ui.string.EmojiStyle} /></span>
           </div>
           <div class="flex-row-center pr-4">
@@ -362,7 +362,7 @@
       >
         <div class="flex-between flex-grow">
           <div class="flex-row-center">
-            <div class="icon mr-2"><Icon icon={Language} size={'small'} /></div>
+            <div class="icon mr-2"><Icon icon={Language} size="small" /></div>
             <span class="label font-medium"><Label label={ui.string.Language} /></span>
           </div>
           <div class="flex-row-center pr-4">

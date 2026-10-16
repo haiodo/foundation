@@ -341,15 +341,15 @@
         <div class="flex flex-reverse flex-grow gap-2 reverse">
           <ActionIcon
             icon={IconCheck}
-            size={'medium'}
-            direction={'bottom'}
+            size="medium"
+            direction="bottom"
             label={presentation.string.Save}
             action={saveEdit}
           />
           <ActionIcon
-            size={'medium'}
+            size="medium"
             icon={IconClose}
-            direction={'top'}
+            direction="top"
             label={presentation.string.Cancel}
             action={cancelEdit}
           />
@@ -367,9 +367,9 @@
     {#if !alwaysEdit && !hideExtraButtons && !readonly}
       <div class="flex flex-reverse">
         <ActionIcon
-          size={'medium'}
+          size="medium"
           icon={IconEdit}
-          direction={'top'}
+          direction="top"
           label={textEditor.string.Edit}
           action={startEdit}
         />

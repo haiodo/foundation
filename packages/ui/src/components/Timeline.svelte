@@ -392,7 +392,7 @@
                     if (rangeRow !== null) time.offsetView = -getOffsetByDate(rangeRow.min.date) + dayWidth * 5
                   }}
                 >
-                  <IconArrowRight size={'small'} />
+                  <IconArrowRight size="small" />
                 </button>
               {/if}
               {#if rangeRow !== null && -time.offsetView > rangeRow.max.x}
@@ -403,13 +403,13 @@
                     if (rangeRow !== null) time.offsetView = -getOffsetByDate(rangeRow.min.date) + dayWidth * 5
                   }}
                 >
-                  <IconArrowLeft size={'small'} />
+                  <IconArrowLeft size="small" />
                 </button>
               {/if}
             {/if}
             {#if rangeRow === null && selectedRow === row && time.cursorMarker && !moving}
               <button class="timeline-action__button add" style:left={`${time.offsetView + time.cursorMarker.x}px`}>
-                <IconAdd size={'small'} />
+                <IconAdd size="small" />
               </button>
             {/if}
           </div>

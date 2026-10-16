@@ -13,8 +13,8 @@
 {#if channel}
   <Button
     label={chunter.string.ArchiveChannel}
-    justify={'left'}
-    size={'x-large'}
+    justify="left"
+    size="x-large"
     on:click={(evt) => {
       void ArchiveChannel(channel, evt, { afterArchive: () => dispatch('close') })
     }}

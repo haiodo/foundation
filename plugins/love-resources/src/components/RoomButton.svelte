@@ -48,7 +48,7 @@
         >
           <Avatar
             name={$personByRefStore.get(participant.person)?.name ?? participant.name}
-            size={'card'}
+            size="card"
             person={$personByRefStore.get(participant.person)}
           />
         </div>
@@ -68,7 +68,7 @@
         >
           <Avatar
             name={$personByRefStore.get(participant.person)?.name ?? participant.name}
-            size={'card'}
+            size="card"
             person={$personByRefStore.get(participant.person)}
           />
         </div>

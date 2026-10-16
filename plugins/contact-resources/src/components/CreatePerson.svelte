@@ -92,7 +92,7 @@
   <svelte:fragment slot="error">
     {#if matches.length > 0}
       <div class="flex-row-center error-color">
-        <IconInfo size={'small'} />
+        <IconInfo size="small" />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
         </span>
@@ -105,30 +105,30 @@
       <EditBox
         placeholder={contact.string.PersonFirstNamePlaceholder}
         bind:value={firstName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusIndex={1}
       />
       <EditBox
         placeholder={contact.string.PersonLastNamePlaceholder}
         bind:value={lastName}
-        kind={'large-style'}
+        kind="large-style"
         focusIndex={2}
       />
       <div class="mt-1">
         <EditBox
           placeholder={contact.string.PersonLocationPlaceholder}
           bind:value={object.city}
-          kind={'small-style'}
+          kind="small-style"
           focusIndex={3}
         />
       </div>
     </div>
     <div class="ml-4">
-      <EditableAvatar person={object} name={combineName(firstName, lastName)} size={'large'} bind:this={avatarEditor} />
+      <EditableAvatar person={object} name={combineName(firstName, lastName)} size="large" bind:this={avatarEditor} />
     </div>
   </div>
   <svelte:fragment slot="pool">
-    <ChannelsDropdown bind:value={channels} focusIndex={10} kind={'regular'} size={'large'} editable />
+    <ChannelsDropdown bind:value={channels} focusIndex={10} kind="regular" size="large" editable />
   </svelte:fragment>
 </Card>

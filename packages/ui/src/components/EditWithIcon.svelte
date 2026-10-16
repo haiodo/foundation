@@ -62,7 +62,7 @@
     textHTML.focus()
   }}
 >
-  <div class="mr-2 content-dark-color"><Icon {icon} size={'small'} /></div>
+  <div class="mr-2 content-dark-color"><Icon {icon} size="small" /></div>
   <input bind:this={textHTML} type="text" bind:value placeholder={phTranslate} on:change on:input on:keydown />
   <slot name="extra" />
   <div class="flex-row-center flex-no-shrink">
@@ -70,8 +70,8 @@
       <div class="ml-2 flex-no-shrink">
         <Button
           icon={IconClose}
-          kind={'ghost'}
-          size={'small'}
+          kind="ghost"
+          size="small"
           noFocus
           on:click={() => {
             value = ''
@@ -83,7 +83,7 @@
     {/if}
     {#if loading}
       <div class="ml-1 mr-2">
-        <Spinner size={'medium'} />
+        <Spinner size="medium" />
       </div>
     {/if}
   </div>

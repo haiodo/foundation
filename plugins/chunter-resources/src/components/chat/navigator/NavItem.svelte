@@ -102,7 +102,7 @@
     {/each}
     {#if menuActions.length > 0}
       <button class="action" class:pressed={menuOpened} on:click|preventDefault|stopPropagation={handleMenuClicked}>
-        <IconMoreH size={'small'} />
+        <IconMoreH size="small" />
       </button>
     {/if}
   </svelte:fragment>

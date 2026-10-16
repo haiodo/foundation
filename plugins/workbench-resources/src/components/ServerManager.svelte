@@ -32,23 +32,23 @@
 </script>
 
 <div class="hulyComponent">
-  <Header type={'type-panel'} freezeBefore>
+  <Header type="type-panel" freezeBefore>
     <svelte:fragment slot="beforeTitle">
       <ButtonIcon
         icon={IconClose}
-        kind={'secondary'}
-        size={'small'}
+        kind="secondary"
+        size="small"
         tooltip={{ label: presentation.string.Close }}
         on:click={() => dispatch('close')}
       />
     </svelte:fragment>
 
-    <Breadcrumb icon={IconSettings} title={'Client statistics'} size={'large'} isCurrent />
+    <Breadcrumb icon={IconSettings} title="Client statistics" size="large" isCurrent />
   </Header>
 
   <div class="hulyComponent-content__column content">
     {#if metrics}
-      <MetricsInfo {metrics} sortOrder={'avg'} />
+      <MetricsInfo {metrics} sortOrder="avg" />
     {/if}
   </div>
 </div>

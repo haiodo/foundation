@@ -141,7 +141,7 @@
     <EditBox
       bind:value={rawName}
       placeholder={recruit.string.VacancyPlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       focusable
       autoFocus={!embedded}
       disabled={readonly}
@@ -158,8 +158,8 @@
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnMoreActions'}
+          kind="icon"
+          dataId="btnMoreActions"
           on:click={(e) => {
             showMenu(e, { object, excludedActions: [view.action.Open] })
           }}
@@ -167,7 +167,7 @@
       {/if}
       <Button
         icon={IconMixin}
-        kind={'icon'}
+        kind="icon"
         iconProps={{ size: 'medium' }}
         selected={showAllMixins}
         on:click={() => {

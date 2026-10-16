@@ -47,7 +47,7 @@
       </span>
       <div class="ap-check">
         {#if value === val}
-          <IconCheck size={'small'} />
+          <IconCheck size="small" />
         {/if}
       </div>
     </div>

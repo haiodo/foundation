@@ -41,13 +41,13 @@
     <div class="flex-row-center gap-2 reverse">
       <ViewletsSettingButton
         viewletQuery={{ _id: recruit.viewlet.VacancyApplicationsEmbeddeed }}
-        kind={'tertiary'}
+        kind="tertiary"
         bind:viewlet
         bind:loading
         bind:preference
       />
       {#if !readonly}
-        <Button id="appls.add" icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id="appls.add" icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </svelte:fragment>

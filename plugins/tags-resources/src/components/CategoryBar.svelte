@@ -137,8 +137,8 @@
   <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
     <ModernButton
       label={tags.string.AllCategories}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       on:click={() => {
         category = undefined
         dispatch('change', { category, elements: [] })

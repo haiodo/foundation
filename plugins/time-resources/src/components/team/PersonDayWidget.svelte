@@ -62,7 +62,7 @@
     <div class="fs-title mb-2 flex-between">
       <PersonPresenter value={person} shouldShowAvatar shouldShowName />
       {#if widget !== undefined}
-        <ButtonIcon icon={IconClose} size={'small'} kind={'tertiary'} on:click={handleClose} />
+        <ButtonIcon icon={IconClose} size="small" kind="tertiary" on:click={handleClose} />
       {/if}
     </div>
     <DayPlan

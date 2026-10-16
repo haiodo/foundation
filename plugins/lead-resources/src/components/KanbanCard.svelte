@@ -62,20 +62,20 @@
           showMenu(evt, { object })
         }}
         icon={IconMoreH}
-        size={'small'}
+        size="small"
       />
     </div>
   </div>
   <div class="flex-between mb-2">
     {#if enabledConfig(config, 'attachedTo') && object.$lookup?.attachedTo}
-      <ContactPresenter value={object.$lookup.attachedTo} avatarSize={'small'} />
+      <ContactPresenter value={object.$lookup.attachedTo} avatarSize="small" />
     {/if}
   </div>
   <div class="card-labels mb-2">
     {#if groupByKey !== 'status' && enabledConfig(config, 'status')}
       <StateRefPresenter
-        size={'small'}
-        kind={'link-bordered'}
+        size="small"
+        kind="link-bordered"
         space={object.space}
         shrink={1}
         value={object.status}
@@ -87,9 +87,9 @@
     <Component showLoading={false} is={tracker.component.RelatedIssueSelector} props={{ object, size: 'small' }} />
     {#if enabledConfig(config, 'dueDate')}
       <DueDatePresenter
-        size={'small'}
-        kind={'link-bordered'}
-        width={'fit-content'}
+        size="small"
+        kind="link-bordered"
+        width="fit-content"
         value={object.dueDate}
         shouldRender={object.dueDate !== null && object.dueDate !== undefined}
         shouldIgnoreOverdue={isDone}

@@ -26,7 +26,7 @@
 {#if value !== undefined && value > 0}
   <DocNavLink {object} inline noUnderline={true}>
     <div class="sm-tool-icon" use:tooltip={{ component: ProductVersionsPopup, props: { value: object } }}>
-      <span class="icon"><Icon icon={products.icon.ProductVersion} size={'small'} /></span>&nbsp;{value}
+      <span class="icon"><Icon icon={products.icon.ProductVersion} size="small" /></span>&nbsp;{value}
     </div>
   </DocNavLink>
 {/if}

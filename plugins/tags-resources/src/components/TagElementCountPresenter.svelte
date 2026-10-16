@@ -30,7 +30,7 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <div class="sm-tool-icon" on:click={() => onTag?.(value)}>
-    <span class="icon"><Icon {icon} size={'small'} /> </span>
+    <span class="icon"><Icon {icon} size="small" /> </span>
     &nbsp;{tagElements?.get(value._id)?.count ?? 0}
   </div>
 {/if}

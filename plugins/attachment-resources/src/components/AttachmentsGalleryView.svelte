@@ -60,10 +60,10 @@
           {@const href = getFileUrl(attachment.file, attachment.name)}
           <div class="eAttachmentCellActions" class:fixed={i === selectedFileNumber}>
             <a {href} download={attachment.name}>
-              <Icon icon={FileDownload} size={'small'} />
+              <Icon icon={FileDownload} size="small" />
             </a>
             <div class="eAttachmentCellMenu" on:click={(event) => showFileMenu(event, attachment, i)}>
-              <IconMoreV size={'small'} />
+              <IconMoreV size="small" />
             </div>
           </div>
         </svelte:fragment>

@@ -30,17 +30,17 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <Label label={func.label} />
     <StringEditor
       bind:value
-      size={'large'}
+      size="large"
       label={func.label}
       placeholder={func.label}
-      kind={'regular'}
-      justify={'left'}
-      width={'100%'}
+      kind="regular"
+      justify="left"
+      width="100%"
     />
   </div>
 </Card>

@@ -168,7 +168,7 @@
     <div class="flex-col p-4 flex-gap-2">
       <div class="flex-col-center">A</div>
       <div>
-        <EditBox bind:value={nameA} placeholder={core.string.Name} kind={'default'} />
+        <EditBox bind:value={nameA} placeholder={core.string.Name} kind="default" />
       </div>
       <div>
         {#if editable}
@@ -207,7 +207,7 @@
     <div class="flex-col p-4 flex-gap-2">
       <div class="flex-col-center">B</div>
       <div>
-        <EditBox bind:value={nameB} placeholder={core.string.Name} kind={'default'} />
+        <EditBox bind:value={nameB} placeholder={core.string.Name} kind="default" />
       </div>
       <div>
         {#if editable}
@@ -232,6 +232,6 @@
   </div>
 
   <div class="flex-col-reverse">
-    <Button label={presentation.string.Save} kind={'primary'} size={'medium'} on:click={save} />
+    <Button label={presentation.string.Save} kind="primary" size="medium" on:click={save} />
   </div>
 </div>

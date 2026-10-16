@@ -39,7 +39,7 @@
 <div class="antiSection" bind:this={element}>
   <div class="antiSection-header mb-3">
     <div class="antiSection-header__icon">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
     <span class="antiSection-header__title">
       <Label {label} />

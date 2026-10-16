@@ -99,7 +99,7 @@
     {#if kind === 'ghost'}
       <Button
         icon={view.icon.Configure}
-        kind={'ghost'}
+        kind="ghost"
         {disabled}
         {pressed}
         showTooltip={{ label: view.string.CustomizeView, direction: 'bottom' }}
@@ -110,8 +110,8 @@
       <ButtonIcon
         icon={view.icon.Configure}
         {kind}
-        size={'small'}
-        iconSize={'small'}
+        size="small"
+        iconSize="small"
         {disabled}
         {pressed}
         tooltip={{ label: view.string.CustomizeView, direction: 'bottom' }}

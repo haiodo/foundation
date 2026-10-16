@@ -45,8 +45,8 @@
 
 <Button
   icon={IconFilter}
-  kind={'regular'}
-  size={'medium'}
+  kind="regular"
+  size="medium"
   pressed={false}
   showTooltip={{ label: view.string.Filter }}
   on:click={handleClick}

@@ -58,15 +58,15 @@
   $: viewOptions = getViewOptions(viewlet, $viewOptionStore)
 </script>
 
-<Header adaptive={'disabled'}>
+<Header adaptive="disabled">
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector bind:viewlet bind:loading bind:preference bind:viewlets viewletQuery={{ attachTo: _class }} />
   </svelte:fragment>
 
-  <Breadcrumb icon={viewIcon} label={viewLabel} size={'large'} isCurrent />
+  <Breadcrumb icon={viewIcon} label={viewLabel} size="large" isCurrent />
 
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={createLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={createLabel} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </Header>
 

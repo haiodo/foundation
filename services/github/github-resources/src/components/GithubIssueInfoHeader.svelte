@@ -155,8 +155,8 @@
 
 {#if githubProject !== undefined && rawRepositories.length > 0}
   <ButtonWithDropdown
-    kind={'primary'}
-    size={'large'}
+    kind="primary"
+    size="large"
     dropdownItems={repositories}
     disabled={!canSave}
     label={okLabel}
@@ -183,7 +183,7 @@
       {#if selectedRepository !== undefined}
         <div class="flex-row-center">
           <div class="p-1">
-            <Icon icon={github.icon.Github} size={'small'} />
+            <Icon icon={github.icon.Github} size="small" />
           </div>
           {selectedRepository.name}
         </div>
@@ -196,8 +196,8 @@
     focusIndex={10001}
     disabled={!canSave}
     label={okLabel}
-    kind={'primary'}
-    size={'large'}
+    kind="primary"
+    size="large"
     on:click={() => {
       performOK(repository)
     }}

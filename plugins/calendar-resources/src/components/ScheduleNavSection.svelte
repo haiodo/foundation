@@ -112,7 +112,7 @@
       <NavItem
         label={calendar.string.ScheduleNew}
         icon={IconAdd}
-        type={'type-object'}
+        type="type-object"
         on:click={() => {
           showPopup(ScheduleEditor, {}, undefined)
         }}
@@ -122,7 +122,7 @@
         <NavItem
           title={schedule.title}
           icon={calendar.icon.Calendar}
-          type={'type-object'}
+          type="type-object"
           on:click={() => {
             showPopup(ScheduleEditor, { schedule }, undefined)
           }}
@@ -130,8 +130,8 @@
           <svelte:fragment slot="actions">
             <ButtonIcon
               icon={IconLink}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
               tooltip={{ label: calendar.string.ScheduleShareLink, direction: 'top' }}
               on:click={() => {
                 shareLink(schedule)
@@ -139,8 +139,8 @@
             />
             <ButtonIcon
               icon={IconDelete}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
               tooltip={{ label: view.string.Delete, direction: 'top' }}
               on:click={() => {
                 deleteSchedule(schedule)

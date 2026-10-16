@@ -66,7 +66,7 @@
     <Grid column={2} columnGap={1}>
       <EditBox
         bind:value={rawTitle}
-        kind={'large-style'}
+        kind="large-style"
         focusable
         on:blur={() => {
           if (rawTitle !== object.title) void client.update(object, { title: rawTitle })
@@ -88,10 +88,10 @@
           label={recruit.string.Talent}
           placeholder={recruit.string.Talents}
           value={object.attachedTo}
-          kind={'link'}
-          size={'x-large'}
-          justify={'left'}
-          width={'100%'}
+          kind="link"
+          size="x-large"
+          justify="left"
+          width="100%"
           showNavigate={false}
         />
       </div>
@@ -106,7 +106,7 @@
     <EditBox
       bind:value={object.verdict}
       placeholder={recruit.string.Verdict}
-      kind={'large-style'}
+      kind="large-style"
       focusable
       on:change={() => client.update(object, { verdict: object.verdict })}
     />

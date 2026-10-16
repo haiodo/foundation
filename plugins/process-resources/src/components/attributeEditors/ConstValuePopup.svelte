@@ -36,7 +36,7 @@
   let value: any | undefined = undefined
 </script>
 
-<Card width={'menu'} label={attribute.label} canSave={value != null} on:close okAction={save}>
+<Card width="menu" label={attribute.label} canSave={value != null} on:close okAction={save}>
   {#if editor != null}
     <Component
       is={editor}

@@ -215,10 +215,10 @@
 
       {#if tags.length > 0}
         <NavGroup
-          _id={'planner-tags'}
+          _id="planner-tags"
           label={tagsPlugin.string.Tags}
           highlighted={mode === 'tag'}
-          categoryName={'tags'}
+          categoryName="tags"
           noDivider
           isFold
           visible={tag !== undefined}
@@ -229,7 +229,7 @@
               color={color.color}
               title={_tag.title}
               selected={tag === _tag._id}
-              type={'type-tag'}
+              type="type-tag"
               on:click={() => {
                 mode = 'tag'
                 tag = _tag._id
@@ -243,7 +243,7 @@
               {@const visibleTag = tags.find((t) => t._id === tag)}
               {#if visibleTag}
                 {@const color = getPlatformColorDef(visibleTag.color ?? 0, $themeStore.dark)}
-                <NavItem color={color.color} title={visibleTag.title} selected type={'type-tag'} />
+                <NavItem color={color.color} title={visibleTag.title} selected type="type-tag" />
               {/if}
             {/if}
           </svelte:fragment>
@@ -258,7 +258,7 @@
       float={$deviceInfo.navigator.float ? 'navigator' : true}
       index={0}
       disabledWhen={['panel-aside']}
-      color={'var(--theme-divider-color)'}
+      color="var(--theme-divider-color)"
     />
   {/if}
 </div>

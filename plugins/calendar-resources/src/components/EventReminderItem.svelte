@@ -29,18 +29,18 @@
     <div class="tools flex-row-center flex-no-shrink gap-1">
       <Button
         icon={IconMoreH}
-        kind={'ghost'}
-        size={'x-small'}
-        padding={'0 .5rem'}
+        kind="ghost"
+        size="x-small"
+        padding="0 .5rem"
         focusIndex={-1}
         noFocus
         on:click={(e) => dispatch('edit', e)}
       />
       <Button
         icon={IconClose}
-        kind={'ghost'}
-        size={'x-small'}
-        padding={'0 .5rem'}
+        kind="ghost"
+        size="x-small"
+        padding="0 .5rem"
         focusIndex={-1}
         noFocus
         on:click={() => dispatch('remove')}

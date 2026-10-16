@@ -139,8 +139,8 @@
   }}
 >
   {#if masterTag !== undefined}
-    <Header adaptive={'disabled'}>
-      <Breadcrumbs {items} selected={items.length - 1} size={'large'} on:select={handleSelect} />
+    <Header adaptive="disabled">
+      <Breadcrumbs {items} selected={items.length - 1} size="large" on:select={handleSelect} />
     </Header>
     {#if subEditor === undefined}
       {#key masterTag._id}

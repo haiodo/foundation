@@ -56,14 +56,14 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Enums} label={setting.string.Enums} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Enums} label={setting.string.Enums} size="large" isCurrent />
     <svelte:fragment slot="actions">
       <ModernButton
-        kind={'primary'}
+        kind="primary"
         icon={IconAdd}
         label={setting.string.CreateEnum}
-        size={'small'}
+        size="small"
         on:click={create}
       />
     </svelte:fragment>
@@ -72,7 +72,7 @@
     <div class="hulyComponent-content__column">
       <div class="hulyComponent-content__navHeader">
         <div class="hulyComponent-content__navHeader-menu">
-          <ButtonIcon kind={'tertiary'} icon={IconTableOfContents} size={'small'} inheritColor />
+          <ButtonIcon kind="tertiary" icon={IconTableOfContents} size="small" inheritColor />
         </div>
         <div class="hulyComponent-content__navHeader-hint paragraph-regular-14">
           <Label label={setting.string.EnumsSettingHint} />
@@ -95,9 +95,9 @@
               </span>
             </div>
             <ButtonIcon
-              kind={'tertiary'}
+              kind="tertiary"
               icon={IconMoreH}
-              size={'small'}
+              size="small"
               pressed={hovered === i}
               on:click={(ev) => {
                 hovered = i
@@ -110,9 +110,9 @@
         {/each}
       </Scroller>
     </div>
-    <Separator name={'workspaceSettings'} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="workspaceSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if selected !== undefined}
             <EnumValues value={selected} />

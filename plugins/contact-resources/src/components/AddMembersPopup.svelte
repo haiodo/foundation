@@ -49,7 +49,7 @@
     <div class="tool">
       <ActionIcon
         icon={IconClose}
-        size={'small'}
+        size="small"
         action={() => {
           dispatch('close')
         }}
@@ -65,7 +65,7 @@
           <div class="tool">
             <ActionIcon
               icon={IconClose}
-              size={'small'}
+              size="small"
               action={() => {
                 removeMember(m)
               }}

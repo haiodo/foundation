@@ -100,11 +100,11 @@
       >
         <svelte:fragment slot="content">
           <Chevron
-            size={'small'}
+            size="small"
             expanded={!isCollapsed}
             outline
-            fill={'var(--caption-color)'}
-            marginRight={'.375rem'}
+            fill="var(--caption-color)"
+            marginRight=".375rem"
           />
           <Label label={github.string.ChangedFiles} params={{ files: changedFilesCount }} />
         </svelte:fragment>

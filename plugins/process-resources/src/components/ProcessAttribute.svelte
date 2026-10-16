@@ -101,10 +101,10 @@
           this={editor}
           label={attribute?.label}
           placeholder={attribute?.label}
-          kind={'link'}
-          size={'large'}
-          width={'100%'}
-          justify={'left'}
+          kind="link"
+          size="large"
+          width="100%"
+          justify="left"
           type={attribute?.type}
           showNavigate={false}
           {value}

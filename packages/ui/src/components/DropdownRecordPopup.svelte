@@ -71,7 +71,7 @@
           >
             <div class="flex-grow caption-color lines-limit-2"><Label label={item[1]} /></div>
             {#if item[0] === selected}
-              <div class="check"><CheckBox checked kind={'primary'} /></div>
+              <div class="check"><CheckBox checked kind="primary" /></div>
             {/if}
           </button>
         </svelte:fragment>

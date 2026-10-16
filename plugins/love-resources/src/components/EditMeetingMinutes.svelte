@@ -120,24 +120,24 @@
           size="large"
           kind={object.private ? 'secondary' : 'primary'}
           on:click={togglePrivate}
-          dataId={'meeting-toggle-private'}
+          dataId="meeting-toggle-private"
         />
       {/if}
       {#if showConnectionButton(object, hasPendingJoinInThisSession || $connectingToMeeting, $lkSessionConnected)}
         <ModernButton
           label={connectLabel}
           size="large"
-          kind={'primary'}
+          kind="primary"
           on:click={connect}
           loading={hasPendingJoinInThisSession || $connectingToMeeting}
-          dataId={'meeting-connect'}
+          dataId="meeting-connect"
         />
       {:else if $lkSessionConnected}
         {#if !$videoVisible}
           <ModernButton
             label={love.string.ShowVideo}
             size="large"
-            kind={'secondary'}
+            kind="secondary"
             on:click={() => {
               openWidgetTab(love.ids.MeetingWidget, 'video')
             }}
@@ -146,11 +146,11 @@
         <ModernButton
           label={love.string.LeaveRoom}
           size="large"
-          kind={'negative'}
+          kind="negative"
           on:click={() => {
             void leaveMeeting()
           }}
-          dataId={'meeting-leave'}
+          dataId="meeting-leave"
         />
       {/if}
     </div>

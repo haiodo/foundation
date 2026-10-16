@@ -51,21 +51,21 @@
 <div class="background" aria-hidden="true">
   <div class="oval" style={ellipseStyle}></div>
 
-  <div style:position="fixed" style:right={'0px'} style:bottom={'200px'} style:z-index={500}>
+  <div style:position="fixed" style:right="0px" style:bottom="200px" style:z-index={500}>
     <BallBig />
   </div>
 
-  <div style:position="fixed" style:right={'250px'} style:bottom={'200px'} style:z-index={500}>
+  <div style:position="fixed" style:right="250px" style:bottom="200px" style:z-index={500}>
     <IBanner />
   </div>
 
-  <div style:position="fixed" style:left={'218px'} style:bottom={'200px'} style:z-index={500}>
+  <div style:position="fixed" style:left="218px" style:bottom="200px" style:z-index={500}>
     <BallLeft />
   </div>
-  <div style:position="fixed" style:left={'218px'} style:top={'0px'}>
+  <div style:position="fixed" style:left="218px" style:top="0px">
     <BallTop />
   </div>
-  <div style:position="fixed" style:right={'25%'} style:top={'15%'} style:z-index={400}>
+  <div style:position="fixed" style:right="25%" style:top="15%" style:z-index={400}>
     <BallRight />
   </div>
 </div>

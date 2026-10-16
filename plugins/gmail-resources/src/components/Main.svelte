@@ -133,7 +133,7 @@
 {#if channel && object}
   <Dialog
     isFullSize
-    padding={'0'}
+    padding="0"
     on:fullsize
     on:close={() => {
       dispatch('close')
@@ -141,7 +141,7 @@
   >
     <svelte:fragment slot="title">
       <div class="antiTitle icon-wrapper ml-2">
-        <div class="wrapped-icon"><Icon icon={contact.icon.Email} size={'small'} /></div>
+        <div class="wrapped-icon"><Icon icon={contact.icon.Email} size="small" /></div>
         <div class="title-wrapper">
           <span class="wrapped-title">Email</span>
           <span class="wrapped-subtitle">
@@ -155,15 +155,15 @@
       {#if integrations.length === 0}
         <Button
           label={gmail.string.Connect}
-          kind={'primary'}
-          size={'medium'}
+          kind="primary"
+          size="medium"
           on:click={(e) => {
             showPopup(Connect, {}, eventToHTMLElement(e))
           }}
         />
       {:else}
         <span class="content-darker-color text-sm mr-1-5"><Label label={gmail.string.From} /></span>
-        <IntegrationSelector bind:selected={selectedIntegration} {integrations} size={'medium'} kind={'ghost'} />
+        <IntegrationSelector bind:selected={selectedIntegration} {integrations} size="medium" kind="ghost" />
       {/if}
     </svelte:fragment>
 

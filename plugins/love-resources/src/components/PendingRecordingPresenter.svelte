@@ -34,7 +34,7 @@
 {#if value}
   {#if inline}
     <span class="inline-presenter" use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
-      <Icon icon={love.icon.Record} size={'x-small'} />
+      <Icon icon={love.icon.Record} size="x-small" />
       <span class="label">{value.name}</span>
     </span>
   {:else if type === 'link'}
@@ -45,7 +45,7 @@
     >
       {#if shouldShowAvatar}
         <div class="icon recording-icon">
-          <Icon icon={love.icon.Record} size={'medium'} />
+          <Icon icon={love.icon.Record} size="medium" />
         </div>
       {/if}
       <div class="flex-col info-container">

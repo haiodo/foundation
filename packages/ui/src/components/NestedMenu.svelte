@@ -121,7 +121,7 @@
       >
         {#if withIcon && nestedFrom.icon}
           <div class="icon">
-            <Icon icon={nestedFrom.icon} iconProps={nestedFrom.iconProps} size={'small'} />
+            <Icon icon={nestedFrom.icon} iconProps={nestedFrom.iconProps} size="small" />
           </div>
         {/if}
         <div class="overflow-label pr-1"><Label label={nestedFrom.label} /></div>
@@ -172,7 +172,7 @@
         >
           {#if withIcon && item[0].icon}
             <div class="icon">
-              <Icon icon={item[0].icon} iconProps={item[0].iconProps} size={'small'} />
+              <Icon icon={item[0].icon} iconProps={item[0].iconProps} size="small" />
             </div>
           {/if}
           <div class="overflow-label pr-1"><Label label={item[0].label} /></div>

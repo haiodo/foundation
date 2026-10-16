@@ -33,7 +33,7 @@
       }}
       class="sm-tool-icon"
     >
-      <span class="icon"><Icon icon={recruit.icon.Application} size={'small'} /></span>&nbsp;{value}
+      <span class="icon"><Icon icon={recruit.icon.Application} size="small" /></span>&nbsp;{value}
     </div>
   </DocNavLink>
 {/if}

@@ -33,27 +33,27 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <Label label={plugin.string.Search} />
     <StringEditor
       bind:value={search}
-      size={'large'}
+      size="large"
       label={plugin.string.Search}
       placeholder={plugin.string.Search}
-      kind={'regular'}
-      justify={'left'}
-      width={'100%'}
+      kind="regular"
+      justify="left"
+      width="100%"
     />
     <Label label={plugin.string.Replacement} />
     <StringEditor
       bind:value={replacement}
-      size={'large'}
+      size="large"
       label={plugin.string.Replacement}
       placeholder={plugin.string.Replacement}
-      kind={'regular'}
-      justify={'left'}
-      width={'100%'}
+      kind="regular"
+      justify="left"
+      width="100%"
     />
   </div>
 </Card>

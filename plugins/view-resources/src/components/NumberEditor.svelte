@@ -88,7 +88,7 @@
   <EditBox
     placeholder={placeholder ?? label}
     bind:value
-    format={'number'}
+    format="number"
     {autoFocus}
     {maxDigitsAfterPoint}
     {maxValue}

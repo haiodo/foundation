@@ -71,7 +71,7 @@
           }}
         >
           <img width="400px" src={data.thumbnail} alt={data.title} />
-          <div class="play-btn"><Play size={'full'} /></div>
+          <div class="play-btn"><Play size="full" /></div>
         </div>
       {:else}
         <div bind:this={emb}>

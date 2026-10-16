@@ -40,7 +40,7 @@
 {#if name !== undefined && name !== ''}
   <span class="reference flex-row-center flex-gap-1">
     {#if icon !== undefined}
-      <div class="icon"><Icon {icon} size={'x-small'} /></div>
+      <div class="icon"><Icon {icon} size="x-small" /></div>
     {/if}
     <span class="label overflow-label font-medium-12 text-left secondary-textColor">{name}</span>
   </span>

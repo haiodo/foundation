@@ -232,7 +232,7 @@
   </span>
   <TypeSelector
     value={targetClass}
-    width={'100%'}
+    width="100%"
     on:change={(e) => {
       if (e.detail !== undefined) {
         targetClass = e.detail
@@ -270,7 +270,7 @@
 {/key}
 {#if possibleAttrs.length > 0}
   <div class="flex-center mt-4">
-    <Button label={presentation.string.Add} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+    <Button label={presentation.string.Add} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
   </div>
 {/if}
 

@@ -72,9 +72,9 @@
   <span class="antiMention" class:transparent class:broken class:highlighted={hit} on:click={onBrokenLinkClick}>
     {#if icon}{#if icon === view.ids.IconWithEmoji}<IconWithEmoji
           icon={clazz?.color ?? 0}
-          size={'smaller'}
+          size="smaller"
           inline
-        />{:else}<Icon {icon} size="small" />{/if}{' '}{:else}@{/if}{#if _id === contact.mention.Here}<span
+        />{:else}<Icon {icon} size="small" />{/if}{' '}<!-- eslint-disable-line svelte/no-useless-mustaches -->{:else}@{/if}{#if _id === contact.mention.Here}<span
         class="lower"><Label label={contact.string.Here} /></span
       >{:else if _id === contact.mention.Everyone}<span class="lower"><Label label={contact.string.Everyone} /></span
       >{:else}{title}{/if}

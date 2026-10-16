@@ -56,7 +56,7 @@
 </script>
 
 {#if configurable}
-  <Button kind={'ghost'} on:click={configure} width={'100%'} shrink={1} justify={'left'} padding={'0.25rem'}>
+  <Button kind="ghost" on:click={configure} width="100%" shrink={1} justify="left" padding="0.25rem">
     <svelte:fragment slot="content">
       <ContextValuePresenter {contextValue} {context} {process} />
     </svelte:fragment>

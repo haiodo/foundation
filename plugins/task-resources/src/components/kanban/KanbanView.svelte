@@ -296,9 +296,9 @@
                 this={headerComponent.presenter}
                 value={state}
                 {space}
-                size={'small'}
-                kind={'list-header'}
-                display={'kanban'}
+                size="small"
+                kind="list-header"
+                display="kanban"
                 colorInherit={!$themeStore.dark}
                 accent
                 on:accent-color={(ev) => {

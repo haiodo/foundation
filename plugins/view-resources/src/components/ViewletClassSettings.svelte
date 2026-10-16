@@ -65,8 +65,8 @@
   <Button
     on:click={() => dispatch('restoreDefaults')}
     label={view.string.RestoreDefaults}
-    size={'x-small'}
-    kind={'link'}
+    size="x-small"
+    kind="link"
     noFocus
   />
 </div>

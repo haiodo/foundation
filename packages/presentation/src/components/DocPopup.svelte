@@ -240,8 +240,8 @@
     <div class="header flex-between">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         on:change={() => dispatch('search', search)}
@@ -252,11 +252,11 @@
         <div class="ml-2">
           <Button
             focusIndex={2}
-            kind={'ghost'}
+            kind="ghost"
             {size}
             icon={IconAdd}
             showTooltip={{ label: create.label }}
-            dataId={'btnAdd'}
+            dataId="btnAdd"
             on:click={onCreate}
             disabled={readonly || loading}
           />
@@ -325,10 +325,10 @@
                   <div class="check mr-2" class:disabled={readonly}>
                     {#if obj._id === selected || selectedElements.has(obj._id)}
                       {#if loading}
-                        <Spinner size={'small'} />
+                        <Spinner size="small" />
                       {:else}
                         <div use:tooltip={{ label: titleDeselect ?? presentation.string.Deselect }}>
-                          <Icon icon={IconCheck} size={'small'} />
+                          <Icon icon={IconCheck} size="small" />
                         </div>
                       {/if}
                     {/if}
@@ -359,10 +359,10 @@
                 <div class="check" class:disabled={readonly}>
                   {#if obj._id === selected || selectedElements.has(obj._id)}
                     {#if loading}
-                      <Spinner size={'small'} />
+                      <Spinner size="small" />
                     {:else}
                       <div use:tooltip={{ label: titleDeselect ?? presentation.string.Deselect }}>
-                        <Icon icon={IconCheck} size={'small'} />
+                        <Icon icon={IconCheck} size="small" />
                       </div>
                     {/if}
                   {/if}

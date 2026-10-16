@@ -122,7 +122,7 @@
 
 {#if $deviceInfo.navigator.visible}
   <ToDosNavigator bind:mode bind:tag bind:currentDate {separatorName} />
-  <Separator name={separatorName} float={$deviceInfo.navigator.float} index={0} color={'var(--theme-divider-color)'} />
+  <Separator name={separatorName} float={$deviceInfo.navigator.float} index={0} color="var(--theme-divider-color)" />
 {/if}
 {#if showToDos}
   <div
@@ -134,7 +134,7 @@
     <ToDos {mode} {tag} bind:currentDate />
   </div>
   {#if visibleCalendar}
-    <Separator name={separatorName} index={1} color={'transparent'} separatorSize={0} short />
+    <Separator name={separatorName} index={1} color="transparent" separatorSize={0} short />
   {/if}
 {/if}
 <!-- With the todo list hidden the calendar is the only panel left, so it stays visible even on narrow screens. -->

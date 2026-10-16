@@ -89,7 +89,7 @@
 {#await loadBillingData()}
   <Loading />
 {:then _}
-  <Scroller align={'center'} padding={'var(--spacing-2)'} bottomPadding={'var(--spacing-2)'}>
+  <Scroller align="center" padding="var(--spacing-2)" bottomPadding="var(--spacing-2)">
     <div class="hulyComponent-content gapV-4">
       <Category icon={drivePlugin.icon.DriveApplication} label={drivePlugin.string.Drive}>
         <div class="row">

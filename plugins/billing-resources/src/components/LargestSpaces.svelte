@@ -107,7 +107,7 @@
 {#if loading}
   <Loading />
 {:else if spaces.length > 0}
-  <Scroller align={'start'} padding={'var(--spacing-2)'} bottomPadding={'var(--spacing-2)'}>
+  <Scroller align="start" padding="var(--spacing-2)" bottomPadding="var(--spacing-2)">
     <div class="hulyComponent-content">
       {#each spaces as spaceInfo, i}
         {@const expnd = spaceInfo.isMember || !spaceInfo.space.private}

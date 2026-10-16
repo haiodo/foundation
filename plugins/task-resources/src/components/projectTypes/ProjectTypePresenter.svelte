@@ -29,7 +29,7 @@
 {#if _value !== undefined}
   <span class="label flex-row-center gap-1 ml-3 no-word-wrap">
     {#if descriptor?.icon}
-      <Icon icon={descriptor?.icon} size={'small'} />
+      <Icon icon={descriptor?.icon} size="small" />
     {/if}
     <span class:ml-1={descriptor?.icon !== undefined}>
       {_value.name}

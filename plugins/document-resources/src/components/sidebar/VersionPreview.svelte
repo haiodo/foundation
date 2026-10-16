@@ -112,7 +112,7 @@
   label={document.string.PreviewVersion}
   okAction={() => {}}
   canSave={false}
-  width={'large'}
+  width="large"
   on:close={() => {
     dispatch('close')
   }}
@@ -126,7 +126,7 @@
 
   <svelte:fragment slot="buttons">
     <div class="time mr-2"><Label label={document.string.CompareTo} /></div>
-    <DropdownLabels {items} bind:selected={compareWith} kind={'regular'} size={'small'} />
+    <DropdownLabels {items} bind:selected={compareWith} kind="regular" size="small" />
   </svelte:fragment>
 
   <!-- replaces the default ok button, nothing to save here -->
@@ -134,8 +134,8 @@
     {#if !readonly}
       <Button
         label={document.string.RestoreVersion}
-        kind={'primary'}
-        size={'large'}
+        kind="primary"
+        size="large"
         on:click={() => {
           dispatch('close', 'restore')
         }}

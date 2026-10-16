@@ -354,7 +354,7 @@
       >
         {#if personInfo === undefined && shouldShowAvatar && !isUserInOtherRoom && roomPerson != null && x === 0 && y === 0}
           {#if isHovered || isUserOnline || personPopupVisible === roomPerson?._id}
-            <Avatar name={roomPerson.name} person={roomPerson} size={'large'} variant={'roundedRect'} adaptiveName />
+            <Avatar name={roomPerson.name} person={roomPerson} size="large" variant="roundedRect" adaptiveName />
           {/if}
         {:else if personInfo !== undefined}
           {@const isBusy = $busyPersons.has(personInfo.person)}
@@ -364,7 +364,7 @@
                 <Avatar
                   name={person?.name ?? personInfo.name}
                   {person}
-                  size={'large'}
+                  size="large"
                   showStatus={false}
                   adaptiveName
                 />
@@ -375,7 +375,7 @@
                 {/if}
               </div>
             {:else if hoveredRoomX === x && hoveredRoomY === y}
-              <Avatar name={myName} person={$myEmployeeStore} size={'large'} showStatus={false} adaptiveName />
+              <Avatar name={myName} person={$myEmployeeStore} size="large" showStatus={false} adaptiveName />
             {/if}
           {/await}
         {/if}
@@ -397,11 +397,11 @@
             <Icon
               icon={love.icon.DND}
               fill={isLockedByPrivateMeeting ? 'var(--bg-negative-default)' : 'var(--theme-caption-color)'}
-              size={'small'}
+              size="small"
             />
           {/if}
           {#if room.type === RoomType.Video}
-            <Icon icon={love.icon.CamEnabled} size={'small'} />
+            <Icon icon={love.icon.CamEnabled} size="small" />
           {/if}
         </div>
       {/if}

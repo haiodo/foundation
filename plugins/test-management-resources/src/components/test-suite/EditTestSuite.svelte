@@ -63,12 +63,12 @@
     isHeader={false}
     isAside={false}
     isSub={false}
-    adaptive={'disabled'}
+    adaptive="disabled"
     on:open
     on:close={() => dispatch('close')}
   >
     <svelte:fragment slot="title">
-      <Breadcrumb icon={testManagement.icon.TestSuite} title={object.name} size={'large'} isCurrent />
+      <Breadcrumb icon={testManagement.icon.TestSuite} title={object.name} size="large" isCurrent />
     </svelte:fragment>
 
     <EditBox
@@ -90,7 +90,7 @@
       <StyledTextArea
         bind:content={object.description}
         placeholder={testManagement.string.DescriptionPlaceholder}
-        kind={'emphasized'}
+        kind="emphasized"
         showButtons={false}
       />
     </div>

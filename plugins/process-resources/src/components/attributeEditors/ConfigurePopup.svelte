@@ -408,8 +408,8 @@
         <CheckBox
           on:click={onFallbackChange}
           checked={contextValue.fallbackValue === undefined}
-          size={'medium'}
-          kind={'primary'}
+          size="medium"
+          kind="primary"
         />
       </button>
       {#if contextValue.fallbackValue !== undefined}

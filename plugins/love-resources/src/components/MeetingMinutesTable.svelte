@@ -85,7 +85,7 @@
       <FilterButton _class={lovePlg.class.MeetingMinutes} />
       <SearchInput bind:value={search} collapsed />
       <div class="header-spacer" />
-      <ViewletSettingButton kind={'tertiary'} {viewlet} bind:viewOptions />
+      <ViewletSettingButton kind="tertiary" {viewlet} bind:viewOptions />
     </div>
     <FilterBar
       _class={lovePlg.class.MeetingMinutes}

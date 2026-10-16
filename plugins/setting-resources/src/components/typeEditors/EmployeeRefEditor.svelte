@@ -65,9 +65,9 @@
       {items}
       autoSelect={false}
       selected={byRole ?? undefined}
-      kind={'regular'}
-      justify={'left'}
-      width={'100%'}
+      kind="regular"
+      justify="left"
+      width="100%"
       on:selected={changeByRole}
     />
   {/if}

@@ -44,9 +44,9 @@
 <div class="result">
   <div class="avatar">
     {#if row.person !== undefined}
-      <Avatar person={row.person} name={row.person.name} size={'medium'} showPreview />
+      <Avatar person={row.person} name={row.person.name} size="medium" showPreview />
     {:else}
-      <SystemAvatar size={'medium'} />
+      <SystemAvatar size="medium" />
     {/if}
   </div>
   <div class="body">
@@ -65,10 +65,10 @@
         <span class="reference flex-row-center flex-gap-1">
           {#if row.attachedPerson !== undefined}
             <div class="icon">
-              <Avatar person={row.attachedPerson} name={row.attachedPerson.name} size={'inline'} />
+              <Avatar person={row.attachedPerson} name={row.attachedPerson.name} size="inline" />
             </div>
           {:else if icon !== undefined}
-            <div class="icon"><Icon {icon} size={'x-small'} /></div>
+            <div class="icon"><Icon {icon} size="x-small" /></div>
           {/if}
           <span class="label overflow-label font-medium-12 text-left secondary-textColor">
             {row.channel}
@@ -76,7 +76,7 @@
         </span>
       {/if}
       {#if row.createdOn !== undefined}
-        <span class="time"><MessageTimestamp date={row.createdOn} format={'full'} /></span>
+        <span class="time"><MessageTimestamp date={row.createdOn} format="full" /></span>
       {/if}
     </div>
     <div class="content">

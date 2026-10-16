@@ -226,8 +226,8 @@
       value={owners}
       label={core.string.Owners}
       onChange={handleOwnersChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
   </div>
 
@@ -240,8 +240,8 @@
       allowGuests
       label={leadRes.string.Members}
       onChange={handleMembersChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
   </div>
   <div class="antiGrid-row">
@@ -265,8 +265,8 @@
         onChange={(refs) => {
           handleRoleAssignmentChanged(role._id, refs)
         }}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
   {/each}

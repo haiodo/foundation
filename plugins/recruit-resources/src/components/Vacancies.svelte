@@ -132,7 +132,7 @@
 </script>
 
 <Header
-  adaptive={'freezeActions'}
+  adaptive="freezeActions"
   hideActions={!(viewlet?.descriptor === view.viewlet.Table || hasAccountRole(getCurrentAccount(), AccountRole.User))}
 >
   <svelte:fragment slot="beforeTitle">
@@ -149,7 +149,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb icon={IconVacancy} label={recruit.string.Vacancies} size={'large'} isCurrent />
+  <Breadcrumb icon={IconVacancy} label={recruit.string.Vacancies} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed on:change={(e) => (search = e.detail)} />
@@ -177,7 +177,7 @@
       />
     {/if}
     {#if hasAccountRole(getCurrentAccount(), AccountRole.User)}
-      <Button icon={IconAdd} label={recruit.string.VacancyCreateLabel} kind={'primary'} on:click={showCreateDialog} />
+      <Button icon={IconAdd} label={recruit.string.VacancyCreateLabel} kind="primary" on:click={showCreateDialog} />
     {/if}
   </svelte:fragment>
 </Header>

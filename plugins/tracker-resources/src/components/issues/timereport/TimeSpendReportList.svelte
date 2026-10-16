@@ -185,8 +185,8 @@
       { id: 'month', label: tracker.string.TimeRangeMonth }
     ]}
     bind:selected={rangeSelected}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
   />
   <div class="flex-row-center gap-1 ml-2">
     <span class="content-dark-color text-sm"><Label label={tracker.string.TimeRangePeriodTotal} />:</span>
@@ -200,7 +200,7 @@
   startDate={periodStart}
   maxDays={periodDays}
   minColWidthRem={onlyReports ? 3 : 8}
-  anchor={'start'}
+  anchor="start"
   rowHeightRem={onlyReports ? 3 : 8}
   personInfoInline={onlyReports}
 >
@@ -211,7 +211,7 @@
       (it) => it.employee === person && it.date != null && ld <= it.date && it.date <= rd
     )}
     <Button
-      kind={'link'}
+      kind="link"
       on:click={() => {
         showPopup(PersonReportsPopup, { person, ld, rd })
       }}
@@ -247,8 +247,8 @@
       <div class="dayCell flex-center" style:height="{height}rem">
         {#if dayTotal > 0}
           <Button
-            kind={'link'}
-            size={'x-small'}
+            kind="link"
+            size="x-small"
             on:click={() => {
               showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
             }}
@@ -261,8 +261,8 @@
           <div class="dayCellAdd">
             <ButtonIcon
               icon={IconAdd}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
               on:click={() => {
                 showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
               }}
@@ -276,8 +276,8 @@
           <div class="dayCellAdd dayCellAdd--center">
             <ButtonIcon
               icon={IconAdd}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
               on:click={() => {
                 showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
               }}
@@ -293,7 +293,7 @@
             <div class="flex flex-row-center gap-2 flex-wrap mb-1">
               <div class="flex flex-row-center gap-2">
                 {#if createdByMe}
-                  <Icon icon={IconCircleAdd} size={'small'} />
+                  <Icon icon={IconCircleAdd} size="small" />
                 {/if}
                 {#if closedByMe || dayReports.length > 0}
                   <IssueStatusPresenter value={issue} />
@@ -304,8 +304,8 @@
               </div>
               {#if issueReports.length > 0}
                 <Button
-                  kind={'link'}
-                  size={'x-small'}
+                  kind="link"
+                  size="x-small"
                   on:click={() => {
                     showPopup(EstimationPopup, { object: issue })
                   }}

@@ -102,7 +102,7 @@
   }
 </script>
 
-<Header adaptive={'default'} hideActions={false} hideExtra={false} freezeBefore>
+<Header adaptive="default" hideActions={false} hideExtra={false} freezeBefore>
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       bind:viewlet
@@ -117,7 +117,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb {label} size={'large'} isCurrent />
+  <Breadcrumb {label} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed />
@@ -129,7 +129,7 @@
       <Button
         icon={IconAdd}
         label={createLabel}
-        kind={'primary'}
+        kind="primary"
         on:click={() => {
           showCreateDialog()
         }}

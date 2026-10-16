@@ -106,7 +106,7 @@
   }
 </script>
 
-<Button kind={'regular'} size={'large'} justify={'left'} width={'min-content'} on:click={openPopup}>
+<Button kind="regular" size="large" justify="left" width="min-content" on:click={openPopup}>
   <svelte:fragment slot="content">
     {#if value?.length > 0}
       <div class="flex-row-center flex-nowrap pointer-events-none">

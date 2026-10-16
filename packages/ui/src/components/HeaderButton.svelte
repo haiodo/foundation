@@ -84,8 +84,8 @@
       {:else}
         <ButtonWithDropdown
           icon={IconAdd}
-          justify={'left'}
-          kind={'primary'}
+          justify="left"
+          kind="primary"
           label={mainAction.label}
           dropdownItems={items}
           dropdownIcon={IconDropdown}

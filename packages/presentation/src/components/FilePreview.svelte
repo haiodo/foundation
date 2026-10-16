@@ -143,7 +143,7 @@
         <a class="no-line" href={src} download={name} bind:this={download}>
           <Button
             label={presentation.string.Download}
-            kind={'ghost'}
+            kind="ghost"
             on:click={() => {
               download.click()
             }}
@@ -157,7 +157,7 @@
         <a class="no-line" href={src} download={name} bind:this={download}>
           <Button
             label={presentation.string.Download}
-            kind={'primary'}
+            kind="primary"
             on:click={() => {
               download.click()
             }}

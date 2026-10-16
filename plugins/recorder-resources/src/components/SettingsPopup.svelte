@@ -25,8 +25,8 @@
   <Label label={plugin.string.CameraSize} />
   <DropdownLabelsIntl
     items={sizes}
-    justify={'left'}
-    width={'100%'}
+    justify="left"
+    width="100%"
     selected={cameraSize}
     on:selected={async (item) => {
       setCameraSize(item.detail)
@@ -36,8 +36,8 @@
   <Label label={plugin.string.CameraPos} />
   <DropdownLabelsIntl
     items={poses}
-    justify={'left'}
-    width={'100%'}
+    justify="left"
+    width="100%"
     selected={cameraPos}
     on:selected={async (item) => {
       setCameraPosition(item.detail)

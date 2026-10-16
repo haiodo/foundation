@@ -46,7 +46,7 @@
     {object}
     {embedded}
     {readonly}
-    type={'folder'}
+    type="folder"
     on:contextmenu={(evt) => {
       showMenu(evt, { object })
     }}

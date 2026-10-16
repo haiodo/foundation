@@ -37,7 +37,7 @@
 
 {#if active}
   <button class="options-button" class:pressed {disabled} on:click={openPopup}>
-    <IconMoreH size={'small'} />
+    <IconMoreH size="small" />
   </button>
 {:else}
   <StatusBarButton icon={IconCamOn} {pressed} on:click={openPopup} />

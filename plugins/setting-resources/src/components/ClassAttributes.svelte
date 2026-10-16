@@ -218,7 +218,7 @@
   <div class="hulyTableAttr-header font-medium-12" class:withButton={showHierarchy || mixinHeader}>
     {#if showHeader}
       {#if showHierarchy}
-        <ModernButton icon={IconSettings} kind={'secondary'} size={'small'} {disabled} hasMenu>
+        <ModernButton icon={IconSettings} kind="secondary" size="small" {disabled} hasMenu>
           <Label label={settings.string.ClassColon} />
           {#if mixinBase !== undefined}
             <ObjectPresenter _class={mixinBase._class} objectId={mixinBase._id} value={mixinBase} />
@@ -232,7 +232,7 @@
         </ModernButton>
       {:else if mixinHeader && clazz !== undefined}
         <div class="flex-row-center flex-gap-2">
-          <ModernButton icon={IconSettings} kind={'secondary'} size={'small'} {disabled} hasMenu>
+          <ModernButton icon={IconSettings} kind="secondary" size="small" {disabled} hasMenu>
             <Label label={settings.string.MixinColon} />
             <ObjectPresenter _class={clazz._class} objectId={clazz._id} value={clazz ?? clazzHierarchy} />
           </ModernButton>
@@ -244,7 +244,7 @@
           {/if}
         </div>
       {:else}
-        <IconSettings size={'small'} />
+        <IconSettings size="small" />
         <span><Label label={settings.string.ClassProperties} /></span>
       {/if}
     {:else if $$slots.header}
@@ -253,10 +253,10 @@
       <div></div>
     {/if}
     <ButtonIcon
-      kind={'primary'}
+      kind="primary"
       icon={IconAdd}
-      size={'small'}
-      dataId={'btnAdd'}
+      size="small"
+      dataId="btnAdd"
       {disabled}
       tooltip={disabled ? disabledTooltip : undefined}
       on:click={(ev) => {
@@ -277,7 +277,7 @@
     </div>
     {#if classes.length > 0}
       <div class="hulyTableAttr-header font-medium-12 sectionHeader">
-        <IconSettings size={'small'} />
+        <IconSettings size="small" />
         <span class="ml-2"><Label label={settings.string.BaseClasses} /></span>
       </div>
       {#each classes as clazz2}
@@ -286,14 +286,14 @@
           class="hulyTableAttr-header font-medium-12 withButton subHeader"
           style:border-left={`3px solid ${barColor}`}
         >
-          <ModernButton icon={IconSettings} kind={'secondary'} size={'small'} disabled hasMenu>
+          <ModernButton icon={IconSettings} kind="secondary" size="small" disabled hasMenu>
             <Label label={settings.string.ClassColon} />
             <ObjectPresenter _class={clazz2._class} objectId={clazz2._id} value={clazz2} />
           </ModernButton>
           <ButtonIcon
-            kind={'primary'}
+            kind="primary"
             icon={IconAdd}
-            size={'small'}
+            size="small"
             {disabled}
             tooltip={disabled ? disabledTooltip : undefined}
             on:click={(ev) => {

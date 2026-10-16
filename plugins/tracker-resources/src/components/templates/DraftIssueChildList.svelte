@@ -132,7 +132,7 @@
     on:dragend={resetDrag}
   >
     <div class="draggable-container">
-      <IconCircles size={'small'} />
+      <IconCircles size="small" />
     </div>
     <div class="flex-row-center ml-6 clear-mins gap-2">
       <StatusEditor
@@ -145,9 +145,9 @@
       <PriorityEditor
         value={issue}
         isEditable
-        kind={'list'}
-        size={'small'}
-        justify={'center'}
+        kind="list"
+        size="small"
+        justify="center"
         on:change={(evt) => {
           dispatch('update-issue', { id: issue._id, priority: evt.detail })
           issue.priority = evt.detail
@@ -160,7 +160,7 @@
           openIssue(evt, issue)
         }}
       >
-        <FixedColumn key={'issue_template_issue'} justify={'left'}>
+        <FixedColumn key="issue_template_issue" justify="left">
           {getIssueTemplateId(currentProject, issue)}
         </FixedColumn>
       </span>
@@ -177,13 +177,13 @@
     <div class="flex-center flex-no-shrink">
       <TaskKindSelector
         projectType={currentProject?.type}
-        kind={'link'}
+        kind="link"
         bind:value={issue.kind}
         baseClass={tracker.class.Issue}
       />
       <EstimationEditor
-        kind={'link'}
-        size={'large'}
+        kind="link"
+        size="large"
         bind:value={issue}
         on:change={(evt) => {
           dispatch('update-issue', { id: issue._id, estimation: evt.detail })

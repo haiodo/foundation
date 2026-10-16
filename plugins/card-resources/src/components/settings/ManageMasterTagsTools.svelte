@@ -73,11 +73,11 @@
 </script>
 
 <ButtonIcon
-  id={'new-master-tag'}
+  id="new-master-tag"
   icon={IconAttachment}
   tooltip={{ label: card.string.Import }}
-  kind={'tertiary'}
-  size={'extra-small'}
+  kind="tertiary"
+  size="extra-small"
   on:click={handleImprot}
 />
-<ButtonIcon id={'new-master-tag'} icon={IconAdd} kind={'tertiary'} size={'extra-small'} on:click={handleAdd} />
+<ButtonIcon id="new-master-tag" icon={IconAdd} kind="tertiary" size="extra-small" on:click={handleAdd} />

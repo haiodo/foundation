@@ -41,7 +41,7 @@
   label={view.string.NewFilteredView}
   okAction={saveFilter}
   canSave={filterName.trim().length > 0}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -49,13 +49,13 @@
 >
   <div class="flex-row-center clear-mins">
     <div class="mr-3">
-      <Button focusIndex={1} icon={view.icon.Filter} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button focusIndex={1} icon={view.icon.Filter} size="medium" kind="link-bordered" noFocus />
     </div>
     <div class="clear-mins flex-grow">
       <EditBox
         placeholder={view.string.FilteredViewName}
         bind:value={filterName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusIndex={1}
       />

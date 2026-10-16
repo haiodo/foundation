@@ -60,7 +60,7 @@
   {#if kind === 'list-header'}
     <span class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(roomName) }} class:fs-bold={accent}>
       <div class="icon">
-        <Icon icon={love.icon.Love} size={'small'} />
+        <Icon icon={love.icon.Love} size="small" />
       </div>
       <span class="overflow-label">{roomName}</span>
     </span>

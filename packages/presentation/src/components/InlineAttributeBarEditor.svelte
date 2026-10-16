@@ -62,10 +62,10 @@
           readonly={isReadonly}
           label={attribute?.label}
           placeholder={attribute?.label}
-          kind={'regular'}
-          size={'large'}
-          width={'100%'}
-          justify={'left'}
+          kind="regular"
+          size="large"
+          width="100%"
+          justify="left"
           type={attribute?.type}
           {maxWidth}
           {attributeKey}

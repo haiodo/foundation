@@ -40,8 +40,8 @@
     {autoFocus}
     bind:value={textValue}
     placeholder={getEmbeddedLabel(hint)}
-    maxWidth={'15rem'}
-    kind={'editbox'}
+    maxWidth="15rem"
+    kind="editbox"
     disabled={readonly}
   />
   {#if normalized !== '' && normalized !== textValue.trim()}
@@ -50,7 +50,7 @@
   {#if showQuickButtons}
     {#each [0.25, 0.5, 1, 2, 4, 8] as quickHours}
       <Button
-        kind={'link-bordered'}
+        kind="link-bordered"
         disabled={readonly}
         on:click={() => {
           setDurationText(quickHours)

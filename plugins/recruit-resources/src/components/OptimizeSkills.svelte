@@ -623,7 +623,7 @@
   on:changeContent
 >
   <div class="flex-row-center">
-    <EditBox kind={'search-style'} bind:value={search} />
+    <EditBox kind="search-style" bind:value={search} />
     {#if processed > 0 || doProcessing}
       <div class="p-1">
         <Loading />
@@ -640,7 +640,7 @@
       {titles.length} =>
       {titles.filter((it) => titlesStates.get(it) ?? true).length}
     </svelte:fragment>
-    <div class="h-60" style:overflow={'auto'}>
+    <div class="h-60" style:overflow="auto">
       <ListView count={searchTitles.length}>
         <svelte:fragment slot="item" let:item>
           {@const el = searchTitles[item]}
@@ -668,9 +668,9 @@
         {/if}
       </div>
     </svelte:fragment>
-    <div class="h-60" style:overflow={'auto'}>
+    <div class="h-60" style:overflow="auto">
       {#if plan.elements.length > 0}
-        <div class="flex clear-mins" style:overflow={'auto'}>
+        <div class="flex clear-mins" style:overflow="auto">
           <div class="flex-grow flex-nowrap no-word-wrap">
             <ListView count={searchPlanElements.length}>
               <svelte:fragment slot="item" let:item>

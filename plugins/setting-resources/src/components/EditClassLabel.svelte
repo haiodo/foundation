@@ -83,7 +83,7 @@
   <div class="flex-col">
     {#each labels as label}
       <div class="mr-4 flex-row-center gap-2 mt-1">
-        <Button label={setting.string.Select} kind={'link'} on:click={() => save(label)} size={'small'} />
+        <Button label={setting.string.Select} kind="link" on:click={() => save(label)} size="small" />
         <Label {label} />
       </div>
     {/each}

@@ -93,7 +93,7 @@
     </svelte:fragment>
 
     <DocNavLink object={space} component={editor} noUnderline>
-      <Breadcrumbs items={[{ icon, title: space.name }]} size={'large'} hideAfter={description === ''}>
+      <Breadcrumbs items={[{ icon, title: space.name }]} size="large" hideAfter={description === ''}>
         <svelte:fragment slot="afterLabel">
           <LinkWrapper text={description} />
         </svelte:fragment>
@@ -109,7 +109,7 @@
         <Button
           icon={IconAdd}
           label={createItemLabel}
-          kind={'primary'}
+          kind="primary"
           on:click={(ev) => {
             showCreateDialog(ev)
           }}

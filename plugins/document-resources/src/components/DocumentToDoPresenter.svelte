@@ -27,7 +27,7 @@
 {/if}
 <div class="flex-row-center flex-gap-1">
   <div class="icon">
-    <Icon icon={document.icon.DocumentApplication} size={'small'} />
+    <Icon icon={document.icon.DocumentApplication} size="small" />
   </div>
   {value.title}
 </div>

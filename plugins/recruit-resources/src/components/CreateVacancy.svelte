@@ -324,7 +324,7 @@
   label={recruit.string.CreateVacancy}
   okAction={createVacancy}
   canSave={name.trim() !== ''}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -333,13 +333,13 @@
   <span>{typeType?.name}</span>
   <div class="flex-row-center clear-mins">
     <div class="mr-3">
-      <Button focusIndex={1} icon={VacancyIcon} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button focusIndex={1} icon={VacancyIcon} size="medium" kind="link-bordered" noFocus />
     </div>
     <EditBox
       focusIndex={2}
       bind:value={name}
       placeholder={recruit.string.VacancyPlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
     />
   </div>
@@ -351,10 +351,10 @@
       space={objectId}
       alwaysEdit
       showButtons={false}
-      maxHeight={'card'}
+      maxHeight="card"
       bind:content={fullDescription}
       placeholder={recruit.string.FullDescription}
-      kind={'emphasized'}
+      kind="emphasized"
     />
   {/key}
 
@@ -364,12 +364,12 @@
       _class={contact.class.Organization}
       label={recruit.string.Company}
       placeholder={recruit.string.Company}
-      justify={'left'}
+      justify="left"
       bind:value={company}
       allowDeselect
       titleDeselect={recruit.string.UnAssignCompany}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       icon={Company}
       readonly={preserveCompany}
       showNavigate={false}
@@ -404,8 +404,8 @@
         membersChanged = true
       }}
       allowGuests
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
 
     {#each roles as role}
@@ -416,15 +416,15 @@
         onChange={(refs) => {
           handleRoleAssignmentChanged(role._id, refs)
         }}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/each}
   </svelte:fragment>
   <svelte:fragment slot="footer">
     <Button
       icon={IconAttachment}
-      size={'large'}
+      size="large"
       on:click={() => {
         descriptionBox.handleAttach()
       }}

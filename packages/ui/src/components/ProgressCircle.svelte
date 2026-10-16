@@ -38,8 +38,8 @@
     cy={8}
     r={7}
     class="progress-circle"
-    style:stroke={'var(--theme-divider-color)'}
-    style:opacity={'.5'}
+    style:stroke="var(--theme-divider-color)"
+    style:opacity=".5"
     style:transform={`rotate(${-78 + ((dashOffset + 1) * 360) / (lenghtC + 1)}deg)`}
     style:stroke-dasharray={lenghtC}
     style:stroke-dashoffset={dashOffset === 0 ? 0 : dashOffset + 3}
@@ -51,7 +51,7 @@
     class="progress-circle"
     style:stroke={primary ? 'var(--primary-bg-color)' : getPlatformColor(color, $themeStore.dark)}
     style:opacity={dashOffset === 0 ? 0 : 1}
-    style:transform={'rotate(-82deg)'}
+    style:transform="rotate(-82deg)"
     style:stroke-dasharray={lenghtC}
     style:stroke-dashoffset={dashOffset === 0 ? lenghtC : lenghtC - dashOffset + 1}
   />

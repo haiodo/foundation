@@ -36,7 +36,7 @@
 {/if}
 <div class="flex-row-center flex-gap-1">
   <div class="icon">
-    <Icon icon={recruit.icon.Application} size={'small'} />
+    <Icon icon={recruit.icon.Application} size="small" />
   </div>
   {#if candidate}
     {getName(client.getHierarchy(), candidate)}

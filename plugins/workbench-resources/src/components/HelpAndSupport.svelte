@@ -156,7 +156,7 @@
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="mr-4 cursor-pointer" on:click={() => (shortcuts = !shortcuts)}>
-        <Icon icon={IconArrowLeft} size={'medium'} fill={'var(--content-color)'} />
+        <Icon icon={IconArrowLeft} size="medium" fill="var(--content-color)" />
       </div>
     {/if}
     <span class="fs-title overflow-label">
@@ -169,7 +169,7 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="container" on:click={card.onClick}>
-          <Icon icon={card.icon} size={'small'} fill={'var(--content-color)'} />
+          <Icon icon={card.icon} size="small" fill="var(--content-color)" />
           <div class="content">
             <div class="fs-title">
               <Label label={card.title} />
@@ -177,7 +177,7 @@
             <div class="text-sm content-dark-color"><Label label={card.description} /></div>
           </div>
           <div class="rightIcon">
-            <Icon icon={RightArrowIcon} size={'small'} />
+            <Icon icon={RightArrowIcon} size="small" />
           </div>
         </div>
       </div>
@@ -185,8 +185,8 @@
     <div class="flex-grow" />
   {:else}
     <!-- Keyboard shortcuts -->
-    <Scroller padding={'0 .5rem'} fade={topSP} noStretch checkForHeaders>
-      <ListView count={actions.length} noScroll addClass={'rounded'} bind:selection>
+    <Scroller padding="0 .5rem" fade={topSP} noStretch checkForHeaders>
+      <ListView count={actions.length} noScroll addClass="rounded" bind:selection>
         <svelte:fragment slot="category" let:item>
           {@const action = actions[item]}
           {#if item === 0 || (item > 0 && actions[item - 1].category !== action.category)}
@@ -204,7 +204,7 @@
           {@const action = actions[item]}
           <div class="flex-row-center flex-between flex-grow ml-2 p-3 text-base clear-mins">
             <div class="mr-4 {selection === item ? 'caption-color' : 'dark-color'}">
-              <Icon icon={action.icon ?? IconArrowLeft} size={'small'} />
+              <Icon icon={action.icon ?? IconArrowLeft} size="small" />
             </div>
             <div class="flex-grow {selection === item ? 'caption-color' : 'content-color'}">
               <Label label={action.label} />

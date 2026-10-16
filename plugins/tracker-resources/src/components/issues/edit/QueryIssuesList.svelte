@@ -151,11 +151,11 @@
       >
         <svelte:fragment slot="content">
           <Chevron
-            size={'small'}
+            size="small"
             expanded={!isCollapsed}
             outline
-            fill={'var(--caption-color)'}
-            marginRight={'.375rem'}
+            fill="var(--caption-color)"
+            marginRight=".375rem"
           />
           <slot name="chevron" />
         </svelte:fragment>
@@ -168,7 +168,7 @@
         <Button
           id="add-sub-issue"
           icon={IconAdd}
-          kind={'ghost'}
+          kind="ghost"
           showTooltip={{ label: createLabel, direction: 'bottom' }}
           on:click={() => {
             isCollapsed = false
@@ -178,11 +178,11 @@
         />
       {:else if dropdownItems !== undefined}
         <ButtonWithDropdown
-          mainButtonId={'add-sub-issue'}
+          mainButtonId="add-sub-issue"
           icon={IconAdd}
           label={createLabel}
           labelParams={{ subIssues: 0 }}
-          kind={'ghost'}
+          kind="ghost"
           {dropdownItems}
           dropdownIcon={IconDropdown}
           showTooltipMain={{ label: createLabel, direction: 'bottom' }}
@@ -202,7 +202,7 @@
           icon={IconAdd}
           label={createLabel}
           labelParams={{ subIssues: 0 }}
-          kind={'ghost'}
+          kind="ghost"
           showTooltip={{ label: createLabel, direction: 'bottom' }}
           on:click={() => {
             isCollapsed = false
@@ -218,7 +218,7 @@
     {#if hasSubIssues}
       <slot name="buttons" />
       <div class="w-1 flex-no-shrink" />
-      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'ghost'} noGap bind:viewlet />
+      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="ghost" noGap bind:viewlet />
     {/if}
   </div>
 </div>

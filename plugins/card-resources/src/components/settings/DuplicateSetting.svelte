@@ -129,7 +129,7 @@
   label={card.string.Duplicate}
   okLabel={presentation.string.Save}
   canSave={true}
-  width={'medium'}
+  width="medium"
   okAction={save}
   on:close
 >

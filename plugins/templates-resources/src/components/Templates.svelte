@@ -152,11 +152,11 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <Breadcrumb
       icon={templatesPlugin.icon.Templates}
       label={templatesPlugin.string.Templates}
-      size={'large'}
+      size="large"
       isCurrent
     />
   </Header>
@@ -167,8 +167,8 @@
         <Button
           icon={templatesPlugin.icon.Template}
           label={templatesPlugin.string.CreateTemplate}
-          justify={'left'}
-          width={'100%'}
+          justify="left"
+          width="100%"
           on:click={addTemplate}
         />
       </div>
@@ -202,9 +202,9 @@
         {/each}
       </div>
     </div>
-    <Separator name={'workspaceSettings'} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="workspaceSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if newTemplate}
             <div class="flex-between mr-4">
@@ -243,7 +243,7 @@
                   <div class="ml-2">
                     <Button
                       disabled={title.trim().length === 0}
-                      kind={'primary'}
+                      kind="primary"
                       label={templatesPlugin.string.SaveTemplate}
                       on:click={saveNewTemplate}
                     />
@@ -268,7 +268,7 @@
               </div>
               <div class="flex flex-reverse">
                 <Button
-                  kind={'primary'}
+                  kind="primary"
                   label={templatesPlugin.string.EditTemplate}
                   on:click={() => {
                     mode = Mode.Edit

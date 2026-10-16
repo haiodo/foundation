@@ -24,7 +24,7 @@
   export let size: IconSize
 </script>
 
-<Scroller padding={'.25rem'} gap={'flex-gap-2'}>
+<Scroller padding=".25rem" gap="flex-gap-2">
   {#each persons as person}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->

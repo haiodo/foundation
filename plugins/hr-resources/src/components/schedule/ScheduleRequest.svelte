@@ -62,7 +62,7 @@
     >
       <Icon
         icon={type.icon}
-        size={'small'}
+        size="small"
         fill={available ? 'var(--highlight-blue-01)' : 'var(--primary-color-orange-02)'}
       />
 

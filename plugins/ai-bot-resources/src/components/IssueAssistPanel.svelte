@@ -337,7 +337,7 @@
       <div class="head">
         <span class="title">
           {#if bot !== undefined}
-            <Avatar person={bot} size={'small'} name={bot.name} />
+            <Avatar person={bot} size="small" name={bot.name} />
             <span class="name">{formatName(bot.name)}</span>
           {:else}
             <Label label={aiBot.string.AssistIssue} params={{ name: $aiBotNameStore }} />
@@ -349,8 +349,8 @@
             icon={IconAdd}
             iconProps={{ size: 'small' }}
             label={aiBot.string.AssistIssueNewContext}
-            kind={'ghost'}
-            size={'small'}
+            kind="ghost"
+            size="small"
             disabled={conversation === undefined || rootReplies === 0}
             on:click={resetConversation}
           />

@@ -341,7 +341,7 @@
 
 <Modal
   label={task.string.StatusPopupTitle}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={status === undefined ? presentation.string.Create : presentation.string.Save}
   okAction={save}
   canSave={needUpdate && !readonly}
@@ -353,27 +353,27 @@
     {#if !readonly}
       <ButtonIcon
         icon={IconDelete}
-        size={'small'}
-        kind={'tertiary'}
+        size="small"
+        kind="tertiary"
         disabled={status === undefined || !canDelete || readonly}
         on:click={onDelete}
       />
       <ButtonIcon
         icon={IconCopy}
-        size={'small'}
-        kind={'tertiary'}
+        size="small"
+        kind="tertiary"
         disabled={status === undefined || readonly}
         on:click={onDuplicate}
       />
     {/if}
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
-    <ModernEditbox bind:value label={task.string.StatusName} size={'large'} kind={'ghost'} disabled={readonly} />
+    <ModernEditbox bind:value label={task.string.StatusName} size="large" kind="ghost" disabled={readonly} />
     <TextArea
       placeholder={task.string.Description}
-      width={'100%'}
-      height={'4.5rem'}
-      margin={'var(--spacing-1) var(--spacing-2)'}
+      width="100%"
+      height="4.5rem"
+      margin="var(--spacing-1) var(--spacing-2)"
       noFocusBorder
       disabled={readonly}
       bind:value={description}
@@ -388,8 +388,8 @@
         disabled={!allowEditCategory || readonly}
         icon={categories.find((it) => it.id === category)?.icon}
         label={categories.find((it) => it.id === category)?.label}
-        kind={'secondary'}
-        size={'medium'}
+        kind="secondary"
+        size="medium"
         on:selected={(it) => {
           category = it.detail
         }}
@@ -404,8 +404,8 @@
           {selected}
           icon={IconSettings}
           label={items[selected].label}
-          kind={'secondary'}
-          size={'small'}
+          kind="secondary"
+          size="small"
           disabled={readonly}
           on:selected={(event) => {
             if (event.detail) {
@@ -417,7 +417,7 @@
           }}
         />
         {#if icon === iconWithEmoji}
-          <IconWithEmoji icon={color ?? 0} size={'medium'} />
+          <IconWithEmoji icon={color ?? 0} size="medium" />
         {/if}
       </div>
       <div class="hulyTableAttr-content">
@@ -426,7 +426,7 @@
             selected={getPlatformColorDef(color ?? 0, $themeStore.dark).name}
             embedded
             disabled={readonly}
-            columns={'auto'}
+            columns="auto"
             on:close={(evt) => {
               if (readonly) return
               color = evt.detail

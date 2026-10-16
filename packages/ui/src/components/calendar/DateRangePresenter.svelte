@@ -327,7 +327,7 @@
   <span class:fs-bold={accent}>
     {#if shouldShowAvatar}
       <div class="btn-icon {iconModifier}">
-        <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size={'full'} />
+        <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size="full" />
       </div>
     {/if}
     {#if value !== undefined && value !== null && value.toString() !== ''}
@@ -492,13 +492,13 @@
             unfocus(ev, closeBtn)
           }}
         >
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </div>
       {/if}
     {:else}
       {#if shouldShowAvatar}
         <div class="btn-icon {iconModifier}">
-          <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size={'full'} />
+          <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size="full" />
         </div>
       {/if}
       {#if value !== undefined && value !== null && value.toString() !== ''}

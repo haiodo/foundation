@@ -103,7 +103,7 @@
   <svelte:fragment slot="content">
     {#if selectedRepository !== undefined}
       <div class="p-1">
-        <Icon icon={github.icon.Github} size={'small'} />
+        <Icon icon={github.icon.Github} size="small" />
       </div>
       {selectedRepository.name}
     {/if}

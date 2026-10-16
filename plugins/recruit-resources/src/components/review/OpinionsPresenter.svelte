@@ -27,6 +27,6 @@
     class="sm-tool-icon"
     use:tooltip={{ label: recruit.string.Opinions, component: OpinionsPopup, props: { value } }}
   >
-    <span class="icon"><Icon icon={recruit.icon.Opinion} size={'small'} /></span>&nbsp;{value.opinions}
+    <span class="icon"><Icon icon={recruit.icon.Opinion} size="small" /></span>&nbsp;{value.opinions}
   </div>
 {/if}

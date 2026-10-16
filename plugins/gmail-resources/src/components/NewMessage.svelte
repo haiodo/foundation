@@ -196,7 +196,7 @@
   <div class="buttons-group">
     <Button
       icon={IconArrowLeft}
-      kind={'ghost'}
+      kind="ghost"
       on:click={() => {
         dispatch('close')
       }}
@@ -209,7 +209,7 @@
   <div class="buttons-group small-gap">
     <Button
       icon={IconAttachment}
-      kind={'ghost'}
+      kind="ghost"
       loading={progress}
       on:click={() => {
         inputFile.click()
@@ -217,7 +217,7 @@
     />
     <Button
       label={plugin.string.Send}
-      kind={'primary'}
+      kind="primary"
       disabled={progress || isEmptyMarkup(content)}
       on:click={sendMsg}
     />
@@ -225,7 +225,7 @@
 </div>
 {#if attachments.length}
   <div class="flex-row-center background-bg-accent-color bottom-divider">
-    <Scroller padding={'.5rem'} gap={'gap-2'} horizontal contentDirection={'horizontal'} noFade={false}>
+    <Scroller padding=".5rem" gap="gap-2" horizontal contentDirection="horizontal" noFade={false}>
       {#each attachments as attachment}
         <AttachmentPresenter
           value={attachment}
@@ -242,7 +242,7 @@
 {/if}
 
 <div class="antiVSpacer x2" />
-<Scroller padding={'.5rem 1rem'} on:drop={fileDrop}>
+<Scroller padding=".5rem 1rem" on:drop={fileDrop}>
   <div class="mb-2">
     <EditBox label={plugin.string.Subject} bind:value={obj.subject} placeholder={plugin.string.SubjectPlaceholder} />
   </div>
@@ -250,7 +250,7 @@
     <EditBox label={plugin.string.Copy} bind:value={copy} placeholder={plugin.string.CopyPlaceholder} />
   </div>
   <div class="input clear-mins">
-    <StyledTextEditor full bind:content maxHeight={'max'} on:template={onTemplate} />
+    <StyledTextEditor full bind:content maxHeight="max" on:template={onTemplate} />
   </div>
 </Scroller>
 <div class="antiVSpacer x2" />

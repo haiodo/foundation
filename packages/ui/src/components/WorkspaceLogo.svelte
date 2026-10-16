@@ -22,7 +22,7 @@
 
 <div class="logo" class:mini>
   {#if logoUrl != null}
-    <img class="logo-medium" src={logoUrl} srcset={logoSrcset} alt={''} />
+    <img class="logo-medium" src={logoUrl} srcset={logoSrcset} alt="" />
   {:else}
     <div class="antiLogo" class:mini class:accent>{name.toUpperCase()?.[0] ?? ''}</div>
   {/if}

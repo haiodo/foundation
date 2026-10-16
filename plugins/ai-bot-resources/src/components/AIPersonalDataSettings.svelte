@@ -68,7 +68,7 @@
 </script>
 
 <Scroller>
-  <div class="ac-body p-10 settings-blocks" style:max-width={'48rem'}>
+  <div class="ac-body p-10 settings-blocks" style:max-width="48rem">
     <div class="flex-col flex-gap-2">
       <span class="fs-title"><Label label={aiBot.string.PersonalContext} /></span>
       <span class="content-dark-color text-sm"><Label label={aiBot.string.PersonalContextHint} /></span>

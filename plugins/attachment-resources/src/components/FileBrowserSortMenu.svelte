@@ -73,10 +73,10 @@
 
 <ModernButton
   icon={IconOptions}
-  iconSize={'small'}
+  iconSize="small"
   label={sortModeToString(selectedSort)}
-  kind={'tertiary'}
-  size={'small'}
+  kind="tertiary"
+  size="small"
   tooltip={{ label: attachment.string.FileBrowserSort }}
   on:click={(event) => showSortMenu(event)}
 />

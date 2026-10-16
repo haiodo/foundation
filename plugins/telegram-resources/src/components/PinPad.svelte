@@ -98,7 +98,7 @@
 </div>
 {#if error}
   <div class="error-message flex-row-center">
-    <IconInfo size={'small'} />
+    <IconInfo size="small" />
     <div>{error}</div>
   </div>
 {/if}

@@ -200,7 +200,7 @@
 <Card
   label={contact.string.SelectAvatar}
   okLabel={presentation.string.Save}
-  width={'x-small'}
+  width="x-small"
   accentHeader
   canSave={selectedAvatarType !== initialSelectedAvatarType ||
     selectedAvatar !== initialSelectedAvatar ||
@@ -223,7 +223,7 @@
           avatarProps: selectedAvatarProps
         }}
         direct={selectedAvatarType === AvatarType.IMAGE ? selectedFile : undefined}
-        size={'2x-large'}
+        size="2x-large"
         {icon}
         {name}
         clickable
@@ -239,13 +239,13 @@
     </div>
     <TabList
       items={getAvatarTypeDropdownItems(hasGravatar, imageOnly)}
-      kind={'separated-free'}
+      kind="separated-free"
       bind:selected={selectedAvatarType}
       on:select={handleDropdownSelection}
     />
   </div>
   <svelte:fragment slot="buttons">
-    <Button minWidth={'5rem'} label={ui.string.Clear} kind={'ghost'} size={'large'} on:click={handleClearClick} />
+    <Button minWidth="5rem" label={ui.string.Clear} kind="ghost" size="large" on:click={handleClearClick} />
   </svelte:fragment>
   <svelte:fragment slot="footer">
     {#if selectedAvatarType === AvatarType.GRAVATAR}

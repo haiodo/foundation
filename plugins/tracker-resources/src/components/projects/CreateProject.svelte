@@ -418,7 +418,7 @@
   okAction={handleSave}
   {canSave}
   hidden={isWorkflowConfigure}
-  width={'medium'}
+  width="medium"
   onCancel={close}
   on:changeContent
 >
@@ -450,7 +450,7 @@
           id="project-title"
           bind:value={name}
           placeholder={tracker.string.ProjectTitlePlaceholder}
-          kind={'large-style'}
+          kind="large-style"
           autoFocus
           on:input={() => {
             if (isNew) {
@@ -473,7 +473,7 @@
           bind:value={identifier}
           disabled={!isNew}
           placeholder={tracker.string.ProjectIdentifierPlaceholder}
-          kind={'large-style'}
+          kind="large-style"
           uppercase
         />
         {#if !isSaving && projectsIdentifiers.has(identifier.toUpperCase())}
@@ -512,7 +512,7 @@
                 getPaletteColorDef(color, $themeStore.dark)?.icon ??
                 getPlatformColorForTextDef(name, $themeStore.dark).icon
             }}
-        size={'large'}
+        size="large"
         on:click={chooseIcon}
       />
     </div>
@@ -524,9 +524,9 @@
       <AssigneeBox
         label={tracker.string.Assignee}
         placeholder={tracker.string.Assignee}
-        kind={'regular'}
-        size={'large'}
-        avatarSize={'card'}
+        kind="regular"
+        size="large"
+        avatarSize="card"
         bind:value={defaultAssignee}
         titleDeselect={tracker.string.Unassigned}
         showNavigate={false}
@@ -543,8 +543,8 @@
           bind:value={defaultStatus}
           type={typeId}
           workflowId={taskTypes[0]?._id ? workflowsMapping[taskTypes[0]._id] : undefined}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       {/if}
     </div>
@@ -558,8 +558,8 @@
         label={core.string.Owners}
         allowGuests
         onChange={handleOwnersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -568,7 +568,7 @@
         <Label label={presentation.string.MakePrivate} />
         <span><Label label={presentation.string.MakePrivateDescription} /></span>
       </div>
-      <Toggle id={'project-private'} bind:on={isPrivate} disabled={!isPrivate && members.length === 0} />
+      <Toggle id="project-private" bind:on={isPrivate} disabled={!isPrivate && members.length === 0} />
     </div>
 
     <div class="antiGrid-row">
@@ -579,8 +579,8 @@
         value={members}
         label={tracker.string.Members}
         onChange={handleMembersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         allowGuests
       />
     </div>
@@ -606,8 +606,8 @@
           onChange={(refs) => {
             handleRoleAssignmentChanged(role._id, refs)
           }}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       </div>
     {/each}

@@ -31,7 +31,7 @@
 <label use:tp={tooltip} class="switcher-element__wrapper" data-view={tooltip?.label} data-id={`tab-${id}`}>
   <input type="radio" class="switcher" {name} {checked} on:change />
   <div class="switcher-element {kind}" class:woTitle>
-    {#if icon}<div class="icon"><Icon {icon} size={'small'} fill={color} /></div>{/if}
+    {#if icon}<div class="icon"><Icon {icon} size="small" fill={color} /></div>{/if}
     {#if label}<span><Label {label} params={labelParams} /></span>{/if}
     {#if title}<span>{title}</span>{/if}
     {#if badge}<span class="switcher-badge"><Label label={badge} params={badgeParams} /></span>{/if}

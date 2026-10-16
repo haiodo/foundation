@@ -866,13 +866,13 @@
         {#if viewlets.length > 1}
           <div class="p-1">
             <DropdownLabelsIntl
-              kind={'ghost'}
+              kind="ghost"
               items={viewlets.map((it) => ({ id: it._id, label: hierarchy.getClass(it.attachTo).label }))}
               {selected}
               on:selected={(evt) => {
                 selected = evt.detail
               }}
-              width={'100%'}
+              width="100%"
             />
           </div>
         {/if}

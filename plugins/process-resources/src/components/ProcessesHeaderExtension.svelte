@@ -110,13 +110,13 @@
   {#if isRequest(todo)}
     <ApproveRequestButtons {todo} card={card._id} />
   {:else}
-    <Button kind={'primary'} label={getEmbeddedLabel(todo.title)} on:click={() => checkTodo(todo)} />
+    <Button kind="primary" label={getEmbeddedLabel(todo.title)} on:click={() => checkTodo(todo)} />
   {/if}
 {/each}
 {#each actions as action (action._id)}
-  <Button kind={'primary'} label={getEmbeddedLabel(action.title)} on:click={() => performAction(action)} />
+  <Button kind="primary" label={getEmbeddedLabel(action.title)} on:click={() => performAction(action)} />
 {/each}
 {#each rollbacks as rollback}
   {getExecutionLabel(rollback)}
-  <Button kind={'dangerous'} label={process.string.Rollback} on:click={() => performRollback(rollback)} />
+  <Button kind="dangerous" label={process.string.Rollback} on:click={() => performRollback(rollback)} />
 {/each}

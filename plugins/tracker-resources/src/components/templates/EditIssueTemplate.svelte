@@ -194,8 +194,8 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
-        dataId={'btnMoreActions'}
+        kind="icon"
+        dataId="btnMoreActions"
         on:click={showContextMenu}
       />
     </svelte:fragment>

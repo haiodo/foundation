@@ -57,8 +57,8 @@
 </script>
 
 <Button
-  size={'medium'}
-  kind={'ghost'}
+  size="medium"
+  kind="ghost"
   icon={calendar.icon.Reminder}
   showTooltip={{ label: isEvent ? calendar.string.RemindMeAt : calendar.string.Reminders }}
   on:click={(e) => click(e)}

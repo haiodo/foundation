@@ -152,7 +152,7 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'disabled'}
+    adaptive="disabled"
     withoutActivity={true}
     on:open
     on:close={() => dispatch('close')}
@@ -163,7 +163,7 @@
     <EditBox
       bind:value={object.name}
       placeholder={testManagement.string.TestRunNamePlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
     />
 
@@ -197,7 +197,7 @@
       <ModernButton
         label={testManagement.string.Save}
         size="medium"
-        kind={'primary'}
+        kind="primary"
         disabled={object?.name.trim().length === 0 || testCases?.length === 0}
         on:click={onSave}
       />

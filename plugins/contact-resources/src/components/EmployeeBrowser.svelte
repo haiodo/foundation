@@ -30,7 +30,7 @@
   $: void updateEmployees(resultQuery)
 </script>
 
-<Scroller padding={'var(--spacing-2)'}>
+<Scroller padding="var(--spacing-2)">
   {#each employees as employee}
     <div class="fs-title item">
       <EmployeePresenter value={employee} avatarSize="medium" />

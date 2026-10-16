@@ -124,7 +124,7 @@
     <span class="fs-title overflow-label"><Label {label} /></span>
     <ActionIcon
       icon={IconClose}
-      size={'small'}
+      size="small"
       action={() => {
         dispatch('close', {})
       }}
@@ -171,9 +171,9 @@
   </div>
   <div class="footer">
     <Button
-      kind={'primary'}
+      kind="primary"
       label={ui.string.Save}
-      size={'x-large'}
+      size="x-large"
       on:click={() => {
         closeDP()
       }}

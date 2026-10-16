@@ -86,8 +86,8 @@
     <span class="fs-title mr-4"><Label label={adminRes.string.Reports} /></span>
     <ButtonMenu
       label={adminRes.string.CreateReport}
-      kind={'primary'}
-      size={'small'}
+      kind="primary"
+      size="small"
       disabled={generating}
       items={reportItems}
       on:selected={(it) => {
@@ -98,13 +98,13 @@
       <Button
         label={getEmbeddedLabel('CSV')}
         kind={reportFormat === 'csv' ? 'primary' : 'regular'}
-        size={'small'}
+        size="small"
         on:click={() => (reportFormat = 'csv')}
       />
       <Button
         label={getEmbeddedLabel('PDF')}
         kind={reportFormat === 'pdf' ? 'primary' : 'regular'}
-        size={'small'}
+        size="small"
         on:click={() => (reportFormat = 'pdf')}
       />
     </div>

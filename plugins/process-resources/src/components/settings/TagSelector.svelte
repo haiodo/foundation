@@ -75,7 +75,7 @@
   $: selected = tag !== undefined ? client.getModel().findObject(tag) : undefined
 </script>
 
-<Button on:click={open} width={'100%'}>
+<Button on:click={open} width="100%">
   <div slot="content">
     <Label label={selected?.label ?? cardPlugin.string.Tag} />
   </div>

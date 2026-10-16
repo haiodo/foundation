@@ -104,7 +104,7 @@
 >
   <div class="draggable-container">
     <div class="draggable-mark">
-      <IconCircles size={'small'} />
+      <IconCircles size="small" />
     </div>
   </div>
   <div class="flex-center relative mr-1" use:tooltip={{ label: view.string.Select, direction: 'bottom' }}>
@@ -112,7 +112,7 @@
       <div class="antiList-cells__checkCell">
         <CheckBox
           {checked}
-          size={'medium'}
+          size="medium"
           on:value={(event) => {
             dispatch('check', { docs: [docObject], value: event.detail })
           }}
@@ -188,7 +188,7 @@
   {/each}
   {#if compactMode && needCompact}
     <div class="panel-trigger" tabindex="-1">
-      <IconCircles size={'small'} />
+      <IconCircles size="small" />
     </div>
     <div class="hidden-panel" tabindex="-1">
       <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -198,7 +198,7 @@
           ev.currentTarget.blur()
         }}
       >
-        <IconCircles size={'small'} />
+        <IconCircles size="small" />
       </div>
       <div class="scroll-box gap-1">
         {#if mobile}

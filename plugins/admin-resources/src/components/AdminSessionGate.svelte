@@ -82,9 +82,9 @@
   </div>
 
   <div class="flex-row-center">
-    <EditBox bind:value={code} placeholder={adminRes.string.OtpCode} kind={'large-style'} autoFocus />
+    <EditBox bind:value={code} placeholder={adminRes.string.OtpCode} kind="large-style" autoFocus />
     <div class="ml-4">
-      <Button label={adminRes.string.Confirm} kind={'primary'} disabled={!canConfirm} on:click={confirm} />
+      <Button label={adminRes.string.Confirm} kind="primary" disabled={!canConfirm} on:click={confirm} />
     </div>
     <div class="ml-2">
       <Button label={adminRes.string.SendCode} disabled={sending || retryLeft > 0} on:click={sendCode} />

@@ -34,4 +34,4 @@
   }
 </script>
 
-<DocumentIcon value={iconValue} size={'medium'} defaultIcon={document.icon.Document} />
+<DocumentIcon value={iconValue} size="medium" defaultIcon={document.icon.Document} />

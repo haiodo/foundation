@@ -47,7 +47,7 @@
 
 {#if value}
   <DueDatePresenter
-    kind={'link'}
+    kind="link"
     value={value.dueDate}
     {width}
     {editable}

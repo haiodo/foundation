@@ -82,7 +82,7 @@
     disabled={!editable}
     placeholder={core.string.Id}
     uppercase
-    maxWidth={'50%'}
+    maxWidth="50%"
     on:change={change}
   />
   {#if editable && currentSequence?.sequence && currentSequence.sequence > 0}

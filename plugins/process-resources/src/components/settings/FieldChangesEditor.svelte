@@ -102,6 +102,6 @@
   />
 {:else}
   <div class="flex-center mt-4">
-    <Button label={view.string.Select} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onSelect} />
+    <Button label={view.string.Select} width="100%" kind="link-bordered" size="large" on:click={onSelect} />
   </div>
 {/if}

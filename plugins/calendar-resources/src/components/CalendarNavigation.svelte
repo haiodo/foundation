@@ -37,12 +37,12 @@
       items={ddItems.map((it) => {
         return { id: it.id, label: it.label, params: it.params }
       })}
-      size={'medium'}
+      size="medium"
       selected={ddItems.find((it) => it.mode === mode)?.id}
       on:selected={(e) => (mode = ddItems.find((it) => it.id === e.detail)?.mode ?? ddItems[0].mode)}
     />
   {/if}
   <Button label={calendar.string.Today} on:click={onToday} />
-  <Button icon={IconBack} kind={'ghost'} on:click={onBack} />
-  <Button icon={IconForward} kind={'ghost'} on:click={onForward} />
+  <Button icon={IconBack} kind="ghost" on:click={onBack} />
+  <Button icon={IconForward} kind="ghost" on:click={onForward} />
 </div>

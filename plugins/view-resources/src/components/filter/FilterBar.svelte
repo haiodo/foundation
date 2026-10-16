@@ -186,7 +186,7 @@
         />
       {/each}
       <div class="add-filter">
-        <Button size={'small'} icon={IconAdd} kind={'ghost'} on:click={add} />
+        <Button size="small" icon={IconAdd} kind="ghost" on:click={add} />
       </div>
     </div>
 
@@ -195,7 +195,7 @@
         <Button
           icon={view.icon.Views}
           label={view.string.SaveAs}
-          width={'fit-content'}
+          width="fit-content"
           on:click={async () => {
             await saveFilteredView()
           }}
@@ -204,7 +204,7 @@
           <Button
             icon={view.icon.Views}
             label={view.string.Save}
-            width={'fit-content'}
+            width="fit-content"
             on:click={async () => {
               await saveCurrentFilteredView($selectedFilterStore)
             }}

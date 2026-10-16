@@ -68,7 +68,7 @@
             readonly={false}
             object={hierarchy.as(object, mixin._id)}
             showHeader={true}
-            size={'medium'}
+            size="medium"
           />
         {/each}
       {/if}

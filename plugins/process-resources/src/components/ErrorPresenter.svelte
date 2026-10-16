@@ -25,7 +25,7 @@
     icon={IconError}
     size="small"
     iconSize="medium"
-    kind={'tertiary'}
+    kind="tertiary"
     tooltip={{ component: ErrorTooltip, props: { value } }}
     on:click
   />

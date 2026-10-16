@@ -52,7 +52,7 @@
   <DocNavLink object={value}>
     <div class="room-table-presenter flex-row-center flex-gap-2">
       <div class="icon flex-no-shrink">
-        <Icon icon={love.icon.Love} size={'small'} />
+        <Icon icon={love.icon.Love} size="small" />
       </div>
       <div class="flex-col flex-grow min-w-0">
         <span class="label overflow-label">{roomName}</span>

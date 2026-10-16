@@ -197,8 +197,8 @@
                 </svelte:fragment>
               </SortableList>
               <Button
-                kind={'ghost'}
-                width={'100%'}
+                kind="ghost"
+                width="100%"
                 icon={IconAdd}
                 label={plugin.string.AddAction}
                 on:click={addAction}

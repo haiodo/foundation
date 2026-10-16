@@ -198,7 +198,7 @@
       {shouldShowName}
       {showStatus}
       showNavigate={false}
-      justify={'left'}
+      justify="left"
       showTooltip={{
         label: tracker.string.AssignTo,
         personLabel: tracker.string.AssignedTo,

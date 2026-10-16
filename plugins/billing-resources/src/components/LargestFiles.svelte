@@ -54,11 +54,11 @@
       <div class="file-row flex flex-between">
         <span class="file-index">{i + 1}.</span>
         <div class="flex flex-row-center flex-grow">
-          <FixedColumn key={'file-link'}>
+          <FixedColumn key="file-link">
             <ObjectPresenter _class={file._class} value={file} objectId={file._id} inline props={{ showSize: false }} />
           </FixedColumn>
           <div class="file-type">
-            <FixedColumn key={'source-link'}>
+            <FixedColumn key="source-link">
               <ObjectPresenter
                 _class={file.attachedToClass}
                 objectId={file.attachedTo}

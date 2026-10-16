@@ -68,7 +68,7 @@
     <Label label={core.string.Description} />
   </span>
   <div class="flex-row-center flex-gap-2">
-    <EditBox bind:value={name} placeholder={core.string.Description} on:change={handleNameChange} kind={'default'} />
+    <EditBox bind:value={name} placeholder={core.string.Description} on:change={handleNameChange} kind="default" />
     <Button
       icon={IconClose}
       kind="ghost"

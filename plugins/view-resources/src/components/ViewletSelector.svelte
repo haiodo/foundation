@@ -101,10 +101,10 @@
 
 {#if viewlets?.length > 1 && !hidden}
   <Switcher
-    name={'viewletSelector'}
+    name="viewletSelector"
     items={viewslist}
     selected={viewlet?._id}
-    kind={'subtle'}
+    kind="subtle"
     on:select={(result) => {
       if (result.detail !== undefined) {
         if (viewlet?._id === result.detail.id) {

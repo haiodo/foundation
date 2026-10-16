@@ -123,14 +123,14 @@
   }
 </script>
 
-<Scroller padding={'1rem 0'}>
+<Scroller padding="1rem 0">
   {#if noParentId !== undefined}
     <TreeNode
       _id={noParentId}
       icon={allObjectsIcon}
       label={allObjectsLabel}
       selected={selected === noParentId}
-      type={'nested-selectable'}
+      type="nested-selectable"
       empty={foldersState?.folders?.length === 0}
       actions={() => getRootActions()}
       {forciblyСollapsed}

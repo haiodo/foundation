@@ -37,20 +37,20 @@
     bind:value
     {label}
     {kind}
-    size={'medium'}
-    width={'100%'}
+    size="medium"
+    width="100%"
     autoFocus={autoFocus && !$deviceOptionsStore.isMobile}
     on:keydown
   >
-    <div class="search-icon"><IconSearch size={'small'} /></div>
+    <div class="search-icon"><IconSearch size="small" /></div>
     <svelte:fragment slot="after">
       <slot name="filter" />
       {#if value !== ''}
         <ModernButton
           icon={IconClose}
-          kind={'tertiary'}
-          size={'small'}
-          shape={'round'}
+          kind="tertiary"
+          size="small"
+          shape="round"
           on:click={() => {
             value = ''
             dispatch('clear')

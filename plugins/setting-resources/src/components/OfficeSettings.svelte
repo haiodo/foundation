@@ -102,8 +102,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb label={settingsRes.string.OfficeSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb label={settingsRes.string.OfficeSettings} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
     {#if loading}
@@ -111,7 +111,7 @@
         <!-- Loading... -->
       </div>
     {:else}
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content flex-col flex-gap-4">
           <div class="title"><Label label={settingsRes.string.OfficeDefaultSettings} /></div>
 

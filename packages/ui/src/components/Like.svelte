@@ -29,7 +29,7 @@
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="icon" on:click={vote}>
-    <Like size={'small'} />
+    <Like size="small" />
   </div>
 </div>
 

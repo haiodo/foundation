@@ -94,7 +94,7 @@
   let viewOptions: ViewOptions | undefined = undefined
 </script>
 
-<Header adaptive={'freezeActions'} hideActions={modeSelectorProps === undefined}>
+<Header adaptive="freezeActions" hideActions={modeSelectorProps === undefined}>
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       hidden
@@ -109,7 +109,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb {icon} label={labelTasks} size={'large'} isCurrent />
+  <Breadcrumb {icon} label={labelTasks} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed on:change={(e) => (search = e.detail)} />
@@ -117,7 +117,7 @@
   </svelte:fragment>
   <svelte:fragment slot="actions">
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>

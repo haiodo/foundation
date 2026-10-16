@@ -50,7 +50,7 @@
   <DocNavLink object={value}>
     <div class="room-list-item flex-row-center flex-gap-2">
       <div class="icon flex-no-shrink">
-        <Icon icon={love.icon.Love} size={'small'} />
+        <Icon icon={love.icon.Love} size="small" />
       </div>
       <span class="name overflow-label flex-grow">{roomName}</span>
       <span class="type flex-no-shrink">{getRoomTypeLabel(value)}</span>

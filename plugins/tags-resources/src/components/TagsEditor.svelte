@@ -118,9 +118,9 @@
         {#if !readonly}
           <Button
             icon={IconAdd}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: tags.string.AddTagTooltip, props: { word: keyLabel } }}
-            id={'add-tag'}
+            id="add-tag"
             on:click={addTag}
           />
         {/if}

@@ -58,7 +58,7 @@
   iconProps={{ size }}
   {kind}
   {size}
-  dataId={'btnDiscussWithAI'}
+  dataId="btnDiscussWithAI"
   showTooltip={{ label: plugin.string.DiscussWithAI }}
   on:click={discuss}
 />

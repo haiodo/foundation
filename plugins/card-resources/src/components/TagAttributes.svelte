@@ -83,16 +83,16 @@
     <span class="overflow-label">
       <Label {label} />
     </span>
-    <Chevron expanded={!isCollapsed} outline fill={'var(--content-color'} />
+    <Chevron expanded={!isCollapsed} outline fill="var(--content-color" />
   </div>
   <div class="btns">
     {#if (isLocked && canUnlock) || (!isLocked && canLock)}
       <div class="lock-btn">
         <Button
           icon={isLocked ? Lock : Unlock}
-          kind={'link'}
+          kind="link"
           disabled={readonly}
-          size={'medium'}
+          size="medium"
           showTooltip={{ label: isLocked ? card.string.UnLockSection : card.string.LockSection }}
           on:click={toggleLock}
         />
@@ -101,8 +101,8 @@
     {#if hasAccountRole(getCurrentAccount(), AccountRole.Maintainer) && isEditable}
       <Button
         icon={IconAdd}
-        kind={'link'}
-        size={'medium'}
+        kind="link"
+        size="medium"
         showTooltip={{ label: setting.string.AddAttribute }}
         on:click={() => {
           showPopup(setting.component.CreateAttributePopup, { _class: tag._id, isCard: true }, 'top')
@@ -110,8 +110,8 @@
       />
       <Button
         icon={setting.icon.Setting}
-        kind={'link'}
-        size={'medium'}
+        kind="link"
+        size="medium"
         showTooltip={{ label: setting.string.Setting }}
         on:click={(ev) => {
           ev.stopPropagation()

@@ -35,11 +35,11 @@
           {#each Object.entries(tagLevel) as k, j}
             {@const valueK = i * 3 + j}
             <button class="menu-item flex-row-center" on:click={() => dispatch('close', valueK)}>
-              <div class="icon"><Icon icon={k[1]} size={'small'} /></div>
+              <div class="icon"><Icon icon={k[1]} size="small" /></div>
               <span class="overflow-label label flex-grow"><Label label={l} /></span>
               <div class="check pointer-events-none">
                 {#if value === valueK}
-                  <Icon icon={IconCheck} size={'small'} />
+                  <Icon icon={IconCheck} size="small" />
                 {/if}
               </div>
             </button>
@@ -50,7 +50,7 @@
             <span class="overflow-label label flex-grow"><Label label={l} /></span>
             <div class="check pointer-events-none">
               {#if value === valueK}
-                <Icon icon={IconCheck} size={'small'} />
+                <Icon icon={IconCheck} size="small" />
               {/if}
             </div>
           </button>

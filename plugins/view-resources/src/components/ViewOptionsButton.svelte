@@ -109,10 +109,10 @@
     <Button
       icon={IconOptions}
       {disabled}
-      kind={'ghost'}
+      kind="ghost"
       {pressed}
       showTooltip={{ label: view.string.GroupAndSort, direction: 'bottom' }}
-      dataId={'btn-viewOptions'}
+      dataId="btn-viewOptions"
       bind:input={btn}
       on:click={clickHandler}
     />
@@ -121,11 +121,11 @@
       icon={IconOptions}
       {disabled}
       {kind}
-      size={'small'}
+      size="small"
       hasMenu
       {pressed}
       tooltip={{ label: view.string.GroupAndSort, direction: 'bottom' }}
-      dataId={'btn-viewOptions'}
+      dataId="btn-viewOptions"
       bind:element={btn}
       on:click={clickHandler}
     />

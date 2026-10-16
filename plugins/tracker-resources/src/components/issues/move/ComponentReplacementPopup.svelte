@@ -51,7 +51,7 @@
                 </div>
                 <div class="pointer-events-none">
                   {#if selected === component._id}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </div>
@@ -81,7 +81,7 @@
                 </div>
                 <div class="pointer-events-none">
                   {#if selected === original._id}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </div>

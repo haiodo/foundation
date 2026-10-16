@@ -195,8 +195,8 @@
   <div class="header">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       {placeholder}
@@ -234,16 +234,16 @@
             }}
           >
             <div class="flex-grow clear-mins">
-              <UserInfo size={'smaller'} value={obj} {icon} />
+              <UserInfo size="smaller" value={obj} {icon} />
             </div>
             {#if allowDeselect && selected}
               {#if loading && obj._id === selected}
-                <Spinner size={'small'} />
+                <Spinner size="small" />
               {:else}
                 <div class="check">
                   {#if obj._id === selected}
                     <div use:tooltip={{ label: titleDeselect ?? presentation.string.Deselect }}>
-                      <Icon icon={IconCheck} size={'small'} />
+                      <Icon icon={IconCheck} size="small" />
                     </div>
                   {/if}
                 </div>

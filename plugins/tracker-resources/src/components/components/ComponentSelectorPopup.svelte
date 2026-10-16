@@ -34,10 +34,10 @@
     {#if space !== undefined}
       <div class="p-1">
         <Button
-          kind={'ghost'}
-          size={'large'}
+          kind="ghost"
+          size="large"
           icon={IconAdd}
-          dataId={'btnAdd'}
+          dataId="btnAdd"
           on:click={() => {
             showPopup(NewComponent, { space }, 'top')
             dispatch('close')

@@ -25,17 +25,17 @@
   {#each skins as skin, index}
     {@const disabled = selected === index}
     <ButtonBase
-      type={'type-button-icon'}
+      type="type-button-icon"
       {disabled}
       kind={disabled ? 'secondary' : 'tertiary'}
-      size={'small'}
+      size="small"
       on:click={() => {
         if (disabled) return undefined
         dispatch('update', index)
         closeTooltip()
       }}
     >
-      <span style:font-size={'1.5rem'} class="emoji">{skin.emoji}</span>
+      <span style:font-size="1.5rem" class="emoji">{skin.emoji}</span>
     </ButtonBase>
   {/each}
 </div>

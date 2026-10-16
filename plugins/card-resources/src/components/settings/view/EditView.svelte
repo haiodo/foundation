@@ -63,17 +63,17 @@
 
 <Modal
   label={card.string.EditView}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={true}
   onCancel={clearSettingsStore}
 >
   <svelte:fragment slot="actions">
-    <Button icon={IconDelete} kind={'dangerous'} on:click={remove} />
+    <Button icon={IconDelete} kind="dangerous" on:click={remove} />
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
-    <ModernEditbox bind:value={title} label={view.string.Title} size={'large'} kind={'ghost'} />
+    <ModernEditbox bind:value={title} label={view.string.Title} size="large" kind="ghost" />
   </div>
   <div class="hulyModal-content__settingsSet">
     <div class="hulyModal-content__settingsSet-line">

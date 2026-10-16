@@ -160,7 +160,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet {defaultViewOptions} {defaultConfig} />
   </svelte:fragment>
 
-  <Breadcrumb {icon} {iconProps} {label} size={'large'} isCurrent />
+  <Breadcrumb {icon} {iconProps} {label} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed />
@@ -183,7 +183,7 @@
       <Button
         icon={IconAdd}
         label={createLabel}
-        kind={'primary'}
+        kind="primary"
         disabled={isCreationDisabled}
         event={createEvent}
         on:click={() => {
@@ -202,7 +202,7 @@
   </svelte:fragment>
   <svelte:fragment slot="extra">
     {#if modes !== undefined}
-      <ModeSelector kind={'subtle'} props={modes} />
+      <ModeSelector kind="subtle" props={modes} />
     {/if}
   </svelte:fragment>
 </Header>

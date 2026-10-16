@@ -220,17 +220,17 @@
       </NavFooter>
     </div>
     <Separator
-      name={'setting'}
+      name="setting"
       float={$deviceInfo.navigator.float ? 'navigator' : true}
       index={0}
-      color={'transparent'}
+      color="transparent"
     />
   </div>
   <Separator
-    name={'setting'}
+    name="setting"
     float={$deviceInfo.navigator.float}
     index={0}
-    color={'transparent'}
+    color="transparent"
     separatorSize={0}
     short
   />
@@ -240,14 +240,14 @@
   bind:this={replacedPanel}
   class="antiPanel-component filledNav"
   class:border-right={category?.component === undefined}
-  style:flex-direction={'row'}
+  style:flex-direction="row"
 >
   {#if category}
     <Component is={category.component} props={{ kind: 'content' }} />
   {/if}
 </div>
 {#if asideComponent != null && !moveASide}
-  <Separator name={'setting'} index={1} color={'transparent'} separatorSize={0} short />
+  <Separator name="setting" index={1} color="transparent" separatorSize={0} short />
   <div class="hulySidePanel-container">
     {#key asideProps}
       {#if typeof asideComponent === 'string'}

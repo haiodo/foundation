@@ -84,7 +84,7 @@
       }}
     >
       <svelte:fragment slot="icon">
-        <svelte:component this={component} user={state.user} lastUpdate={state.lastUpdate ?? 0} size={'x-small'} />
+        <svelte:component this={component} user={state.user} lastUpdate={state.lastUpdate ?? 0} size="x-small" />
       </svelte:fragment>
     </Button>
   {/each}

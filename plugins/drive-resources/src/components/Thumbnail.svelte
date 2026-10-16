@@ -43,7 +43,7 @@
 </script>
 
 {#if isFolder}
-  <Icon icon={IconFolderThumbnail} size={'full'} fill={'var(--global-no-priority-PriorityColor)'} />
+  <Icon icon={IconFolderThumbnail} size="full" fill="var(--global-no-priority-PriorityColor)" />
 {:else if previewRef != null && canShowThumbnail && !isError}
   <Image
     blob={previewRef}
@@ -52,7 +52,7 @@
     height={size}
     blurhash={version?.metadata?.thumbnail?.blurhash}
     responsive
-    fit={'cover'}
+    fit="cover"
     on:error={() => {
       isError = true
     }}

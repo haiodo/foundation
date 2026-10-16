@@ -31,7 +31,7 @@
   <DocNavLink object={value} {inline}>
     <div class="flex-presenter" class:inline-presenter={inline}>
       <div class="icon">
-        <Icon icon={task.icon.Task} size={'small'} />
+        <Icon icon={task.icon.Task} size="small" />
       </div>
       <span class="label nowrap">
         {#if shortLabel}{shortLabel}-{/if}{value.number}

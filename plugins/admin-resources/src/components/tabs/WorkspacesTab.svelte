@@ -496,15 +496,15 @@
   }
 </script>
 
-<div class="anticrm-panel flex-row flex-grow" style:overflow-y={'auto'}>
+<div class="anticrm-panel flex-row flex-grow" style:overflow-y="auto">
   <div class="flex-between">
     <div class="fs-title p-3"><Label label={adminRes.string.WorkspacesAdminTitle} /></div>
     <div class="flex-row-center">
       {#if !readOnly}
         <Button
           label={adminRes.string.CreateWorkspace}
-          kind={'primary'}
-          size={'small'}
+          kind="primary"
+          size="small"
           on:click={() => {
             showPopup(CreateWorkspaceDialog, {}, undefined, (created) => {
               if (created === true) void loadPage()
@@ -516,7 +516,7 @@
         <div class="ml-2 mr-4">
           <Button
             label={adminRes.string.ReindexAll}
-            size={'small'}
+            size="small"
             on:click={() => {
               void requestAdminOtpCode().then(async (code) => {
                 if (code === undefined) return
@@ -531,7 +531,7 @@
     </div>
   </div>
   <div class="fs-title p-3 flex-no-shrink" data-testid="workspace-search-container">
-    <SearchEdit bind:value={search} width={'100%'} />
+    <SearchEdit bind:value={search} width="100%" />
   </div>
 
   {#if loadFailed}
@@ -541,7 +541,7 @@
   <div class="p-3 flex-row-center flex-wrap filters-row">
     <Button
       label={adminRes.string.Previous}
-      size={'small'}
+      size="small"
       disabled={pageSkip === 0}
       on:click={() => {
         pageSkip = Math.max(0, pageSkip - pageLimit)
@@ -552,7 +552,7 @@
     </span>
     <Button
       label={adminRes.string.Next}
-      size={'small'}
+      size="small"
       disabled={pageSkip + pageLimit >= total}
       on:click={() => {
         pageSkip += pageLimit
@@ -795,7 +795,7 @@
                     {#if hasMore}
                       <Button
                         label={adminRes.string.MoreItems}
-                        kind={'link'}
+                        kind="link"
                         on:click={(ev) => {
                           ev.stopPropagation()
                           limit += 50
@@ -807,7 +807,7 @@
                         icon={IconStop}
                         label={adminRes.string.MassArchive}
                         labelParams={{ count: activeAll.length }}
-                        kind={'ghost'}
+                        kind="ghost"
                         on:click={(ev) => {
                           ev.stopPropagation()
                           void otpGuardedOp(
@@ -822,7 +822,7 @@
                     {#if !readOnly && regionInfo.length > 0 && activeV.length > 0}
                       <Button
                         icon={IconArrowRight}
-                        kind={'positive'}
+                        kind="positive"
                         label={adminRes.string.MassMigrate}
                         labelParams={{ count: activeV.length, region: selectedRegionName ?? '' }}
                         on:click={(ev) => {
@@ -851,22 +851,22 @@
                         <span class="label overflow-label">{workspace.name}</span>
                         <Button
                           icon={IconOpen}
-                          size={'small'}
-                          kind={'ghost'}
+                          size="small"
+                          kind="ghost"
                           on:click={() => select(workspace.url)}
                           showTooltip={{ label: adminRes.string.OpenWorkspaceUrl }}
                         />
                         <Button
                           icon={IconCopy}
-                          size={'small'}
-                          kind={'ghost'}
+                          size="small"
+                          kind="ghost"
                           on:click={() => copyTextToClipboard(workspace.uuid)}
                           showTooltip={{ label: adminRes.string.CopyUuid }}
                         />
                         <Button
                           icon={IconDetails}
-                          size={'small'}
-                          kind={'ghost'}
+                          size="small"
+                          kind="ghost"
                           on:click={() => {
                             showPopup(WorkspaceDetails, { workspace })
                           }}
@@ -919,8 +919,8 @@
                               })
                             }}
                             icon={IconDownOutline}
-                            size={'small'}
-                            kind={'ghost'}
+                            size="small"
+                            kind="ghost"
                           />
                         {/if}
                       </div>
@@ -966,9 +966,9 @@
                         {#if !readOnly && workspace.mode === 'active'}
                           <Button
                             icon={IconStop}
-                            size={'small'}
+                            size="small"
                             label={adminRes.string.Archive}
-                            kind={'ghost'}
+                            kind="ghost"
                             on:click={() => {
                               void otpGuardedOp(workspace.uuid, 'archive').then(() => {
                                 void loadPage()
@@ -979,8 +979,8 @@
                         {#if !readOnly && workspace.mode === 'archived'}
                           <Button
                             icon={IconStart}
-                            size={'small'}
-                            kind={'ghost'}
+                            size="small"
+                            kind="ghost"
                             label={adminRes.string.Unarchive}
                             on:click={() => {
                               showPopup(MessageBox, {
@@ -997,8 +997,8 @@
                         {#if !readOnly && regionInfo.length > 0 && workspace.mode === 'active' && (workspace.region ?? '') !== selectedRegionId}
                           <Button
                             icon={IconArrowRight}
-                            size={'small'}
-                            kind={'positive'}
+                            size="small"
+                            kind="positive"
                             label={adminRes.string.Migrate}
                             on:click={() => {
                               void otpGuardedOp(workspace.uuid, 'migrate-to', selectedRegionId).then(() => {
@@ -1010,8 +1010,8 @@
                         {#if !readOnly && workspace.deleteOn != null}
                           <Button
                             icon={IconStart}
-                            size={'small'}
-                            kind={'ghost'}
+                            size="small"
+                            kind="ghost"
                             label={adminRes.string.CancelDeletion}
                             showTooltip={{
                               label: adminRes.string.DeletionScheduled,
@@ -1027,8 +1027,8 @@
                         {#if !readOnly && superAdminMode && !isDeletingMode(workspace.mode) && (workspace.mode === 'archived' || !isArchivingMode(workspace.mode))}
                           <Button
                             icon={IconStop}
-                            size={'small'}
-                            kind={'dangerous'}
+                            size="small"
+                            kind="dangerous"
                             label={adminRes.string.Delete}
                             on:click={() => {
                               void deleteWorkspace(workspace.uuid).then(() => {

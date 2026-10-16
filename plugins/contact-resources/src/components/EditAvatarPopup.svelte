@@ -69,11 +69,11 @@
       <Cropper bind:this={cropper} bind:ready image={file} {lessCrop} />
     </div>
     <div class="footer">
-      <Button label={presentation.string.Save} kind={'primary'} size={'large'} disabled={!ready} on:click={onCrop} />
+      <Button label={presentation.string.Save} kind="primary" size="large" disabled={!ready} on:click={onCrop} />
       <div class="mx-3 clear-mins">
-        <Button label={presentation.string.Change} size={'large'} on:click={selectAnother} />
+        <Button label={presentation.string.Change} size="large" on:click={selectAnother} />
       </div>
-      <Button label={presentation.string.Remove} size={'large'} on:click={remove} />
+      <Button label={presentation.string.Remove} size="large" on:click={remove} />
     </div>
   {/await}
 </div>

@@ -56,7 +56,7 @@
     </svelte:fragment>
   </SortableDocList>
   {#if !readonly}
-    <Button kind={'ghost'} width={'100%'} icon={IconAdd} label={plugin.string.AddState} on:click={addState} />
+    <Button kind="ghost" width="100%" icon={IconAdd} label={plugin.string.AddState} on:click={addState} />
   {/if}
 </div>
 

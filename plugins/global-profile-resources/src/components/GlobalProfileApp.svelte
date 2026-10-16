@@ -182,7 +182,7 @@
       <div class="not-found">
         <div class="not-found-content">
           <div class="not-found-icon">
-            <Icon icon={view.icon.EyeCrossed} size="x-large" fill={'var(--primary-button-default)'} />
+            <Icon icon={view.icon.EyeCrossed} size="x-large" fill="var(--primary-button-default)" />
           </div>
           <div class="not-found-text">
             <Label label={globalProfile.string.ProfileNotAvailable} />

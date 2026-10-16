@@ -217,14 +217,14 @@
 
 <Modal
   label={title}
-  type={'type-popup'}
+  type="type-popup"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={name.trim().length > 0 && values.length > 0}
   onCancel={showConfirmationDialog}
 >
   <div class="flex-col">
-    <ModernEditbox bind:value={name} label={setting.string.EnumTitle} kind={'ghost'} size={'large'} width={'100%'} />
+    <ModernEditbox bind:value={name} label={setting.string.EnumTitle} kind="ghost" size="large" width="100%" />
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
       class="hulyTableAttr-container mt-6"
@@ -238,13 +238,13 @@
       on:drop|preventDefault|stopPropagation={fileDrop}
     >
       <div class="hulyTableAttr-header font-medium-12">
-        <IconBulletList size={'small'} />
+        <IconBulletList size="small" />
         <span><Label label={setting.string.Options} /></span>
         <div class="buttons-group tertiary-textColor">
           <ButtonIcon
-            kind={'tertiary'}
+            kind="tertiary"
             icon={IconMoreV}
-            size={'small'}
+            size="small"
             pressed={opened}
             inheritColor
             hasMenu
@@ -253,9 +253,9 @@
             }}
           />
           <ButtonIcon
-            kind={'primary'}
+            kind="primary"
             icon={IconAdd}
-            size={'small'}
+            size="small"
             tooltip={{ label: setting.string.Add }}
             on:click={() => {
               if (newItem) {
@@ -281,12 +281,12 @@
           {#if newItem}
             <div class="hulyTableAttr-content__row hovered">
               <div class="hulyTableAttr-content__row-dragMenu">
-                <IconMoreV2 size={'small'} />
+                <IconMoreV2 size="small" />
               </div>
               <div class="hulyTableAttr-content__row-label font-regular-14 accent grow">
                 <ModernEditbox
-                  kind={'ghost'}
-                  size={'small'}
+                  kind="ghost"
+                  size="small"
                   label={setting.string.EnterOptionTitle}
                   on:keydown={handleKeydown}
                   on:blur={() => {
@@ -296,7 +296,7 @@
                     newItem = false
                   }}
                   bind:value={newValue}
-                  width={'100%'}
+                  width="100%"
                   autoFocus
                 />
               </div>
@@ -306,9 +306,9 @@
                 </div>
               {/if}
               <ButtonIcon
-                kind={'tertiary'}
+                kind="tertiary"
                 icon={IconDelete}
-                size={'small'}
+                size="small"
                 on:click={() => {
                   newValue = ''
                   newItem = false

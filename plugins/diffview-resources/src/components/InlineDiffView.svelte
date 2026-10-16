@@ -36,7 +36,7 @@ index 3aa8590..6b64999 100644
   <FileDiffView
     file={diffFile}
     viewed={!expanded}
-    mode={'unified'}
+    mode="unified"
     showExpand={expandable}
     showViewed={false}
     showChanges={false}

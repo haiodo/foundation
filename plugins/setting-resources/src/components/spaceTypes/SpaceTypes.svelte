@@ -57,7 +57,7 @@
     {/if}
     {#if type._id === selectedTypeId}
       <div class="hulyTaskNavLink-icon right">
-        <IconOpenedArrow size={'small'} />
+        <IconOpenedArrow size="small" />
       </div>
     {/if}
   </button>

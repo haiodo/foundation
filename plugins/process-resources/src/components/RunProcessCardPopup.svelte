@@ -78,14 +78,14 @@
   label={plugin.string.RunProcess}
   canSave={process !== undefined && card !== undefined}
   okAction={runProcess}
-  width={'menu'}
+  width="menu"
   on:close
 >
   <div class="mb-4">
     <Dropdown
       {items}
-      kind={'regular'}
-      size={'medium'}
+      kind="regular"
+      size="medium"
       placeholder={plugin.string.Process}
       disabled={value !== undefined}
       selected={items.find((i) => i._id === process)}
@@ -97,8 +97,8 @@
   </div>
   {#if selectedProcess !== undefined}
     <CardSelector
-      kind={'regular'}
-      size={'medium'}
+      kind="regular"
+      size="medium"
       value={card?._id}
       on:value={(e) => {
         card = e.detail

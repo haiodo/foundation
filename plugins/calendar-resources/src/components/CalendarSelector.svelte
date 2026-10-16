@@ -75,11 +75,11 @@
 {#if calendars.length > 0}
   <div class="flex-row-center flex-gap-1">
     {#if withIcon}
-      <Icon icon={calendar.icon.Calendar} size={'small'} />
+      <Icon icon={calendar.icon.Calendar} size="small" />
     {/if}
     <Dropdown
-      kind={'ghost'}
-      size={'medium'}
+      kind="ghost"
+      size="medium"
       placeholder={calendar.string.Calendar}
       {items}
       withSearch={false}

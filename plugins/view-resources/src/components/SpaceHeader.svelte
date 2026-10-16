@@ -44,7 +44,7 @@
   {#if showLabelSelector}
     <slot name="label_selector" />
   {:else if label}
-    <Breadcrumb {icon} title={label} size={'large'} isCurrent />
+    <Breadcrumb {icon} title={label} size="large" isCurrent />
   {/if}
   {#if $$slots.type_selector}
     <div class="ml-2">
@@ -83,7 +83,7 @@
     {/each}
     <slot name="extra" />
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>

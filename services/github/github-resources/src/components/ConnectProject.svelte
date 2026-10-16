@@ -156,8 +156,8 @@
 </script>
 
 <Button
-  size={'medium'}
-  kind={'primary'}
+  size="medium"
+  kind="primary"
   label={github.string.LinkToProject}
   labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
   on:click={selectProject}

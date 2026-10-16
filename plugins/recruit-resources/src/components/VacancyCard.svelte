@@ -69,7 +69,7 @@
   {#if !inline}
     <div class="label uppercase"><Label label={recruit.string.Vacancy} /></div>
     <div class="flex-center logo">
-      <VacancyIcon size={'large'} />
+      <VacancyIcon size="large" />
     </div>
   {/if}
   {#if vacancy}
@@ -78,7 +78,7 @@
       <div class="name">
         {#if inline}
           <div class="flex-row-center">
-            <VacancyIcon size={'small'} />
+            <VacancyIcon size="small" />
             <span class="ml-2">
               {vacancy.name}
             </span>
@@ -110,7 +110,7 @@
         <ChannelsEditor
           attachedTo={channels[0].attachedTo}
           attachedClass={channels[0].attachedToClass}
-          length={'short'}
+          length="short"
           editable={false}
         />
       {/if}

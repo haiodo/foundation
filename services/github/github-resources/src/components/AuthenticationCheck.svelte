@@ -22,8 +22,8 @@
         label={github.string.Authorize}
         labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
         icon={github.icon.Github}
-        kind={'primary'}
-        size={'small'}
+        kind="primary"
+        size="small"
         on:click={() => {
           void onAuthorize()
         }}
@@ -36,7 +36,7 @@
       labelParams={{ login: auth.login }}
       disabled={true}
       {kind}
-      size={'small'}
+      size="small"
     />
   {/if}
 {/if}

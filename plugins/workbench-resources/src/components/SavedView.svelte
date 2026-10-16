@@ -271,7 +271,7 @@
 
 {#if shown}
   <TreeNode
-    _id={'tree-saved'}
+    _id="tree-saved"
     label={view.string.FilteredViews}
     highlighted={selectedId !== undefined}
     actions={async () => await getActions(availableFilteredViews)}
