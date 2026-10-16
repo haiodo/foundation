@@ -115,13 +115,13 @@
         {#if editable}
           <EditableAvatar
             person={object}
-            size={'x-large'}
+            size="x-large"
             name={object.name}
             bind:this={avatarEditor}
             on:done={onAvatarDone}
           />
         {:else}
-          <Avatar person={object} size={'x-large'} name={object.name} />
+          <Avatar person={object} size="x-large" name={object.name} />
         {/if}
         {#if personRating != null && hasResource(ratingPlugin.component.RatingRing)}
           <div class="flex-row-center mt-2">
@@ -158,8 +158,8 @@
 
       <div class="separator" />
       <Scroller
-        contentDirection={'horizontal'}
-        padding={'.125rem .125rem .5rem'}
+        contentDirection="horizontal"
+        padding=".125rem .125rem .5rem"
         noStretch
         stickedScrollBars
         thinScrollBars
@@ -170,17 +170,17 @@
             attachedClass={object._class}
             {editable}
             bind:integrations
-            shape={'circle'}
+            shape="circle"
             focusIndex={10}
           />
         {:else}
           <ChannelsDropdown
             value={channels}
             editable={false}
-            kind={'link-bordered'}
-            size={'small'}
-            length={'full'}
-            shape={'circle'}
+            kind="link-bordered"
+            size="small"
+            length="full"
+            shape="circle"
           />
         {/if}
       </Scroller>

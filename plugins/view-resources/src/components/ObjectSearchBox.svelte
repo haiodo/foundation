@@ -147,7 +147,7 @@
         {#if selected && showNavigate}
           <ActionIcon
             icon={view.icon.Open}
-            size={'small'}
+            size="small"
             action={() => {
               if (selected) {
                 showPanel(view.component.EditDoc, selected._id, Hierarchy.mixinOrClass(selected), 'content')

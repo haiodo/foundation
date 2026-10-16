@@ -278,7 +278,7 @@
     {limiter}
     {listProvider}
     level={0}
-    groupPersistKey={''}
+    groupPersistKey=""
     {createItemDialog}
     {createItemDialogProps}
     {createItemLabel}

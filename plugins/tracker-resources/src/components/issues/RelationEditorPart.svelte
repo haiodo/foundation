@@ -85,7 +85,7 @@
   {#if isIssue}
     {@const issue = asIssue(doc)}
     <div class="tag-container">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
       <div class="flex-grow">
         <button {disabled} on:click|stopPropagation={() => handleRedirect(issue)}>
           <span class="overflow-label ml-1-5 content-color">{issue.identifier}</span>
@@ -93,7 +93,7 @@
       </div>
       {#if !readonly}
         <button class="btn-close" on:click|stopPropagation={() => handleClick(issue)}>
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </button>
       {/if}
     </div>
@@ -105,7 +105,7 @@
       />
       {#if !readonly}
         <button class="btn-close" on:click|stopPropagation={() => handleClick(doc)}>
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </button>
       {/if}
     </div>

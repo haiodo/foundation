@@ -53,8 +53,8 @@
 
 {#if !typeFixed}
   <DropdownLabels
-    kind={'link'}
-    size={'medium'}
+    kind="link"
+    size="medium"
     items={availableProjectTypes.map((it) => ({ id: it._id, label: it.name }))}
     bind:selected={$selectedTypeStore}
   />

@@ -84,7 +84,7 @@
   okLabel={ui.string.Ok}
   okAction={changeType}
   canSave={selected != null && selected !== value._class}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}

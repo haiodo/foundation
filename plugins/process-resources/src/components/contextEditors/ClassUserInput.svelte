@@ -42,8 +42,8 @@
   <TypeSelector
     value={value ?? _class}
     parent={_class}
-    kind={'ghost'}
-    width={'100%'}
+    kind="ghost"
+    width="100%"
     excludeBaseTypes
     on:change={(e) => {
       if (e.detail !== undefined) {

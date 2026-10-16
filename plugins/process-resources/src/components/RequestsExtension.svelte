@@ -94,7 +94,7 @@
 <Section icon={process.icon.Process} label={process.string.ApproveRequest} spaceBeforeContent>
   <svelte:fragment slot="header">
     <div class="buttons-group xsmall-gap">
-      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'tertiary'} bind:viewlet />
+      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="tertiary" bind:viewlet />
     </div>
   </svelte:fragment>
 

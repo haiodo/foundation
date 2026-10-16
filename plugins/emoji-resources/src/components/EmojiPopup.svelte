@@ -272,7 +272,7 @@
     <SearchInput
       value={$searchEmoji}
       placeholder={emojiPlugin.string.SearchDots}
-      width={'100%'}
+      width="100%"
       autoFocus
       delay={50}
       on:change={(result) => {
@@ -281,15 +281,15 @@
       }}
     />
     <ButtonBase
-      type={'type-button-icon'}
+      type="type-button-icon"
       hasMenu
       pressed={shownSTM}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       tooltip={{ label: emojiPlugin.string.DefaultSkinTone }}
       on:click={showSkinMenu}
     >
-      <span style:font-size={'1.5rem'} class="emoji">{getUnicodeEmojiByShortCode(':hand:', skinTone)?.emoji}</span>
+      <span style:font-size="1.5rem" class="emoji">{getUnicodeEmojiByShortCode(':hand:', skinTone)?.emoji}</span>
     </ButtonBase>
   </div>
   <Scroller

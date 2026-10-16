@@ -198,7 +198,7 @@
   <div class="header flex-between">
     <EditBox
       bind:value={todo.title}
-      kind={'large-style'}
+      kind="large-style"
       placeholder={time.string.AddTitle}
       fullSize
       focusable
@@ -209,8 +209,8 @@
       <Button
         id="card-close"
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -245,8 +245,8 @@
           label={core.string.Space}
           autoSelect={false}
           allowDeselect
-          kind={'regular'}
-          size={'medium'}
+          kind="regular"
+          size="medium"
           focus={false}
           bind:space={todo.attachedSpace}
         />
@@ -267,7 +267,7 @@
       <Workslots
         bind:slots
         shortcuts={false}
-        fixed={'createToDo'}
+        fixed="createToDo"
         on:remove={removeSlot}
         on:create={createSlot}
         on:change={changeSlot}

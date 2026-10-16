@@ -379,7 +379,7 @@
   </div>
 
   {#if loading}
-    <Scroller padding={'.125rem 0'} maxHeight={35}>
+    <Scroller padding=".125rem 0" maxHeight={35}>
       <div class="platforms loading">
         <div class="platform-card">
           <div class="loader">
@@ -396,7 +396,7 @@
     {#if platforms.length === 0}
       <div class="status">'No downloads available'</div>
     {:else}
-      <Scroller padding={'.125rem 0'} maxHeight={35}>
+      <Scroller padding=".125rem 0" maxHeight={35}>
         <div class="platforms">
           {#each platforms as p (p.platform)}
             <div class="platform-card">

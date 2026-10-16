@@ -323,7 +323,7 @@
     {sideContentSpace}
     printHeader={false}
     {embedded}
-    adaptive={'default'}
+    adaptive="default"
     bind:content
     bind:innerWidth
     floatAside={false}
@@ -342,8 +342,8 @@
             icon={document.icon.Lock}
             iconProps={{ size: 'x-small' }}
             label={document.string.Locked}
-            kind={'link-bordered'}
-            size={'small'}
+            kind="link-bordered"
+            size="small"
             noFocus
             on:click={async () => {
               if (doc !== undefined) {
@@ -366,8 +366,8 @@
         <Button
           icon={view.icon.DetailsFilled}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnOpenInSidebar'}
+          kind="icon"
+          dataId="btnOpenInSidebar"
           showTooltip={{ label: view.string.OpenInSidebar, direction: 'bottom' }}
           on:click={() => {
             if (doc !== undefined) {
@@ -381,7 +381,7 @@
           id="btn-doc-title-open-more"
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           showTooltip={{ label: view.string.MoreActions, direction: 'bottom' }}
           on:click={showContextMenu}
         />
@@ -389,7 +389,7 @@
           <Button
             icon={action.icon}
             iconProps={{ size: 'medium' }}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: action.label, direction: 'bottom' }}
             on:click={action.action}
           />
@@ -401,8 +401,8 @@
       <div class="title flex-row-center">
         <div class="icon">
           <Button
-            size={'x-large'}
-            kind={'ghost'}
+            size="x-large"
+            kind="ghost"
             noFocus
             icon={doc.icon === view.ids.IconWithEmoji ? IconWithEmoji : (doc.icon ?? document.icon.Document)}
             iconProps={doc.icon === view.ids.IconWithEmoji
@@ -452,7 +452,7 @@
             object={doc}
             {readonly}
             boundary={content}
-            overflow={'none'}
+            overflow="none"
             editorAttributes={{ style: 'padding: 0 2em 2em; margin: 0 -2em; min-height: 30vh' }}
             requestSideSpace={updateSizeContentSpace}
             attachFile={async (file) => {

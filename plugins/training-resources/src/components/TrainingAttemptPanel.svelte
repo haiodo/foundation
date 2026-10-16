@@ -166,7 +166,7 @@
       on:close
       withoutActivity
       contentClasses="h-full"
-      adaptive={'default'}
+      adaptive="default"
     >
       <svelte:fragment slot="title">
         <PanelTitle training={trainingObject}>
@@ -186,7 +186,7 @@
         {/if}
       </svelte:fragment>
       <svelte:fragment slot="post-utils">
-        <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind={'icon'} on:click={showContextMenu} />
+        <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind="icon" on:click={showContextMenu} />
       </svelte:fragment>
       <svelte:fragment slot="aside">
         <TrainingAttributes object={trainingObject} showHeader />

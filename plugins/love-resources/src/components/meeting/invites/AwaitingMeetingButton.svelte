@@ -34,7 +34,7 @@
 >
   <div class="avatars-container">
     <div class="combined-avatar tiny">
-      <Avatar name={person.name} size={'card'} {person} />
+      <Avatar name={person.name} size="card" {person} />
     </div>
   </div>
 </ModernButton>

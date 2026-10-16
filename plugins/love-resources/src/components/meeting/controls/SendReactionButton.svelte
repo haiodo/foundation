@@ -20,4 +20,4 @@
   }
 </script>
 
-<ModernButton icon={emojiPlugin.icon.Emoji} kind={'secondary'} {size} on:click={addReaction} />
+<ModernButton icon={emojiPlugin.icon.Emoji} kind="secondary" {size} on:click={addReaction} />

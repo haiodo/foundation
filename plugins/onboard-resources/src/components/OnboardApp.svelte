@@ -105,7 +105,7 @@
     <div
       style:position="fixed"
       style:left={$deviceInfo.docWidth <= 480 ? '.75rem' : '1.75rem'}
-      style:top={'3rem'}
+      style:top="3rem"
       style:z-index={10001}
       class="flex-row-center"
     >
@@ -113,7 +113,7 @@
     </div>
 
     <div class="panel-base" class:panel={$deviceInfo.docWidth > 768} class:white={!$themeStore.dark}>
-      <Scroller padding={'1rem 0'}>
+      <Scroller padding="1rem 0">
         <div class="form-content">
           {#if page === 'onboard'}
             <OnboardForm />

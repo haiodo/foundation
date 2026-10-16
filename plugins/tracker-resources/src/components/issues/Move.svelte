@@ -253,7 +253,7 @@
   </svelte:fragment>
   <svelte:fragment slot="subheader">
     {#if !showManageAttributes}
-      <span class="content-halfcontent-color overflow-label" style:margin-top={'-.5rem'}>
+      <span class="content-halfcontent-color overflow-label" style:margin-top="-.5rem">
         <Label label={tracker.string.MoveIssuesDescription} />
       </span>
     {/if}
@@ -267,17 +267,17 @@
           query={spaceQuery}
           label={hierarchy.getClass(tracker.class.Project).label}
           bind:space
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
           component={ProjectPresenter}
           defaultIcon={tracker.icon.Home}
         />
         <Button
           label={tracker.string.ManageAttributes}
           iconRight={IconForward}
-          kind={'ghost'}
-          size={'small'}
-          padding={'0 1rem'}
+          kind="ghost"
+          size="small"
+          padding="0 1rem"
           disabled={!isManageAttributesAvailable}
           on:click={() => {
             if (!isManageAttributesAvailable) {
@@ -305,9 +305,9 @@
       {#key keepOriginalAttribytes}
         {#if issue.space !== targetProject._id && upd.component !== undefined}
           <div class="flex-row-center min-h-9 gap-1-5 content-color">
-            <PriorityEditor value={issue} isEditable={false} kind={'list'} size={'small'} shouldShowLabel={false} />
-            <IssuePresenter value={issue} disabled kind={'list'} />
-            <TitlePresenter disabled value={issue} showParent={false} maxWidth={'7.5rem'} />
+            <PriorityEditor value={issue} isEditable={false} kind="list" size="small" shouldShowLabel={false} />
+            <IssuePresenter value={issue} disabled kind="list" />
+            <TitlePresenter disabled value={issue} showParent={false} maxWidth="7.5rem" />
           </div>
           {#if targetComponent === undefined}
             {#key upd.component}
@@ -342,6 +342,6 @@
     </div>
   </svelte:fragment>
   <svelte:fragment slot="buttons">
-    <Button label={ui.string.Cancel} size={'large'} disabled={processing} on:click={() => dispatch('close')} />
+    <Button label={ui.string.Cancel} size="large" disabled={processing} on:click={() => dispatch('close')} />
   </svelte:fragment>
 </Card>

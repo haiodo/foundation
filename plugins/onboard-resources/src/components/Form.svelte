@@ -168,9 +168,9 @@
     <div class="form-row send">
       <Button
         label={action.i18n}
-        kind={'contrast'}
-        shape={'round2'}
-        size={'x-large'}
+        kind="contrast"
+        shape="round2"
+        size="x-large"
         width="100%"
         loading={inAction}
         disabled={status.severity !== Severity.OK && status.severity !== Severity.ERROR}

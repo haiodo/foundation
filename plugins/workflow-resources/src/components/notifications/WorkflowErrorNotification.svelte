@@ -41,7 +41,7 @@
       <Label label={plugin.string.ToMoveToStatus} />
       <StatusRefs ids={[refs.to]} space={params.space} />
       <Label label={plugin.string.FillInFields} params={{ count: fields.length }} />
-      {#each fields as field, i}{#if i > 0},{' '}{/if}<span class="field"><Label label={field} /></span>{/each}
+      {#each fields as field, i}{#if i > 0},&#32;{/if}<span class="field"><Label label={field} /></span>{/each}
     {:else if status.code === plugin.string.SubtaskStatusError}
       <Label label={plugin.string.SubtasksMustBeIn} params={{ count: statuses.length }} />
       <StatusRefs ids={statuses} space={params.space} />

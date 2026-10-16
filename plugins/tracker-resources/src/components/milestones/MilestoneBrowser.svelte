@@ -101,7 +101,7 @@
   ]
 </script>
 
-<Header adaptive={'doubleRow'}>
+<Header adaptive="doubleRow">
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector viewletQuery={{ attachTo: tracker.class.Milestone }} bind:viewlet />
     <ViewletSettingButton bind:viewOptions bind:viewlet />
@@ -114,14 +114,14 @@
     <FilterButton _class={tracker.class.Milestone} {space} />
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={tracker.string.Milestone} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={tracker.string.Milestone} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
   <svelte:fragment slot="extra">
     <Switcher
-      name={'milestone-mode'}
+      name="milestone-mode"
       items={modeList}
       selected={mode}
-      kind={'subtle'}
+      kind="subtle"
       on:select={(result) => {
         if (result.detail !== undefined && result.detail.action) result.detail.action()
       }}

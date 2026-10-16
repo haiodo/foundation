@@ -9,7 +9,7 @@
 
 {#if value}
   {#if value.reactionType === ReactionKind.Star}
-    <Icon icon={ratingPlugin.icon.StarYellow} size={'small'} />
+    <Icon icon={ratingPlugin.icon.StarYellow} size="small" />
   {:else}
     <ReactionPresenter emoji={value?.emoji ?? ''} />
   {/if}

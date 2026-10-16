@@ -91,12 +91,12 @@
   {/if}
 {:else}
   <div class="flex-row-center gap-1-5 mt-1">
-    <CheckBox bind:checked={allDay} kind={'primary'} on:value={() => dispatch('allday')} readonly={readOnly} />
+    <CheckBox bind:checked={allDay} kind="primary" on:value={() => dispatch('allday')} readonly={readOnly} />
     <Button
       label={calendar.string.AllDay}
-      kind={'ghost'}
-      padding={'0 .5rem'}
-      justify={'left'}
+      kind="ghost"
+      padding="0 .5rem"
+      justify="left"
       disabled={readOnly}
       on:click={() => {
         if (!readOnly) {
@@ -107,17 +107,17 @@
     />
   </div>
   <div class="flex-row-center gap-1 mt-1">
-    <Icon icon={calendar.icon.Globe} size={'small'} fill={'var(--theme-dark-color)'} />
+    <Icon icon={calendar.icon.Globe} size="small" fill="var(--theme-dark-color)" />
     <TimeZoneSelector bind:timeZone disabled={readOnly} />
   </div>
   {#if !noRepeat}
     <div class="flex-row-center gap-1 mt-1">
-      <Icon icon={calendar.icon.Repeat} size={'small'} fill={'var(--theme-dark-color)'} />
+      <Icon icon={calendar.icon.Repeat} size="small" fill="var(--theme-dark-color)" />
       <Button
         label={rules.length > 0 ? undefined : calendar.string.Repeat}
-        kind={'ghost'}
-        padding={'0 .5rem'}
-        justify={'left'}
+        kind="ghost"
+        padding="0 .5rem"
+        justify="left"
         disabled={readOnly}
         on:click={() => dispatch('repeat')}
       >

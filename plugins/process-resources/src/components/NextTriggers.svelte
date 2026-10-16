@@ -43,7 +43,7 @@
   <div class="flex-col flex-gap-2">
     {#each transitions as transition}
       <div class="flex-row-center flex-gap-2">
-        <TransitionPresenter {transition} direction={'from'} />
+        <TransitionPresenter {transition} direction="from" />
         <TriggerPresenter value={transition.trigger} {process} params={transition.triggerParams} withLabel={true} />
       </div>
     {/each}

@@ -102,14 +102,14 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Members} label={setting.string.Members} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Members} label={setting.string.Members} size="large" isCurrent />
     <svelte:fragment slot="search">
       <SearchInput bind:value={search} collapsed />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__column content">
-    <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+    <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
       <div class="hulyComponent-content">
         {#each employees as employee (employee._id)}
           {@const personUuid = employee.personUuid ?? undefined}
@@ -124,8 +124,8 @@
                 disabled={!hasAccountRole(currentAccount, role) ||
                   (role === AccountRole.Owner && ownersCount === 1) ||
                   currentAccount.uuid === personUuid}
-                kind={'primary'}
-                size={'medium'}
+                kind="primary"
+                size="medium"
                 items={getItems(role, currentAccount)}
                 selected={role}
                 on:selected={(e) => {

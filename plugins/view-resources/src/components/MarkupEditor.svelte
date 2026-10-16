@@ -38,7 +38,7 @@
 {#if kind === 'link'}
   <Button
     {kind}
-    size={'x-large'}
+    size="x-large"
     {justify}
     {width}
     height={value ? 'auto' : undefined}
@@ -55,7 +55,7 @@
     }}
   >
     <svelte:fragment slot="content">
-      <div class="lines-limit-4" style:text-align={'left'} class:content-dark-color={readonly}>
+      <div class="lines-limit-4" style:text-align="left" class:content-dark-color={readonly}>
         {#if value}
           <MessageViewer message={value} />
         {:else}

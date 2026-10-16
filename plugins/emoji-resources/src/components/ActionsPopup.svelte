@@ -80,14 +80,14 @@
           />
           {#if index === 0}
             <ButtonBase
-              type={'type-button-icon'}
-              kind={'tertiary'}
-              size={'large'}
+              type="type-button-icon"
+              kind="tertiary"
+              size="large"
               on:click={() => {
                 dispatch('close', getEmojiByTone(emoji, combinedTones))
               }}
             >
-              <span style:font-size={'2.5rem'} class="emoji">{getEmojiStringByTone(emoji, combinedTones)}</span>
+              <span style:font-size="2.5rem" class="emoji">{getEmojiStringByTone(emoji, combinedTones)}</span>
             </ButtonBase>
           {/if}
         {/each}
@@ -104,7 +104,7 @@
     {#if haveSkins}<div class="hulyPopup-divider" />{/if}
     <div class="hulyPopup-group">
       <button class="hulyPopup-row" on:click={clickRemove}>
-        <div class="hulyPopup-row__icon red-color"><IconDelete size={'small'} /></div>
+        <div class="hulyPopup-row__icon red-color"><IconDelete size="small" /></div>
         <span class="hulyPopup-row__label red-color"><Label label={emojiPlugin.string.Remove} /></span>
       </button>
     </div>

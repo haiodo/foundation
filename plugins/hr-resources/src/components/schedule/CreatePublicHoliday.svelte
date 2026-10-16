@@ -75,10 +75,10 @@
   on:changeContent
 >
   <div class="flex-grow mt-4">
-    <EditBox placeholder={hr.string.Title} bind:value={title} kind={'large-style'} autoFocus focusIndex={1} />
+    <EditBox placeholder={hr.string.Title} bind:value={title} kind="large-style" autoFocus focusIndex={1} />
   </div>
   <div class="flex-grow mt-4">
-    <EditBox placeholder={hr.string.Description} bind:value={description} kind={'large-style'} />
+    <EditBox placeholder={hr.string.Description} bind:value={description} kind="large-style" />
   </div>
   <div class="flex-grow mt-4">
     <DateRangePresenter bind:value={date} />

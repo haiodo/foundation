@@ -210,10 +210,10 @@
                 bind:space
                 focus={false}
                 readonly={creating}
-                kind={'regular'}
-                size={'small'}
+                kind="regular"
+                size="small"
               />
-              <TypeSelector size={'small'} bind:value={type} disabled={creating} excludeBaseTypes />
+              <TypeSelector size="small" bind:value={type} disabled={creating} excludeBaseTypes />
               <div class="spacer" />
               <div class="right-divider" />
               <EditorActions actions={[attachAction]} />

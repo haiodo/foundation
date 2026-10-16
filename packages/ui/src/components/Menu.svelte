@@ -156,7 +156,7 @@
               }}
             >
               {#if action.icon}<div class="icon mr-2">
-                  <Icon icon={action.icon} iconProps={action.iconProps ?? {}} size={'small'} />
+                  <Icon icon={action.icon} iconProps={action.iconProps ?? {}} size="small" />
                 </div>{/if}
               <span class="overflow-label pr-4 flex-grow"
                 ><Label label={action.label} params={action.labelParams ?? {}} /></span
@@ -177,7 +177,7 @@
             }}
           >
             {#if action.icon}
-              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size={'small'} /></div>
+              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size="small" /></div>
             {/if}
             <span class="overflow-label pr-4 flex-grow"
               ><Label label={action.label} params={action.labelParams ?? {}} /></span
@@ -207,7 +207,7 @@
             }}
           >
             {#if action.icon}
-              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size={'small'} /></div>
+              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size="small" /></div>
             {/if}
             <span class="overflow-label pr-4 flex-grow"
               ><Label label={action.label} params={action.labelParams ?? {}} /></span

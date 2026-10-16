@@ -81,7 +81,7 @@
 </script>
 
 <ButtonBase
-  type={'type-button'}
+  type="type-button"
   hasMenu
   bind:element
   {kind}

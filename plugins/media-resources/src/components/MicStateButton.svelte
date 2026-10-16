@@ -31,6 +31,6 @@
     use:tooltip={{ label: state.enabled ? media.string.TurnOffMic : media.string.TurnOnMic, direction: 'bottom' }}
     on:click={toggleMicState}
   >
-    <Icon icon={state.enabled ? IconMicOn : IconMicOff} size={'small'} />
+    <Icon icon={state.enabled ? IconMicOn : IconMicOff} size="small" />
   </button>
 {/if}

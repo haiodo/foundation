@@ -99,8 +99,8 @@
         <span class="overflow-label"><Label label={i === 0 ? view.string.Grouping : view.string.Then} /></span>
         <DropdownLabelsIntl
           label={view.string.Grouping}
-          kind={'regular'}
-          size={'medium'}
+          kind="regular"
+          size="medium"
           items={dropdownItems[i]}
           selected={group}
           width="10rem"
@@ -117,8 +117,8 @@
       <span class="overflow-label"><Label label={view.string.Ordering} /></span>
       <DropdownLabelsIntl
         label={view.string.Ordering}
-        kind={'regular'}
-        size={'medium'}
+        kind="regular"
+        size="medium"
         items={orderBy}
         selected={viewOptions.orderBy?.[0]}
         width="10rem"
@@ -167,8 +167,8 @@
         })}
         <DropdownLabelsIntl
           label={model.label}
-          kind={'regular'}
-          size={'medium'}
+          kind="regular"
+          size="medium"
           {items}
           selected={viewOptions[model.key] ?? model.defaultValue}
           width="10rem"

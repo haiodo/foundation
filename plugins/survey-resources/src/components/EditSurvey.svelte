@@ -129,7 +129,7 @@
       disabled={readonly}
       placeholder={survey.string.Name}
       bind:value={object.name}
-      kind={'large-style'}
+      kind="large-style"
       on:input={() => {
         handleChange({ name: object.name })
       }}

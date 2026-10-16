@@ -229,21 +229,21 @@
       <div class="flex flex-row-center">
         {#if showPlanned && planned > 0}
           <div class="flex-row-center p-1 flex-nowrap">
-            <Icon icon={time.icon.FilledFlag} size={'small'} fill={'var(--positive-button-default)'} />
+            <Icon icon={time.icon.FilledFlag} size="small" fill="var(--positive-button-default)" />
             <TimePresenter value={planned} />
           </div>
         {/if}
 
         {#if showEvents && pevents > 0}
           <div class="flex-row-center p-1 flex-nowrap">
-            <Icon icon={calendar.icon.Calendar} size={'small'} fill={'var(--positive-button-default)'} />
+            <Icon icon={calendar.icon.Calendar} size="small" fill="var(--positive-button-default)" />
             <TimePresenter value={pevents} />
           </div>
         {/if}
 
         {#if busy > 0}
           <div class="flex-row-center p-1 flex-nowrap">
-            <Icon icon={calendar.icon.Private} size={'small'} fill={'var(--positive-button-default)'} />
+            <Icon icon={calendar.icon.Private} size="small" fill="var(--positive-button-default)" />
             <TimePresenter value={busy} />
           </div>
         {/if}
@@ -259,7 +259,7 @@
               }}
             >
               <span class="mr-1">
-                <Icon icon={add[0]} size={'small'} fill={'var(--positive-button-default)'} />
+                <Icon icon={add[0]} size="small" fill="var(--positive-button-default)" />
               </span>
               {add[1].count}
             </div>
@@ -277,7 +277,7 @@
               }}
             >
               <span class="mr-1">
-                <Icon icon={change[0]} size={'small'} fill={'var(--activity-status-busy)'} />
+                <Icon icon={change[0]} size="small" fill="var(--activity-status-busy)" />
               </span>
               {change[1].count}
             </div>

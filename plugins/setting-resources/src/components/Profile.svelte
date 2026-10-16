@@ -173,8 +173,8 @@
 <FocusHandler {manager} />
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.AccountSettings} label={setting.string.AccountSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.AccountSettings} label={setting.string.AccountSettings} size="large" isCurrent />
   </Header>
   <Scroller>
     <div class="ac-body p-10 flex-col max-w-240 content">
@@ -184,7 +184,7 @@
             <EditableAvatar
               person={$myEmployeeStore}
               {email}
-              size={'x-large'}
+              size="x-large"
               name={$myEmployeeStore.name}
               bind:this={avatarEditor}
               on:done={onAvatarDone}
@@ -202,7 +202,7 @@
             <EditBox
               placeholder={contact.string.PersonFirstNamePlaceholder}
               bind:value={firstName}
-              kind={'large-style'}
+              kind="large-style"
               autoFocus
               focusIndex={1}
               on:change={nameChange}
@@ -210,7 +210,7 @@
             <EditBox
               placeholder={contact.string.PersonLastNamePlaceholder}
               bind:value={lastName}
-              kind={'large-style'}
+              kind="large-style"
               focusIndex={2}
               on:change={nameChange}
             />

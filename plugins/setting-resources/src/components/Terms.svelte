@@ -19,7 +19,7 @@
 
 <div class="antiComponent">
   <div class="ac-header short divide">
-    <div class="ac-header__icon"><Icon icon={setting.icon.Terms} size={'medium'} /></div>
+    <div class="ac-header__icon"><Icon icon={setting.icon.Terms} size="medium" /></div>
     <div class="ac-header__title"><Label label={setting.string.Terms} /></div>
   </div>
 </div>

@@ -32,8 +32,8 @@
   bind:this={element}
   class="antiButton ghost jf-center bs-none no-focus resetIconSize statusButton square"
   class:pressed
-  style:color={'var(--theme-dark-color)'}
+  style:color="var(--theme-dark-color)"
   on:click
 >
-  <Icon {icon} {iconProps} size={'small'} />
+  <Icon {icon} {iconProps} size="small" />
 </button>

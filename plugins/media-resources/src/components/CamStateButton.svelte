@@ -31,6 +31,6 @@
     use:tooltip={{ label: state.enabled ? media.string.TurnOffCam : media.string.TurnOnCam, direction: 'bottom' }}
     on:click={toggleCamState}
   >
-    <Icon icon={state.enabled ? IconCamOn : IconCamOff} size={'small'} />
+    <Icon icon={state.enabled ? IconCamOn : IconCamOff} size="small" />
   </button>
 {/if}

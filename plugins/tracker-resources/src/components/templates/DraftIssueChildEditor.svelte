@@ -162,7 +162,7 @@
       <EditBox
         bind:value={object.title}
         bind:focusInput={focusIssueTitle}
-        kind={'large-style'}
+        kind="large-style"
         placeholder={tracker.string.SubIssueTitlePlaceholder}
         autoFocus
         fullSize
@@ -180,7 +180,7 @@
           showButtons={false}
           alwaysEdit
           shouldSaveDraft
-          maxHeight={'limited'}
+          maxHeight="limited"
           on:changeContent
         />
       {/key}
@@ -227,8 +227,8 @@
       </div>
       <div id="sub-issue-estimation-editor">
         <EstimationEditor
-          kind={'no-border'}
-          size={'small'}
+          kind="no-border"
+          size="small"
           bind:value={object}
           on:change={(evt) => {
             object.estimation = evt.detail

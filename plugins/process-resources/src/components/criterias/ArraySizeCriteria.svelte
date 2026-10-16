@@ -70,7 +70,7 @@
       {contextValue}
       {context}
       {attribute}
-      category={'attribute'}
+      category="attribute"
       attrClass={core.class.TypeNumber}
       on:update={(e) => {
         onSelect(e.detail)

@@ -140,8 +140,8 @@
   label={value === undefined ? tracker.string.TimeSpendReportAdd : tracker.string.TimeSpendReportValue}
   {canSave}
   okAction={create}
-  gap={'gapV-4'}
-  width={'medium'}
+  gap="gapV-4"
+  width="medium"
   thinHeader
   on:close
   okLabel={value === undefined ? presentation.string.Create : presentation.string.Save}
@@ -157,7 +157,7 @@
     <EditBox
       bind:value={data.description}
       placeholder={tracker.string.TimeSpendReportDescription}
-      kind={'editbox'}
+      kind="editbox"
       disabled={!canEdit}
     />
   </div>
@@ -176,8 +176,8 @@
         </div>
         {#if dayProjectedHours > 8 && canEdit}
           <Button
-            kind={'regular'}
-            size={'small'}
+            kind="regular"
+            size="small"
             label={tracker.string.FixToEightHours}
             on:click={() => {
               durationInput.setDurationText(Math.max(0, 8 - dayTotalHours))
@@ -192,8 +192,8 @@
       <UserBox
         _class={contact.mixin.Employee}
         label={contact.string.Employee}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         bind:value={data.employee}
         showNavigate={false}
         readonly={!isSpaceOwner || !canEdit}
@@ -202,18 +202,18 @@
         <div class="flex flex-row-center gap-1">
           <Button
             icon={IconChevronLeft}
-            kind={'regular'}
-            size={'large'}
+            kind="regular"
+            size="large"
             disabled={!canEdit}
             on:click={() => {
               shiftDay(-1)
             }}
           />
-          <DatePresenter bind:value={data.date} editable={canEdit} kind={'regular'} size={'large'} />
+          <DatePresenter bind:value={data.date} editable={canEdit} kind="regular" size="large" />
           <Button
             icon={IconChevronRight}
-            kind={'regular'}
-            size={'large'}
+            kind="regular"
+            size="large"
             disabled={!canEdit}
             on:click={() => {
               shiftDay(1)

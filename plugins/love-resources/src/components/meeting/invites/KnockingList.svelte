@@ -80,7 +80,7 @@
           <div class="knocking-list__actions">
             <ModernButton
               label={love.string.AdmitKnock}
-              kind={'primary'}
+              kind="primary"
               size={compact ? 'small' : 'medium'}
               dataId="knock-accept"
               on:click={() => {
@@ -89,7 +89,7 @@
             />
             <ModernButton
               label={love.string.DeclineKnock}
-              kind={'secondary'}
+              kind="secondary"
               size={compact ? 'small' : 'medium'}
               dataId="knock-reject"
               on:click={() => {

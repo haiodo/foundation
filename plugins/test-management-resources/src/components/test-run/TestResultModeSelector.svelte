@@ -38,5 +38,5 @@
 </script>
 
 {#if modeSelectorProps !== undefined}
-  <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+  <ModeSelector kind="subtle" props={modeSelectorProps} />
 {/if}

@@ -42,7 +42,7 @@
       <div class="flex-presenter">
         {#if shouldShowAvatar}
           <div class="icon">
-            <Icon icon={recruit.icon.Application} size={'small'} />
+            <Icon icon={recruit.icon.Application} size="small" />
           </div>
         {/if}
         <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}

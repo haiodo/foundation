@@ -164,7 +164,7 @@
 
     {#if $workspacesStore.length > 8}
       <div class="p-2 ml-2 mr-2 mb-2 flex-grow flex-row-center">
-        <SearchEdit bind:value={search} width={'100%'} />
+        <SearchEdit bind:value={search} width="100%" />
       </div>
     {/if}
     <div class="ap-scroll">
@@ -203,7 +203,7 @@
               <!-- </div> -->
               <div class="ap-check">
                 {#if $resolvedLocationStore.path[1] === ws.url}
-                  <IconCheck size={'small'} />
+                  <IconCheck size="small" />
                 {/if}
               </div>
               {#if workspacesNotification?.[ws.uuid] === true && ws.uuid !== currentWorkspaceUuid}

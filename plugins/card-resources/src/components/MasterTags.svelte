@@ -69,8 +69,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={card.icon.MasterTags} label={card.string.MasterTags} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={card.icon.MasterTags} label={card.string.MasterTags} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column">
@@ -78,8 +78,8 @@
         <Button
           icon={view.icon.Add}
           label={card.string.CreateMasterTag}
-          justify={'left'}
-          width={'100%'}
+          justify="left"
+          width="100%"
           on:click={createMasterTag}
         />
       </div>
@@ -87,7 +87,7 @@
         <NavGroup
           label={card.string.MasterTags}
           highlighted={_class !== undefined}
-          categoryName={'classes'}
+          categoryName="classes"
           noDivider
           isFold
         >
@@ -103,9 +103,9 @@
         </NavGroup>
       </Scroller>
     </div>
-    <Separator name={'workspaceSettings'} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="workspaceSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if _class !== undefined}
             <ClassAttributes {_class} disabled={false} />

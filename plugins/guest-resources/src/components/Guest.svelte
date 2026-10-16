@@ -262,7 +262,7 @@
 
 {#await load() then res}
   {#if res}
-    <div class="workbench-container" style:flex-direction={'row'}>
+    <div class="workbench-container" style:flex-direction="row">
       <div class="workbench-container inner">
         <div class="antiPanel-component antiComponent" bind:this={contentPanel}>
           {#if currentApplication?.component}

@@ -41,9 +41,9 @@
   {options}
   closeAfterSelect
   {placeholder}
-  searchField={'label'}
+  searchField="label"
   {docQuery}
-  groupBy={'category'}
+  groupBy="category"
   {shadows}
   on:update
   on:close

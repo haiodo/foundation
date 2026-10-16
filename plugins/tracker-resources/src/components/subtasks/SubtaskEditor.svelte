@@ -136,7 +136,7 @@
     <EditBox
       bind:value={newIssue.title}
       bind:focusInput={focusIssueTitle}
-      kind={'large-style'}
+      kind="large-style"
       placeholder={tracker.string.SubIssueTitlePlaceholder}
       autoFocus
     />
@@ -180,8 +180,8 @@
         />
       {/key}
       <EstimationEditor
-        kind={'no-border'}
-        size={'small'}
+        kind="no-border"
+        size="small"
         bind:value={newIssue}
         on:change={(evt) => {
           newIssue.estimation = evt.detail

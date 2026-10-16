@@ -42,7 +42,7 @@
   <Label label={title} />
 </div>
 
-<Scroller padding={'0 1rem'} noStretch shrink>
+<Scroller padding="0 1rem" noStretch shrink>
   <PlanGroup {slots} {events} {busySlots} {from} {to} {showAssignee} {todos} />
 </Scroller>
 <div class="antiVSpacer x4" />

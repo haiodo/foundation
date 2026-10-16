@@ -131,7 +131,7 @@
         {#if !$restrictionStore.readonly}
           <Button
             icon={IconAdd}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: tracker.string.AddRelatedIssue, direction: 'bottom' }}
             on:click={addRelatedIssue}
           />

@@ -199,7 +199,7 @@
             <div class="flex-between">
               <div class="flex-row-center">
                 <div class="chevron" class:expanded={isExpanded}>
-                  <IconCollapseArrow size={'small'} />
+                  <IconCollapseArrow size="small" />
                 </div>
                 <!-- oldest version is #1, the list is sorted newest first -->
                 <div class="number">#{versions.length - i}</div>
@@ -225,8 +225,8 @@
               <div class="mt-2 flex-row-center flex-gap-2">
                 <Button
                   label={document.string.PreviewVersion}
-                  kind={'regular'}
-                  size={'small'}
+                  kind="regular"
+                  size="small"
                   disabled={expandedMarkup === undefined}
                   on:click={() => {
                     if (expandedMarkup !== undefined) preview(version, expandedMarkup)
@@ -235,8 +235,8 @@
                 {#if !readonly}
                   <Button
                     label={document.string.RestoreVersion}
-                    kind={'primary'}
-                    size={'small'}
+                    kind="primary"
+                    size="small"
                     disabled={busy || expandedMarkup === undefined}
                     on:click={() => {
                       void restore(version)

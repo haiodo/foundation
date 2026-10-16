@@ -198,7 +198,7 @@
         unread={$unreadByDoc.get(item.id)}
         isSelected={objectId === item.id}
         {item}
-        type={'type-object'}
+        type="type-object"
         on:select
       />
     {/each}
@@ -215,7 +215,7 @@
           unread={$unreadByDoc.get(visibleItem.id)}
           isSelected
           item={visibleItem}
-          type={'type-object'}
+          type="type-object"
           on:select
         />
       {/if}
@@ -238,7 +238,7 @@
           on:click|preventDefault|stopPropagation={handleMenuClicked}
           data-testid={`action-menu-${id}`}
         >
-          <IconMoreH size={'small'} />
+          <IconMoreH size="small" />
         </button>
       {/if}
     </svelte:fragment>

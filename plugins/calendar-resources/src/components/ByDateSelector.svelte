@@ -43,14 +43,14 @@
           style:grid-row-start={weekIndex + 1}
         >
           <Button
-            width={'100%'}
+            width="100%"
             on:click={() => {
               onSelect(value)
             }}
             {disabled}
-            padding={'0'}
-            size={'inline'}
-            kind={'ghost'}
+            padding="0"
+            size="inline"
+            kind="ghost"
           >
             <svelte:fragment slot="content">
               {value}

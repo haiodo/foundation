@@ -33,7 +33,7 @@
       }}
     >
       <div class="flex-row-center">
-        <Chevron {expanded} marginRight={'.5rem'} />
+        <Chevron {expanded} marginRight=".5rem" />
       </div>
     </div>
     <TimePresenter value={gitem.total} />
@@ -62,7 +62,7 @@
         <div class="flex-row-center ml-4 mt-2">
           <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.date} />
           <div class="p-1">
-            <Icon icon={IconArrowRight} size={'small'} />
+            <Icon icon={IconArrowRight} size="small" />
           </div>
           <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.dueDate} />
         </div>
@@ -87,7 +87,7 @@
             <div class="flex-row-center">
               <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.date} />
               <div class="p-1">
-                <Icon icon={IconArrowRight} size={'small'} />
+                <Icon icon={IconArrowRight} size="small" />
               </div>
               <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.dueDate} />
             </div>

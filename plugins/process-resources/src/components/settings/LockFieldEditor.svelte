@@ -110,7 +110,7 @@
 </div>
 {#if possibleAttrs.length > 0}
   <div class="flex-center mt-4">
-    <Button label={presentation.string.Add} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+    <Button label={presentation.string.Add} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
   </div>
 {/if}
 

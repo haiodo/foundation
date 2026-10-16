@@ -42,7 +42,7 @@
       upgradePlan().catch(console.error)
     }}
   >
-    <Icon icon={billing.icon.Billing} size={'small'} />
+    <Icon icon={billing.icon.Billing} size="small" />
     <span><Label label={billing.string.PayOrUpgrade} /></span>
   </button>
 {:else if $onTrial}
@@ -55,7 +55,7 @@
       upgradePlan().catch(console.error)
     }}
   >
-    <Icon icon={billing.icon.Billing} size={'small'} />
+    <Icon icon={billing.icon.Billing} size="small" />
     <span><Label label={billing.string.TrialPlan} /> · {$trialDaysLeft}</span>
   </button>
 {:else if $onFreePlan}
@@ -68,7 +68,7 @@
       upgradePlan().catch(console.error)
     }}
   >
-    <Icon icon={billing.icon.Billing} size={'small'} />
+    <Icon icon={billing.icon.Billing} size="small" />
     <span><Label label={billing.string.FreePlan} /></span>
   </button>
 {/if}

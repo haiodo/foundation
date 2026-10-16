@@ -795,8 +795,8 @@
     <Label label={workbench.string.AccountDisabledDescr} />
     <Button
       label={setting.string.Signout}
-      kind={'link'}
-      size={'small'}
+      kind="link"
+      size="small"
       on:click={() => {
         void logOut().then(() => {
           navigate({ path: [loginId] })
@@ -979,18 +979,18 @@
             </div>
             {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
               <Separator
-                name={'workbench'}
+                name="workbench"
                 float={$deviceInfo.navigator.float ? 'navigator' : true}
                 index={0}
-                color={'var(--theme-navpanel-border)'}
+                color="var(--theme-navpanel-border)"
               />
             {/if}
           </div>
           <Separator
-            name={'workbench'}
+            name="workbench"
             float={$deviceInfo.navigator.float}
             index={0}
-            color={'transparent'}
+            color="transparent"
             separatorSize={0}
             short
           />
@@ -1001,7 +1001,7 @@
           class:straighteningCorners={$sidebarStore.float &&
             $sidebarStore.variant === SidebarVariant.EXPANDED &&
             !(mobileAdaptive && $deviceInfo.isPortrait)}
-          data-id={'contentPanel'}
+          data-id="contentPanel"
         >
           {#if currentApplication?.component}
             <Component
@@ -1047,7 +1047,7 @@
       </div>
       {#if !mobileAdaptive}
         {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
-          <Separator name={'main'} index={0} color={'transparent'} separatorSize={0} short />
+          <Separator name="main" index={0} color="transparent" separatorSize={0} short />
         {/if}
         <WidgetsBar />
       {/if}

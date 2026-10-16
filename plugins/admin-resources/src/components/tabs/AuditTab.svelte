@@ -100,7 +100,7 @@
 <div class="fs-title p-3 flex-no-shrink">
   <SearchEdit
     bind:value={search}
-    width={'100%'}
+    width="100%"
     on:change={() => {
       skip = 0
       void load()
@@ -111,7 +111,7 @@
 <div class="flex-row-center flex-wrap p-3">
   <Button
     label={adminRes.string.Previous}
-    size={'small'}
+    size="small"
     disabled={skip === 0}
     on:click={() => (skip = Math.max(0, skip - limit))}
   />
@@ -119,12 +119,7 @@
     <Label label={adminRes.string.Page} />
     {Math.floor(skip / limit) + 1} / {Math.max(1, Math.ceil(total / limit))}
   </span>
-  <Button
-    label={adminRes.string.Next}
-    size={'small'}
-    disabled={skip + limit >= total}
-    on:click={() => (skip += limit)}
-  />
+  <Button label={adminRes.string.Next} size="small" disabled={skip + limit >= total} on:click={() => (skip += limit)} />
 
   <span class="ml-4 mr-1"><Label label={adminRes.string.Operation} /></span>
   <ButtonMenu
@@ -140,8 +135,8 @@
   <div class="ml-4 flex-row-center">
     <Button
       label={adminRes.string.Export}
-      kind={'primary'}
-      size={'small'}
+      kind="primary"
+      size="small"
       disabled={exporting}
       on:click={() => {
         void exportActions()
@@ -150,13 +145,13 @@
     <Button
       label={getEmbeddedLabel('CSV')}
       kind={reportFormat === 'csv' ? 'primary' : 'regular'}
-      size={'small'}
+      size="small"
       on:click={() => (reportFormat = 'csv')}
     />
     <Button
       label={getEmbeddedLabel('PDF')}
       kind={reportFormat === 'pdf' ? 'primary' : 'regular'}
-      size={'small'}
+      size="small"
       on:click={() => (reportFormat = 'pdf')}
     />
   </div>

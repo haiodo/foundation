@@ -40,7 +40,7 @@
       <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
         {#if shouldShowAvatar}
           <div class="icon">
-            <Icon icon={drive.icon.Drive} size={'small'} />
+            <Icon icon={drive.icon.Drive} size="small" />
           </div>
         {/if}
         <span class="label no-underline nowrap" class:fs-bold={accent}>

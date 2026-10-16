@@ -116,8 +116,8 @@
 />
 
 <Modal
-  type={'type-popup'}
-  width={'large'}
+  type="type-popup"
+  width="large"
   okLabel={presentation.string.Close}
   okAction={() => {
     dispatch('close')
@@ -129,7 +129,7 @@
   <NextTriggers {execution} />
   <ExecutionAllToDos value={execution} />
   <div class="flex-row-reverse">
-    <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'tertiary'} bind:viewlet />
+    <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="tertiary" bind:viewlet />
   </div>
   {#if viewlet && viewOptions}
     <List

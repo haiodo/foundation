@@ -111,7 +111,7 @@
     selected={currentSpace === space._id && selected === drive.ids.Root && currentFragment !== undefined && !deselect}
     visible={(currentSpace === space._id && !deselect && descendants.size !== 0 && selected !== space._id) ||
       (forciblyСollapsed && currentFragment !== undefined)}
-    type={'nested-selectable'}
+    type="nested-selectable"
     empty={descendants.size === 0 || (forciblyСollapsed && selected === space._id && !deselect)}
     actions={() => getActions(space)}
     {forciblyСollapsed}

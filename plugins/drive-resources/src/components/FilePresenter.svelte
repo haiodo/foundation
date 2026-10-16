@@ -45,7 +45,7 @@
       <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(value.title) }}>
         {#if shouldShowAvatar}
           <div class="icon">
-            <Icon {icon} size={'small'} />
+            <Icon {icon} size="small" />
           </div>
         {/if}
         <div class="label nowrap flex flex-gap-2" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>

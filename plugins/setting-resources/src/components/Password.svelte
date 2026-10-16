@@ -56,14 +56,14 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Password} label={login.string.ChangePassword} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Password} label={login.string.ChangePassword} size="large" isCurrent />
   </Header>
   <div class="flex-row-stretch flex-grow p-10">
     <div class="flex-grow flex-col">
       {#if error}
         <div class="flex-row-center gap-2">
-          <Icon icon={Error} size={'medium'} />
+          <Icon icon={Error} size="medium" />
           <Label label={plugin.string.FailedToSave} />
         </div>
       {/if}
@@ -98,7 +98,7 @@
         <Button
           {label}
           {disabled}
-          kind={'primary'}
+          kind="primary"
           on:click={() => {
             void save()
           }}

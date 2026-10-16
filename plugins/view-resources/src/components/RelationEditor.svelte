@@ -146,9 +146,9 @@
       {#if classLabel}
         <Label label={classLabel} />
       {/if}
-      <ViewletsSettingButton viewletQuery={{ attachTo: baseClass }} kind={'tertiary'} bind:viewlet bind:preference />
+      <ViewletsSettingButton viewletQuery={{ attachTo: baseClass }} kind="tertiary" bind:viewlet bind:preference />
       {#if !readonly && allowToCreate}
-        <Button id={core.string.AddRelation} icon={IconAdd} kind={'ghost'} on:click={add} />
+        <Button id={core.string.AddRelation} icon={IconAdd} kind="ghost" on:click={add} />
       {/if}
     </div>
   </svelte:fragment>

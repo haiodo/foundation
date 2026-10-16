@@ -83,7 +83,7 @@
       <EditBox
         bind:value={object.name}
         placeholder={lead.string.FunnelPlaceholder}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusable
         on:blur={() => {

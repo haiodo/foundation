@@ -57,7 +57,7 @@
 
 <Card
   on:close
-  width={'menu'}
+  width="menu"
   label={plugin.string.FallbackValue}
   canSave
   okAction={save}
@@ -72,7 +72,7 @@
         <Label label={plugin.string.FallbackValueError} />
       </div>
     </div>
-    <CheckBox checked={value === undefined} on:value={errorChange} size={'medium'} kind={'primary'} />
+    <CheckBox checked={value === undefined} on:value={errorChange} size="medium" kind="primary" />
   </div>
   {#if value !== undefined && editor}
     <div class="w-full mt-2">
@@ -80,10 +80,10 @@
         this={editor}
         label={attribute?.label}
         placeholder={attribute?.label}
-        kind={'ghost'}
-        size={'large'}
-        width={'100%'}
-        justify={'left'}
+        kind="ghost"
+        size="large"
+        width="100%"
+        justify="left"
         type={attribute?.type}
         {value}
         {onChange}

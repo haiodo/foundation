@@ -95,7 +95,7 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <CriteriasEditor
     _class={presenterClass.attrClass}
     readonly={false}
@@ -107,7 +107,7 @@
   />
   {#if possibleAttrs.length > 0}
     <div class="flex-center mt-4">
-      <Button label={presentation.string.Add} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+      <Button label={presentation.string.Add} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
     </div>
   {/if}
 </Card>

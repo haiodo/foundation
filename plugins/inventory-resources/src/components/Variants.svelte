@@ -33,7 +33,7 @@
     <span class="antiSection-header__title">
       <Label label={inventory.string.Variants} />
     </span>
-    <Button icon={IconAdd} kind={'ghost'} on:click={create} />
+    <Button icon={IconAdd} kind="ghost" on:click={create} />
   </div>
   {#if variants > 0}
     <Table
@@ -46,7 +46,7 @@
   {:else}
     <div class="antiSection-empty solid flex-col-center mt-3">
       <div class="content-color">
-        <Icon size={'large'} icon={inventory.icon.Variant} />
+        <Icon size="large" icon={inventory.icon.Variant} />
       </div>
       <span class="text-sm content-dark-color mt-2">
         <Label label={inventory.string.NoVariantsForProduct} />

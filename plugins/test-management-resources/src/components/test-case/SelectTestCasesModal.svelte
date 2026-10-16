@@ -88,8 +88,8 @@
   <svelte:fragment slot="footerRight">
     <div class="p-2">
       <div class="buttons-group">
-        <Button kind={'secondary'} label={testManagement.string.Cancel} on:click={handleClose} />
-        <Button kind={'primary'} label={testManagement.string.Save} on:click={handleSave} />
+        <Button kind="secondary" label={testManagement.string.Cancel} on:click={handleClose} />
+        <Button kind="primary" label={testManagement.string.Save} on:click={handleSave} />
       </div>
     </div>
   </svelte:fragment>

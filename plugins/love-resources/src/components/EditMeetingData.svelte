@@ -73,7 +73,7 @@
   <div class="flex-col mt-2">
     <div class="flex-row-center">
       <div class="mr-2">
-        <Icon icon={love.icon.MeetingMinutes} size={'small'} />
+        <Icon icon={love.icon.MeetingMinutes} size="small" />
       </div>
       <div class="mr-2">
         <Label label={love.string.Meeting} />
@@ -87,14 +87,14 @@
         />
       </div>
       <div class="ml-3 flex flex-row-center flex-gap-2">
-        <MeetingMinutesStatusPresenter object={meetingDoc} value={meetingDoc.status} attributeKey={'status'} />
+        <MeetingMinutesStatusPresenter object={meetingDoc} value={meetingDoc.status} attributeKey="status" />
         {#if isOwner}
           {#if meetingDoc.status === MeetingStatus.Scheduled}
-            <Button kind={'primary'} label={love.string.StartMeeting} size={'x-small'} on:click={openMeeting} />
+            <Button kind="primary" label={love.string.StartMeeting} size="x-small" on:click={openMeeting} />
           {:else if meetingDoc.status === MeetingStatus.Active || meetingDoc.status === MeetingStatus.Pending}
-            <Button kind={'negative'} label={love.string.EndMeeting} size={'x-small'} on:click={closeMeeting} />
+            <Button kind="negative" label={love.string.EndMeeting} size="x-small" on:click={closeMeeting} />
           {:else if meetingDoc.status === MeetingStatus.Finished}
-            <Button kind={'ghost'} icon={IconRedo} size={'x-small'} on:click={() => resetMeeting(doc)} />
+            <Button kind="ghost" icon={IconRedo} size="x-small" on:click={() => resetMeeting(doc)} />
           {/if}
         {/if}
       </div>

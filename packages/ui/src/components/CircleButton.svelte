@@ -55,7 +55,7 @@
     <slot name="content" />
   {:else if icon}
     <div class="flex-center content">
-      <Icon {icon} size={'full'} />
+      <Icon {icon} size="full" />
     </div>
   {/if}
 </div>

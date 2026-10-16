@@ -39,7 +39,7 @@
   {canSave}
   okAction={save}
   okLabel={presentation.string.Save}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={cancel}
 >
   <DurationInput bind:hours />

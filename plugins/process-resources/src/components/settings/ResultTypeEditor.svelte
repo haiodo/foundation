@@ -74,8 +74,8 @@
 <DropdownLabelsIntl
   label={setting.string.Type}
   {items}
-  size={'large'}
-  width={'100%'}
+  size="large"
+  width="100%"
   bind:selected={selectedType}
   on:selected={handleSelection}
 />

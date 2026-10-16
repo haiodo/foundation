@@ -41,7 +41,7 @@
     <DocNavLink object={value} onClick={onEdit} {disabled} {noUnderline} {colorInherit} {accent} noOverflow>
       <div class="flex-presenter" style:max-width={maxWidth}>
         <div class="icon">
-          <Icon icon={value._class === survey.class.Survey ? survey.icon.Survey : survey.icon.Poll} size={'small'} />
+          <Icon icon={value._class === survey.class.Survey ? survey.icon.Survey : survey.icon.Poll} size="small" />
         </div>
         <span class="ap-label" class:overflow-label={overflowLabel} class:colorInherit class:fs-bold={accent}>
           {#if hasText(value.name)}

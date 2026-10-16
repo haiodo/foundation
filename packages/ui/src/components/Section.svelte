@@ -34,7 +34,7 @@
     <div class="antiSection-header" class:high class:invisible class:spaceBeforeContent>
       {#if icon}
         <div class="antiSection-header__icon">
-          <Icon {icon} size={'small'} />
+          <Icon {icon} size="small" />
         </div>
       {/if}
 

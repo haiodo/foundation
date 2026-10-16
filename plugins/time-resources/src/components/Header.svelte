@@ -42,7 +42,7 @@
   $: isToday = areDatesEqual(currentDate, new Date($ticker))
 </script>
 
-<Header adaptive={'disabled'}>
+<Header adaptive="disabled">
   <div class="heading-medium-20 line-height-auto overflow-label pl-2">
     <Label label={getTitle(currentDate, $ticker)} />
   </div>
@@ -51,9 +51,9 @@
     <slot />
     <ButtonIcon
       icon={IconChevronLeft}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnPrev'}
+      kind="secondary"
+      size="small"
+      dataId="btnPrev"
       on:click={() => {
         inc(-1)
       }}
@@ -63,9 +63,9 @@
       label={!doubleRow ? time.string.TodayColon : undefined}
       title={!doubleRow ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
       type={!doubleRow ? 'type-button' : 'type-button-icon'}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnToday'}
+      kind="secondary"
+      size="small"
+      dataId="btnToday"
       inheritFont
       hasMenu
       disabled={isToday}
@@ -75,9 +75,9 @@
     />
     <ButtonIcon
       icon={IconChevronRight}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnNext'}
+      kind="secondary"
+      size="small"
+      dataId="btnNext"
       on:click={() => {
         inc(1)
       }}

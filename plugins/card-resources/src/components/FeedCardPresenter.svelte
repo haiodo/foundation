@@ -108,7 +108,7 @@
     <CardSection>
       {#if card.content}
         <div class="content-preview extra-padding">
-          <ContentPreview {card} maxHeight={'10rem'} />
+          <ContentPreview {card} maxHeight="10rem" />
         </div>
       {/if}
     </CardSection>

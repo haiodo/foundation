@@ -105,7 +105,7 @@
     <!-- Options View -->
     <div class="popup-header">
       <button class="back-button" on:click={goBackToCategories}>
-        <IconChevronLeft size={'small'} />
+        <IconChevronLeft size="small" />
       </button>
       <span class="popup-title"><Label label={selectedCategory.label} /></span>
     </div>
@@ -120,7 +120,7 @@
         >
           <span class="option-label"><Label label={option.label} /></span>
           {#if isOptionSelected(option.id)}
-            <IconCheck size={'small'} />
+            <IconCheck size="small" />
           {/if}
         </button>
       {/each}

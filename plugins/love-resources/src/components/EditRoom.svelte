@@ -182,14 +182,14 @@
 
       {#if !isLockedByPrivateMeeting && showConnectionButton(object, connecting, $lkSessionConnected, $infos, $myOffice, $currentRoom) && connectLabel != null}
         <div data-id="meeting-connect">
-          <ModernButton label={connectLabel} size="large" kind={'primary'} on:click={connect} loading={connecting} />
+          <ModernButton label={connectLabel} size="large" kind="primary" on:click={connect} loading={connecting} />
         </div>
       {:else if isLockedByPrivateMeeting && knockTarget !== undefined && !hasOutgoingKnock}
         <div data-id="meeting-knock">
           <ModernButton
             label={love.string.KnockAction}
             size="large"
-            kind={'primary'}
+            kind="primary"
             on:click={() => {
               void knock()
             }}
@@ -200,7 +200,7 @@
           <ModernButton
             label={love.string.CancelKnock}
             size="large"
-            kind={'secondary'}
+            kind="secondary"
             on:click={() => {
               void cancelKnock()
             }}

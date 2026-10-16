@@ -36,12 +36,12 @@
 <div
   class={!small ? 'p-1 border-radius-1' : ''}
   style:background-color={!small ? getPlatformColor(label.color, $themeStore.dark) : undefined}
-  style:color={'white'}
+  style:color="white"
 >
   <div class="flex-row-center no-word-wrap">
     <Icon
       icon={label.icon}
-      size={'small'}
+      size="small"
       fill={small ? getPlatformColor(label.color, $themeStore.dark) : 'currentColor'}
     />
     {#if !small}

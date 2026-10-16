@@ -295,14 +295,7 @@
         <Separator name="inbox" float={$deviceInfo.navigator.float ? 'navigator' : true} index={0} />
       {/if}
     </div>
-    <Separator
-      name="inbox"
-      float={$deviceInfo.navigator.float}
-      index={0}
-      color={'transparent'}
-      separatorSize={0}
-      short
-    />
+    <Separator name="inbox" float={$deviceInfo.navigator.float} index={0} color="transparent" separatorSize={0} short />
   {/if}
   <div bind:this={replacedPanel} class="hulyComponent">
     {#if selectedContext != null && selectedComponent != null}

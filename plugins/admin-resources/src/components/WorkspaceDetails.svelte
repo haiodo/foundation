@@ -465,7 +465,7 @@
         </span>
         {#if !readOnly}
           <Button
-            size={'small'}
+            size="small"
             label={adminRes.string.CancelDeletion}
             on:click={() => {
               void cancelDeletion()
@@ -476,8 +476,8 @@
       {#if canDelete}
         <Button
           icon={IconStop}
-          size={'small'}
-          kind={'dangerous'}
+          size="small"
+          kind="dangerous"
           label={adminRes.string.Delete}
           on:click={() => {
             void deleteWorkspace()
@@ -527,8 +527,8 @@
           <Label label={adminRes.string.Uuid} />: {workspace.uuid}
           <Button
             icon={IconCopy}
-            size={'small'}
-            kind={'ghost'}
+            size="small"
+            kind="ghost"
             on:click={() => copyTextToClipboard(workspace.uuid)}
             showTooltip={{ label: adminRes.string.CopyUuid }}
           />
@@ -536,28 +536,28 @@
         <div class="flex-row-center">
           <Label label={adminRes.string.Name} />:
           {#if editingName}
-            <div class="ml-1 edit-inline"><EditBox bind:value={nameValue} kind={'editbox'} autoFocus /></div>
+            <div class="ml-1 edit-inline"><EditBox bind:value={nameValue} kind="editbox" autoFocus /></div>
             {#if !readOnly}
-              <Button size={'small'} kind={'ghost'} label={adminRes.string.Save} on:click={saveName} />
+              <Button size="small" kind="ghost" label={adminRes.string.Save} on:click={saveName} />
             {/if}
           {:else}
             <span class="ml-1">{workspace.name}</span>
             {#if !readOnly}
-              <Button size={'small'} kind={'ghost'} label={adminRes.string.Edit} on:click={startEditName} />
+              <Button size="small" kind="ghost" label={adminRes.string.Edit} on:click={startEditName} />
             {/if}
           {/if}
         </div>
         <div class="flex-row-center">
           <Label label={adminRes.string.Url} />:
           {#if editingUrl}
-            <div class="ml-1 edit-inline"><EditBox bind:value={urlValue} kind={'editbox'} autoFocus /></div>
+            <div class="ml-1 edit-inline"><EditBox bind:value={urlValue} kind="editbox" autoFocus /></div>
             {#if !readOnly}
-              <Button size={'small'} kind={'ghost'} label={adminRes.string.Save} on:click={saveUrl} />
+              <Button size="small" kind="ghost" label={adminRes.string.Save} on:click={saveUrl} />
             {/if}
           {:else}
             <span class="ml-1">{workspace.url}</span>
             {#if !readOnly}
-              <Button size={'small'} kind={'ghost'} label={adminRes.string.Edit} on:click={startEditUrl} />
+              <Button size="small" kind="ghost" label={adminRes.string.Edit} on:click={startEditUrl} />
             {/if}
           {/if}
         </div>
@@ -576,7 +576,7 @@
             {/each}
             {#if !readOnly}
               <div class="mt-2">
-                <Button size={'small'} label={adminRes.string.Save} on:click={saveDisabledFeatures} />
+                <Button size="small" label={adminRes.string.Save} on:click={saveDisabledFeatures} />
               </div>
             {/if}
           </div>
@@ -584,14 +584,14 @@
         <div class="flex-row-center">
           <Label label={adminRes.string.MaxApiKeys} />:
           {#if editingMaxApiKeys}
-            <div class="ml-1 edit-inline"><EditBox bind:value={maxApiKeysValue} kind={'editbox'} autoFocus /></div>
+            <div class="ml-1 edit-inline"><EditBox bind:value={maxApiKeysValue} kind="editbox" autoFocus /></div>
             {#if !readOnly}
-              <Button size={'small'} kind={'ghost'} label={adminRes.string.Save} on:click={saveMaxApiKeys} />
+              <Button size="small" kind="ghost" label={adminRes.string.Save} on:click={saveMaxApiKeys} />
             {/if}
           {:else}
             <span class="ml-1">{workspace.maxApiKeys ?? 'Default'}</span>
             {#if !readOnly}
-              <Button size={'small'} kind={'ghost'} label={adminRes.string.Edit} on:click={startEditMaxApiKeys} />
+              <Button size="small" kind="ghost" label={adminRes.string.Edit} on:click={startEditMaxApiKeys} />
             {/if}
           {/if}
         </div>
@@ -605,7 +605,7 @@
         <div><Label label={adminRes.string.LastVisit} />: {fmtDate(workspace.lastVisit)}</div>
         {#if !readOnly}
           <div class="mt-2">
-            <Button label={adminRes.string.Reindex} size={'small'} on:click={reindex} />
+            <Button label={adminRes.string.Reindex} size="small" on:click={reindex} />
           </div>
         {/if}
       </div>
@@ -634,7 +634,7 @@
                   {#if !readOnly}
                     <ButtonMenu
                       selected={m.role}
-                      size={'small'}
+                      size="small"
                       label={getEmbeddedLabel(m.role)}
                       items={roleItems}
                       on:selected={(it) => {
@@ -655,8 +655,8 @@
                 <td>
                   {#if !readOnly}
                     <Button
-                      size={'small'}
-                      kind={'ghost'}
+                      size="small"
+                      kind="ghost"
                       label={adminRes.string.Impersonate}
                       showTooltip={{ label: adminRes.string.ImpersonateHint }}
                       on:click={() => {
@@ -665,8 +665,8 @@
                     />
                     <Button
                       icon={IconStop}
-                      size={'small'}
-                      kind={'dangerous'}
+                      size="small"
+                      kind="dangerous"
                       showTooltip={{ label: adminRes.string.RemoveMember }}
                       on:click={() => {
                         withOtp(async (code) => {
@@ -688,7 +688,7 @@
         <EditBox
           bind:value={memberSearch}
           placeholder={adminRes.string.SearchAccounts}
-          kind={'editbox'}
+          kind="editbox"
           on:input={onMemberSearch}
         />
         {#if memberResults.length > 0 && selectedNewMember === undefined}
@@ -712,7 +712,7 @@
       <div class="ml-2">
         <ButtonMenu
           selected={newMemberRole}
-          size={'small'}
+          size="small"
           label={getEmbeddedLabel(newMemberRole)}
           items={roleItems}
           on:selected={(it) => {
@@ -724,7 +724,7 @@
         <div class="ml-2">
           <Button
             label={adminRes.string.Add}
-            kind={'primary'}
+            kind="primary"
             disabled={selectedNewMember === undefined}
             on:click={addSelectedMember}
           />
@@ -780,16 +780,16 @@
                   {#if s.status !== 'canceled' && !readOnly}
                     <div class="flex-row-center">
                       <Button
-                        size={'small'}
-                        kind={'ghost'}
+                        size="small"
+                        kind="ghost"
                         label={adminRes.string.Edit}
                         on:click={() => {
                           editSubscription(s)
                         }}
                       />
                       <Button
-                        size={'small'}
-                        kind={'dangerous'}
+                        size="small"
+                        kind="dangerous"
                         label={adminRes.string.CancelSubscription}
                         on:click={() => {
                           cancelSubscription(s)
@@ -818,12 +818,12 @@
       {#if perSeat}
         <span class="ml-3 mr-1"><Label label={adminRes.string.Seats} />:</span>
         <div class="seats-input">
-          <EditBox bind:value={seats} format={'number'} kind={'editbox'} />
+          <EditBox bind:value={seats} format="number" kind="editbox" />
         </div>
       {/if}
       <span class="ml-3 mr-1"><Label label={adminRes.string.PeriodDays} />:</span>
       <div class="seats-input">
-        <EditBox bind:value={periodDays} format={'number'} kind={'editbox'} />
+        <EditBox bind:value={periodDays} format="number" kind="editbox" />
       </div>
       {#if inferredType === 'tier'}
         <div class="flex-row-center ml-3">
@@ -835,7 +835,7 @@
         <div class="ml-2">
           <Button
             label={adminRes.string.Create}
-            kind={'primary'}
+            kind="primary"
             disabled={selectedPlan.length === 0 || isCreating}
             on:click={adminCreateSub}
           />

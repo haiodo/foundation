@@ -44,7 +44,7 @@
 </script>
 
 {#if !joined && onChange !== undefined && !noJoin}
-  <Button label={view.string.Join} {size} {width} kind={'primary'} on:click={join} />
+  <Button label={view.string.Join} {size} {width} kind="primary" on:click={join} />
 {:else}
   <AccountArrayEditor
     {label}

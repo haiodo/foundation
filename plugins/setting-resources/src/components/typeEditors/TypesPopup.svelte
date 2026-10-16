@@ -48,7 +48,7 @@
 </script>
 
 <div class="hulyPopup-container" use:resizeObserver={() => dispatch('changeContent')}>
-  <Scroller padding={'var(--spacing-0_5)'} gap={'flex-gap-0-5'}>
+  <Scroller padding="var(--spacing-0_5)" gap="flex-gap-0-5">
     {#each items as item}
       <button
         class="hulyPopup-row"

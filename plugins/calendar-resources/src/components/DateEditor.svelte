@@ -97,7 +97,7 @@
         </ButtonBase>
       </div>
     {:else}
-      <FixedColumn key={fixed + '-date'} addClass={'min-w-28'}>
+      <FixedColumn key={fixed + '-date'} addClass="min-w-28">
         <ButtonBase type="type-button" {kind} {size} {disabled} {focusIndex} on:click={dateClick}>
           <span class="overflow-label tertiary-textColor">
             <DateLocalePresenter date={currentDate.getTime()} {timeZone} />
@@ -127,14 +127,14 @@
           bind:currentDate
           {timeZone}
           noBorder
-          size={'small'}
+          size="small"
           on:update={(date) => {
             updateTime(date.detail)
           }}
         />
       </div>
     {:else}
-      <FixedColumn key={fixed + '-time'} addClass={'min-w-28'}>
+      <FixedColumn key={fixed + '-time'} addClass="min-w-28">
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
         <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -149,7 +149,7 @@
             bind:currentDate
             {timeZone}
             noBorder
-            size={'small'}
+            size="small"
             on:update={(date) => {
               updateTime(date.detail)
             }}
@@ -167,7 +167,7 @@
       <TimeShiftPresenter value={date - difference} exact />
     </div>
   {:else}
-    <FixedColumn key={fixed + '-duration'} addClass={'p-2 font-regular-14'}>
+    <FixedColumn key={fixed + '-duration'} addClass="p-2 font-regular-14">
       <TimeShiftPresenter value={date - difference} exact />
     </FixedColumn>
   {/if}

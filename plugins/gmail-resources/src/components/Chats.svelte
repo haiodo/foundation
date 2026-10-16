@@ -101,13 +101,13 @@
     <span class="pl-2"><b>{selected.size}</b> <Label label={gmail.string.MessagesSelected} /></span>
     <div class="flex-row-center gap-3">
       <Button label={gmail.string.Cancel} on:click={clear} />
-      <Button label={gmail.string.PublishSelected} kind={'primary'} disabled={!selected.size} on:click={share} />
+      <Button label={gmail.string.PublishSelected} kind="primary" disabled={!selected.size} on:click={share} />
     </div>
   {:else}
     {#if enabled}
       <Button
         label={gmail.string.CreateMessage}
-        kind={'primary'}
+        kind="primary"
         on:click={() => {
           newMessage = true
         }}
@@ -117,7 +117,7 @@
     {/if}
     <Button
       icon={IconShare}
-      kind={'ghost'}
+      kind="ghost"
       showTooltip={{ label: gmail.string.ShareMessages }}
       on:click={async () => {
         selectable = !selectable
@@ -129,7 +129,7 @@
 {#if messages && messages.length > 0}
   {#await convertMessages(object, channel, messages) then convertedMessages}
     <div class="antiVSpacer x2" />
-    <Scroller padding={'.5rem 1rem'}>
+    <Scroller padding=".5rem 1rem">
       <Messages messages={convertedMessages} {selectable} bind:selected on:select />
       <div class="antiVSpacer x2" />
     </Scroller>
@@ -137,7 +137,7 @@
   {/await}
 {:else}
   <div class="flex-col-center justify-center h-full">
-    <Icon icon={IconInbox} size={'full'} />
+    <Icon icon={IconInbox} size="full" />
     <div class="mt-4 fs-bold content-dark-color"><Label label={plugin.string.Incoming} /></div>
   </div>
 {/if}

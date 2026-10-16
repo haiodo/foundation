@@ -119,7 +119,7 @@
 >
   {#if loading}
     <div class="icon no-gap">
-      <Spinner size={'small'} color={$themeStore.accent === AccentColor.Intabia ? 'accent' : 'default'} />
+      <Spinner size="small" color={$themeStore.accent === AccentColor.Intabia ? 'accent' : 'default'} />
     </div>
   {:else if icon}
     <div class="icon no-gap"><Icon {icon} {iconProps} size={actualIconSize} /></div>

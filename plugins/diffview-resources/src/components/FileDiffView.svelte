@@ -100,13 +100,13 @@
         <div class="pt-6 pb-6 flex-col-center">
           <Button
             label={diffview.string.ShowDiff}
-            kind={'link'}
+            kind="link"
             accent
             noFocus
             on:click={() => {
               showDiff()
             }}
-            size={'small'}
+            size="small"
           />
           <span class="overflow-label"><Label label={hideDiffLabel} /></span>
         </div>

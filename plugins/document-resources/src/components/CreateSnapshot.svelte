@@ -33,6 +33,6 @@
 
 <Card label={document.string.Snapshot} okAction={create} canSave={name.trim().length > 0} on:close>
   <div class="flex-row-center clear-mins">
-    <EditBox placeholder={document.string.Name} bind:value={name} kind={'large-style'} autoFocus />
+    <EditBox placeholder={document.string.Name} bind:value={name} kind="large-style" autoFocus />
   </div>
 </Card>

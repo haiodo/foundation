@@ -87,11 +87,11 @@
     label={contact.string.Employee}
     {readonly}
     {value}
-    size={'medium'}
-    kind={'link'}
+    size="medium"
+    kind="link"
     docQuery={query}
     showNavigate={false}
-    justify={'left'}
+    justify="left"
     {shouldShowName}
     {avatarSize}
     on:change={({ detail }) => onChange?.(detail)}

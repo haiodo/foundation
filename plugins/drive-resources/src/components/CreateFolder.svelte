@@ -82,8 +82,8 @@
       _class={drive.class.Drive}
       label={drive.string.Drive}
       bind:space={_space}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       iconWithEmoji={view.ids.IconWithEmoji}
       defaultIcon={drive.icon.Drive}
     />
@@ -93,10 +93,10 @@
       docQuery={{
         space: _space
       }}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={drive.string.Root}
-      searchField={'title'}
+      searchField="title"
       allowDeselect
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}
@@ -104,6 +104,6 @@
   </svelte:fragment>
 
   <div class="flex-row-center clear-mins">
-    <EditBox placeholder={core.string.Name} bind:value={name} kind={'large-style'} autoFocus focusIndex={1} />
+    <EditBox placeholder={core.string.Name} bind:value={name} kind="large-style" autoFocus focusIndex={1} />
   </div>
 </Card>

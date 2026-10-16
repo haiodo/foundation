@@ -55,7 +55,7 @@
 
 {#if trigger}
   <div class="flex-row-center flex-gap-1" use:tooltip={{ label: trigger.label }}>
-    <Icon icon={error ? IconError : trigger.icon} size={'medium'} />
+    <Icon icon={error ? IconError : trigger.icon} size="medium" />
     {#if withLabel}
       <Label label={trigger.label} />
       {#if trigger.presenter}

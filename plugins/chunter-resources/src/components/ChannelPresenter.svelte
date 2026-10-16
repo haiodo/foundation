@@ -40,7 +40,7 @@
         {#if !inline && shouldShowAvatar}
           <div class="icon">
             {#if icon}
-              <Icon {icon} size={'small'} />
+              <Icon {icon} size="small" />
             {/if}
           </div>
         {/if}

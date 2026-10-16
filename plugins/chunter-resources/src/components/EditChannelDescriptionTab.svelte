@@ -73,8 +73,8 @@
       />
       <Button
         label={chunter.string.LeaveChannel}
-        justify={'left'}
-        size={'x-large'}
+        justify="left"
+        size="x-large"
         on:click={() => {
           void leaveChannel()
         }}

@@ -281,7 +281,7 @@
   label={recruit.string.CreateApplication}
   okAction={createApplication}
   canSave={status.severity === Severity.OK}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -297,7 +297,7 @@
   <div class:candidate-vacancy={!verticalContent} class:flex-col={verticalContent}>
     <div class="flex flex-stretch">
       <UserBox
-        id={'vacancy.talant.selector'}
+        id="vacancy.talant.selector"
         focusIndex={1}
         readonly={preserveCandidate}
         _class={contact.class.Person}
@@ -306,9 +306,9 @@
         label={recruit.string.Talent}
         placeholder={recruit.string.Talents}
         bind:value={_candidate}
-        kind={'no-border'}
-        size={'small'}
-        width={'100%'}
+        kind="no-border"
+        size="small"
+        width="100%"
         create={{ component: recruit.component.CreateCandidate, label: recruit.string.CreateTalent }}
       >
         <svelte:fragment slot="content">
@@ -357,7 +357,7 @@
       space={_space}
       alwaysEdit
       showButtons={false}
-      kind={'emphasized'}
+      kind="emphasized"
       bind:content={_comment}
       placeholder={recruit.string.Description}
       on:changeSize={() => dispatch('changeContent')}
@@ -377,8 +377,8 @@
         bind:value={doc.assignee}
         allowDeselect
         showNavigate={false}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         titleDeselect={recruit.string.UnAssignRecruiter}
       />
       {#if states.length > 0}

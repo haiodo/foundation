@@ -181,7 +181,7 @@
           <div class="min-w-2" />
           <ActionIcon
             icon={view.icon.Open}
-            size={'small'}
+            size="small"
             action={() => {
               if (selected) {
                 void openDoc(client.getHierarchy(), selected)

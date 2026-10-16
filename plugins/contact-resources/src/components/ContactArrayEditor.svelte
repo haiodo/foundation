@@ -29,8 +29,8 @@
   _class={_clazz}
   on:update={onUpdate}
   {kind}
-  size={'medium'}
-  justify={'left'}
+  size="medium"
+  justify="left"
   width={kind === 'list' ? undefined : '100%'}
   {readonly}
 />

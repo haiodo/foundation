@@ -69,7 +69,7 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'default'}
+    adaptive="default"
     on:open
     on:close={() => dispatch('close')}
   >

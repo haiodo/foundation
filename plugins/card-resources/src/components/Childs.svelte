@@ -101,13 +101,13 @@
 <Section label={card.string.Children} icon={card.icon.Card} spaceBeforeContent>
   <svelte:fragment slot="header">
     <div class="buttons-group xsmall-gap">
-      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'tertiary'} bind:viewlet />
+      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="tertiary" bind:viewlet />
       {#if !$restrictionStore.readonly && !readonly}
         <ButtonIcon
           id="add-child-card"
           icon={IconAdd}
-          size={'small'}
-          kind={'tertiary'}
+          size="small"
+          kind="tertiary"
           tooltip={{ label: card.string.CreateChild, direction: 'bottom' }}
           on:click={() => {
             void createCard()

@@ -51,9 +51,9 @@
     <svelte:fragment slot="object" let:value>
       {@const transition = toTransition(value)}
       <Button
-        width={'100%'}
-        kind={'ghost'}
-        justify={'left'}
+        width="100%"
+        kind="ghost"
+        justify="left"
         on:click={() => {
           handleSelect(transition._id)
         }}
@@ -68,7 +68,7 @@
     </svelte:fragment>
   </SortableDocList>
   {#if !readonly}
-    <Button kind={'ghost'} width={'100%'} icon={IconAdd} label={plugin.string.AddTransition} on:click={addTransition} />
+    <Button kind="ghost" width="100%" icon={IconAdd} label={plugin.string.AddTransition} on:click={addTransition} />
   {/if}
 </div>
 

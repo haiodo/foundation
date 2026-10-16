@@ -182,7 +182,7 @@
           tabindex={i + 1}
           on:click={() => (category = c)}
         >
-          <Icon icon={c.icon} size={'small'} />
+          <Icon icon={c.icon} size="small" />
         </div>
       {/each}
     </div>
@@ -190,8 +190,8 @@
   <div class="pt-2 pb-1 pl-2 pr-2">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={query}
       placeholder={category?.label}

@@ -45,7 +45,7 @@
   <div class="flex-center p-1 content-dark-color flex-no-shrink">
     {#if iconComponent}
       <div class="icon-place">
-        <svelte:component this={iconComponent} size={'smaller'} {...value.iconComponent?.props} />
+        <svelte:component this={iconComponent} size="smaller" {...value.iconComponent?.props} />
       </div>
     {:else if value.emojiIcon}
       <div class="emoji">
@@ -53,11 +53,11 @@
           icon={Array.from(value.emojiIcon)
             .map((c) => c.codePointAt(0))
             .filter(notEmpty)}
-          size={'small'}
+          size="small"
         />
       </div>
     {:else if icon !== undefined}
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     {/if}
   </div>
   <span class="ml-1 max-w-120 overflow-label searchResult flex-row-center">

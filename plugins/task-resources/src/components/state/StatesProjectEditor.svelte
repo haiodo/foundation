@@ -233,7 +233,7 @@
           }}
         >
           <button class="hulyTableAttr-content__row-dragMenu" on:click|stopPropagation={() => {}}>
-            <IconMoreV2 size={'small'} />
+            <IconMoreV2 size="small" />
           </button>
           <ObjectPresenter
             _class={state._class}
@@ -242,7 +242,7 @@
             props={{ projectType: type._id, taskType: taskType._id, kind: 'table-attrs', size: 'medium' }}
           />
           <div class="hulyTableAttr-content__row-arrow">
-            <IconOpenedArrow size={'small'} />
+            <IconOpenedArrow size="small" />
           </div>
         </button>
       {/each}

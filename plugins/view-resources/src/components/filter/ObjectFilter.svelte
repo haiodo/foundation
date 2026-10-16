@@ -215,8 +215,8 @@
     <div class="header">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         placeholder={presentation.string.Search}
@@ -250,7 +250,7 @@
                 </div>
                 <div class="pointer-events-none">
                   {#if isSelected(value, filter.value)}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </div>

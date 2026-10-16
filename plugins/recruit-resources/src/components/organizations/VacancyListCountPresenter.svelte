@@ -43,7 +43,7 @@
     }}
   >
     <div class="icon">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
     &nbsp;
     {values?.get(value._id)?.count ?? 0}

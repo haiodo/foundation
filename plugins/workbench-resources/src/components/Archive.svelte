@@ -32,7 +32,7 @@
 
 <div class="ac-header">
   <div class="ac-header__wrap-title">
-    <div class="ac-header__icon"><Icon icon={view.icon.Archive} size={'small'} /></div>
+    <div class="ac-header__icon"><Icon icon={view.icon.Archive} size="small" /></div>
     <div class="ac-header__title"><Label label={workbench.string.Archived} /></div>
   </div>
 </div>

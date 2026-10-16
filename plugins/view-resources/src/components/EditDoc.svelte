@@ -287,8 +287,8 @@
         <Button
           icon={view.icon.DetailsFilled}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnOpenInSidebar'}
+          kind="icon"
+          dataId="btnOpenInSidebar"
           showTooltip={{ label: view.string.OpenInSidebar }}
           on:click={() => {
             void openDocInSidebar(object)
@@ -299,8 +299,8 @@
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnMoreActions'}
+          kind="icon"
+          dataId="btnMoreActions"
           on:click={(e) => {
             showMenu(e, { object, excludedActions: [view.action.Open] })
           }}
@@ -309,9 +309,9 @@
       <Button
         icon={IconMixin}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         selected={showAllMixins}
-        dataId={'btnMixin'}
+        dataId="btnMixin"
         on:click={() => {
           showAllMixins = !showAllMixins
         }}

@@ -47,7 +47,7 @@
 <span class="label">
   <Label label={plugin.string.For} />
 </span>
-<DropdownLabelsIntl label={plugin.string.For} {items} size={'large'} width={'100%'} bind:selected />
+<DropdownLabelsIntl label={plugin.string.For} {items} size="large" width="100%" bind:selected />
 {#if selected === Modes.Attribute}
   <ResultFieldTypeEditor {process} bind:key bind:type on:change />
 {:else}

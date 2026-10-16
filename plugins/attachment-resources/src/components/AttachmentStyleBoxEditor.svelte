@@ -139,7 +139,7 @@
     showButtons
     on:blur={() => save(object, description)}
     on:changeContent={triggerSave}
-    maxHeight={'card'}
+    maxHeight="card"
     focusable
     bind:content={description}
     {placeholder}

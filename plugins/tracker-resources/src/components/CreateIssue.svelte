@@ -916,8 +916,8 @@
       on:object={(evt) => {
         currentProject = evt.detail ?? undefined
       }}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       component={ProjectPresenter}
       defaultIcon={tracker.icon.Home}
       clearInvalidValue={true}
@@ -930,17 +930,17 @@
         space: _space
       }}
       on:change={handleTemplateChange}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={tracker.string.NoIssueTemplate}
       icon={tracker.icon.IssueTemplates}
-      searchField={'title'}
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}
       focusIndex={20000}
     />
-    <DocCreateExtComponent manager={docCreateManager} kind={'header'} space={currentProject} props={extraProps} />
+    <DocCreateExtComponent manager={docCreateManager} kind="header" space={currentProject} props={extraProps} />
   </svelte:fragment>
   <svelte:fragment slot="title" let:label>
     <div class="flex-row-center gap-2 pt-1 pb-1 pr-1">
@@ -952,7 +952,7 @@
         bind:value={kind}
         {parentType}
         baseClass={tracker.class.Issue}
-        size={'small'}
+        size="small"
         showAlways={true}
         on:navigate={() => dispatch('close')}
         width="10rem"
@@ -973,7 +973,7 @@
           }}
         />
       {/if}
-      <DocCreateExtComponent manager={docCreateManager} kind={'title'} space={currentProject} props={extraProps} />
+      <DocCreateExtComponent manager={docCreateManager} kind="title" space={currentProject} props={extraProps} />
     </div>
   </svelte:fragment>
   <svelte:fragment slot="header-actions">
@@ -1008,7 +1008,7 @@
       focusIndex={1}
       bind:value={object.title}
       placeholder={tracker.string.IssueTitlePlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
       fullSize
     />
@@ -1024,7 +1024,7 @@
         space={_space}
         alwaysEdit
         showButtons={false}
-        kind={'indented'}
+        kind="indented"
         isScrollable={false}
         kitOptions={{ reference: true, leftMenu: false, mode: 'full' }}
         enableAttachments={false}
@@ -1056,7 +1056,7 @@
       bind:subIssues={object.subIssues}
     />
   {/if}
-  <DocCreateExtComponent manager={docCreateManager} kind={'body'} space={currentProject} props={extraProps} />
+  <DocCreateExtComponent manager={docCreateManager} kind="body" space={currentProject} props={extraProps} />
   <svelte:fragment slot="pool">
     <div id="status-editor">
       {#if kind !== undefined}
@@ -1064,8 +1064,8 @@
           focusIndex={3}
           value={{ ...object, kind }}
           isCreate={true}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
           defaultIssueStatus={currentProject?.defaultIssueStatus}
           shouldShowLabel={true}
           short
@@ -1086,8 +1086,8 @@
         value={object}
         shouldShowLabel
         isEditable
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         justify="center"
         on:change={({ detail }) => {
           object.priority = detail
@@ -1099,8 +1099,8 @@
       <AssigneeEditor
         focusIndex={5}
         {object}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         short
         on:change={({ detail }) => {
           isAssigneeTouched = true
@@ -1133,11 +1133,11 @@
       space={_space}
       onChange={handleComponentIdChanged}
       isEditable={true}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
     <div id="estimation-editor" class="new-line">
-      <EstimationEditor focusIndex={8} kind={'regular'} size={'large'} value={object} />
+      <EstimationEditor focusIndex={8} kind="regular" size="large" value={object} />
     </div>
     <div id="milestone-editor" class="new-line">
       <MilestoneSelector
@@ -1145,8 +1145,8 @@
         value={object.milestone}
         space={_space}
         onChange={handleMilestoneIdChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         short
       />
     </div>
@@ -1155,8 +1155,8 @@
         focusIndex={10}
         bind:value={object.dueDate}
         labelNull={tracker.string.DueDate}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         editable
       />
     </div>
@@ -1165,13 +1165,13 @@
         focusIndex={11}
         icon={tracker.icon.Parent}
         label={object.parentIssue != null ? tracker.string.RemoveParent : tracker.string.SetParent}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         notSelected={object.parentIssue === undefined}
         on:click={object.parentIssue != null ? clearParentIssue : setParentIssue}
       />
     </div>
-    <DocCreateExtComponent manager={docCreateManager} kind={'pool'} space={currentProject} props={extraProps} />
+    <DocCreateExtComponent manager={docCreateManager} kind="pool" space={currentProject} props={extraProps} />
   </svelte:fragment>
   <svelte:fragment slot="attachments">
     {#if attachments.size > 0}
@@ -1192,16 +1192,16 @@
       focusIndex={12}
       icon={IconAttachment}
       iconProps={{ fill: 'var(--theme-dark-color)' }}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       on:click={() => {
         descriptionBox?.handleAttach()
       }}
     />
-    <DocCreateExtComponent manager={docCreateManager} kind={'footer'} space={currentProject} props={extraProps} />
+    <DocCreateExtComponent manager={docCreateManager} kind="footer" space={currentProject} props={extraProps} />
   </svelte:fragment>
   <svelte:fragment slot="buttons">
-    <DocCreateExtComponent manager={docCreateManager} kind={'buttons'} space={currentProject} props={extraProps} />
+    <DocCreateExtComponent manager={docCreateManager} kind="buttons" space={currentProject} props={extraProps} />
   </svelte:fragment>
   <!-- Rendered directly, not through DocCreateExtComponent: an extension that replaces the create
        button would drop the create-and-open / create-and-new actions with it. -->
@@ -1210,12 +1210,12 @@
       loading={okProcessing}
       disabled={!canSave}
       label={okLabel}
-      kind={'primary'}
-      size={'large'}
-      justify={'center'}
+      kind="primary"
+      size="large"
+      justify="center"
       dropdownIcon={IconDropdown}
       dropdownItems={createActions}
-      mainButtonId={'issue-create-button'}
+      mainButtonId="issue-create-button"
       on:click={handleOkClick}
       on:dropdown-selected={(ev) => {
         if (ev.detail === 'create-open') void createAndOpen()

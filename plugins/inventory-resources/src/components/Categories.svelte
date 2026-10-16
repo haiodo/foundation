@@ -36,8 +36,8 @@
   // $: twoRows = $deviceInfo.twoRows
 </script>
 
-<Header adaptive={'disabled'}>
-  <Breadcrumb icon={inventory.icon.Categories} label={inventory.string.Categories} size={'large'} isCurrent />
+<Header adaptive="disabled">
+  <Breadcrumb icon={inventory.icon.Categories} label={inventory.string.Categories} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput
@@ -49,7 +49,7 @@
     />
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={inventory.string.CategoryCreateLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={inventory.string.CategoryCreateLabel} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </Header>
 

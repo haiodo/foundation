@@ -99,7 +99,7 @@
         <span class="ml-2 mr-1"><Label label={adminRes.string.AutoRefresh} />:</span>
         <ButtonMenu
           selected={autoRefresh}
-          size={'small'}
+          size="small"
           items={refreshOptions}
           label={refreshOptions.find((it) => it.id === autoRefresh)?.label}
           on:selected={(it) => {

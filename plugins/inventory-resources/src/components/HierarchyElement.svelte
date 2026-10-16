@@ -60,9 +60,9 @@
                 }}
               >
                 {#if expanded.has(object._id)}
-                  <Expand size={'small'} />
+                  <Expand size="small" />
                 {:else}
-                  <Collapse size={'small'} />
+                  <Collapse size="small" />
                 {/if}
               </div>
             {/if}
@@ -79,7 +79,7 @@
                 showMenu(ev, { object })
               }}
             >
-              <IconMoreV size={'small'} />
+              <IconMoreV size="small" />
             </div>
           </div>
         </td>

@@ -8,8 +8,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={tracker.icon.Relations} label={tracker.string.RelatedIssues} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={tracker.icon.Relations} label={tracker.string.RelatedIssues} size="large" isCurrent />
   </Header>
   <EditRelatedTargets {value} />
 </div>

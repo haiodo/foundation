@@ -40,7 +40,7 @@
 
 <div class="flex-presenter">
   {#if !inline && icon && shouldShowAvatar}
-    <Icon {icon} {size} fill={'var(--theme-caption-color)'} />
+    <Icon {icon} {size} fill="var(--theme-caption-color)" />
   {/if}
   {#if shouldShowLabel}
     <span

@@ -111,7 +111,7 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="flex-row-center" on:click={openAddMembersPopup}>
-          <div class="flex-center ml-1 mr-1"><IconAdd size={'large'} /></div>
+          <div class="flex-center ml-1 mr-1"><IconAdd size="large" /></div>
           <div class="flex-col ml-2 min-w-0 content-color">
             <Label label={presentation.string.Add} />
           </div>
@@ -120,11 +120,11 @@
     {/if}
     {#each current as person}
       <div class="flex-between">
-        <div class="item fs-title"><UserInfo size={'medium'} value={person} /></div>
+        <div class="item fs-title"><UserInfo size="medium" value={person} /></div>
         {#if canRemove}
           <ActionIcon
             icon={IconClose}
-            size={'small'}
+            size="small"
             action={() => {
               void removeMember(person._id)
             }}
@@ -138,7 +138,7 @@
         <div class="pr-8 pl-8"><Label label={presentation.string.NotInThis} params={{ space: spaceClass }} /></div>
         {#each foreign as person}
           <div class="item flex-between">
-            <div class="fs-title"><UserInfo size={'medium'} value={person} /></div>
+            <div class="fs-title"><UserInfo size="medium" value={person} /></div>
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <!-- svelte-ignore a11y-no-static-element-interactions -->
             <div class="over-underline" on:click={() => add(person._id)}>

@@ -56,7 +56,7 @@
         {:else}
           <div use:tooltip={{ label: mixin.label }}>
             {#if mixin.icon}
-              <Icon icon={mixin.icon} size={'small'} />
+              <Icon icon={mixin.icon} size="small" />
             {:else}
               Ⱞ
             {/if}

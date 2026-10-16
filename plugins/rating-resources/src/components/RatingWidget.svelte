@@ -69,7 +69,7 @@
       {#if classifier !== undefined}
         <NavGroup
           _id={group._class}
-          categoryName={'features'}
+          categoryName="features"
           label={classifier.label}
           type="nested"
           isFold

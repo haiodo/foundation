@@ -66,8 +66,8 @@
   create={undefined}
   {ignoreObjects}
   shadows={true}
-  width={'large'}
-  searchMode={'spotlight'}
+  width="large"
+  searchMode="spotlight"
   on:update
   on:close={onClose}
 >

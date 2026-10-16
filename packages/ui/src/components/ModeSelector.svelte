@@ -25,7 +25,7 @@
 
 {#if modeList.length > 0}
   <Switcher
-    name={'modeSelector'}
+    name="modeSelector"
     items={modeList}
     selected={props.mode}
     {kind}

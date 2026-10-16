@@ -72,8 +72,8 @@
   <Button
     icon={setting.icon.Setting}
     iconProps={{ size: 'medium' }}
-    kind={'icon'}
-    dataId={'btnClassSetting'}
+    kind="icon"
+    dataId="btnClassSetting"
     showTooltip={{ label: setting.string.ClassSetting }}
     on:click={openClassSettings}
   />

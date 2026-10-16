@@ -81,8 +81,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={love.icon.Love} label={love.string.Settings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={love.icon.Love} label={love.string.Settings} size="large" isCurrent />
   </Header>
   <div class="flex-row-stretch flex-grow p-10">
     <div class="flex-grow flex-col flex-gap-4">

@@ -124,7 +124,7 @@
       this={attributeModel.presenter}
       {value}
       {onChange}
-      kind={'list'}
+      kind="list"
       {compactMode}
       label={attributeModel.label}
       attribute={attributeModel.attribute}
@@ -150,7 +150,7 @@
           this={attributeModel.presenter}
           {value}
           {onChange}
-          kind={'list'}
+          kind="list"
           label={attributeModel.label}
           {compactMode}
           oneLine={true}
@@ -173,7 +173,7 @@
     this={attributeModel.presenter}
     {value}
     {onChange}
-    kind={'list'}
+    kind="list"
     label={attributeModel.label}
     {compactMode}
     attribute={attributeModel.attribute}

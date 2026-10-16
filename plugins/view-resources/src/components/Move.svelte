@@ -115,7 +115,7 @@
   okLabel={view.string.Move}
   canSave={space !== currentSpace?._id && status === OK}
   okAction={moveAll}
-  width={'small'}
+  width="small"
   labelProps={{ class: label }}
   on:close
 >

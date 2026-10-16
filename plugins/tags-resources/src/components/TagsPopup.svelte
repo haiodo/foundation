@@ -141,8 +141,8 @@
   <div class="header flex-row-center gap-2">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       {placeholder}
@@ -152,8 +152,8 @@
     />
     {#if !isSingleCategory}
       <Button
-        kind={'ghost'}
-        size={'large'}
+        kind="ghost"
+        size="large"
         icon={show ? IconView : IconViewHide}
         dataId={`btn${show ? 'Collapse' : 'Expand'}`}
         on:click={() => {
@@ -162,7 +162,7 @@
       />
     {/if}
     {#if !hideAdd}
-      <Button kind={'ghost'} size={'large'} icon={IconAdd} dataId={'btnAdd'} on:click={createTagElementPopup} />
+      <Button kind="ghost" size="large" icon={IconAdd} dataId="btnAdd" on:click={createTagElementPopup} />
     {/if}
   </div>
   <div class="scroll">
@@ -231,7 +231,7 @@
                   </span>
                   <div class="check ml-3">
                     {#if isSelected(selected, element)}
-                      <Icon icon={IconCheck} size={'small'} />
+                      <Icon icon={IconCheck} size="small" />
                     {/if}
                   </div>
                 </button>

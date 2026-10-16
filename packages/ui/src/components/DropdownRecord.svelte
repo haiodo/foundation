@@ -41,9 +41,9 @@
     }}
   >
     <svelte:fragment slot="content">
-      <div class="flex-between clear-mins pointer-events-none" style:width style:max-width={'12rem'}>
+      <div class="flex-between clear-mins pointer-events-none" style:width style:max-width="12rem">
         <span class="overflow-label"><Label label={selectedLabel} /></span>
-        <div class="ml-2"><IconDownOutline size={'small'} /></div>
+        <div class="ml-2"><IconDownOutline size="small" /></div>
       </div>
     </svelte:fragment>
   </Button>

@@ -24,7 +24,7 @@
 
 <div class="gapV-2">
   {#each attachments as attachment}
-    <Scroller contentDirection={'horizontal'} horizontal scrollSnap>
+    <Scroller contentDirection="horizontal" horizontal scrollSnap>
       <LinkPreviewPresenter {attachment} {isOwn} />
     </Scroller>
   {/each}

@@ -59,6 +59,7 @@
         "import/no-unresolved": "off",
         "no-multiple-empty-lines": "warn",
         "no-undef-init": "off",
+        "svelte/no-useless-mustaches": "error",
          // This need to be enabled eventually
         "@typescript-eslint/explicit-function-return-type": "warn",
         "@typescript-eslint/strict-boolean-expressions":"warn",

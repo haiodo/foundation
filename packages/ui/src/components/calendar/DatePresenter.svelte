@@ -122,7 +122,7 @@
     <div class="btn-icon {iconModifier}" class:buttonIconNoLabel={!shouldShowLabel}>
       <Icon
         icon={icon ?? (iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar)}
-        size={'full'}
+        size="full"
       />
     </div>
   {/if}

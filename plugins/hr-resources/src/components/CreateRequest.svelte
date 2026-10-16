@@ -117,7 +117,7 @@
   labelProps={{ type: typeLabel }}
   okAction={saveRequest}
   canSave={value !== undefined && !notLimit}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -127,8 +127,8 @@
     <EmployeeBox
       label={hr.string.SelectEmployee}
       placeholder={hr.string.SelectEmployee}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       bind:value={employee}
       {readonly}
       showNavigate={false}
@@ -151,24 +151,18 @@
     space={core.space.Workspace}
     alwaysEdit
     showButtons={false}
-    maxHeight={'card'}
+    maxHeight="card"
     bind:content={description}
     placeholder={core.string.Description}
   />
   <svelte:fragment slot="pool">
-    <DateRangePresenter bind:value editable labelNull={ui.string.SelectDate} kind={'regular'} size={'large'} />
-    <DateRangePresenter
-      bind:value={dueDate}
-      labelNull={calendar.string.DueTo}
-      editable
-      kind={'regular'}
-      size={'large'}
-    />
+    <DateRangePresenter bind:value editable labelNull={ui.string.SelectDate} kind="regular" size="large" />
+    <DateRangePresenter bind:value={dueDate} labelNull={calendar.string.DueTo} editable kind="regular" size="large" />
   </svelte:fragment>
   <svelte:fragment slot="footer">
     <Button
       icon={IconAttachment}
-      size={'large'}
+      size="large"
       on:click={() => {
         descriptionBox.handleAttach()
       }}

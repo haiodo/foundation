@@ -66,7 +66,7 @@
   <section class="antiSection pt-6">
     <div class="antiSection-header">
       <div class="antiSection-header__icon">
-        <Icon icon={documents.icon.Document} size={'small'} />
+        <Icon icon={documents.icon.Document} size="small" />
       </div>
       <span class="antiSection-header__title">
         <Label label={documents.string.Documents} />

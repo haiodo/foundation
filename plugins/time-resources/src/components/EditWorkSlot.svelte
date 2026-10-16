@@ -103,14 +103,14 @@
 
 <div class="eventPopup-container">
   <div class="header flex-between">
-    <EditBox bind:value={title} disabled kind={'ghost-large'} fullSize focusable focusIndex={10001} />
+    <EditBox bind:value={title} disabled kind="ghost-large" fullSize focusable focusIndex={10001} />
     <div class="flex-row-center gap-1 flex-no-shrink ml-3">
       <Button
         id="card-close"
         focusIndex={10003}
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -123,12 +123,12 @@
   <div class="block flex-no-shrink">
     <div class="flex mb-1">
       <div class="top-icon">
-        <Icon icon={calendar.icon.Description} size={'small'} />
+        <Icon icon={calendar.icon.Description} size="small" />
       </div>
       <StyledTextBox
         alwaysEdit={true}
-        kind={'indented'}
-        maxHeight={'limited'}
+        kind="indented"
+        maxHeight="limited"
         focusIndex={10005}
         showButtons={false}
         placeholder={calendar.string.Description}
@@ -140,7 +140,7 @@
   <div class="block rightCropPadding">
     <CalendarSelector bind:value={_calendar} disabled={readOnly} focusIndex={10007} />
     <div class="flex-row-center flex-gap-1">
-      <Icon icon={calendar.icon.Hidden} size={'small'} />
+      <Icon icon={calendar.icon.Hidden} size="small" />
       <VisibilityEditor bind:value={visibility} kind="inline" withoutIcon disabled={readOnly} focusIndex={10008} />
     </div>
     <EventReminders bind:reminders disabled={readOnly} focusIndex={10009} />

@@ -150,8 +150,8 @@
           <Label label={adminRes.string.Uuid} />: {account.uuid}
           <Button
             icon={IconCopy}
-            size={'small'}
-            kind={'ghost'}
+            size="small"
+            kind="ghost"
             on:click={() => copyTextToClipboard(account.uuid)}
             showTooltip={{ label: adminRes.string.CopyUuid }}
           />
@@ -165,7 +165,7 @@
         {#if !readOnly}
           <div class="flex-row-center mt-1">
             <Button
-              size={'small'}
+              size="small"
               label={blockedOn != null ? adminRes.string.Unblock : adminRes.string.Block}
               on:click={() => {
                 void setBlocked(blockedOn == null)
@@ -173,8 +173,8 @@
             />
             <Button
               icon={IconStop}
-              size={'small'}
-              kind={'dangerous'}
+              size="small"
+              kind="dangerous"
               label={adminRes.string.Delete}
               on:click={() => {
                 void deleteAccount()
@@ -192,8 +192,8 @@
             {#if !readOnly}
               <Button
                 icon={IconStop}
-                size={'small'}
-                kind={'ghost'}
+                size="small"
+                kind="ghost"
                 disabled={releasing !== undefined}
                 showTooltip={{ label: adminRes.string.ReleaseSocialId }}
                 on:click={() => {
@@ -230,15 +230,15 @@
                     {ws.uuid}
                     <Button
                       icon={IconCopy}
-                      size={'small'}
-                      kind={'ghost'}
+                      size="small"
+                      kind="ghost"
                       on:click={() => copyTextToClipboard(ws.uuid)}
                       showTooltip={{ label: adminRes.string.CopyUuid }}
                     />
                     <Button
                       icon={IconDetails}
-                      size={'small'}
-                      kind={'ghost'}
+                      size="small"
+                      kind="ghost"
                       label={adminRes.string.Details}
                       on:click={() => {
                         void openWorkspace(ws.uuid)

@@ -93,7 +93,7 @@
       focus={!dangerous}
       focusIndex={1}
       label={okLabel ?? presentation.string.Ok}
-      size={'large'}
+      size="large"
       kind={dangerous ? 'dangerous' : 'primary'}
       loading={processing}
       on:click={() => {
@@ -119,7 +119,7 @@
       <Button
         focusIndex={2}
         label={presentation.string.Cancel}
-        size={'large'}
+        size="large"
         on:click={() => {
           dispatch('close', false)
         }}

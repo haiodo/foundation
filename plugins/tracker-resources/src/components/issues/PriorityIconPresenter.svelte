@@ -23,4 +23,4 @@
   $: icon = issuePriorities[value]?.icon
 </script>
 
-<Icon {icon} {size} fill={'var(--theme-caption-color)'} />
+<Icon {icon} {size} fill="var(--theme-caption-color)" />

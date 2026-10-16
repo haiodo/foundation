@@ -64,7 +64,7 @@
 {#if _editable}
   <Button
     size={buttonSize}
-    kind={'ghost'}
+    kind="ghost"
     noFocus
     icon={iconData.icon}
     iconProps={{ ...iconData.props, size }}

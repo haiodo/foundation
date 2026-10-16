@@ -258,31 +258,27 @@
             <button
               id="statusbar-back"
               class="antiButton ghost jf-center bs-none no-focus resetIconSize statusButton square"
-              style:color={'var(--theme-dark-color)'}
+              style:color="var(--theme-dark-color)"
               on:click={() => {
                 history.back()
               }}
             >
-              <IconArrowLeft size={'small'} />
+              <IconArrowLeft size="small" />
             </button>
             <button
               id="statusbar-forward"
               class="antiButton ghost jf-center bs-none no-focus resetIconSize statusButton square"
-              style:color={'var(--theme-dark-color)'}
+              style:color="var(--theme-dark-color)"
               on:click={() => {
                 history.forward()
               }}
             >
-              <IconArrowRight size={'small'} />
+              <IconArrowRight size="small" />
             </button>
           </div>
         {/if}
         {#if !secondRow}
-          <div
-            class="flex-row-center left-items flex-gap-1"
-            class:ml-14={appsMini}
-            style:-webkit-app-region={'no-drag'}
-          >
+          <div class="flex-row-center left-items flex-gap-1" class:ml-14={appsMini} style:-webkit-app-region="no-drag">
             <RootBarExtension position="left" />
           </div>
         {/if}
@@ -308,7 +304,7 @@
             </div>
           {/if}
         </div>
-        <div class="flex-row-reverse flex-gap-0-5" style:-webkit-app-region={'no-drag'}>
+        <div class="flex-row-reverse flex-gap-0-5" style:-webkit-app-region="no-drag">
           <Settings />
           <ConnectionStatus />
           <!-- Mobile: the bar is too narrow for the timezone name plus the clock. -->
@@ -323,7 +319,7 @@
         </div>
       </div>
       {#if secondRow}
-        <div class="flex-between h-full content-color gap-3 px-1 second-row" style:-webkit-app-region={'no-drag'}>
+        <div class="flex-between h-full content-color gap-3 px-1 second-row" style:-webkit-app-region="no-drag">
           <div class="flex-row-center flex-gap-0-5">
             <RootBarExtension position="left" />
           </div>

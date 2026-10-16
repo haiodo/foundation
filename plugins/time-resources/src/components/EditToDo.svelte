@@ -113,13 +113,13 @@
   }
 </script>
 
-<Modal type={'type-component'} padding={'0'}>
+<Modal type="type-component" padding="0">
   <svelte:fragment slot="beforeTitle">
     <div class="flex-center flex-no-shrink min-w-6 min-h-6">
       {#if object}
-        <CheckBox on:value={markDone} checked={object.doneOn != null} kind={'todo'} />
+        <CheckBox on:value={markDone} checked={object.doneOn != null} kind="todo" />
       {:else}
-        <Spinner size={'small'} />
+        <Spinner size="small" />
       {/if}
     </div>
   </svelte:fragment>
@@ -135,14 +135,14 @@
       />
       <VisibilityEditor
         value={object.visibility}
-        size={'small'}
+        size="small"
         disabled={object._class === time.class.ProjectToDo}
         on:change={(e) => visibilityChange(e.detail)}
       />
     {/if}
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <ButtonIcon icon={IconClose} kind={'tertiary'} size={'small'} on:click={() => dispatch('close')} />
+    <ButtonIcon icon={IconClose} kind="tertiary" size="small" on:click={() => dispatch('close')} />
   </svelte:fragment>
 
   {#if object}
@@ -150,8 +150,8 @@
       <ModernEditbox
         bind:value={title}
         label={time.string.AddTitle}
-        kind={'ghost'}
-        size={'large'}
+        kind="ghost"
+        size="large"
         focusIndex={10001}
         on:change={updateName}
       />
@@ -172,8 +172,8 @@
             _class={task.class.Project}
             query={{ archived: false, members: getCurrentAccount().uuid }}
             label={core.string.Space}
-            kind={'regular'}
-            size={'medium'}
+            kind="regular"
+            size="medium"
             allowDeselect
             autoSelect={false}
             readonly={object._class === time.class.ProjectToDo}

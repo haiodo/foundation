@@ -63,7 +63,7 @@
     </div>
     <span class="label no-underline nowrap" class:fs-bold={accent}>
       {#if openIssues && projectObj.members.includes(getCurrentAccount().uuid)}
-        <NavLink space={projectObj._id} special={'issues'} noUnderline={false}>
+        <NavLink space={projectObj._id} special="issues" noUnderline={false}>
           {projectObj.name}
         </NavLink>
       {:else}

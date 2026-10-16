@@ -29,8 +29,8 @@
     dispatch('changeContent')
   }}
   on:close={() => dispatch('close', null)}
-  style:overflow={'auto'}
-  style:width={'100%'}
+  style:overflow="auto"
+  style:width="100%"
 >
   <div class="flex-grow p-4">
     <MessageViewer message={value} />

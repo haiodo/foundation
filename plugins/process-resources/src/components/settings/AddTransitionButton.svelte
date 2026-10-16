@@ -26,4 +26,4 @@
   }
 </script>
 
-<Button label={plugin.string.AddTransition} icon={IconAdd} kind={'ghost'} width={'100%'} on:click={add} />
+<Button label={plugin.string.AddTransition} icon={IconAdd} kind="ghost" width="100%" on:click={add} />

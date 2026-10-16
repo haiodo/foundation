@@ -73,7 +73,7 @@
 <div class="hulyTableAttr-header font-medium-12">
   <Icon icon={contact.icon.User} size="small" />
   <span><Label label={core.string.Roles} /></span>
-  <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnAdd'} on:click={addRole} />
+  <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnAdd" on:click={addRole} />
 </div>
 <div class="hulyTableAttr-content task">
   {#each roles as role}

@@ -100,12 +100,12 @@
 <div class="antiPopup room-popup flex-gap-4">
   <MeetingHeader {room} />
   <div class="room-popup__content">
-    <Scroller padding={'0.5rem'} stickedScrollBars>
+    <Scroller padding="0.5rem" stickedScrollBars>
       <div class="room-popup__content-grid">
         {#each info as inf}
           {#await getPerson(inf) then person}
             {#if person}
-              <div class="person"><UserInfo value={person} size={'medium'} showStatus={false} /></div>
+              <div class="person"><UserInfo value={person} size="medium" showStatus={false} /></div>
             {/if}
           {/await}
         {/each}
@@ -128,8 +128,8 @@
       <ModernButton
         icon={IconArrowLeft}
         label={love.string.MeetingMinutes}
-        kind={'primary'}
-        size={'medium'}
+        kind="primary"
+        size="medium"
         on:click={backOrOpen}
       />
     {/if}
@@ -140,18 +140,18 @@
         <ModernButton
           icon={love.icon.MeetingMinutes}
           label={love.string.MeetingMinutes}
-          kind={'secondary'}
-          size={'medium'}
+          kind="secondary"
+          size="medium"
           on:click={backOrOpen}
         />
         <ModernButton
           icon={love.icon.EnterRoom}
           label={love.string.EnterRoom}
-          size={'medium'}
-          kind={'primary'}
+          size="medium"
+          kind="primary"
           autoFocus
           on:click={connect}
-          dataId={'room-enter'}
+          dataId="room-enter"
         />
       </div>
     {/if}

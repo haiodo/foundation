@@ -164,7 +164,7 @@
           <div class="w-full h-full flex showOnHover">
             <button class="table-button w-full h-full" on:click={handleAddColumn}>
               <div class="table-button__dot" />
-              <div class="table-button__icon"><IconAdd size={'small'} /></div>
+              <div class="table-button__icon"><IconAdd size="small" /></div>
             </button>
           </div>
         </div>
@@ -173,7 +173,7 @@
           <div class="w-full h-full flex showOnHover">
             <button class="table-button w-full h-full" on:click={handleAddRow}>
               <div class="table-button__dot" />
-              <div class="table-button__icon"><IconAdd size={'small'} /></div>
+              <div class="table-button__icon"><IconAdd size="small" /></div>
             </button>
           </div>
         </div>

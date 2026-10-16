@@ -33,7 +33,7 @@
   }
 </script>
 
-<Scroller padding={'0 2.25rem'} fade={defaultSP}>
+<Scroller padding="0 2.25rem" fade={defaultSP}>
   <div class="year-erp-calendar">
     {#each [...Array(12).keys()] as m}
       <div class="antiComponentBox flex-col flex-grow flex-wrap" style:min-width={minWidth}>

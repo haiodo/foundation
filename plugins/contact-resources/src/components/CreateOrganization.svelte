@@ -111,12 +111,12 @@
 >
   <div class="flex-row-center clear-mins mb-3">
     <div class="mr-3">
-      <Button icon={Company} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button icon={Company} size="medium" kind="link-bordered" noFocus />
     </div>
     <EditBox
       placeholder={contact.string.OrganizationNamePlaceholder}
       bind:value={object.name}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
       focusIndex={1}
     />
@@ -148,8 +148,8 @@
     <ChannelsDropdown
       bind:value={channels}
       focusIndex={10}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       editable
       highlighted={matchedChannels.map((it) => it.provider)}
     />
@@ -188,7 +188,7 @@
     />
     {#if matches.length > 0}
       <div class="flex-row-center error-color">
-        <IconInfo size={'small'} />
+        <IconInfo size="small" />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
         </span>

@@ -36,7 +36,7 @@
   }}
   _class={document.class.Document}
   label={document.string.Document}
-  searchField={'title'}
+  searchField="title"
   docQuery={{}}
   {readonly}
   {kind}

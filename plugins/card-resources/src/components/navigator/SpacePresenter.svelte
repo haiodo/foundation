@@ -59,7 +59,7 @@
     _id={space?._id}
     icon={model.icon}
     title={space.name}
-    type={'nested'}
+    type="nested"
     highlighted={currentSpace === space._id}
     visible={currentSpace === space._id || forciblyСollapsed}
     {forciblyСollapsed}

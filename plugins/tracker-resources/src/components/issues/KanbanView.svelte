@@ -750,8 +750,8 @@
           <svelte:component
             this={swimLanePresenter.presenter}
             value={swimLane.value}
-            kind={'list-header'}
-            size={'small'}
+            kind="list-header"
+            size="small"
             {space}
             accent
             colorInherit={!$themeStore.dark}
@@ -779,9 +779,9 @@
                 this={headerComponent.presenter}
                 value={state}
                 {space}
-                size={'small'}
-                kind={'list-header'}
-                display={'kanban'}
+                size="small"
+                kind="list-header"
+                display="kanban"
                 colorInherit={!$themeStore.dark}
                 accent
                 on:accent-color={(ev) => {
@@ -797,7 +797,7 @@
         <div class="tools gap-1">
           <Button
             icon={IconAdd}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: tracker.string.AddIssueTooltip, direction: 'left' }}
             on:click={() => {
               showPopup(CreateIssue, { space: currentSpace, [groupByKey]: state }, 'top')
@@ -834,7 +834,7 @@
             </div>
             <div class="flex-row-center gap-2 reverse flex-no-shrink">
               <Component is={notification.component.NotificationPresenter} props={{ value: object }} />
-              <AssigneeEditor object={issue} avatarSize={'card'} shouldShowName={false} />
+              <AssigneeEditor object={issue} avatarSize="card" shouldShowName={false} />
             </div>
           </div>
           <div
@@ -847,16 +847,10 @@
           </div>
           <div class="card-labels meta">
             {#if enabledConfig(config, 'priority') && (!compactMode || issue.priority !== IssuePriority.NoPriority)}
-              <PriorityEditor
-                value={issue}
-                isEditable={true}
-                kind={'link-bordered'}
-                size={'small'}
-                justify={'center'}
-              />
+              <PriorityEditor value={issue} isEditable={true} kind="link-bordered" size="small" justify="center" />
             {/if}
             {#if enabledConfig(config, 'subIssues') && issue && issue.subIssues > 0}
-              <SubIssuesSelector value={issue} {currentProject} size={'small'} />
+              <SubIssuesSelector value={issue} {currentProject} size="small" />
             {/if}
             {#each customAttrModels as attrModel (attrModel.key)}
               <ListPresenter
@@ -867,29 +861,29 @@
                 props={{}}
                 hideDivider={true}
                 compactMode={true}
-                customStyle={'square'}
+                customStyle="square"
               />
             {/each}
             {#if enabledConfig(config, 'dueDate') && (!compactMode || issue.dueDate != null)}
-              <DueDatePresenter value={issue} size={'small'} kind={'link-bordered'} />
+              <DueDatePresenter value={issue} size="small" kind="link-bordered" />
             {/if}
             {#if compactMode}
               {#if enabledConfig(config, 'estimation') && (estimations > 0 || reports > 0)}
-                <EstimationEditor kind={'link-bordered'} size={'small'} value={issue} />
+                <EstimationEditor kind="link-bordered" size="small" value={issue} />
               {/if}
               {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}
-                <AttachmentsPresenter value={object.attachments} {object} kind={'link-bordered'} size={'small'} />
+                <AttachmentsPresenter value={object.attachments} {object} kind="link-bordered" size="small" />
               {/if}
               {#if enabledConfig(config, 'comments') && (object.comments ?? 0) > 0}
-                <ChatMessagesPresenter value={object.comments} {object} kind={'link-bordered'} size={'small'} />
+                <ChatMessagesPresenter value={object.comments} {object} kind="link-bordered" size="small" />
               {/if}
               {#if enabledConfig(config, 'comments') && (object.$lookup?.attachedTo?.comments ?? 0) > 0}
                 <ChatMessagesPresenter
                   object={object.$lookup?.attachedTo}
                   value={object.$lookup?.attachedTo?.comments}
                   withInput={false}
-                  kind={'link-bordered'}
-                  size={'small'}
+                  kind="link-bordered"
+                  size="small"
                 />
               {/if}
             {:else}
@@ -899,9 +893,9 @@
                     value={issue}
                     {space}
                     isEditable={true}
-                    kind={'link-bordered'}
-                    size={'small'}
-                    justify={'center'}
+                    kind="link-bordered"
+                    size="small"
+                    justify="center"
                   />
                 </div>
               {/if}
@@ -911,10 +905,10 @@
                     value={issue}
                     {space}
                     isEditable={true}
-                    kind={'link-bordered'}
-                    size={'small'}
-                    maxWidth={'7rem'}
-                    justify={'center'}
+                    kind="link-bordered"
+                    size="small"
+                    maxWidth="7rem"
+                    justify="center"
                   />
                 </div>
               {/if}
@@ -942,7 +936,7 @@
               {#if withFooter}
                 <div class="card-footer flex-between">
                   {#if enabledConfig(config, 'estimation')}
-                    <EstimationEditor kind={'list'} size={'small'} value={issue} />
+                    <EstimationEditor kind="list" size="small" value={issue} />
                   {/if}
                   <div class="flex-row-center gap-3 reverse">
                     {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}

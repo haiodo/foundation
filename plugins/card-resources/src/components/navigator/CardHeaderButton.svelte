@@ -93,4 +93,4 @@
   }
 </script>
 
-<ButtonIcon icon={IconAdd} hasMenu {pressed} kind={'primary'} size={'small'} on:click={addButtonClicked} />
+<ButtonIcon icon={IconAdd} hasMenu {pressed} kind="primary" size="small" on:click={addButtonClicked} />

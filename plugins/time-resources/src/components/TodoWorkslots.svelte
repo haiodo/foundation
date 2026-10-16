@@ -140,7 +140,7 @@
 
 <Workslots
   slots={pendingSlots}
-  fixed={'toDo'}
+  fixed="toDo"
   on:change={change}
   on:dueChange={dueChange}
   on:create={create}

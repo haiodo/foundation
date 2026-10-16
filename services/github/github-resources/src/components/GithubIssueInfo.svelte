@@ -14,7 +14,7 @@
   {#if repositoryValue}
     <Label label={github.string.IssueRepositoryTarget} />
     <div class="ml-2 mr-2">
-      <Icon icon={github.icon.Github} size={'small'} />
+      <Icon icon={github.icon.Github} size="small" />
     </div>
     {repositoryValue.name}
   {/if}

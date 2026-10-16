@@ -130,7 +130,7 @@
       horizontal={direction === 'horizontal'}
       contentDirection={direction}
       align={direction === 'horizontal' ? 'center' : 'start'}
-      buttons={'union'}
+      buttons="union"
     >
       {#each topApps as app}
         {@const customProps = customAppProps.get(app.alias) ?? {}}

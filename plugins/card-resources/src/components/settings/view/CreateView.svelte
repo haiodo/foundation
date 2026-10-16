@@ -128,7 +128,7 @@
       <Label label={view.string.Title} />
     </div>
     <div class="padding">
-      <EditBox bind:value={title} placeholder={view.string.Title} kind={'large-style'} autoFocus />
+      <EditBox bind:value={title} placeholder={view.string.Title} kind="large-style" autoFocus />
     </div>
   </div>
   <div class="antiGrid-row">

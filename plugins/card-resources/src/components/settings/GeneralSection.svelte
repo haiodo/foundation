@@ -173,9 +173,9 @@
       <ButtonIcon
         icon={masterTag.icon === view.ids.IconWithEmoji ? IconWithEmoji : (masterTag.icon ?? card.icon.MasterTag)}
         iconProps={masterTag.icon === view.ids.IconWithEmoji ? { icon: masterTag.color, size: 'large' } : {}}
-        size={'large'}
-        iconSize={'large'}
-        kind={'tertiary'}
+        size="large"
+        iconSize="large"
+        kind="tertiary"
         on:click={setIcon}
       />
       <ModernEditbox
@@ -201,13 +201,13 @@
     </div>
     <ButtonIcon
       icon={IconDownload}
-      size={'large'}
+      size="large"
       tooltip={{ label: card.string.Export }}
-      kind={'tertiary'}
+      kind="tertiary"
       on:click={handleExport}
     />
     {#if isEditable}
-      <ButtonIcon icon={IconDelete} size={'large'} kind={'tertiary'} on:click={handleDelete} />
+      <ButtonIcon icon={IconDelete} size="large" kind="tertiary" on:click={handleDelete} />
     {/if}
   </div>
   {#if !h.isMixin(masterTag._id)}

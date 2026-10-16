@@ -100,7 +100,7 @@
     <span class="fs-title overflow-label"><Label {label} /></span>
     <ActionIcon
       icon={IconClose}
-      size={'small'}
+      size="small"
       action={() => {
         dispatch('close')
       }}
@@ -116,7 +116,7 @@
       bind:currentDate
       {withTime}
       {timeZone}
-      kind={'plain'}
+      kind="plain"
       on:close={() => {
         closeDP(withTime)
       }}
@@ -134,7 +134,7 @@
             {viewDate}
             {timeZone}
             viewUpdate={false}
-            hideNavigator={'all'}
+            hideNavigator="all"
             noPadding
             on:update={(result) => {
               updateDate(result.detail)
@@ -165,7 +165,7 @@
           {viewDate}
           {timeZone}
           viewUpdate={false}
-          hideNavigator={'all'}
+          hideNavigator="all"
           noPadding
           on:update={(result) => {
             updateDate(result.detail)
@@ -192,9 +192,9 @@
   </div>
   <div class="footer">
     <Button
-      kind={'primary'}
+      kind="primary"
       label={ui.string.Save}
-      size={'large'}
+      size="large"
       on:click={() => {
         closeDP(withTime)
       }}

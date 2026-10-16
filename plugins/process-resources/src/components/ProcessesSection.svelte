@@ -129,7 +129,7 @@
       tooltip={{ label: process.string.Import, direction: 'bottom' }}
       on:click={handleImport}
     />
-    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnAdd'} on:click={add} />
+    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnAdd" on:click={add} />
   </div>
 </div>
 {#if processes.length}

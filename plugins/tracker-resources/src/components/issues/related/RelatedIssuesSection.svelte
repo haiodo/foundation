@@ -19,7 +19,7 @@
     <svelte:fragment slot="header">
       <div class="flex-row-center">
         <div class="antiSection-header__icon">
-          <Icon icon={tracker.icon.Issue} size={'small'} />
+          <Icon icon={tracker.icon.Issue} size="small" />
         </div>
         <span class="antiSection-header__title short">
           <Label {label} />

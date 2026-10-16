@@ -645,7 +645,7 @@
                 {/if}
                 {#if attribute.sortingKey === _sortKey}
                   <div class="icon">
-                    <IconUpDown size={'small'} descending={sortOrder === SortingOrder.Descending} />
+                    <IconUpDown size="small" descending={sortOrder === SortingOrder.Descending} />
                   </div>
                 {/if}
               </div>
@@ -732,8 +732,8 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <Button
           label={ui.string.ShowMore}
-          kind={'ghost'}
-          size={'small'}
+          kind="ghost"
+          size="small"
           on:click={() => {
             limit = limit + 100
           }}

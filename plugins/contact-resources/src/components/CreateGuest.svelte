@@ -193,7 +193,7 @@
   <svelte:fragment slot="error">
     {#if exists && !saving}
       <div class="flex-row-center error-color">
-        <IconInfo size={'small'} />
+        <IconInfo size="small" />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
         </span>
@@ -205,21 +205,21 @@
       <EditBox
         placeholder={contact.string.PersonFirstNamePlaceholder}
         bind:value={firstName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusIndex={1}
       />
       <EditBox
         placeholder={contact.string.PersonLastNamePlaceholder}
         bind:value={lastName}
-        kind={'large-style'}
+        kind="large-style"
         focusIndex={2}
       />
       <div class="mt-1">
         <EditBox
           placeholder={contact.string.Email}
           bind:value={email}
-          kind={'small-style'}
+          kind="small-style"
           focusIndex={3}
           on:blur={changeEmail}
         />
@@ -231,8 +231,8 @@
     <ChannelsDropdown
       bind:value={channels}
       focusIndex={10}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       editable
       on:save={onChannelSave}
       on:remove={onChannelRemove}

@@ -222,13 +222,13 @@
   {/if}
 </div>
 <div class="fs-title p-3 flex-no-shrink" data-testid="account-search-container">
-  <SearchEdit bind:value={accountSearch} width={'100%'} on:change={accountSearchChanged} />
+  <SearchEdit bind:value={accountSearch} width="100%" on:change={accountSearchChanged} />
 </div>
 
 <div class="flex-row-center p-3">
   <Button
     label={adminRes.string.Previous}
-    size={'small'}
+    size="small"
     disabled={accountSkip === 0}
     on:click={async () => {
       accountSkip = Math.max(0, accountSkip - accountLimit)
@@ -238,7 +238,7 @@
   <span class="mx-2"><Label label={adminRes.string.Page} /> {Math.floor(accountSkip / accountLimit) + 1}</span>
   <Button
     label={adminRes.string.Next}
-    size={'small'}
+    size="small"
     disabled={accounts.length < accountLimit}
     on:click={async () => {
       accountSkip += accountLimit
@@ -276,8 +276,8 @@
   <div class="ml-4 flex-row-center">
     <Button
       label={adminRes.string.Export}
-      kind={'primary'}
-      size={'small'}
+      kind="primary"
+      size="small"
       disabled={exporting}
       on:click={() => {
         void exportAccounts()
@@ -286,13 +286,13 @@
     <Button
       label={getEmbeddedLabel('CSV')}
       kind={reportFormat === 'csv' ? 'primary' : 'regular'}
-      size={'small'}
+      size="small"
       on:click={() => (reportFormat = 'csv')}
     />
     <Button
       label={getEmbeddedLabel('PDF')}
       kind={reportFormat === 'pdf' ? 'primary' : 'regular'}
-      size={'small'}
+      size="small"
       on:click={() => (reportFormat = 'pdf')}
     />
   </div>
@@ -397,8 +397,8 @@
                 {account.uuid}
                 <Button
                   icon={IconCopy}
-                  size={'small'}
-                  kind={'ghost'}
+                  size="small"
+                  kind="ghost"
                   on:click={() => copyTextToClipboard(account.uuid)}
                   showTooltip={{ label: adminRes.string.CopyUuid }}
                 />
@@ -413,8 +413,8 @@
               <div class="flex-row-center">
                 <Button
                   icon={IconDetails}
-                  size={'small'}
-                  kind={'ghost'}
+                  size="small"
+                  kind="ghost"
                   label={adminRes.string.Details}
                   on:click={() => {
                     // The dialog is where blocking and deletion live now - reload on the way back.
@@ -426,8 +426,8 @@
                 {#if !readOnly && accountSuperAdminMode}
                   <Button
                     icon={IconStop}
-                    size={'small'}
-                    kind={'dangerous'}
+                    size="small"
+                    kind="dangerous"
                     label={adminRes.string.Delete}
                     on:click={() => {
                       if (account.hasAccount === false) {

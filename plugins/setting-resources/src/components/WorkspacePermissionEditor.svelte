@@ -95,8 +95,8 @@
         {label}
         emptyLabel={emptyLabel ?? settingsRes.string.SelectUsers}
         onChange={handleUsersChange}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         {allowGuests}
       />
     {/if}

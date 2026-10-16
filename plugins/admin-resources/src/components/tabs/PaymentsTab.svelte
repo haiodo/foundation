@@ -681,7 +681,7 @@
         size="small"
         on:click={() => (groupMode = groupMode === 'workspace' ? 'none' : 'workspace')}
       />
-      <SearchEdit bind:value={search} width={'14rem'} />
+      <SearchEdit bind:value={search} width="14rem" />
     </div>
     {#if shownOps.length === 0}
       <div class="dark-color"><Label label={adminRes.string.NoOperations} /></div>

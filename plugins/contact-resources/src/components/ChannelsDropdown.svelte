@@ -252,7 +252,7 @@
         id={item.label}
         bind:input={btns[i]}
         icon={item.icon}
-        kind={'link-bordered'}
+        kind="link-bordered"
         {size}
         {shape}
         highlight={item.integration || item.notification}

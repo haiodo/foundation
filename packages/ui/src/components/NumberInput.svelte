@@ -165,8 +165,8 @@
     <div class="flex-col-center py-0-5">
       <Button
         icon={UpOutline}
-        kind={'stepper'}
-        padding={'0'}
+        kind="stepper"
+        padding="0"
         {disabled}
         on:click={() => {
           value = (value ?? 0) + 1
@@ -175,8 +175,8 @@
       />
       <Button
         icon={DownOutline}
-        kind={'stepper'}
-        padding={'0'}
+        kind="stepper"
+        padding="0"
         {disabled}
         on:click={() => {
           value = (value ?? 0) - 1

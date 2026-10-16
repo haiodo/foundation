@@ -49,8 +49,8 @@
             label: $isFullScreen ? love.string.ExitingFullscreenMode : love.string.FullscreenMode,
             direction: 'top'
           }}
-          kind={'secondary'}
-          size={'large'}
+          kind="secondary"
+          size="large"
           on:click={() => {
             $isFullScreen = !$isFullScreen
           }}
@@ -61,8 +61,8 @@
         icon={love.icon.LeaveRoom}
         label={love.string.LeaveRoom}
         tooltip={{ label: love.string.LeaveRoom, direction: 'top' }}
-        kind={'negative'}
-        size={'medium'}
+        kind="negative"
+        size="medium"
         on:click={leaveGuest}
       />
     </svelte:fragment>

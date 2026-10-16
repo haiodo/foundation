@@ -55,10 +55,10 @@
   </div>
 
   <div class="popup-content">
-    <Scroller padding={'0.5rem'} stickedScrollBars>
+    <Scroller padding="0.5rem" stickedScrollBars>
       <div class="persons-grid">
         <div class="person-item">
-          <Avatar {person} size={'medium'} name={person.name} />
+          <Avatar {person} size="medium" name={person.name} />
           <span class="person-name">{formatName(person.name)}</span>
         </div>
       </div>
@@ -66,7 +66,7 @@
   </div>
 
   <div class="popup-actions">
-    <ModernButton label={love.string.Cancel} kind={'secondary'} size={'medium'} on:click={handleCancel} />
+    <ModernButton label={love.string.Cancel} kind="secondary" size="medium" on:click={handleCancel} />
   </div>
 </div>
 

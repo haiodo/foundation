@@ -144,7 +144,7 @@
     </svelte:fragment>
     <svelte:fragment slot="tools">
       <Button
-        kind={'dangerous'}
+        kind="dangerous"
         label={github.string.RemoveInstallation}
         on:click={() => {
           showPopup(MessageBox, {
@@ -163,7 +163,7 @@
       />
     </svelte:fragment>
     <div class="flex flex-row-center flex-between m-0-5">
-      <SearchEdit bind:value={search} width={'100%'} />
+      <SearchEdit bind:value={search} width="100%" />
     </div>
     {#each repos.slice(0, limit) as repository}
       {@const prj = giProjects.find((it) => it.repositories.includes(repository._id))}
@@ -193,9 +193,9 @@
               <ObjectPresenter _class={prj._class} objectId={prj._id} value={prj} />
               <div class="ml-2">
                 <Button
-                  kind={'dangerous'}
+                  kind="dangerous"
                   label={github.string.UnlinkFromProject}
-                  size={'medium'}
+                  size="medium"
                   on:click={(evt) => {
                     void onDisconnect(evt, prj, repository)
                   }}
@@ -204,7 +204,7 @@
               <div class="ml-2">
                 <Button
                   icon={IconMoreV}
-                  size={'small'}
+                  size="small"
                   on:click={(evt) => {
                     void showMenu(evt, prj, repository)
                   }}
@@ -228,17 +228,17 @@
           {/if}
 
           <div class="flex-row-center">
-            <Icon icon={IconColStar} fill={'none'} size={'small'} />
+            <Icon icon={IconColStar} fill="none" size="small" />
             <span class="ml-1">{repository.stargazers ?? 0}</span>
           </div>
 
           <div class="flex-row-center ml-4">
-            <Icon icon={github.icon.Forks} size={'small'} />
+            <Icon icon={github.icon.Forks} size="small" />
             <span class="ml-1">{repository.forks ?? 0}</span>
           </div>
 
           <div class="flex-row-center ml-4">
-            <Icon icon={tracker.icon.Issue} size={'small'} />
+            <Icon icon={tracker.icon.Issue} size="small" />
             <span class="ml-1">{repository.openIssues ?? 0}</span>
           </div>
 

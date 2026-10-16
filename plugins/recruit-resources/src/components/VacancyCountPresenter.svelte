@@ -47,7 +47,7 @@
     on:click|stopPropagation|preventDefault={click}
   >
     <div class="icon">
-      <Icon icon={recruit.icon.Application} size={'small'} />
+      <Icon icon={recruit.icon.Application} size="small" />
     </div>
     &nbsp;
     {applications?.get(value._id)?.count ?? 0}

@@ -46,8 +46,8 @@
 <div class="flex-row-center justify-end gap-2 mb-1">
   <span class="overflow-label"><Label label={diffview.string.ViewMode} /></span>
   <DiffViewModeDropdown
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     label={diffview.string.ViewMode}
     bind:selected={mode}
     on:selected={({ detail }) => {

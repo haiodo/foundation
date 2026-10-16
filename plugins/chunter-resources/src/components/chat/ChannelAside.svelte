@@ -132,10 +132,10 @@
         <EmployeeBox
           value={creatorPersonRef}
           label={core.string.CreatedBy}
-          kind={'link'}
-          size={'medium'}
-          avatarSize={'card'}
-          width={'100%'}
+          kind="link"
+          size="medium"
+          avatarSize="card"
+          width="100%"
           showNavigate={false}
           readonly
         />

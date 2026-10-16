@@ -66,7 +66,7 @@
     {/if}
     <div class="flex-between mb-1">
       <div class="flex-row-center">
-        <Avatar person={object.$lookup?.attachedTo} size={'medium'} name={object.$lookup?.attachedTo?.name} />
+        <Avatar person={object.$lookup?.attachedTo} size="medium" name={object.$lookup?.attachedTo?.name} />
         <div class="flex-grow flex-col min-w-0 ml-2">
           <div class="fs-title over-underline lines-limit-2">
             {object.$lookup?.attachedTo ? getName(getClient().getHierarchy(), object.$lookup.attachedTo) : ''}
@@ -100,8 +100,8 @@
     <div class="card-labels mb-2">
       {#if groupByKey !== 'status' && enabledConfig(config, 'status')}
         <StateRefPresenter
-          size={'small'}
-          kind={'link-bordered'}
+          size="small"
+          kind="link-bordered"
           space={object.space}
           shrink={1}
           value={object.status}
@@ -113,8 +113,8 @@
       <Component showLoading={false} is={tracker.component.RelatedIssueSelector} props={{ object, size: 'small' }} />
       {#if enabledConfig(config, 'dueDate')}
         <DueDatePresenter
-          size={'small'}
-          kind={'link-bordered'}
+          size="small"
+          kind="link-bordered"
           value={object.dueDate}
           shouldRender={object.dueDate !== null && object.dueDate !== undefined}
           shouldIgnoreOverdue={isDone}

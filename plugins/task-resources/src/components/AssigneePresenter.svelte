@@ -106,7 +106,7 @@
     this={presenter.presenter}
     {value}
     {defaultName}
-    avatarSize={'x-small'}
+    avatarSize="x-small"
     disabled={false}
     shouldShowPlaceholder={true}
     shouldShowName={shouldShowLabel}

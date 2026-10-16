@@ -39,7 +39,7 @@
 {#if value !== undefined}
   <div class="flex-presenter">
     <div class="icon">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
     <span class="overflow-label">
       <Label {label} />

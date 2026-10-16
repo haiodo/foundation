@@ -151,7 +151,7 @@
   on:update={onUpdate}
   {size}
   {sort}
-  justify={'left'}
+  justify="left"
   width={width ?? 'min-content'}
   {kind}
   create={allowGuests ? { component: contact.component.CreateGuest, label: contact.string.AddGuest } : undefined}

@@ -121,13 +121,13 @@
           <slot name="header" />
         {/if}
         {#if isBack}
-          <Button icon={IconBack} kind={'ghost'} size={'small'} on:click={backAction} />
+          <Button icon={IconBack} kind="ghost" size="small" on:click={backAction} />
         {/if}
         <!-- Divider and title are one wrap item: on a narrow header the ">" has to travel to the
              second line with the title it points at, not stay behind on the first. -->
         <div class="antiCard-header__title-group">
           {#if $$slots.header}
-            <span class="antiCard-header__divider"><IconForward size={'small'} /></span>
+            <span class="antiCard-header__divider"><IconForward size="small" /></span>
           {/if}
           <div class="antiCard-header__title" class:accentHeader>
             {#if $$slots.title}
@@ -152,8 +152,8 @@
             focusIndex={10002}
             icon={IconClose}
             iconProps={{ size: 'medium', fill: 'var(--theme-dark-color)' }}
-            kind={'ghost'}
-            size={'small'}
+            kind="ghost"
+            size="small"
             on:click={() => {
               if (onCancel) {
                 onCancel()
@@ -199,7 +199,7 @@
     {/if}
     {#if $$slots.attachments && !hideAttachments}
       <div class="antiCard-attachments">
-        <Scroller horizontal contentDirection={'horizontal'} {gap} noFade={false}>
+        <Scroller horizontal contentDirection="horizontal" {gap} noFade={false}>
           <div class="antiCard-attachments__container">
             <slot name="attachments" />
           </div>
@@ -218,11 +218,11 @@
             <Button
               loading={okProcessing}
               focusIndex={10001}
-              minWidth={'5rem'}
+              minWidth="5rem"
               disabled={!canSave}
               label={okLabel}
-              kind={'primary'}
-              size={'large'}
+              kind="primary"
+              size="large"
               on:click={handleOkClick}
             />
           {/if}

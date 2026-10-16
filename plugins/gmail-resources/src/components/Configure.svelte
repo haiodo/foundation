@@ -106,7 +106,7 @@
             <Label label={gmail.string.AvailableTo} />
           </div>
           <AccountArrayEditor
-            kind={'regular'}
+            kind="regular"
             label={gmail.string.AvailableTo}
             excludeItems={[currentEmployee]}
             value={integrationSettings?.shared ?? []}

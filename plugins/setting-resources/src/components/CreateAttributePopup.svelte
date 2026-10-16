@@ -132,12 +132,12 @@
       <div class="flex items-center">
         <ButtonIcon
           icon={icon ?? setting.icon.Enums}
-          size={'medium'}
-          iconSize={'large'}
-          kind={'tertiary'}
+          size="medium"
+          iconSize="large"
+          kind="tertiary"
           on:click={setIcon}
         />
-        <ModernEditbox bind:value={name} label={core.string.Name} size={'large'} kind={'ghost'} autoFocus />
+        <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" autoFocus />
       </div>
     </div>
     <div class="grid">
@@ -147,8 +147,8 @@
       <DropdownLabelsIntl
         label={setting.string.Type}
         {items}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         bind:selected={selectedType}
         on:selected={handleSelection}
       />

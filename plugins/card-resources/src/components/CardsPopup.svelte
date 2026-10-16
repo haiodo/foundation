@@ -49,9 +49,9 @@
   {titleDeselect}
   {ignoreObjects}
   {docQuery}
-  searchField={'title'}
-  type={'object'}
-  groupBy={'_class'}
+  searchField="title"
+  type="object"
+  groupBy="_class"
   showVersions
   forceShowSelected={false}
   on:update
@@ -61,7 +61,7 @@
   {readonly}
 >
   <svelte:fragment slot="item" let:item={it}>
-    <CardPresenter value={it} disabled showVersion={false} type={'text'} />
+    <CardPresenter value={it} disabled showVersion={false} type="text" />
   </svelte:fragment>
 
   <svelte:fragment slot="category" let:item={it}>

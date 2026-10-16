@@ -1121,7 +1121,7 @@
   {/if}
 {/if}
 {#if Object.keys(plans).length > 0}
-  <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+  <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
     <div class="hulyComponent-content gapV-8">
       <div class="flex-col flex-gap-4">
         <div class="section-title">
@@ -1376,10 +1376,10 @@
         {#if items.length > 0}
           <div class="flex flex-gap-4">
             <Switcher
-              name={'monthlyYearlyActions'}
+              name="monthlyYearlyActions"
               {items}
               selected={paymentPeriod}
-              kind={'subtle'}
+              kind="subtle"
               on:select={(e) => {
                 if (e?.detail.id !== undefined) paymentPeriod = e.detail.id
               }}
@@ -1453,8 +1453,8 @@
                     <Button
                       label={plugin.string.ContactSales}
                       dataId={`planContactSales-${planKey}`}
-                      size={'large'}
-                      kind={'regular'}
+                      size="large"
+                      kind="regular"
                       on:click={() => {
                         void openSalesMail(planKey)
                       }}
@@ -1465,7 +1465,7 @@
                         ? plugin.string.Subscribe
                         : plugin.string.ChangePlan}
                       dataId={`planSubscribe-${planKey}`}
-                      size={'large'}
+                      size="large"
                       kind={currentPlanKey === undefined ||
                       (isCurrentTrial && currentPlanKey === planKey) ||
                       planItem.index > (plans[currentPlanKey]?.index ?? -1)
@@ -1535,7 +1535,7 @@
                               <Button
                                 dataId={`package${isConnected ? 'Disconnect' : 'Connect'}-${pkgKey}`}
                                 label={isConnected ? plugin.string.Disconnect : plugin.string.Connect}
-                                size={'large'}
+                                size="large"
                                 kind={isConnected ? 'regular' : 'secondary'}
                                 disabled={loading ||
                                   isCheckoutPolling ||
@@ -1593,8 +1593,8 @@
                         <Button
                           dataId={`purchasableBuy-${sku}`}
                           label={plugin.string.Buy}
-                          size={'large'}
-                          kind={'secondary'}
+                          size="large"
+                          kind="secondary"
                           disabled={loading || isCheckoutPolling || isUpdating || !isEligible}
                           on:click={() => {
                             buyPurchasable(sku)

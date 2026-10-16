@@ -48,7 +48,7 @@
   okAction={onSave}
   canSave={object.label !== ''}
   okLabel={tracker.string.CreateMilestone}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => dispatch('close')}
   on:changeContent
 >
@@ -56,8 +56,8 @@
     <SpaceSelector
       _class={tracker.class.Project}
       label={tracker.string.Project}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       bind:space
       component={ProjectPresenter}
       defaultIcon={tracker.icon.Home}
@@ -68,7 +68,7 @@
       focusIndex={1}
       bind:value={object.label}
       placeholder={tracker.string.MilestoneNamePlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
       fullSize
     />
@@ -77,7 +77,7 @@
     <StyledTextArea
       bind:content={object.description}
       placeholder={tracker.string.ComponentDescriptionPlaceholder}
-      kind={'indented'}
+      kind="indented"
       showButtons={false}
     />
   </div>
@@ -88,8 +88,8 @@
       editable
       label={tracker.string.TargetDate}
       detail={ui.string.SelectDate}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
   </svelte:fragment>
 </Card>

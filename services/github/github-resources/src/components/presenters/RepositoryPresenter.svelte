@@ -12,6 +12,6 @@
 </script>
 
 <div class="flex-row-center">
-  <Icon icon={github.icon.GithubRepository} size={'small'} />
+  <Icon icon={github.icon.GithubRepository} size="small" />
   <span class="ml-1">{value.name}</span>
 </div>

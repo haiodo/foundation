@@ -22,7 +22,7 @@
 <div class="flex-grow flex-shrink">
   <Button
     label={testManagement.string.Save}
-    kind={'primary'}
+    kind="primary"
     on:click={() => {
       // TODO: Add next test result logic
     }}

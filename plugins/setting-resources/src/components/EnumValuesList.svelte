@@ -127,28 +127,28 @@
     }}
   >
     <button class="hulyTableAttr-content__row-dragMenu" class:drag={!disableMouseOver}>
-      <IconMoreV2 size={'small'} />
+      <IconMoreV2 size="small" />
     </button>
     <div class="hulyTableAttr-content__row-label font-regular-14 accent">
       <ModernEditbox
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         label={setting.string.EnterOptionTitle}
         on:keydown={handleKeydown}
         on:blur={() => {
           update()
         }}
         bind:value={values[i]}
-        width={'100%'}
+        width="100%"
       />
     </div>
     <div class="hulyTableAttr-content__row-label grow" />
     {#if !disableMouseOver}
       <ButtonIcon
-        kind={'tertiary'}
+        kind="tertiary"
         icon={IconMoreV}
         iconProps={{ fill: 'var(--global-tertiary-TextColor)' }}
-        size={'small'}
+        size="small"
         pressed={opened === i}
         hasMenu
         on:click={(ev) => {

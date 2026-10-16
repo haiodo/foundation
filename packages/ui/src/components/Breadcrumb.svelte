@@ -38,7 +38,7 @@
       style:margin={iconMargin}
       class:withoutIconBackground
     >
-      <Icon {icon} size={'small'} {iconProps} />
+      <Icon {icon} size="small" {iconProps} />
     </div>
   {/if}
   <span

@@ -63,7 +63,7 @@
     <slot name="item" />
   {:else}
     {#if icon}
-      <div class="icon"><Icon {icon} {iconProps} size={'small'} /></div>
+      <div class="icon"><Icon {icon} {iconProps} size="small" /></div>
     {/if}
     <span class="overflow-label pr-1">
       {#if label}<Label {label} params={labelProps} />

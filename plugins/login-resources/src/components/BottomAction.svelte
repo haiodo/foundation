@@ -40,7 +40,7 @@
       }}><Label label={action.i18n} /></NavLink
     >
   {:else}
-    <a href="." on:click|preventDefault={action.func}><Label label={action.i18n} className={'login-label-link'} /></a>
+    <a href="." on:click|preventDefault={action.func}><Label label={action.i18n} className="login-label-link" /></a>
   {/if}
 </div>
 

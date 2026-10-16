@@ -42,10 +42,10 @@
         if (expandable) expanded = !expanded
       }}
     >
-      <Chevron {expanded} marginRight={'.5rem'} fill={!showChevron ? 'transparent' : undefined} />
+      <Chevron {expanded} marginRight=".5rem" fill={!showChevron ? 'transparent' : undefined} />
       {#if icon}
         <div class="min-w-4 mr-2">
-          <Icon {icon} size={'small'} />
+          <Icon {icon} size="small" />
         </div>
       {/if}
       <span class="fs-title overflow-label" class:content-color={contentColor}>

@@ -73,9 +73,9 @@
         bind:loading
         viewletQuery={{ _id: hr.viewlet.TableMember }}
       />
-      <ViewletSettingButton kind={'tertiary'} bind:viewlet />
+      <ViewletSettingButton kind="tertiary" bind:viewlet />
       {#if !readonly}
-        <Button id={hr.string.AddMember} icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id={hr.string.AddMember} icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </svelte:fragment>

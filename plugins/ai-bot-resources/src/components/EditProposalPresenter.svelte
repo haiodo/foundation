@@ -154,16 +154,16 @@
         {#if hasBody}
           <Button
             label={showDiff ? plugin.string.HideDiff : plugin.string.PreviewDiff}
-            kind={'ghost'}
+            kind="ghost"
             on:click={toggleDiff}
           />
         {/if}
         {#if value.applied === true}
-          <Button label={plugin.string.EditApplied} kind={'ghost'} disabled />
+          <Button label={plugin.string.EditApplied} kind="ghost" disabled />
         {:else if canApply}
-          <Button label={plugin.string.ApplyEdit} kind={'primary'} on:click={apply} />
+          <Button label={plugin.string.ApplyEdit} kind="primary" on:click={apply} />
         {:else}
-          <Button label={plugin.string.OpenDocument} kind={'primary'} on:click={openDocument} />
+          <Button label={plugin.string.OpenDocument} kind="primary" on:click={openDocument} />
         {/if}
       </div>
     </div>

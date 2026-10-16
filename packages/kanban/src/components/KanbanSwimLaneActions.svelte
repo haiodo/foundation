@@ -42,10 +42,10 @@
 
 {#if controls != null}
   <Switcher
-    name={'kanbanSwimLaneActions'}
+    name="kanbanSwimLaneActions"
     {items}
-    selected={''}
-    kind={'subtle'}
+    selected=""
+    kind="subtle"
     onlyIcons
     on:select={(e) => {
       if (e.detail?.action != null) e.detail.action()

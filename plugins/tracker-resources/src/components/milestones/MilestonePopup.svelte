@@ -46,7 +46,7 @@
   {selected}
   {ignoreObjects}
   bind:docQuery={milestoneQuery}
-  searchField={'label'}
+  searchField="label"
   multiSelect={false}
   {allowDeselect}
   {closeAfterSelect}
@@ -55,7 +55,7 @@
   create={_create}
   on:update
   on:close
-  groupBy={'status'}
+  groupBy="status"
 >
   <svelte:fragment slot="item" let:item={milestone}>
     <MilestoneTitlePresenter value={milestone} />
@@ -65,7 +65,7 @@
     {@const status = milestoneStatusAssets[getStatus(milestone)]}
     {#if status}
       <div class="flex-row-center p-1">
-        <Icon icon={status.icon} size={'small'} />
+        <Icon icon={status.icon} size="small" />
         <div class="ml-2">
           <Label label={status.label} />
         </div>

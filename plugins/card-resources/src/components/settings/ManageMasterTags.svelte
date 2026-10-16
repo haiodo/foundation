@@ -87,7 +87,7 @@
     </div>
     {#if tag._id === selectedTagId}
       <div class="hulyTaskNavLink-icon right">
-        <IconOpenedArrow size={'small'} />
+        <IconOpenedArrow size="small" />
       </div>
     {/if}
   </button>

@@ -69,7 +69,7 @@
   <div class="fs-title flex-row-center">
     <Label label={recruit.string.Applications} />
     <div class="ml-2">
-      <Button label={recruit.string.OpenVacancyList} on:click={openList} size={'small'} kind={'link-bordered'} />
+      <Button label={recruit.string.OpenVacancyList} on:click={openList} size="small" kind="link-bordered" />
     </div>
   </div>
   <div class="flex-row-center">

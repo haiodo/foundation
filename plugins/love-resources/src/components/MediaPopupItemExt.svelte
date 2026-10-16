@@ -58,7 +58,7 @@
               >
                 <Avatar
                   name={$personByRefStore.get(participant.person)?.name ?? participant.name}
-                  size={'x-small'}
+                  size="x-small"
                   person={$personByRefStore.get(participant.person)}
                 />
               </div>
@@ -69,7 +69,7 @@
             {#each participants as participant (participant._id)}
               <Avatar
                 name={$personByRefStore.get(participant.person)?.name ?? participant.name}
-                size={'x-small'}
+                size="x-small"
                 person={$personByRefStore.get(participant.person)}
               />
             {/each}
@@ -82,20 +82,20 @@
             <Button
               icon={love.icon.LeaveRoom}
               kind={$screenSharingState === ScreenSharingState.Local ? 'regular' : 'dangerous'}
-              size={'x-small'}
+              size="x-small"
               label={view.string.Leave}
               showTooltip={{ label: love.string.LeaveRoom }}
-              padding={'0 .5rem'}
+              padding="0 .5rem"
               on:click={handleLeaveClick}
             />
           {:else if isMyOffice || ending}
             <Button
               icon={love.icon.LeaveRoom}
               kind={$screenSharingState === ScreenSharingState.Local ? 'regular' : 'dangerous'}
-              size={'x-small'}
+              size="x-small"
               label={love.string.EndMeeting}
               showTooltip={{ label: love.string.EndMeeting }}
-              padding={'0 .5rem'}
+              padding="0 .5rem"
               on:click={handleEndMeetingClick}
             />
           {/if}
@@ -103,10 +103,10 @@
             <Button
               icon={love.icon.SharingEnabled}
               kind="dangerous"
-              size={'x-small'}
+              size="x-small"
               label={love.string.StopShare}
               showTooltip={{ label: love.string.StopShare }}
-              padding={'0 .5rem'}
+              padding="0 .5rem"
               on:click={stopShare}
             />
           {/if}

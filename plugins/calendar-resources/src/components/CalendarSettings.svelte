@@ -82,11 +82,11 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={calendar.icon.Calendar} label={setting.string.Settings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={calendar.icon.Calendar} label={setting.string.Settings} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
-    <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+    <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
       <div class="hulyComponent-content">
         <div class="flex-col-center">
           <div class="flex-row-center flex-gap-2 mb-8 fs-title">
@@ -114,8 +114,8 @@
                 {/if}
                 <VisibilityEditor
                   value={_calendar.visibility}
-                  kind={'inline'}
-                  size={'small'}
+                  kind="inline"
+                  size="small"
                   on:change={(res) => changeVisibility(_calendar, res.detail)}
                 />
                 <Toggle

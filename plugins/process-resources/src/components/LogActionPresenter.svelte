@@ -21,7 +21,7 @@
 </script>
 
 {#if value === ExecutionLogAction.Started}
-  <Icon icon={process.icon.Start} size={'small'} />
+  <Icon icon={process.icon.Start} size="small" />
 {:else if value === ExecutionLogAction.Rollback}
-  <Icon icon={view.icon.Undo} size={'small'} />
+  <Icon icon={view.icon.Undo} size="small" />
 {/if}

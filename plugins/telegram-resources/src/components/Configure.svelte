@@ -349,7 +349,7 @@
     <div class="actions-container">
       <Button
         icon={IconMoreV}
-        kind={'regular'}
+        kind="regular"
         disabled={filteredChannels.length === 0 || isLoading}
         on:click={showActionsPopup}
       />
@@ -361,7 +361,7 @@
           on:change={handleFilterChange}
           size="medium"
           disabled={isLoading}
-          kind={'regular'}
+          kind="regular"
         />
         <SearchInput bind:value={searchQuery} collapsed />
       </div>
@@ -379,7 +379,7 @@
         </div>
       {:else if error}
         <div class="error-container" transition:fade={{ duration: 300 }}>
-          <IconError size={'medium'} />
+          <IconError size="medium" />
           <span class="text-normal font-medium">
             <Label label={telegram.string.ServiceIsUnavailable} />
           </span>
@@ -431,7 +431,7 @@
                 <div class="channel-info content-color" on:contextmenu={handleRightClick}>
                   <div class="channel-name">
                     {#if icon !== undefined}
-                      <Icon {icon} size={'small'} />
+                      <Icon {icon} size="small" />
                     {/if}
                     <span class="text-normal font-medium">{item.name}</span>
                   </div>
@@ -455,9 +455,9 @@
                       _class: { $in: [card.class.CardSpace, contact.class.PersonSpace] }
                     }}
                     label={core.string.Space}
-                    kind={'regular'}
-                    size={'medium'}
-                    justify={'left'}
+                    kind="regular"
+                    size="medium"
+                    justify="left"
                     autoSelect={false}
                     readonly={readonly || !item.syncEnabled || item.readonlyAccess}
                     space={item.space}

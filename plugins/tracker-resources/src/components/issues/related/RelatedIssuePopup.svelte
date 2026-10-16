@@ -175,8 +175,8 @@
     <div class="header">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         {placeholder}
@@ -206,12 +206,12 @@
               {#if hasSelected}
                 <div class="check">
                   {#if item.isSelected}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               {/if}
               {#if item.id === selected && loading}
-                <Spinner size={'small'} />
+                <Spinner size="small" />
               {/if}
             </div>
           </button>

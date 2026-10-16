@@ -305,8 +305,8 @@
   <div class="compact-bar">
     <ModernButton
       icon={persons.length === 0 ? contact.icon.Person : undefined}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       iconSize="small"
       shape={persons.length === 0 ? 'round' : undefined}
       tooltip={{ label: chunter.string.SearchFilterAuthor }}
@@ -315,10 +315,10 @@
       {#if persons.length > 0}
         <span class="authors">
           {#if persons.length === 1}
-            <Avatar person={persons[0]} name={persons[0].name} size={'tiny'} />
+            <Avatar person={persons[0]} name={persons[0].name} size="tiny" />
             <span class="overflow-label">{formatName(persons[0].name)}</span>
           {:else}
-            <CombineAvatars _class={contact.mixin.Employee} items={pickedPersons} size={'tiny'} hideLimit />
+            <CombineAvatars _class={contact.mixin.Employee} items={pickedPersons} size="tiny" hideLimit />
             <span class="overflow-label">
               <Label label={contact.string.NumberMembers} params={{ count: persons.length }} />
             </span>
@@ -337,9 +337,9 @@
         multiselect
         autoSelect={false}
         label={chunter.string.SearchFilterObjectClass}
-        kind={'secondary'}
-        size={'small'}
-        categoryKind={'heading'}
+        kind="secondary"
+        size="small"
+        categoryKind="heading"
         on:selected={(e) => {
           handleClassesSelected(e.detail)
         }}
@@ -358,18 +358,18 @@
       <ModernButton
         icon={persons.length === 0 ? contact.icon.Person : undefined}
         label={persons.length === 0 ? chunter.string.SearchFilterAuthor : undefined}
-        kind={'secondary'}
-        size={'small'}
+        kind="secondary"
+        size="small"
         iconSize="small"
         on:click={pickAuthors}
       >
         {#if persons.length > 0}
           <span class="authors">
             {#if persons.length === 1}
-              <Avatar person={persons[0]} name={persons[0].name} size={'tiny'} />
+              <Avatar person={persons[0]} name={persons[0].name} size="tiny" />
               <span class="overflow-label">{formatName(persons[0].name)}</span>
             {:else}
-              <CombineAvatars _class={contact.mixin.Employee} items={pickedPersons} size={'tiny'} hideLimit />
+              <CombineAvatars _class={contact.mixin.Employee} items={pickedPersons} size="tiny" hideLimit />
               <span class="overflow-label">
                 <Label label={contact.string.NumberMembers} params={{ count: persons.length }} />
               </span>
@@ -382,15 +382,15 @@
         <ModernButton
           icon={objectsIcon}
           label={objects.length === 0 ? chunter.string.SearchFilterObject : undefined}
-          kind={'secondary'}
-          size={'small'}
+          kind="secondary"
+          size="small"
           iconSize="small"
           on:click={openObjects}
         >
           {#if objects.length > 0}
             {#if objectPersons !== undefined}
               <span class="authors">
-                <CombineAvatars _class={contact.class.Person} items={objectPersons} size={'tiny'} hideLimit />
+                <CombineAvatars _class={contact.class.Person} items={objectPersons} size="tiny" hideLimit />
                 <FilterButtonContent title={objects[0].title} count={objects.length} />
               </span>
             {:else}
@@ -407,16 +407,16 @@
             ? chunter.string.SearchFilterDate
             : undefined}
           title={filters.after !== undefined || filters.before !== undefined ? dateText : undefined}
-          kind={'secondary'}
-          size={'small'}
+          kind="secondary"
+          size="small"
           iconSize="small"
           on:click={pickDate}
         />
         {#if filters.after !== undefined || filters.before !== undefined}
           <ModernButton
             icon={IconClose}
-            kind={'tertiary'}
-            size={'small'}
+            kind="tertiary"
+            size="small"
             iconSize="small"
             tooltip={{ label: chunter.string.SearchFilterClear }}
             on:click={() => {
@@ -430,8 +430,8 @@
         <ModernButton
           icon={IconAttachment}
           label={chunter.string.SearchFilterOptions}
-          kind={'secondary'}
-          size={'small'}
+          kind="secondary"
+          size="small"
           iconSize="small"
           on:click={openOptions}
         >

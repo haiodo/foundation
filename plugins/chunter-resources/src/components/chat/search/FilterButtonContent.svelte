@@ -27,9 +27,9 @@
 
 <span class="content flex-row-center flex-gap-1 overflow-label">
   {#if doc !== undefined}
-    <SearchObjectIcon {doc} avatarSize={'tiny'} />
+    <SearchObjectIcon {doc} avatarSize="tiny" />
   {:else if icon !== undefined}
-    <Icon {icon} size={'small'} />
+    <Icon {icon} size="small" />
   {/if}
   <span class="title overflow-label">{title}</span>
   {#if count > 1}

@@ -85,7 +85,7 @@
       {/if}
     </div>
     <div class="flex-row-center">
-      <EditBox bind:value={code} placeholder={codeLabel} kind={'large-style'} autoFocus />
+      <EditBox bind:value={code} placeholder={codeLabel} kind="large-style" autoFocus />
       <div class="ml-4">
         <Button label={sendLabel} disabled={sending || retryLeft > 0} on:click={sendCode} />
       </div>

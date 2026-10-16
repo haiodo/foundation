@@ -140,7 +140,7 @@
   >
     {#if isFold && !empty}
       <button class="hulyNavGroup-header__chevron" class:collapsed={!isOpen} on:click={toggle}>
-        <IconDown size={'small'} />
+        <IconDown size="small" />
       </button>
     {/if}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -159,7 +159,7 @@
         {#if title}{title}{/if}
       </span>
       {#if actions.length > 0}
-        <IconDownOutline size={'tiny'} />
+        <IconDownOutline size="tiny" />
       {/if}
     </div>
     {#if $$slots.afterTitle}<slot name="afterTitle" />{/if}
@@ -188,7 +188,7 @@
       <slot name="after" {isOpen} />
     {/if}
     {#if selected && type === 'nested-selectable'}
-      <div class="hulyNavGroup-header__arrow"><IconOpenedArrow size={'small'} /></div>
+      <div class="hulyNavGroup-header__arrow"><IconOpenedArrow size="small" /></div>
     {/if}
   </button>
   {#if !empty}

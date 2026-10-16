@@ -195,10 +195,10 @@
       }}
     />
     <Separator
-      name={'schedule'}
+      name="schedule"
       float={$deviceInfo.navigator.float}
       index={0}
-      color={'transparent'}
+      color="transparent"
       separatorSize={0}
       short
     />
@@ -206,16 +206,16 @@
 
   <div class="hulyComponent" bind:this={replacedPanel}>
     <Header
-      adaptive={'disabled'}
+      adaptive="disabled"
       hideBefore={mode === CalendarMode.Year}
       hideActions={!(mode === CalendarMode.Month && display === 'stats')}
     >
       <svelte:fragment slot="beforeTitle">
         {#if mode === CalendarMode.Month}
           <Switcher
-            name={'schedule-mode-view'}
+            name="schedule-mode-view"
             items={viewslist}
-            kind={'subtle'}
+            kind="subtle"
             selected={display}
             on:select={(result) => {
               if (result.detail !== undefined) display = result.detail.id
@@ -234,7 +234,7 @@
         {/if}
       </svelte:fragment>
 
-      <Breadcrumb icon={hr.icon.HR} label={hr.string.Schedule} size={'large'} isCurrent />
+      <Breadcrumb icon={hr.icon.HR} label={hr.string.Schedule} size="large" isCurrent />
 
       <svelte:fragment slot="search">
         <SearchInput
@@ -249,7 +249,7 @@
         {#if mode === CalendarMode.Month && display === 'stats'}
           <ModernButton
             label={hr.string.Export}
-            size={'small'}
+            size="small"
             on:click={(evt) => {
               exportTable(evt)
             }}
@@ -261,22 +261,22 @@
       <div class="flex-row-center flex-gap-2">
         <ButtonIcon
           icon={IconBack}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => {
             inc(-1)
           }}
         />
         <ModernButton
           label={calendar.string.Today}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => (currentDate = new Date())}
         />
         <ButtonIcon
           icon={IconForward}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => {
             inc(1)
           }}
@@ -290,9 +290,9 @@
         </div>
       </div>
       <Switcher
-        name={'calendar-mode-view'}
+        name="calendar-mode-view"
         selected={mode === CalendarMode.Month ? 'ModeMonth' : 'ModeYear'}
-        kind={'subtle'}
+        kind="subtle"
         items={[
           { id: 'ModeMonth', labelIntl: calendar.string.ModeMonth },
           { id: 'ModeYear', labelIntl: calendar.string.ModeYear }

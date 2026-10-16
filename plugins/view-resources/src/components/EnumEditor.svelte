@@ -54,7 +54,7 @@
   {items}
   {label}
   useFlexGrow={true}
-  justify={'left'}
+  justify="left"
   {size}
   {kind}
   {width}

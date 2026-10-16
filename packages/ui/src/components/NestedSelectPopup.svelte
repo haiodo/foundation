@@ -84,7 +84,7 @@
 >
   {#if isTopLevel}
     <div class="header">
-      <EditWithIcon icon={IconSearch} size={'large'} width={'100%'} bind:value={search} {placeholder} autoFocus />
+      <EditWithIcon icon={IconSearch} size="large" width="100%" bind:value={search} {placeholder} autoFocus />
     </div>
   {:else}
     <div class="menu-space" />

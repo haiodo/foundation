@@ -81,8 +81,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={view.icon.AiStar} label={aiBot.string.AISettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={view.icon.AiStar} label={aiBot.string.AISettings} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column navigation py-2">
@@ -105,7 +105,7 @@
       </Scroller>
     </div>
 
-    <Separator name="aiSettings" index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="aiSettings" index={0} color="var(--theme-divider-color)" />
 
     <div class="hulyComponent-content__column content">
       <Component is={currentGroup.component} props={currentGroup.props ?? {}} />

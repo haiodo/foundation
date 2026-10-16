@@ -164,8 +164,8 @@
                     {#if isAdminUser()}
                       <Button
                         label={getEmbeddedLabel('Force close')}
-                        size={'small'}
-                        kind={'ghost'}
+                        size="small"
+                        kind="ghost"
                         on:click={() => {
                           forceClose(act.wsId)
                         }}

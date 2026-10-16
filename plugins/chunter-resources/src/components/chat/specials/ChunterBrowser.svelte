@@ -100,7 +100,7 @@
   }
 </script>
 
-<Header adaptive={'disabled'} withSearch={false} hideTitle bind:realWidth={headerWidth}>
+<Header adaptive="disabled" withSearch={false} hideTitle bind:realWidth={headerWidth}>
   <svelte:fragment slot="search">
     <div class="header-search page-search">
       <SearchInputBox bind:value={query} label={chunter.string.SearchPlaceholder} autoFocus kind="default" />
@@ -108,8 +108,8 @@
   </svelte:fragment>
   <svelte:fragment slot="actions">
     <Switcher
-      name={'browser_group'}
-      kind={'subtle'}
+      name="browser_group"
+      kind="subtle"
       onlyIcons={compactTabs}
       selected={searchType}
       items={tabs}

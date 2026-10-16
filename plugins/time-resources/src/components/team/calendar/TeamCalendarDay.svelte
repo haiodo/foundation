@@ -111,7 +111,7 @@
     {@const totalSlots = toSlots(getAllEvents(slots, dayFrom, dayTo))}
     {@const totalEvents = getAllEvents(events, dayFrom, dayTo)}
     {@const hourWidths = calcHourWidth([...totalSlots, ...totalEvents], width)}
-    <div class="flex-nowrap w-full p-1" style:display={'inline-flex'}>
+    <div class="flex-nowrap w-full p-1" style:display="inline-flex">
       {#each Array.from(Array(25).keys()) as hour}
         {@const width = hourWidths[hour]}
         <div class="flex-row-center" style:width="{width}rem">
@@ -152,9 +152,9 @@
         ...gitem.busy.slots,
         ...gitem.busySlots
       ].sort((a, b) => a.date - b.date)}
-      <div style:overflow-x={'hidden'} style:overflow-y={'auto'} style:height="{height}rem">
+      <div style:overflow-x="hidden" style:overflow-y="auto" style:height="{height}rem">
         <div class="flex flex-row-center">
-          <div class="flex-nowrap p-1 w-full" style:display={'inline-flex'}>
+          <div class="flex-nowrap p-1 w-full" style:display="inline-flex">
             {#each Array.from(Array(24).keys()) as hour}
               {@const _slots = slots
                 .filter((it) => new Date(it.date).getHours() === hour)

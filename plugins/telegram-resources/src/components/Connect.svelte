@@ -248,7 +248,7 @@
         close()
       }}
     >
-      <IconClose size={'small'} />
+      <IconClose size="small" />
     </div>
   </div>
 
@@ -280,7 +280,7 @@
       <Label label={telegram.string.IntegrationConnected} params={{ phone: state.hint }} />
     {:else if state.mode === 'Error'}
       <div class="flex-row-top flex-gap-1 gap-3 pt-2">
-        <IconError size={'medium'} />
+        <IconError size="medium" />
         {#if state.errorLabel !== undefined}
           <Label label={state.errorLabel} />
         {:else}
@@ -293,7 +293,7 @@
       {#if state.buttons?.primary}
         <Button
           label={state.buttons.primary.label}
-          kind={'primary'}
+          kind="primary"
           loading={isLoading}
           disabled={state.buttons.primary.disabled}
           on:click={state.buttons.primary.handler}

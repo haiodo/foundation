@@ -169,7 +169,7 @@
       bind:value={title}
       placeholder={calendar.string.EventTitlePlaceholder}
       disabled={readOnly}
-      kind={'ghost-large'}
+      kind="ghost-large"
       fullSize
       focusable
       autoFocus
@@ -180,8 +180,8 @@
         id="card-close"
         focusIndex={10003}
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -215,13 +215,13 @@
     </div>
     <div class="block description">
       <div class="top-icon" class:disabled={readOnly}>
-        <Icon icon={calendar.icon.Description} size={'small'} />
+        <Icon icon={calendar.icon.Description} size="small" />
       </div>
       <StyledTextBox
         alwaysEdit={true}
         isScrollable={false}
         focusIndex={10007}
-        kind={'indented'}
+        kind="indented"
         showButtons={false}
         readonly={readOnly}
         placeholder={calendar.string.Description}
@@ -232,7 +232,7 @@
     <div class="block rightCropPadding">
       <CalendarSelector bind:value={_calendar} focusIndex={10008} />
       <div class="flex-row-center flex-gap-1">
-        <Icon icon={calendar.icon.Hidden} size={'small'} />
+        <Icon icon={calendar.icon.Hidden} size="small" />
         <VisibilityEditor bind:value={visibility} kind="inline" disabled={readOnly} withoutIcon focusIndex={10009} />
       </div>
       <EventReminders bind:reminders focusIndex={10010} disabled={readOnly} />

@@ -98,7 +98,7 @@
 >
   <div class="antiSection-empty attachments flex-col mt-3" class:solid={dragover}>
     <div class="flex-center caption-color">
-      <UploadDuo size={'large'} />
+      <UploadDuo size="large" />
     </div>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->

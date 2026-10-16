@@ -44,6 +44,6 @@
   }
 </script>
 
-<Card okAction={handleSave} label={core.string.Role} on:close width={'menu'} canSave={value.trim().length > 0}>
+<Card okAction={handleSave} label={core.string.Role} on:close width="menu" canSave={value.trim().length > 0}>
   <EditBox bind:value placeholder={core.string.Role} />
 </Card>

@@ -74,7 +74,7 @@
       <TableBrowser
         _class={tracker.class.TimeSpendReport}
         query={{ employee: person, date: { $gte: ld, $lte: rd } }}
-        preferredSorting={'date'}
+        preferredSorting="date"
         preferredSortingOrder={SortingOrder.Ascending}
         config={[
           '$lookup.attachedTo',
@@ -93,6 +93,6 @@
     </Scroller>
   </div>
   <svelte:fragment slot="buttons">
-    <Button id="PersonReportsPopupAddButton" icon={IconAdd} size={'large'} on:click={addReport} />
+    <Button id="PersonReportsPopupAddButton" icon={IconAdd} size="large" on:click={addReport} />
   </svelte:fragment>
 </Card>

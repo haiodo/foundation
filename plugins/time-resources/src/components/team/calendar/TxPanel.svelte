@@ -51,7 +51,7 @@
   $: void group(tx)
 </script>
 
-<div use:resizeObserver={() => dispatch('changeContent')} class="p-1" style:overflow={'auto'}>
+<div use:resizeObserver={() => dispatch('changeContent')} class="p-1" style:overflow="auto">
   {#each objects as object}
     <div class="p-1">
       {#if object.itemPresenter && object.doc !== undefined}

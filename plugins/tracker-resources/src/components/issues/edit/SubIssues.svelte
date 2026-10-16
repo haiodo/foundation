@@ -90,7 +90,7 @@
       <div class="w-1 flex-no-shrink" />
       <Button
         icon={IconScaleFull}
-        kind={'ghost'}
+        kind="ghost"
         showTooltip={{ label: tracker.string.OpenSubIssues, direction: 'bottom' }}
         on:click={() => {
           const filter = createFilter(tracker.class.Issue, 'attachedTo', [issue._id])
@@ -113,7 +113,7 @@
     {#if !$restrictionStore.readonly}
       <Button
         icon={tracker.icon.Subissue}
-        kind={'ghost'}
+        kind="ghost"
         showTooltip={{ label: tracker.string.AddSubIssues, direction: 'bottom' }}
         bind:input={dropdownBtn}
         on:click={openAddMenu}

@@ -30,6 +30,6 @@
 
 {#if _value !== undefined && visible}
   <span class="label flex-row-center gap-1 ml-3">
-    <TaskTypeIcon value={_value} size={'small'} />
+    <TaskTypeIcon value={_value} size="small" />
   </span>
 {/if}

@@ -63,7 +63,7 @@
   <div class="ap-scroll">
     <div class="ap-box">
       <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <ListView bind:this={list} count={participants.length} kind={'thin'}>
+      <ListView bind:this={list} count={participants.length} kind="thin">
         <svelte:fragment slot="item" let:item>
           {@const doc = participants[item]}
           <div

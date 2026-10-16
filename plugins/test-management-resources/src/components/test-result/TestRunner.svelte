@@ -59,7 +59,7 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'default'}
+    adaptive="default"
     withoutActivity
     on:open
     on:close={() => dispatch('close')}
@@ -67,7 +67,7 @@
     <svelte:fragment slot="extra">
       <Button
         label={testManagement.string.GoToNextTest}
-        kind={'primary'}
+        kind="primary"
         icon={view.icon.ArrowRight}
         disabled={!hasNext}
         on:click={goToNextItem}

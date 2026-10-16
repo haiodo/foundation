@@ -69,7 +69,7 @@
 >
   <button bind:this={btn} class="button round-2" class:selected={value?.shift}>
     <div class="icon">
-      {#if show}<Close size={'small'} />{:else}<Calendar size={'medium'} />{/if}
+      {#if show}<Close size="small" />{:else}<Calendar size="medium" />{/if}
     </div>
   </button>
 

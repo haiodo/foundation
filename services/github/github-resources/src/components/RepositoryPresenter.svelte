@@ -45,7 +45,7 @@
     <div class="flex-row-center">
       {#if shouldShowAvatar}
         <div class="icon ml-2">
-          <Icon icon={github.icon.Github} size={'small'} />
+          <Icon icon={github.icon.Github} size="small" />
         </div>
       {/if}
       <span title={label} class="nowrap" class:no-underline={disabled || noUnderline} class:fs-bold={accent}>

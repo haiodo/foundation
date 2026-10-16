@@ -206,7 +206,7 @@
   >
     <svelte:fragment slot="title">
       <div class="antiTitle icon-wrapper ml-2">
-        <div class="wrapped-icon"><Icon icon={TelegramIcon} size={'small'} /></div>
+        <div class="wrapped-icon"><Icon icon={TelegramIcon} size="small" /></div>
         <div class="title-wrapper mr-2">
           <div class="wrapped-title flex-row-center">Telegram</div>
         </div>
@@ -215,7 +215,7 @@
             class="ml-2"
             use:tooltip={{ label: getEmbeddedLabel(getContactName(client.getHierarchy(), participant)) }}
           >
-            <Avatar size={'small'} person={participant} name={participant.name} />
+            <Avatar size="small" person={participant} name={participant.name} />
           </div>
         {/each}
       </div>
@@ -224,7 +224,7 @@
       {#if integration === undefined}
         <Button
           label={telegram.string.Connect}
-          kind={'primary'}
+          kind="primary"
           on:click={(e) => {
             showPopup(Connect, {}, eventToHTMLElement(e), onConnectClose)
           }}
@@ -232,7 +232,7 @@
       {:else if integration.disabled}
         <Button
           label={setting.string.Reconnect}
-          kind={'primary'}
+          kind="primary"
           on:click={(e) => {
             showPopup(Reconnect, {}, eventToHTMLElement(e), onReconnect)
           }}
@@ -240,8 +240,8 @@
       {/if}
       <Button
         icon={IconShare}
-        kind={'ghost'}
-        size={'medium'}
+        kind="ghost"
+        size="medium"
         showTooltip={{ label: telegram.string.Share }}
         on:click={async () => {
           selectable = !selectable
@@ -262,13 +262,13 @@
           <span>{selected.size} <Label label={telegram.string.MessagesSelected} /></span>
           <div class="flex">
             <div>
-              <Button label={telegram.string.Cancel} size={'medium'} on:click={clear} />
+              <Button label={telegram.string.Cancel} size="medium" on:click={clear} />
             </div>
             <div class="ml-3">
               <Button
                 label={telegram.string.PublishSelected}
-                size={'medium'}
-                kind={'primary'}
+                size="medium"
+                kind="primary"
                 disabled={!selected.size}
                 on:click={share}
               />

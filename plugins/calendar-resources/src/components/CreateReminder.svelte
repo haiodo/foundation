@@ -73,16 +73,16 @@
   }}
   on:changeContent
 >
-  <EditBox bind:value={_title} placeholder={calendar.string.Title} kind={'large-style'} autoFocus />
+  <EditBox bind:value={_title} placeholder={calendar.string.Title} kind="large-style" autoFocus />
   <svelte:fragment slot="pool">
     <DateRangePresenter
       bind:value
       mode={DateRangeMode.DATETIME}
       editable={true}
       labelNull={ui.string.SelectDate}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
-    <UserBoxList bind:items={participants} label={calendar.string.Participants} kind={'regular'} size={'large'} />
+    <UserBoxList bind:items={participants} label={calendar.string.Participants} kind="regular" size="large" />
   </svelte:fragment>
 </Card>

@@ -160,7 +160,7 @@
 {#if displayTitle}
   <span
     class:highlighted={hit}
-    data-type={'reference'}
+    data-type="reference"
     data-id={doc?._id}
     data-objectclass={doc?._class}
     data-label={displayTitle}
@@ -179,9 +179,9 @@
     >
       {#if icon}{#if icon === view.ids.IconWithEmoji}<IconWithEmoji
             icon={clazz?.color ?? 0}
-            size={'smaller'}
+            size="smaller"
             inline
-          />{:else}<Icon {icon} size="small" />{/if}{' '}{:else}@{/if}{displayTitle}
+          />{:else}<Icon {icon} size="small" />{/if}&#32;{:else}@{/if}{displayTitle}
     </DocNavLink>
   </span>
 {/if}

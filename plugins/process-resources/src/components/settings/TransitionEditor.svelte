@@ -196,13 +196,7 @@
                   </Button>
                 </svelte:fragment>
               </SortableList>
-              <Button
-                kind={'ghost'}
-                width={'100%'}
-                icon={IconAdd}
-                label={plugin.string.AddAction}
-                on:click={addAction}
-              />
+              <Button kind="ghost" width="100%" icon={IconAdd} label={plugin.string.AddAction} on:click={addAction} />
             </div>
           </div>
         </div>

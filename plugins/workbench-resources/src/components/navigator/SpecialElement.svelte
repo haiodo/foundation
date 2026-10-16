@@ -31,7 +31,7 @@
 <NavItem
   {icon}
   {iconProps}
-  iconSize={'small'}
+  iconSize="small"
   {label}
   count={notifications > 0 ? notifications : null}
   {selected}
@@ -44,8 +44,8 @@
       {#if action.icon}
         <ButtonIcon
           icon={action.icon}
-          kind={'tertiary'}
-          size={'extra-small'}
+          kind="tertiary"
+          size="extra-small"
           tooltip={{ label: action.label }}
           on:click={async (evt) => {
             await action.action({}, evt)

@@ -51,7 +51,7 @@
 
 <div class="msgbox-container w-full select-text">
   <div class="overflow-label fs-title mb-4"></div>
-  <div class="message no-word-wrap" style:overflow={'auto'}>
+  <div class="message no-word-wrap" style:overflow="auto">
     {#each Object.entries(params) as kv}
       <div class="flex-row-center">
         {kv[0]}: {typeof kv[1] === 'object' ? JSON.stringify(kv[1]) : kv[1]}
@@ -78,8 +78,8 @@
       focus
       focusIndex={1}
       label={presentation.string.Ok}
-      size={'large'}
-      kind={'primary'}
+      size="large"
+      kind="primary"
       on:click={() => {
         dispatch('close', true)
       }}

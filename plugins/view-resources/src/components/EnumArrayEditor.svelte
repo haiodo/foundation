@@ -53,10 +53,10 @@
   {items}
   {label}
   useFlexGrow={true}
-  justify={'left'}
+  justify="left"
   {kind}
   {size}
-  width={'100%'}
+  width="100%"
   multiselect
   disabled={readonly}
   autoSelect={false}

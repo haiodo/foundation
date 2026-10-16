@@ -866,7 +866,7 @@
               }}
             >
               <div class="swimlane-toggle">
-                <svelte:component this={isCollapsed ? IconChevronRight : IconChevronDown} size={'small'} />
+                <svelte:component this={isCollapsed ? IconChevronRight : IconChevronDown} size="small" />
               </div>
               {#if $$slots.swimLaneHeader !== undefined}
                 <slot
@@ -992,7 +992,7 @@
                 <slot name="header" state={toAny(state)} count={stateObjects.length} index={si} />
               {/key}
             {/if}
-            <Scroller padding={'.25rem .5rem'} on:dragover on:drop>
+            <Scroller padding=".25rem .5rem" on:dragover on:drop>
               <slot name="beforeCard" {state} />
               <KanbanRow
                 bind:this={stateRows[si]}

@@ -65,7 +65,7 @@
   <ModeSelector bind:selectedMode {modes} {readonly} on:change={changeMode} />
   <DropdownLabels
     useFlexGrow
-    width={'100%'}
+    width="100%"
     multiselect={true}
     items={states.map((state) => ({ id: state._id, label: state.title }))}
     {selected}

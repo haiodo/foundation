@@ -319,7 +319,7 @@
       }}
       on:blur={() => (selected = null)}
     >
-      <Icon icon={IconClose} size={'x-small'} />
+      <Icon icon={IconClose} size="x-small" />
     </div>
   {/if}
 </div>

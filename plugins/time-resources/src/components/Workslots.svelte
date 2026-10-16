@@ -67,7 +67,7 @@
 
 <svelte:window on:keydown={handleKeyDown} />
 
-<Scroller gap={'flex-gap-1'} horizontal>
+<Scroller gap="flex-gap-1" horizontal>
   {#each slots as slot, i}
     <div class="flex-between flex-no-shrink flex-gap-2 min-w-full w-max slot">
       <Hotkey key={(i + 1).toString()} />
@@ -84,7 +84,7 @@
         kind="tertiary"
         size="small"
         icon={IconDelete}
-        dataId={'btnDelete'}
+        dataId="btnDelete"
         on:click={() => {
           dispatch('remove', { _id: slot._id })
         }}

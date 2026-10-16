@@ -49,7 +49,7 @@
 
 <Card
   on:close
-  width={'small'}
+  width="small"
   label={plugin.string.EnterValue}
   canSave={canSaveValue}
   okAction={save}

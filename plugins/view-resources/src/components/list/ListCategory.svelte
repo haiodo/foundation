@@ -583,7 +583,7 @@
                 <span class="caption-color"><Label label={ui.string.ShowMore} /></span>
                 {#if loading}
                   <div class="p-1">
-                    <Loading shrink size={'small'} />
+                    <Loading shrink size="small" />
                   </div>
                 {:else}
                   <span class="content-halfcontent-color ml-0-5">({HLimited} / {itemProj.length})</span>

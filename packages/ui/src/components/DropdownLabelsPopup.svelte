@@ -102,8 +102,8 @@
     <div class="header">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         {placeholder}
@@ -168,13 +168,13 @@
                 <div
                   style="margin-right: 0.75rem; display: flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; flex-shrink: 0;"
                 >
-                  <Icon icon={item.icon} size={'small'} iconProps={item.iconProps} />
+                  <Icon icon={item.icon} size="small" iconProps={item.iconProps} />
                 </div>
               {/if}
               <div class="label overflow-label flex-grow">{item.label}</div>
               <div class="check">
                 {#if isSelected(selected, item)}
-                  <Icon icon={IconCheck} size={'small'} />
+                  <Icon icon={IconCheck} size="small" />
                 {/if}
               </div>
             </button>

@@ -98,14 +98,14 @@
         { id: '15mins', label: '15 mins' }
       ]}
       bind:selected={timeMode}
-      kind={'regular'}
-      size={'medium'}
+      kind="regular"
+      size="medium"
       showDropdownIcon
     />
   {/if}
-  <DropdownLabelsIntl items={modeItems} bind:selected={mode} kind={'regular'} size={'medium'} />
+  <DropdownLabelsIntl items={modeItems} bind:selected={mode} kind="regular" size="medium" />
   {#if mode === 'week' || mode === 'month'}
-    <ButtonIcon icon={IconSettings} size={'small'} kind={'tertiary'} on:click={showExtras} />
+    <ButtonIcon icon={IconSettings} size="small" kind="tertiary" on:click={showExtras} />
   {/if}
   <div class="hulyHeader-divider short" />
 </Header>

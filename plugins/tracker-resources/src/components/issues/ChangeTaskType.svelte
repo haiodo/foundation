@@ -123,9 +123,9 @@
 
 <Modal
   label={tracker.string.ChangeTaskType}
-  type={'type-popup'}
-  width={'small'}
-  padding={'0 var(--spacing-3) var(--spacing-2)'}
+  type="type-popup"
+  width="small"
+  padding="0 var(--spacing-3) var(--spacing-2)"
   okLabel={presentation.string.Change}
   okAction={changeType}
   {canSave}
@@ -134,13 +134,13 @@
   noTopIndent
   on:changeContent
 >
-  <div class="hulyModal-content__settingsSet" style:padding={'0'}>
+  <div class="hulyModal-content__settingsSet" style:padding="0">
     <div class="hulyModal-content__settingsSet-line no-top-border">
       <span class="label"><Label label={tracker.string.NewTaskType} /></span>
       {#if preselected}
         <div class="transition">
           <span class="transition__from"><TaskTypePresenter value={currentType} /></span>
-          <span class="transition__arrow"><Icon icon={IconForward} size={'small'} /></span>
+          <span class="transition__arrow"><Icon icon={IconForward} size="small" /></span>
           <span class="transition__to"><TaskTypePresenter value={targetType} /></span>
         </div>
       {:else}
@@ -148,24 +148,24 @@
           items={typeItems}
           bind:selected={kind}
           autoSelect={false}
-          size={'medium'}
-          justify={'left'}
-          width={'12rem'}
+          size="medium"
+          justify="left"
+          width="12rem"
           showDropdownIcon
         />
       {/if}
     </div>
 
-    <div class="hulyModal-content__settingsSet-line" style:border-bottom={'none'}>
+    <div class="hulyModal-content__settingsSet-line" style:border-bottom="none">
       <span class="label"><Label label={tracker.string.SelectNewStatus} /></span>
       <ModernDropdown
         items={statusItems}
         bind:selected={status}
         placeholder={ui.string.NotSelected}
         autoSelect={false}
-        size={'medium'}
-        justify={'left'}
-        width={'12rem'}
+        size="medium"
+        justify="left"
+        width="12rem"
         showDropdownIcon
       />
     </div>
@@ -173,7 +173,7 @@
     {#if lost.length > 0}
       <div class="lost">
         <div class="lost__note">
-          <Icon icon={IconInfo} size={'small'} />
+          <Icon icon={IconInfo} size="small" />
           <span>
             <Label label={tracker.string.LostAttributesHint} params={{ name: targetType?.name ?? '' }} />
           </span>

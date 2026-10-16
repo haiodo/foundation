@@ -106,7 +106,7 @@
     <TabList
       items={tabs}
       bind:selected={selectedTab}
-      kind={'plain'}
+      kind="plain"
       on:select={(result) => {
         selectedTab = result.detail.id
       }}
@@ -131,7 +131,7 @@
                     <HTMLViewer value={msg} />
                   {/await}
                   <div class="underline">
-                    <NavLink href={'https://github.com/settings/installations/'} noUnderline={false}>
+                    <NavLink href="https://github.com/settings/installations/" noUnderline={false}>
                       <b><Label label={github.string.Uninstall} /></b>
                     </NavLink>
                   </div>
@@ -146,7 +146,7 @@
   <svelte:fragment slot="footer">
     {#if selectedTab === 'personal'}
       {#if auth !== undefined && $ticker - (auth?.authRequestTime ?? 0) > 0 && auth.login === ''}
-        <div class="fs-title" style:color={'red'}>
+        <div class="fs-title" style:color="red">
           <Label label={github.string.PleaseRetry} />
         </div>
       {/if}
@@ -155,16 +155,16 @@
         labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
         {loading}
         on:click={() => onAuthorize()}
-        size={'large'}
-        kind={'primary'}
+        size="large"
+        kind="primary"
       />
     {:else if selectedTab === 'installations'}
       <Button
         label={integrations.length === 0 ? github.string.InstallApp : github.string.Configure}
         labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
         on:click={onConnect}
-        size={'large'}
-        kind={'primary'}
+        size="large"
+        kind="primary"
       />
     {/if}
   </svelte:fragment>

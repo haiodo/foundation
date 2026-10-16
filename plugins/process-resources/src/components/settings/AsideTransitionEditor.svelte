@@ -76,7 +76,7 @@
 
 <Modal
   label={plugin.string.Transition}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={true}
@@ -85,7 +85,7 @@
 >
   <svelte:fragment slot="actions">
     {#if !readonly}
-      <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} on:click={remove} />
+      <ButtonIcon icon={IconDelete} size="small" kind="tertiary" on:click={remove} />
     {/if}
   </svelte:fragment>
   <div class="content clear-mins">
@@ -102,9 +102,9 @@
             items={statesItems}
             selected={fromState}
             placeholder={plugin.string.From}
-            justify={'left'}
-            width={'100%'}
-            kind={'no-border'}
+            justify="left"
+            width="100%"
+            kind="no-border"
             on:selected={updateFrom}
           />
         {:else}
@@ -115,9 +115,9 @@
           items={statesItems}
           selected={toState}
           placeholder={plugin.string.To}
-          justify={'left'}
-          width={'100%'}
-          kind={'no-border'}
+          justify="left"
+          width="100%"
+          kind="no-border"
           on:selected={updateTo}
         />
         <Label label={plugin.string.Trigger} />
@@ -128,9 +128,9 @@
           on:selected={() => {
             params = {}
           }}
-          justify={'left'}
-          width={'100%'}
-          kind={'no-border'}
+          justify="left"
+          width="100%"
+          kind="no-border"
         />
       </div>
       {#if trigger.editor !== undefined}

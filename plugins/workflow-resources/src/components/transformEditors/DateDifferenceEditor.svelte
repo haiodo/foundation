@@ -38,7 +38,7 @@
   }
 </script>
 
-<Card on:close width={'small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="flex-row-center flex-gap-2">
     <DropdownLabelsIntl {items} bind:selected={unit} />
   </div>

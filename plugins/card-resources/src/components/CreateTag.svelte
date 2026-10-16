@@ -60,7 +60,7 @@
 >
   <svelte:fragment slot="header">
     <div class="flex-row-center">
-      <Icon icon={isMasterTag ? card.icon.MasterTag : card.icon.Tag} size={'large'} />
+      <Icon icon={isMasterTag ? card.icon.MasterTag : card.icon.Tag} size="large" />
       <div class="ml-2">
         <Label label={parent?.label ?? (isMasterTag ? card.string.MasterTag : card.string.Tag)} />
       </div>

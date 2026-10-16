@@ -54,11 +54,11 @@
             {#each icons as obj}
               <ButtonIcon
                 icon={obj}
-                iconSize={'medium'}
+                iconSize="medium"
                 iconProps={showColor
                   ? { fill: obj === _icon ? 'currentColor' : getPlatformColor(_color ?? 0, $themeStore.dark) }
                   : undefined}
-                size={'medium'}
+                size="medium"
                 kind={obj === _icon ? 'primary' : 'tertiary'}
                 on:click={() => {
                   _icon = obj
@@ -74,7 +74,7 @@
         <div class="subheader"><Label label={view.string.ChooseAColor} /></div>
         <ColorsPopup
           selected={getPlatformColorDef(_color, $themeStore.dark).name}
-          columns={'auto'}
+          columns="auto"
           embedded
           on:close={(evt) => {
             _color = evt.detail

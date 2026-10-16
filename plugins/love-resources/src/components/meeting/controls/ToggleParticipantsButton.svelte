@@ -27,8 +27,8 @@
     label: $showParticipantsInModal ? love.string.HideParticipants : love.string.ShowParticipants,
     direction: 'top'
   }}
-  kind={'secondary'}
-  size={'large'}
+  kind="secondary"
+  size="large"
   disabled={!hasScreenShare}
   on:click={() => {
     $showParticipantsInModal = !$showParticipantsInModal

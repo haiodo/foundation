@@ -196,7 +196,7 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <Breadcrumbs
       items={bcItems}
       size="large"
@@ -223,7 +223,7 @@
   {:else}
     <div class="hulyComponent-content__container">
       <div class="hulyComponent-content__column content">
-        <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+        <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
           <div class="hulyComponent-content gap">
             <div id="personalKeys" class="hulyTableAttr-container">
               <ApiKeysSection

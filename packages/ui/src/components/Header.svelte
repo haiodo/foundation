@@ -104,8 +104,8 @@
       {#if allowFullsize}
         <ButtonIcon
           icon={$deviceInfo.navigator.visible ? IconMaximize : IconMinimize}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           noPrint
           on:click={() => ($deviceInfo.navigator.visible = !$deviceInfo.navigator.visible)}
         />
@@ -157,7 +157,7 @@
         {#if closeOnEscape}
           <div class="hulyHotKey-item no-print">Esc</div>
         {/if}
-        <ButtonIcon icon={IconClose} kind={'tertiary'} size={'small'} noPrint on:click={() => dispatch('close')} />
+        <ButtonIcon icon={IconClose} kind="tertiary" size="small" noPrint on:click={() => dispatch('close')} />
       {/if}
     </div>
     <!-- <div class="hulyHeader-row__divider" /> -->
@@ -194,8 +194,8 @@
     {#if allowFullsize}
       <ButtonIcon
         icon={$deviceInfo.navigator.visible ? IconMaximize : IconMinimize}
-        kind={'tertiary'}
-        size={'small'}
+        kind="tertiary"
+        size="small"
         noPrint
         on:click={() => ($deviceInfo.navigator.visible = !$deviceInfo.navigator.visible)}
       />
@@ -272,7 +272,7 @@
       {#if closeOnEscape}
         <div class="hulyHotKey-item no-print">Esc</div>
       {/if}
-      <ButtonIcon icon={IconClose} kind={'tertiary'} size={'small'} noPrint on:click={() => dispatch('close')} />
+      <ButtonIcon icon={IconClose} kind="tertiary" size="small" noPrint on:click={() => dispatch('close')} />
     {/if}
   {/if}
 </div>

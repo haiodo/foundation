@@ -213,11 +213,11 @@
             excluded={excludedPersons}
             shouldShowName={false}
             showNavigate={false}
-            width={'100%'}
-            height={'100%'}
+            width="100%"
+            height="100%"
             label={contact.string.Person}
             value={room.person}
-            avatarSize={'full'}
+            avatarSize="full"
             allowDeselect={true}
             on:change={changePerson}
           />
@@ -226,7 +226,7 @@
     {/each}
   {/each}
   <div class="floorGrid-configureRoom__header">
-    <EditBox bind:value={room.name} on:change={updateName} placeholder={roomLabel} kind={'editbox'} />
+    <EditBox bind:value={room.name} on:change={updateName} placeholder={roomLabel} kind="editbox" />
     {#if showButtons}
       <div
         class="flex-row-center flex-no-shrink h-full {zoomOut ? 'flex-gap-1' : 'flex-gap-2'}"

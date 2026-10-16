@@ -147,7 +147,7 @@
   okAction={createIssueTemplate}
   {canSave}
   okLabel={tracker.string.SaveProcess}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -162,8 +162,8 @@
         currentProject = evt.detail ?? undefined
       }}
       readonly={true}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       component={ProjectPresenter}
       defaultIcon={tracker.icon.Home}
     />
@@ -177,21 +177,16 @@
         projectType={currentProject?.type}
         bind:value={kind}
         baseClass={tracker.class.Issue}
-        size={'small'}
+        size="small"
       />
     </div>
   </svelte:fragment>
 
-  <EditBox
-    bind:value={object.title}
-    placeholder={tracker.string.IssueTitlePlaceholder}
-    kind={'large-style'}
-    autoFocus
-  />
+  <EditBox bind:value={object.title} placeholder={tracker.string.IssueTitlePlaceholder} kind="large-style" autoFocus />
   <StyledTextBox
     alwaysEdit
     showButtons={false}
-    kind={'emphasized'}
+    kind="emphasized"
     bind:content={object.description}
     placeholder={tracker.string.IssueDescriptionPlaceholder}
   />
@@ -208,15 +203,15 @@
       value={object}
       shouldShowLabel
       isEditable
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       justify="center"
       on:change={({ detail }) => (object.priority = detail)}
     />
     <AssigneeEditor
       object={{ ...object, space }}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       on:change={({ detail }) => (object.assignee = detail)}
     />
     <Component
@@ -236,21 +231,21 @@
         labels = labels.filter((it) => it._id !== evt.detail._id)
       }}
     />
-    <EstimationEditor kind={'regular'} size={'large'} value={object} />
+    <EstimationEditor kind="regular" size="large" value={object} />
     <ComponentSelector
       {space}
       value={object.component}
       onChange={handleComponentIdChanged}
       isEditable={true}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
     <MilestoneSelector
       {space}
       value={object.milestone}
       onChange={handleMilestoneIdChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
   </svelte:fragment>
 </Card>

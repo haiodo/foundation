@@ -67,7 +67,7 @@
     <div class="btn">
       <Button
         label={contact.string.Apply}
-        width={'100%'}
+        width="100%"
         on:click={() => {
           dispatch('close', filterUndefined(newValues))
         }}

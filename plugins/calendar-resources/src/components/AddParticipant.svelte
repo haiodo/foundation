@@ -220,8 +220,8 @@
       <Button
         {disabled}
         focusIndex={2}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         icon={IconAdd}
         showTooltip={{
           label: contact.string.AddGuest

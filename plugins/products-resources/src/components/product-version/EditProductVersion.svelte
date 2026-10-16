@@ -101,7 +101,7 @@
     isSub={false}
     on:close={() => dispatch('close')}
     useMaxWidth
-    adaptive={'default'}
+    adaptive="default"
   >
     <svelte:fragment slot="title">
       <div class="flex-row-center no-word-wrap">
@@ -138,14 +138,14 @@
       <Button
         icon={IconMoreH}
         kind="ghost"
-        size={'medium'}
+        size="medium"
         on:click={(e) => {
           showMenu(e, { object })
         }}
       />
       <Button
         icon={IconMixin}
-        kind={'icon'}
+        kind="icon"
         iconProps={{ size: 'medium' }}
         selected={showAllMixins}
         on:click={() => {

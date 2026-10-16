@@ -109,11 +109,11 @@
   icon={IconOptions}
   disabled={viewlet === undefined}
   {kind}
-  size={'small'}
+  size="small"
   hasMenu
   {pressed}
   tooltip={{ label: view.string.CustomizeView, direction: 'bottom' }}
-  dataId={'btn-viewOptions'}
+  dataId="btn-viewOptions"
   bind:element={btn}
   on:click={clickHandler}
 />

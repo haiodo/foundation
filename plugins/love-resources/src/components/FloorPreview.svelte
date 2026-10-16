@@ -301,7 +301,7 @@
   {disabled}
   {kind}
   categoryHeader
-  contentAlign={'center'}
+  contentAlign="center"
   on:select
 >
   <svelte:fragment slot="actions">
@@ -311,10 +311,10 @@
     {#if configurable && editable}
       {#if rooms.length === 0}
         <div class="mr-2">
-          <ButtonIcon icon={IconDelete} kind={'negative'} size={'small'} on:click={remove} />
+          <ButtonIcon icon={IconDelete} kind="negative" size="small" on:click={remove} />
         </div>
       {/if}
-      <ButtonIcon icon={IconMoreH} kind={'tertiary'} size={'small'} {pressed} on:click={clickMore} />
+      <ButtonIcon icon={IconMoreH} kind="tertiary" size="small" {pressed} on:click={clickMore} />
     {/if}
   </svelte:fragment>
   <FloorGrid bind:floorContainer {rows} preview on:mouseover={() => (roomName = undefined)}>

@@ -37,8 +37,8 @@
   <Button
     focusIndex={10005}
     icon={IconDownOutline}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     on:click={async (evt) => {
       await next(evt, true)
     }}
@@ -46,8 +46,8 @@
   <Button
     focusIndex={10006}
     icon={IconUpOutline}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     on:click={async (evt) => {
       await next(evt, false)
     }}

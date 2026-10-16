@@ -140,7 +140,7 @@
         <TextArea
           placeholder={tags.string.TagDescriptionPlaceholder}
           bind:value={description}
-          height={'10rem'}
+          height="10rem"
           limit={MAX_DESCRIPTION_LENGTH}
         />
       </div>
@@ -149,7 +149,7 @@
           <DropdownLabels
             icon={IconFolder}
             label={tags.string.CategoryLabel}
-            kind={'regular'}
+            kind="regular"
             bind:selected={category}
             items={categoryItems}
             on:selected={() => {

@@ -75,7 +75,7 @@
   $: selected = association !== undefined && client.getModel().findObject(association)
 </script>
 
-<Button on:click={open} width={'100%'}>
+<Button on:click={open} width="100%">
   <div slot="content">
     {#if selected && direction !== undefined}
       {direction === 'A' ? selected.nameA : selected.nameB}

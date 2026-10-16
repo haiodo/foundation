@@ -62,7 +62,7 @@
               {#if taskType !== undefined}
                 <TaskTypeIcon value={taskType} />
               {:else}
-                <Icon icon={icon ?? tracker.icon.Issues} size={'small'} />
+                <Icon icon={icon ?? tracker.icon.Issues} size="small" />
               {/if}
             </div>
           {/if}

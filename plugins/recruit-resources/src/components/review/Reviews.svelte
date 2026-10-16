@@ -60,7 +60,7 @@
       <Label {label} />
     </span>
     {#if !readonly}
-      <Button icon={IconAdd} kind={'ghost'} on:click={createApp} />
+      <Button icon={IconAdd} kind="ghost" on:click={createApp} />
     {/if}
   </div>
   {#if reviews > 0}

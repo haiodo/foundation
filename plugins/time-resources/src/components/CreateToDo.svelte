@@ -67,7 +67,7 @@
   <ModernEditbox
     label={time.string.CreateToDo}
     width={fullSize ? '100%' : ''}
-    size={'medium'}
+    size="medium"
     autoAction={false}
     {disabled}
     bind:value
@@ -81,9 +81,9 @@
     }}
   >
     {#if disabled}
-      <Spinner size={'small'} />
+      <Spinner size="small" />
     {:else}
-      <ActionIcon icon={IconAdd} action={openPopup} size={'small'} />
+      <ActionIcon icon={IconAdd} action={openPopup} size="small" />
     {/if}
   </ModernEditbox>
 </div>

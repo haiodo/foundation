@@ -121,9 +121,9 @@
           {@const asset = trackerIcon(info.name)}
           <div class="icon-cell" class:unused={info.unused}>
             {#if asset}
-              <span class="icon-sample"><Icon icon={asset} size={'small'} /></span>
-              <span class="icon-sample"><Icon icon={asset} size={'medium'} /></span>
-              <span class="icon-sample"><Icon icon={asset} size={'large'} /></span>
+              <span class="icon-sample"><Icon icon={asset} size="small" /></span>
+              <span class="icon-sample"><Icon icon={asset} size="medium" /></span>
+              <span class="icon-sample"><Icon icon={asset} size="large" /></span>
             {:else}
               <span class="icon-sample">?</span>
             {/if}

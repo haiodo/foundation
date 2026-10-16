@@ -27,7 +27,7 @@
     class="name overflow-label select-text"
     class:with-margin={shouldUseMargin}
     class:list={kind === 'list'}
-    style:max-width={'100%'}
+    style:max-width="100%"
   >
     {value.title}
   </span>

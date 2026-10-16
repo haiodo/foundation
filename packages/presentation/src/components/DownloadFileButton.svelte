@@ -34,7 +34,7 @@
     <a class="no-line" href={src} download={name} bind:this={download}>
       <Button
         icon={Download}
-        kind={'icon'}
+        kind="icon"
         on:click={() => {
           download.click()
         }}

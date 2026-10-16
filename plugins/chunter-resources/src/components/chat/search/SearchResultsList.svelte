@@ -52,7 +52,7 @@
       <span class="hint">{state.failure.message}</span>
     {/if}
     <div class="mt-2">
-      <Button label={chunter.string.SearchRetry} kind={'regular'} on:click={() => dispatch('retry')} />
+      <Button label={chunter.string.SearchRetry} kind="regular" on:click={() => dispatch('retry')} />
     </div>
   </div>
 {:else if state.results.length === 0 && state.search.trim() === ''}

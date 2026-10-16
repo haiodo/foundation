@@ -85,7 +85,7 @@
 >
   <div slot="content" class="overflow-label">
     {#if doc}
-      <CardPresenter value={doc} type={'text'} />
+      <CardPresenter value={doc} type="text" />
     {:else}
       <Label {label} />
     {/if}

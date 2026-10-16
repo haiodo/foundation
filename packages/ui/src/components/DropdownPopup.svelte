@@ -89,8 +89,8 @@
       <EditWithIcon
         bind:this={searchInput}
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         {placeholder}
@@ -120,11 +120,11 @@
                   {#if item.image}
                     <img src={item.image} alt={item.label} />
                   {:else if item.icon}
-                    <Icon icon={item.icon} size={'medium'} iconProps={item.iconProps} />
+                    <Icon icon={item.icon} size="medium" iconProps={item.iconProps} />
                   {:else if typeof icon === 'string'}
-                    <Icon {icon} size={'small'} />
+                    <Icon {icon} size="small" />
                   {:else}
-                    <svelte:component this={icon} size={'small'} />
+                    <svelte:component this={icon} size="small" />
                   {/if}
                 </div>
               {/if}
@@ -132,7 +132,7 @@
             {/if}
             {#if selectedId !== undefined && item._id === selectedId}
               <div class="check">
-                <Icon icon={IconCheck} size={'small'} />
+                <Icon icon={IconCheck} size="small" />
               </div>
             {/if}
           </button>

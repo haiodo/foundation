@@ -55,7 +55,7 @@
   <svelte:fragment slot="header">
     <div class="flex-row-center">
       {#if value.icon}
-        <Icon icon={value.icon} size={'large'} />
+        <Icon icon={value.icon} size="large" />
       {/if}
       <div class="ml-2">
         <Label label={value.label} />

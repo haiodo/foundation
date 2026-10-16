@@ -54,9 +54,9 @@
 </script>
 
 <div>
-  <Button {kind} padding={'0rem;'} on:click={click}>
+  <Button {kind} padding="0rem;" on:click={click}>
     <div slot="content" class="flex-row-center flex-gap-1">
-      <Icon icon={TagIcon} size={'medium'} />
+      <Icon icon={TagIcon} size="medium" />
       <span class="overflow-label label"><Label label={tagsPlugin.string.AddLabel} /></span>
     </div>
   </Button>
@@ -68,7 +68,7 @@
             attr={undefined}
             isEditable
             {value}
-            kind={'list'}
+            kind="list"
             on:remove={(res) => {
               removeTag(res.detail)
             }}

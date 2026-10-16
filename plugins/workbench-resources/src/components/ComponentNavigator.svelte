@@ -130,13 +130,13 @@
       class:fly={$deviceInfo.navigator.float}
     >
       <div class="hulyComponent-content__column">
-        <Header adaptive={'disabled'}>
-          <Breadcrumb icon={navigationComponentIcon} label={navigationComponentLabel} size={'large'} isCurrent />
+        <Header adaptive="disabled">
+          <Breadcrumb icon={navigationComponentIcon} label={navigationComponentLabel} size="large" isCurrent />
           <svelte:fragment slot="actions">
             {#if createComponent}
               <Button
                 icon={IconAdd}
-                kind={'icon'}
+                kind="icon"
                 showTooltip={navigationComponentProps?.createLabel !== undefined
                   ? { label: navigationComponentProps.createLabel }
                   : undefined}
@@ -158,28 +158,28 @@
       </div>
       {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
         <Separator
-          name={'parentsNavigator'}
+          name="parentsNavigator"
           float={floatNavigator ? 'navigator' : true}
           index={0}
-          color={'var(--theme-divider-color)'}
+          color="var(--theme-divider-color)"
         />
       {/if}
     </div>
-    <Separator name={'parentsNavigator'} float={floatNavigator} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="parentsNavigator" float={floatNavigator} index={0} color="var(--theme-divider-color)" />
   {/if}
   <div class="hulyComponent-content__column">
-    <Header adaptive={'disabled'}>
+    <Header adaptive="disabled">
       <svelte:fragment slot="beforeTitle">
         <ButtonIcon
           icon={visibleNavigator ? IconMenuClose : IconMenuOpen}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           pressed={!visibleNavigator}
           on:click={toggleNavigator}
         />
       </svelte:fragment>
 
-      <Breadcrumb icon={mainComponentIcon} label={mainComponentLabel} size={'large'} isCurrent />
+      <Breadcrumb icon={mainComponentIcon} label={mainComponentLabel} size="large" isCurrent />
       <svelte:fragment slot="actions">
         {#if mainHeaderComponent}
           <Component

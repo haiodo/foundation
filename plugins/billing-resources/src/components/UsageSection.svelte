@@ -48,12 +48,12 @@
         label={plugin.string.MeetingMinutesUsage}
         value={meetingMinutes}
         limit={limits.meetingMinutesLimit}
-        kind={'minutes'}
+        kind="minutes"
       />
 
       <!-- AI tokens live in TokenWindows: `tokenLimit` is 0 on per-seat plans, so this bar showed
            a limit of zero next to the real one. -->
-      <UsageProgress label={plugin.string.MembersUsage} value={membersCount} limit={limits.usersLimit} kind={'items'} />
+      <UsageProgress label={plugin.string.MembersUsage} value={membersCount} limit={limits.usersLimit} kind="items" />
     {/if}
   </div>
 {/if}

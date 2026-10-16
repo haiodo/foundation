@@ -25,7 +25,7 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <DocumentIcon {value} size={'medium'} defaultIcon={document.icon.Document} />
+    <DocumentIcon {value} size="medium" defaultIcon={document.icon.Document} />
   </div>
   <span class="overflow-label">
     {value.title}

@@ -112,7 +112,7 @@
 <Card
   label={core.string.AddRelation}
   okAction={save}
-  width={'x-small'}
+  width="x-small"
   canSave={target !== undefined}
   on:close={() => {
     dispatch('close')
@@ -128,7 +128,7 @@
       options={{ sort: { modifiedOn: SortingOrder.Descending } }}
       bind:value={target}
       label={core.string.Relation}
-      kind={'ghost'}
+      kind="ghost"
       size="small"
       allowDeselect={false}
       showNavigate={false}

@@ -125,7 +125,7 @@
         <Button
           label={adminRes.string.GroupByName}
           kind={groupByName ? 'primary' : 'regular'}
-          size={'small'}
+          size="small"
           on:click={() => (groupByName = !groupByName)}
         />
       </div>

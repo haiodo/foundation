@@ -50,7 +50,7 @@
   <button class="mediaPopupItem-header" on:click={handleClick}>
     <div class="mediaPopupItem-header__icon">
       {#if icon !== undefined}
-        <Icon {icon} {iconProps} size={'small'} />
+        <Icon {icon} {iconProps} size="small" />
       {/if}
     </div>
 
@@ -68,14 +68,14 @@
     {#if selectable}
       <div class="mediaPopupItem-header__check">
         {#if selected}
-          <IconCheck size={'small'} />
+          <IconCheck size="small" />
         {/if}
       </div>
     {/if}
 
     {#if expandable && !disabled}
       <div class="mediaPopupItem-header__chevron">
-        <Icon icon={IconChevronRight} size={'small'} />
+        <Icon icon={IconChevronRight} size="small" />
       </div>
     {/if}
   </button>

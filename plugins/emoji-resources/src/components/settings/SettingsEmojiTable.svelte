@@ -29,12 +29,12 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={emojiPlugin.icon.Emoji} label={emojiPlugin.string.CustomEmojis} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={emojiPlugin.icon.Emoji} label={emojiPlugin.string.CustomEmojis} size="large" isCurrent />
     <svelte:fragment slot="search"></svelte:fragment>
     <svelte:fragment slot="actions">
       <slot />
-      <Button icon={IconAdd} label={emojiPlugin.string.Create} kind={'primary'} on:click={showCreateDialog} />
+      <Button icon={IconAdd} label={emojiPlugin.string.Create} kind="primary" on:click={showCreateDialog} />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__column content">

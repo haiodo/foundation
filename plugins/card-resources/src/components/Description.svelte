@@ -76,7 +76,7 @@
       object={doc}
       {readonly}
       boundary={content}
-      overflow={'none'}
+      overflow="none"
       editorAttributes={{ style: `padding: 0 2em 2em; margin: 0 -2em; min-height: ${minHeight}` }}
       attachFile={async (file) => {
         return await createEmbedding(file)

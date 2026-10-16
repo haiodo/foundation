@@ -31,7 +31,7 @@
 </script>
 
 <div class="inline-presenter">
-  <RequestLabel {value} size={'inline'} />
+  <RequestLabel {value} size="inline" />
   <span class="lower mx-1">
     <Label label={requests.string.For} />
   </span>

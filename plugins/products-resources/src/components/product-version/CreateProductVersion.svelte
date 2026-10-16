@@ -181,8 +181,8 @@
       bind:space
       _class={products.class.Product}
       label={products.string.Product}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
     />
     <!-- TODO this object selector sometimes shows wrong value -->
     <ObjectBox
@@ -190,8 +190,8 @@
       value={parent?._id}
       docQuery={{ space }}
       readonly={true}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={products.string.NoProductVersionParent}
       icon={products.icon.ProductVersion}
       showNavigate={false}
@@ -211,7 +211,7 @@
       <StyledTextBox
         bind:content={object.description}
         placeholder={products.string.ProductVersionDescriptionPlaceholder}
-        kind={'normal'}
+        kind="normal"
         focusIndex={10}
         showButtons={false}
         alwaysEdit
@@ -244,10 +244,10 @@
           isRegular: true,
           disableLink: true
         }}
-        searchField={'code'}
+        searchField="code"
         excluded={excludedChangeControl}
-        kind={'regular'}
-        size={'small'}
+        kind="regular"
+        size="small"
         label={products.string.ChangeControl}
         showNavigate={false}
       />

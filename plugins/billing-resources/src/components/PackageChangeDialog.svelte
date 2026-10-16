@@ -105,7 +105,7 @@
 
     <!-- One-off purchase, no card is saved, no auto-renew, the package ends at period end. -->
     <div class="flex-row-top flex-gap-2" data-id="packageRecurrentCheckbox">
-      <CheckBox id="package-recurrent-input" bind:checked={recurrent} kind={'primary'} />
+      <CheckBox id="package-recurrent-input" bind:checked={recurrent} kind="primary" />
       <span class="text-sm">
         <label for="package-recurrent-input" class="cursor-pointer">
           <Label

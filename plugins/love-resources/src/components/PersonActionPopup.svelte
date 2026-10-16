@@ -22,7 +22,7 @@
 <div class="p-3 flex-gap-2 antiPopup">
   {#if isMyOffice && !isSelf}
     <ActionIcon
-      size={'small'}
+      size="small"
       label={love.string.Kick}
       icon={love.icon.Kick}
       action={() => {
@@ -39,7 +39,7 @@
     -->
     <div data-id="start-own-meeting">
       <ActionIcon
-        size={'small'}
+        size="small"
         label={love.string.StartMeeting}
         icon={love.icon.MeetingMinutes}
         action={() => {
@@ -52,7 +52,7 @@
   {#if !isSelf}
     <div data-id="person-invite-call">
       <ActionIcon
-        size={'small'}
+        size="small"
         label={love.string.Invite}
         icon={love.icon.Invite}
         action={() => {

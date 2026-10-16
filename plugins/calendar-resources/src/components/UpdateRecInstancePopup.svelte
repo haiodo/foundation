@@ -67,8 +67,8 @@
       focus
       focusIndex={1}
       label={presentation.string.Ok}
-      size={'large'}
-      kind={'primary'}
+      size="large"
+      kind="primary"
       on:click={() => {
         dispatch('close', { mode: selected })
       }}
@@ -76,7 +76,7 @@
     <Button
       focusIndex={2}
       label={presentation.string.Cancel}
-      size={'large'}
+      size="large"
       on:click={() => {
         dispatch('close')
       }}

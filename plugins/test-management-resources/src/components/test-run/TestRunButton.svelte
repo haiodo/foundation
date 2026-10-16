@@ -38,8 +38,8 @@
 
 <Button
   icon={testManagement.icon.Run}
-  justify={'left'}
-  kind={'primary'}
+  justify="left"
+  kind="primary"
   label={testManagement.string.RunAssistant}
   on:click={handleRun}
 />

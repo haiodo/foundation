@@ -113,7 +113,7 @@
   okAction={save}
   canSave={to !== undefined && trigger !== undefined}
   label={plugin.string.AddTransition}
-  width={'medium'}
+  width="medium"
   on:close
 >
   <div class="editor-grid">
@@ -123,9 +123,9 @@
         items={statesItems}
         bind:selected={fromState}
         placeholder={plugin.string.From}
-        justify={'left'}
-        width={'100%'}
-        kind={'no-border'}
+        justify="left"
+        width="100%"
+        kind="no-border"
       />
     {:else}
       <div>⦳</div>
@@ -135,9 +135,9 @@
       items={statesItems}
       bind:selected={selectedState}
       placeholder={plugin.string.To}
-      justify={'left'}
-      width={'100%'}
-      kind={'no-border'}
+      justify="left"
+      width="100%"
+      kind="no-border"
     />
     <Label label={plugin.string.Trigger} />
     <DropdownLabelsIntl
@@ -147,9 +147,9 @@
       on:selected={() => {
         params = {}
       }}
-      justify={'left'}
-      width={'100%'}
-      kind={'no-border'}
+      justify="left"
+      width="100%"
+      kind="no-border"
     />
   </div>
   {#if triggerValue?.editor}

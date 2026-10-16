@@ -35,7 +35,7 @@
 
 <div class="flex-row-center">
   <!-- <Icon icon={recruit.icon.Application} size={'medium'} /> -->
-  <PersonPresenter value={person} avatarSize={'smaller'} shouldShowName={false} />
+  <PersonPresenter value={person} avatarSize="smaller" shouldShowName={false} />
   <span class="ml-2">
     {#if shortLabel}{shortLabel}-{/if}{value.number}
   </span>

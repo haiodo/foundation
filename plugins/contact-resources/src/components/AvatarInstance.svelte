@@ -117,7 +117,7 @@
         class="hulyAvatarSize-{size} ava-image {disabled ? 'disabled' : ''} {style}"
         src={url}
         {srcset}
-        alt={''}
+        alt=""
         on:error={handleImgError}
       />
     {:else if displayName && displayName !== ''}
@@ -131,7 +131,7 @@
         <Icon
           icon={icon ?? AvatarIcon}
           fill={color ? 'var(--primary-button-color)' : 'var(--theme-caption-color)'}
-          size={'full'}
+          size="full"
         />
       </div>
     {/if}

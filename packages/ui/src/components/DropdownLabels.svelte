@@ -130,7 +130,7 @@
     <svelte:fragment slot="iconRight">
       {#if showDropdownIcon}
         <DropdownIcon
-          size={'small'}
+          size="small"
           fill={kind === 'primary' && !disabled ? 'var(--primary-button-content-color)' : 'var(--theme-dark-color)'}
         />
       {/if}

@@ -81,7 +81,7 @@
       {#key object}
         <EditableAvatar
           person={object}
-          size={'x-large'}
+          size="x-large"
           icon={hr.icon.Department}
           bind:this={avatarEditor}
           on:done={onAvatarDone}

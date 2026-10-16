@@ -42,7 +42,7 @@
 
 <ButtonBase
   bind:element
-  type={'type-button-icon'}
+  type="type-button-icon"
   {kind}
   {iconSize}
   {size}

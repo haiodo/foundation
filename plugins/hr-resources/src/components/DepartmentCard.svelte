@@ -114,9 +114,9 @@
   >
     <div class="flex-center">
       <div class="mr-2">
-        <Button icon={IconAdd} kind={'list'} on:click={createChild} />
+        <Button icon={IconAdd} kind="list" on:click={createChild} />
       </div>
-      <Avatar size={'medium'} person={value} icon={hr.icon.Department} name={value.name} />
+      <Avatar size="medium" person={value} icon={hr.icon.Department} name={value.name} />
       <div class="flex-row ml-2 mr-4">
         <div class="fs-title">
           {value.name}
@@ -129,7 +129,7 @@
       <div class="mr-2">
         <EmployeePresenter
           value={value.$lookup?.teamLead}
-          avatarSize={'small'}
+          avatarSize="small"
           shouldShowAvatar
           shouldShowPlaceholder
           shouldShowName={false}

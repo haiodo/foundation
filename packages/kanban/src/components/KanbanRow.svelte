@@ -188,10 +188,10 @@
     <div class="card-container flex-center flex-row-center p-4 gap-2 no-word-wrap">
       <span class="caption-color">{limitedObjects.size}</span> <span>/</span><span>{stateObjects.length}</span>
       <Button
-        size={'small'}
+        size="small"
         icon={IconMoreH}
         label={ui.string.ShowMore}
-        dataId={'btn-kanban-show-more'}
+        dataId="btn-kanban-show-more"
         on:click={() => {
           limit = limit + limitStep
         }}

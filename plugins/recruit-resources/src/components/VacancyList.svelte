@@ -52,13 +52,13 @@
 <div class="antiSection">
   <div class="antiSection-header">
     <div class="antiSection-header__icon">
-      <Icon icon={recruit.icon.Vacancy} size={'small'} />
+      <Icon icon={recruit.icon.Vacancy} size="small" />
     </div>
     <span class="antiSection-header__title">
       <Label label={recruit.string.Vacancies} />
     </span>
     {#if !readonly}
-      <Button id="appls.add" icon={IconAdd} kind={'ghost'} on:click={createApp} />
+      <Button id="appls.add" icon={IconAdd} kind="ghost" on:click={createApp} />
     {/if}
   </div>
   {#if (vacancies ?? 0) > 0}

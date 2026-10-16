@@ -240,9 +240,9 @@
     <div class="form-row send">
       <FormButton
         label={action.i18n}
-        kind={'contrast'}
-        shape={'round'}
-        size={'x-large'}
+        kind="contrast"
+        shape="round"
+        size="x-large"
         width="100%"
         loading={inAction}
         disabled={proceedDisabled || (status.severity !== Severity.OK && status.severity !== Severity.ERROR)}

@@ -73,7 +73,7 @@
       <a class="no-line" href={src} download={name} bind:this={download}>
         <Button
           icon={Download}
-          kind={'ghost'}
+          kind="ghost"
           on:click={() => {
             download.click()
           }}

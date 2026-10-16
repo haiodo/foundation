@@ -54,7 +54,7 @@
       {value.name}
     </span>
   {:else}
-    <div class="flex-presenter" style:color={'inherit'}>
+    <div class="flex-presenter" style:color="inherit">
       {#if !inline && shouldShowAvatar}
         <IssueStatusIcon {value} {size} {space} on:accent-color {projectType} {taskType} />
       {/if}

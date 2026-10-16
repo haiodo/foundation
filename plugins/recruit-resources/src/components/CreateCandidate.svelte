@@ -587,7 +587,7 @@
   on:changeContent
 >
   <svelte:fragment slot="header">
-    <Button icon={contact.icon.Person} label={contact.string.Person} size={'large'} disabled on:click={() => {}} />
+    <Button icon={contact.icon.Person} label={contact.string.Person} size="large" disabled on:click={() => {}} />
   </svelte:fragment>
   <div class="flex-between">
     <div class="flex-col">
@@ -595,17 +595,17 @@
         disabled={loading}
         placeholder={recruit.string.PersonFirstNamePlaceholder}
         bind:value={object.firstName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
-        maxWidth={'30rem'}
+        maxWidth="30rem"
         focusIndex={1}
       />
       <EditBox
         disabled={loading}
         placeholder={recruit.string.PersonLastNamePlaceholder}
         bind:value={object.lastName}
-        maxWidth={'30rem'}
-        kind={'large-style'}
+        maxWidth="30rem"
+        kind="large-style"
         focusIndex={2}
       />
       <div class="mt-1">
@@ -613,18 +613,18 @@
           disabled={loading}
           placeholder={recruit.string.Title}
           bind:value={object.title}
-          kind={'small-style'}
+          kind="small-style"
           focusIndex={3}
-          maxWidth={'30rem'}
+          maxWidth="30rem"
         />
       </div>
       <EditBox
         disabled={loading}
         placeholder={recruit.string.Location}
         bind:value={object.city}
-        kind={'small-style'}
+        kind="small-style"
         focusIndex={4}
-        maxWidth={'30rem'}
+        maxWidth="30rem"
       />
     </div>
     <div class="flex-col items-center flex-gap-2 ml-4">
@@ -635,13 +635,13 @@
         person={{
           avatarType: AvatarType.COLOR
         }}
-        size={'large'}
+        size="large"
         name={combineName(object?.firstName?.trim() ?? '', object?.lastName?.trim() ?? '')}
       />
       <ActionIcon
         icon={IconShuffle}
         label={recruit.string.SwapFirstAndLastNames}
-        size={'medium'}
+        size="medium"
         action={() => {
           const first = object.firstName
           object.firstName = object.lastName
@@ -656,8 +656,8 @@
       focusIndex={10}
       bind:value={object.channels}
       highlighted={matchedChannels.map((it) => it.provider)}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
     {#if onsite?.hidden !== true}
       <YesNo
@@ -666,8 +666,8 @@
         label={recruit.string.Onsite}
         tooltip={recruit.string.WorkLocationPreferences}
         bind:value={object.onsite}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/if}
     {#if remote?.hidden !== true}
@@ -677,8 +677,8 @@
         label={recruit.string.Remote}
         tooltip={recruit.string.WorkLocationPreferences}
         bind:value={object.remote}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/if}
     <Component
@@ -803,12 +803,12 @@
     {#if matches.length > 0}
       <div class="flex-col-stretch flex-grow error-color">
         <div class="flex mb-1">
-          <IconInfo size={'medium'} />
+          <IconInfo size="medium" />
           <span class="text-sm overflow-label ml-2">
             <Label label={contact.string.PersonAlreadyExists} />
           </span>
         </div>
-        <PersonPresenter value={matches[0]} avatarSize={'tiny'} />
+        <PersonPresenter value={matches[0]} avatarSize="tiny" />
       </div>
     {/if}
   </svelte:fragment>

@@ -210,14 +210,7 @@
         <Separator name="chat" float={$deviceInfo.navigator.float ? 'navigator' : true} index={0} />
       {/if}
     </div>
-    <Separator
-      name="chat"
-      float={$deviceInfo.navigator.float}
-      index={0}
-      color={'transparent'}
-      separatorSize={0}
-      short
-    />
+    <Separator name="chat" float={$deviceInfo.navigator.float} index={0} color="transparent" separatorSize={0} short />
   {/if}
   <div bind:this={replacedPanel} class="hulyComponent">
     {#if currentSpecial}

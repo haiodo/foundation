@@ -120,7 +120,7 @@
       : (viewlet?.viewOptions?.other ?? []).filter((it) => it.actionTarget !== 'query')
 </script>
 
-<Header adaptive={'freezeActions'} hideActions={modeSelectorProps === undefined}>
+<Header adaptive="freezeActions" hideActions={modeSelectorProps === undefined}>
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       bind:viewlet
@@ -135,7 +135,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet {viewOptionsConfig} />
   </svelte:fragment>
 
-  <Breadcrumb {icon} label={labelTasks} size={'large'} isCurrent />
+  <Breadcrumb {icon} label={labelTasks} size="large" isCurrent />
 
   <svelte:fragment slot="search" let:doubleRow>
     <SearchInput
@@ -149,7 +149,7 @@
   </svelte:fragment>
   <svelte:fragment slot="actions" let:doubleRow>
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>

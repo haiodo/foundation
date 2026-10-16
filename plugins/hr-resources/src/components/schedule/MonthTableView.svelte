@@ -324,7 +324,7 @@
   {:else if viewlet}
     {#await createConfig(viewlet, preference, month) then config}
       <TableBrowser
-        tableId={'exportableData'}
+        tableId="exportableData"
         _class={hr.mixin.Staff}
         query={{ _id: { $in: departmentStaff.map((it) => it._id) } }}
         {config}

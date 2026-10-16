@@ -85,7 +85,7 @@
   <svelte:fragment slot="title">
     {@const additionalStepInfo = currentStepModel?.additionalInfo}
 
-    <div class="popupPanel-title__content-container antiTitle" style:min-height={'2.5rem'}>
+    <div class="popupPanel-title__content-container antiTitle" style:min-height="2.5rem">
       <div class="icon-wrapper">
         {#if icon}<div class="wrapped-icon"><Icon {icon} size="medium" /></div>{/if}
         <div class="title-wrapper">

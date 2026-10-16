@@ -30,14 +30,14 @@
     {/if}
   {:else if pr.state === GithubPullRequestState.merged}
     <div class:ml-4={!small} class="flex-row-center" class:flex-no-shrink={small}>
-      <Icon icon={github.icon.PullRequestMerged} size={'small'} />
+      <Icon icon={github.icon.PullRequestMerged} size="small" />
       {#if !small}
         <Label label={github.string.PRMerged} />
       {/if}
     </div>
   {:else if pr.state === GithubPullRequestState.closed}
     <div class:ml-4={!small} class="flex-row-center" class:flex-no-shrink={small}>
-      <Icon icon={github.icon.PullRequestClosed} size={'small'} />
+      <Icon icon={github.icon.PullRequestClosed} size="small" />
       {#if !small}
         <Label label={github.string.PRClosed} />
       {/if}

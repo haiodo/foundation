@@ -23,4 +23,4 @@
   $: color = checked ? undefined : getToDoPriorityColor(priority)
 </script>
 
-<CheckBox kind={'todo'} size={'medium'} {checked} {color} on:value />
+<CheckBox kind="todo" size="medium" {checked} {color} on:value />

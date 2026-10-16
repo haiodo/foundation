@@ -100,11 +100,11 @@
 {:else if kind === 'todo-compact'}
   {#if items.length > 1}
     <div class="flex-row-top flex-wrap flex-gap-0-5">
-      <TagReferencePresenter attr={undefined} value={items[0]} kind={'todo'} />
+      <TagReferencePresenter attr={undefined} value={items[0]} kind="todo" />
       <Chip
         label={`+${items.length - 1}`}
-        size={'min'}
-        backgroundColor={'var(--tag-subtle-PorpoiseBackground)'}
+        size="min"
+        backgroundColor="var(--tag-subtle-PorpoiseBackground)"
         tooltip={{
           component: LabelsPresenter,
           props: { value, object, isEditable, kind: 'todo', ignoreFirst: true }
@@ -112,7 +112,7 @@
       />
     </div>
   {:else if items.length === 1}
-    <TagReferencePresenter attr={undefined} value={items[0]} kind={'todo'} />
+    <TagReferencePresenter attr={undefined} value={items[0]} kind="todo" />
   {/if}
 {:else}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -133,7 +133,7 @@
   >
     {#each items as value, i}
       <div class="label-box wrap-{kind}" title={value.title}>
-        <TagReferencePresenter attr={undefined} {value} kind={'link'} bind:realWidth={widths[i]} />
+        <TagReferencePresenter attr={undefined} {value} kind="link" bind:realWidth={widths[i]} />
       </div>
     {/each}
   </div>

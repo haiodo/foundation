@@ -232,7 +232,7 @@
     {embedded}
     withoutActivity={false}
     printAside={true}
-    adaptive={'default'}
+    adaptive="default"
     useMaxWidth={mobileAdaptive ? undefined : true}
     bind:content
     bind:innerWidth
@@ -283,8 +283,8 @@
         <Button
           icon={view.icon.DetailsFilled}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnOpenInSidebar'}
+          kind="icon"
+          dataId="btnOpenInSidebar"
           showTooltip={{ label: view.string.OpenInSidebar }}
           on:click={() => {
             if (issue !== undefined) {
@@ -297,18 +297,18 @@
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnMoreActions'}
+          kind="icon"
+          dataId="btnMoreActions"
           on:click={showContextMenu}
         />
         {#if !mobileAdaptive}
           <CopyToClipboard issueUrl={generateIssueShortLink(issue.identifier)} />
           <Button
             icon={setting.icon.Setting}
-            kind={'icon'}
+            kind="icon"
             iconProps={{ size: 'medium' }}
             showTooltip={{ label: setting.string.ClassSetting }}
-            dataId={'btnClassSetting'}
+            dataId="btnClassSetting"
             on:click={(ev) => {
               ev.stopPropagation()
               const loc = getCurrentResolvedLocation()
@@ -332,10 +332,10 @@
         <Button
           icon={IconMixin}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           selected={showAllMixins}
           showTooltip={{ label: tracker.string.AdditionalProperties }}
-          dataId={'btnMixin'}
+          dataId="btnMixin"
           on:click={() => {
             showAllMixins = !showAllMixins
           }}
@@ -351,9 +351,9 @@
             <Button
               icon={tracker.icon.UnsetParent}
               iconProps={{ size: 'medium' }}
-              kind={'ghost'}
+              kind="ghost"
               showTooltip={{ label: tracker.string.UnsetParentIssue }}
-              dataId={'btnUnsetParent'}
+              dataId="btnUnsetParent"
               on:click={() => {
                 void unsetParentIssue()
               }}

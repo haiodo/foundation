@@ -42,7 +42,7 @@
   _id={space._id}
   icon={cardPlugin.icon.Space}
   title={space.name}
-  type={'nested'}
+  type="nested"
   on:dragstart={(evt) => {
     evt.preventDefault()
   }}

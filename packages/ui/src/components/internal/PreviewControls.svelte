@@ -170,20 +170,20 @@
   </div>
 
   <div class="flex flex-row-center p-1 gap-2">
-    <SplitButton kind={'primary'} label={getEmbeddedLabel('Split Primary')} secondIcon={IconDown} />
-    <SplitButton kind={'secondary'} label={getEmbeddedLabel('Split Secondary')} secondIcon={IconDown} />
-    <SplitButton kind={'regular'} label={getEmbeddedLabel('Split Regular')} secondIcon={IconDown} />
+    <SplitButton kind="primary" label={getEmbeddedLabel('Split Primary')} secondIcon={IconDown} />
+    <SplitButton kind="secondary" label={getEmbeddedLabel('Split Secondary')} secondIcon={IconDown} />
+    <SplitButton kind="regular" label={getEmbeddedLabel('Split Regular')} secondIcon={IconDown} />
   </div>
 
   <div class="flex flex-row-center p-1 gap-2">
-    <ButtonIcon kind="primary" icon={IconCheckmark} size={'small'} />
-    <ButtonIcon kind="primary" pressed icon={IconCheckmark} size={'small'} />\
-    <ButtonIcon kind="secondary" icon={IconCheckmark} size={'small'} />
-    <ButtonIcon kind="secondary" pressed icon={IconCheckmark} size={'small'} />
-    <ButtonIcon kind="tertiary" icon={IconCheckmark} size={'small'} noPrint />
-    <ButtonIcon kind="tertiary" pressed icon={IconCheckmark} size={'small'} />
-    <ButtonIcon kind="negative" icon={IconCheckmark} size={'small'} />
-    <ButtonIcon kind="negative" pressed icon={IconCheckmark} size={'small'} />
+    <ButtonIcon kind="primary" icon={IconCheckmark} size="small" />
+    <ButtonIcon kind="primary" pressed icon={IconCheckmark} size="small" />\
+    <ButtonIcon kind="secondary" icon={IconCheckmark} size="small" />
+    <ButtonIcon kind="secondary" pressed icon={IconCheckmark} size="small" />
+    <ButtonIcon kind="tertiary" icon={IconCheckmark} size="small" noPrint />
+    <ButtonIcon kind="tertiary" pressed icon={IconCheckmark} size="small" />
+    <ButtonIcon kind="negative" icon={IconCheckmark} size="small" />
+    <ButtonIcon kind="negative" pressed icon={IconCheckmark} size="small" />
     <ButtonGroup
       items={[
         { id: 'b1', icon: IconActivity },
@@ -192,17 +192,17 @@
     />
   </div>
   <div class="flex flex-row-center p-1 gap-2">
-    <ButtonIcon kind="primary" icon={IconClose} size={'min'} />
+    <ButtonIcon kind="primary" icon={IconClose} size="min" />
   </div>
 
   <div class="flex flex-row-center p-1 gap-2">
-    <SplitButton kind="secondary" icon={micOn} size={'medium'} secondIcon={micOff} />
-    <SplitButton kind="secondary" icon={camEnabled} size={'medium'} secondIcon={camDisabled} />
+    <SplitButton kind="secondary" icon={micOn} size="medium" secondIcon={micOff} />
+    <SplitButton kind="secondary" icon={camEnabled} size="medium" secondIcon={camDisabled} />
   </div>
 
   <div class="flex flex-row-center p-1 gap-2">
-    <ModernCheckbox label={'Checked'} checked />
-    <ModernCheckbox label={'Disabled'} disabled />
+    <ModernCheckbox label="Checked" checked />
+    <ModernCheckbox label="Disabled" disabled />
     <div class="legacy-check">
       <CheckBox checked />
       <span class="check-label">
@@ -240,7 +240,7 @@
       count={listItems.length}
       selection={selectedListIndex}
       minHeight="6rem"
-      colorsSchema={'default'}
+      colorsSchema="default"
       kind="thin"
     >
       <svelte:fragment slot="item" let:item>{listItems[item]}</svelte:fragment>

@@ -39,14 +39,14 @@
       <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
         {#if shouldShowAvatar}
           <div class="icon">
-            <Icon icon={love.icon.MeetingMinutes} size={'medium'} />
+            <Icon icon={love.icon.MeetingMinutes} size="medium" />
           </div>
         {/if}
         <div class="label nowrap flex flex-gap-2" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>
           <span>{value.name}</span>
           {#if value.private}
             <span class="lock-icon" use:tooltip={{ label: getEmbeddedLabel('Private') }}>
-              <Lock size={'small'} />
+              <Lock size="small" />
             </span>
           {/if}
         </div>
@@ -57,7 +57,7 @@
       <span>{value.name}</span>
       {#if value.private}
         <span class="lock-icon" use:tooltip={{ label: getEmbeddedLabel('Private') }}>
-          <Lock size={'small'} />
+          <Lock size="small" />
         </span>
       {/if}
     </span>

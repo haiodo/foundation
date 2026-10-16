@@ -125,7 +125,7 @@
       {#if inline.icon}
         <ActivityMessageAction
           label={inline.label}
-          size={'small'}
+          size="small"
           icon={inline.icon}
           action={(ev) => inline.action({}, ev)}
         />
@@ -149,9 +149,9 @@
       <ActivityMessageAction
         icon={IconMoreV}
         label={view.string.MoreActions}
-        size={'small'}
+        size="small"
         opened={isActionMenuOpened}
-        dataId={'btnMoreActions'}
+        dataId="btnMoreActions"
         action={showMenu}
       />
     {/if}

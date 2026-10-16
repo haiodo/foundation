@@ -195,7 +195,7 @@
   $: finalConfig = createConfig(viewlet, preference, replacedKeys)
 </script>
 
-<Header adaptive={'freezeActions'}>
+<Header adaptive="freezeActions">
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       bind:loading
@@ -210,7 +210,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb icon={IconCompany} label={recruit.string.Organizations} size={'large'} isCurrent />
+  <Breadcrumb icon={IconCompany} label={recruit.string.Organizations} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed on:change={(e) => (search = e.detail)} />
@@ -251,7 +251,7 @@
         }
       }}
     />
-    <Button icon={IconAdd} label={recruit.string.CompanyCreateLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={recruit.string.CompanyCreateLabel} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </Header>
 <FilterBar

@@ -28,6 +28,6 @@
     class="sm-tool-icon"
     use:tooltip={{ label: leads.string.Leads, component: LeadsPopup, props: { value: object } }}
   >
-    <span class="icon"><Icon icon={leads.icon.Lead} size={'small'} /></span>&nbsp;{value}
+    <span class="icon"><Icon icon={leads.icon.Lead} size="small" /></span>&nbsp;{value}
   </div>
 {/if}

@@ -60,8 +60,8 @@
       <CheckBox
         readonly={checkReadonly}
         checked={value.doneOn != null}
-        kind={'positive'}
-        size={'medium'}
+        kind="positive"
+        size="medium"
         on:value={markDone}
       />
     </div>

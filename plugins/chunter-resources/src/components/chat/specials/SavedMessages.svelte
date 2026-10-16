@@ -81,9 +81,9 @@
   $: isEmpty = savedMessages.length === 0 && savedAttachments.length === 0
 </script>
 
-<Header icon={chunter.icon.Bookmarks} intlLabel={chunter.string.Saved} titleKind={'breadcrumbs'} withSearch={false} />
+<Header icon={chunter.icon.Bookmarks} intlLabel={chunter.string.Saved} titleKind="breadcrumbs" withSearch={false} />
 
-<Scroller padding={'.75rem .5rem'} bottomPadding={'.75rem'} noStretch={!isEmpty}>
+<Scroller padding=".75rem .5rem" bottomPadding=".75rem" noStretch={!isEmpty}>
   {#if !isEmpty}
     {#each savedMessages as message}
       {#if message.$lookup?.attachedTo}

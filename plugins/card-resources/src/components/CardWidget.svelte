@@ -85,14 +85,14 @@
 
 {#if widget && tab?.id}
   <div class="card-widget" style:height bind:clientWidth>
-    <Header type={'type-panel'} noPrint adaptive="disabled">
+    <Header type="type-panel" noPrint adaptive="disabled">
       <svelte:fragment slot="beforeTitle">
         <Button
-          id={'btnPClose'}
+          id="btnPClose"
           focusIndex={10001}
           icon={IconClose}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           noPrint
           on:click={() => {
             dispatch('close')
@@ -125,7 +125,7 @@
       </div>
       <svelte:fragment slot="extra">
         {#if doc}
-          <TagsEditor {doc} dropdownTags={clientWidth < 512} id={'cardSidebar-tags'} />
+          <TagsEditor {doc} dropdownTags={clientWidth < 512} id="cardSidebar-tags" />
         {/if}
       </svelte:fragment>
     </Header>

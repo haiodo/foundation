@@ -39,18 +39,12 @@
   {#each targets as target, i}
     <div class="flex-row p-1">
       <div class="flex-row-center bordered">
-        <FixedColumn key={'rule-name'}>
+        <FixedColumn key="rule-name">
           {#if target.rule.kind === 'classRule'}
             {@const documentClass = client.getHierarchy().getClass(target.rule.ofClass)}
 
             <div class="flex-row-center">
-              <Button
-                label={documentClass.label}
-                icon={documentClass.icon}
-                disabled={true}
-                size={'medium'}
-                kind={'link'}
-              />
+              <Button label={documentClass.label} icon={documentClass.icon} disabled={true} size="medium" kind="link" />
             </div>
           {:else if target.rule.kind === 'spaceRule'}
             <SpaceSelector
@@ -58,21 +52,21 @@
               _class={core.class.Space}
               space={target.rule.space}
               readonly={true}
-              kind={'link'}
-              size={'medium'}
+              kind="link"
+              size="medium"
             />
           {/if}
         </FixedColumn>
-        <span class="p-1 mr-2"> <Icon icon={IconArrowRight} size={'medium'} /> </span>
+        <span class="p-1 mr-2"> <Icon icon={IconArrowRight} size="medium" /> </span>
 
-        <FixedColumn key={'space-value'}>
+        <FixedColumn key="space-value">
           <SpaceSelector
             label={tracker.string.Project}
             _class={tracker.class.Project}
             space={target.target ?? undefined}
             autoSelect={false}
             allowDeselect
-            kind={'list'}
+            kind="list"
             on:change={(evt) => {
               void client.diffUpdate(target, { target: evt.detail || null })
             }}
@@ -94,26 +88,26 @@
   {#if showCreate && value !== undefined}
     {@const space = value._id}
     <div class="flex-row-center bordered">
-      <FixedColumn key={'rule-name'}>
+      <FixedColumn key="rule-name">
         <SpaceSelector
           label={core.string.Space}
           _class={core.class.Space}
           space={value._id}
           readonly={true}
-          kind={'link'}
-          size={'medium'}
+          kind="link"
+          size="medium"
         />
       </FixedColumn>
       <span class="p-1"> => </span>
 
-      <FixedColumn key={'space-value'}>
+      <FixedColumn key="space-value">
         <SpaceSelector
           label={tracker.string.Project}
           _class={tracker.class.Project}
           space={undefined}
           autoSelect={false}
           allowDeselect
-          kind={'list'}
+          kind="list"
           on:change={(evt) => {
             void client.createDoc(tracker.class.RelatedIssueTarget, space, {
               target: evt.detail || null,

@@ -51,7 +51,7 @@
         <div class="flex-row-center">
           {#if shouldShowAvatar}
             <div class="icon">
-              <Icon icon={tracker.icon.Component} size={'small'} />
+              <Icon icon={tracker.icon.Component} size="small" />
             </div>
           {/if}
           <span title={label} class="label nowrap" class:no-underline={disabled || noUnderline} class:fs-bold={accent}>

@@ -67,11 +67,11 @@
   <Section label={love.string.MeetingMinutes} icon={love.icon.MeetingMinutes}>
     <svelte:fragment slot="header">
       {#if viewlet}
-        <ViewletSettingButton kind={'tertiary'} {viewlet} bind:viewOptions />
+        <ViewletSettingButton kind="tertiary" {viewlet} bind:viewOptions />
       {/if}
       <ViewletsSettingButton
         viewletQuery={{ _id: love.viewlet.TableMeetingMinutesEmbedded }}
-        kind={'tertiary'}
+        kind="tertiary"
         bind:viewlet
         bind:loading
         bind:preference

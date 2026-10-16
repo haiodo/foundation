@@ -43,12 +43,12 @@
     }}
   >
     <div class="icon">
-      <Icon icon={recruit.icon.Vacancy} size={'small'} />
+      <Icon icon={recruit.icon.Vacancy} size="small" />
     </div>
     <span class="label">{value.name}</span>
     {#if action !== undefined}
       <div class="action">
-        <ActionIcon label={recruit.string.Edit} size={'small'} icon={IconEdit} action={editVacancy} />
+        <ActionIcon label={recruit.string.Edit} size="small" icon={IconEdit} action={editVacancy} />
       </div>
     {/if}
   </div>

@@ -372,7 +372,7 @@
 
       <div class="actions">
         {#if created}
-          <Button label={plugin.string.TaskCreated} kind={'ghost'} disabled />
+          <Button label={plugin.string.TaskCreated} kind="ghost" disabled />
         {:else if isDraftSession}
           <!-- Nothing is created here: the create dialog owns the project, and applying belongs on
                  the card next to what is applied. The button shows up only where a form exists. -->
@@ -391,12 +391,12 @@
             bind:space={project}
             focus={false}
             clearInvalidValue={true}
-            kind={'regular'}
-            size={'large'}
+            kind="regular"
+            size="large"
           ></SpaceSelector>
           <Button
             label={plugin.string.CreateTask}
-            kind={'primary'}
+            kind="primary"
             loading={creating}
             disabled={creating || project === undefined || (!isSplit && title.trim() === '')}
             on:click={create}

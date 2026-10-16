@@ -45,10 +45,10 @@
   </div>
   {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
     <Separator
-      name={'schedule'}
+      name="schedule"
       float={$deviceInfo.navigator.float ? 'navigator' : true}
       index={0}
-      color={'var(--theme-navpanel-border)'}
+      color="var(--theme-navpanel-border)"
     />
   {/if}
 </div>

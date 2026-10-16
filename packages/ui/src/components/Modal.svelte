@@ -117,7 +117,7 @@
   {#if type !== 'type-component' && !hideFooter}
     <div class="hulyModal-footer">
       <ButtonBase
-        type={'type-button'}
+        type="type-button"
         kind={okKind}
         size={type === 'type-aside' ? 'large' : 'medium'}
         tooltip={okTooltip}
@@ -128,8 +128,8 @@
       />
       {#if showCancelButton}
         <ButtonBase
-          type={'type-button'}
-          kind={'secondary'}
+          type="type-button"
+          kind="secondary"
           size={type === 'type-aside' ? 'large' : 'medium'}
           label={ui.string.Cancel}
           on:click={onCancel}

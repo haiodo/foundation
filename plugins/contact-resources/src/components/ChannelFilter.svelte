@@ -83,12 +83,12 @@
           }}
         >
           {#if element.icon}
-            <div class="icon"><Icon icon={element.icon} size={'small'} /></div>
+            <div class="icon"><Icon icon={element.icon} size="small" /></div>
           {/if}
           <span class="overflow-label label flex-grow"><Label label={element.label} /></span>
           <div class="check">
             {#if isSelected(element, selected)}
-              <Icon icon={IconCheck} size={'small'} />
+              <Icon icon={IconCheck} size="small" />
             {/if}
           </div>
         </button>

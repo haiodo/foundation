@@ -59,12 +59,12 @@
       </div>
       <div class="eAttachmentRowActions" class:fixed={i === selectedFileNumber}>
         <a {href} download={attachment.name}>
-          <Icon icon={FileDownload} size={'small'} />
+          <Icon icon={FileDownload} size="small" />
         </a>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="eAttachmentRowMenu" on:click={(event) => showFileMenu(event, attachment, i)}>
-          <IconMoreV size={'small'} />
+          <IconMoreV size="small" />
         </div>
       </div>
     </div>

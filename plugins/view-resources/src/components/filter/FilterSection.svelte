@@ -176,7 +176,7 @@
       dispatch('remove')
     }}
   >
-    <div class="btn-icon"><Icon icon={IconClose} size={'small'} /></div>
+    <div class="btn-icon"><Icon icon={IconClose} size="small" /></div>
   </button>
 </div>
 

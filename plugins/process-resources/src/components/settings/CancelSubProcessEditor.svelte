@@ -64,7 +64,7 @@
   <DropdownLabels
     autoSelect={false}
     enableSearch={false}
-    width={'100%'}
+    width="100%"
     {items}
     {selected}
     placeholder={plugin.string.Process}

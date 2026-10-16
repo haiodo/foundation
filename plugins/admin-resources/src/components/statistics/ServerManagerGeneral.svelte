@@ -109,7 +109,7 @@
     </div>
     <div class="flex-col p-1">
       <div class="flex-row-center p-1">
-        <EditBox kind={'underline'} format={'number'} bind:value={warningTimeout} /> min
+        <EditBox kind="underline" format="number" bind:value={warningTimeout} /> min
       </div>
     </div>
     <Button

@@ -149,9 +149,9 @@
             _class: { $in: [card.class.CardSpace, contact.class.PersonSpace] }
           }}
           label={core.string.Space}
-          kind={'regular'}
-          size={'medium'}
-          justify={'left'}
+          kind="regular"
+          size="medium"
+          justify="left"
           autoSelect={false}
           bind:space={selectedSpace}
           width="9rem"
@@ -162,12 +162,12 @@
   <svelte:fragment slot="footer">
     <div class="flex-row-center max-w-80 pr-4">
       {#if personSpace === selectedSpace && mailboxItems.length > 0}
-        <Icon size={'small'} icon={contact.icon.Person} />
+        <Icon size="small" icon={contact.icon.Person} />
         <span class="text-sm ml-2">
           <Label label={hulyMail.string.PersonSpaceInfo} />
         </span>
       {:else}
-        <Icon size={'small'} icon={contact.icon.Contacts} />
+        <Icon size="small" icon={contact.icon.Contacts} />
         <span class="text-sm ml-2">
           <Label label={hulyMail.string.SharedSpaceInfo} />
         </span>

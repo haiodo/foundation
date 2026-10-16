@@ -333,12 +333,12 @@
           <Button
             icon={IconArrowLeft}
             label={ui.string.Back}
-            kind={'ghost'}
-            size={'small'}
+            kind="ghost"
+            size="small"
             on:click={() => {
               activeAction = undefined
             }}
-            width={'fit-content'}
+            width="fit-content"
           />
         </div>
       {/if}
@@ -414,7 +414,7 @@
               {@const action = item.action}
               <div class="flex-row-center flex-between flex-grow ml-2 text-base cursor-pointer actionsitem">
                 <div class="mr-4 {selection === num ? 'caption-color' : 'content-dark-color'}">
-                  <Icon icon={action.icon ?? IconArrowLeft} size={'small'} />
+                  <Icon icon={action.icon ?? IconArrowLeft} size="small" />
                 </div>
                 <div class="flex-grow {selection === num ? 'caption-color' : 'content-color'}">
                   <Label label={action.label} />
@@ -450,10 +450,10 @@
     <div class="actionsHint">
       <div class="actionsHintLable">
         <span class="hintNav">
-          <ChevronUp size={'small'} />
+          <ChevronUp size="small" />
         </span>
         <span class="hintNav">
-          <ChevronDown size={'small'} />
+          <ChevronDown size="small" />
         </span>
         <span class="ml mr">
           <Label label={view.string.Type} />

@@ -29,8 +29,8 @@
 
 {#if value && value.attachedTo !== time.ids.NotAttached}
   <div class="flex-row-center gap-1-5">
-    <Icon icon={time.icon.Hashtag} size={'small'} />
-    <Button kind={'ghost'} padding={'0 .5rem'} {focusIndex} shrink={1} on:click={click}>
+    <Icon icon={time.icon.Hashtag} size="small" />
+    <Button kind="ghost" padding="0 .5rem" {focusIndex} shrink={1} on:click={click}>
       <svelte:fragment slot="content">
         {#if value}
           <WorkItemPresenter todo={value} withoutSpace />

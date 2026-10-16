@@ -72,7 +72,7 @@
     </div>
     {#if upload?.error}
       <Button
-        kind={'icon'}
+        kind="icon"
         icon={IconClose}
         iconProps={{ size: 'small' }}
         showTooltip={{ label: uploader.string.Cancel }}
@@ -89,11 +89,11 @@
           <div class="upload-file-row flex-row-center justify-start flex-gap-4">
             <div class="upload-file-row__status w-4">
               {#if file.error}
-                <IconError size={'small'} fill={'var(--negative-button-default)'} />
+                <IconError size="small" fill="var(--negative-button-default)" />
               {:else if file.finished}
-                <IconCompleted size={'small'} fill={'var(--positive-button-default)'} />
+                <IconCompleted size="small" fill="var(--positive-button-default)" />
               {:else}
-                <ProgressCircle value={file.progress} size={'small'} primary />
+                <ProgressCircle value={file.progress} size="small" primary />
               {/if}
             </div>
 
@@ -119,7 +119,7 @@
             <div class="upload-file-row__tools flex-row-center">
               {#if file.error}
                 <Button
-                  kind={'icon'}
+                  kind="icon"
                   icon={IconRetry}
                   iconProps={{ size: 'small' }}
                   showTooltip={{ label: uploader.string.Retry }}
@@ -130,7 +130,7 @@
               {/if}
               {#if !file.finished}
                 <Button
-                  kind={'icon'}
+                  kind="icon"
                   icon={IconClose}
                   iconProps={{ size: 'small' }}
                   showTooltip={{ label: uploader.string.Cancel }}

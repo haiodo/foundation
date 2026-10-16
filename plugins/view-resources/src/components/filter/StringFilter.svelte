@@ -56,8 +56,8 @@
   <div class="header no-border">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       placeholder={filter.key.label}

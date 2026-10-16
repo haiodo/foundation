@@ -86,10 +86,10 @@
 
 {#if count > 0}
   {#if iconOnly}
-    <ButtonIcon icon={view.icon.Pin} size={'small'} on:click={openMessagesPopup} />
+    <ButtonIcon icon={view.icon.Pin} size="small" on:click={openMessagesPopup} />
   {:else}
-    <ModernButton size={'small'} on:click={openMessagesPopup}>
-      <Icon icon={view.icon.Pin} size={'x-small'} />
+    <ModernButton size="small" on:click={openMessagesPopup}>
+      <Icon icon={view.icon.Pin} size="x-small" />
       <span class="text-sm"><Label label={chunter.string.PinnedCount} params={{ count }} /></span>
     </ModernButton>
   {/if}

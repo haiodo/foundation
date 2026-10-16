@@ -77,21 +77,21 @@
 
 <Modal
   label={core.string.Relation}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={true}
   onCancel={clearSettingsStore}
 >
   <svelte:fragment slot="actions">
-    <Button icon={IconDelete} kind={'dangerous'} on:click={remove} />
+    <Button icon={IconDelete} kind="dangerous" on:click={remove} />
   </svelte:fragment>
   <div class="hulyModal-content__settingsSet">
     <div class="flex flex-gap-4">
       <div class="flex-col p-4 flex-gap-2">
         <div class="flex-col-center">A</div>
         <div>
-          <EditBox bind:value={nameA} placeholder={core.string.Name} kind={'default'} />
+          <EditBox bind:value={nameA} placeholder={core.string.Name} kind="default" />
         </div>
         <div>
           <Label label={classA.label} />
@@ -106,7 +106,7 @@
       <div class="flex-col p-4 flex-gap-2">
         <div class="flex-col-center">B</div>
         <div>
-          <EditBox bind:value={nameB} placeholder={core.string.Name} kind={'default'} />
+          <EditBox bind:value={nameB} placeholder={core.string.Name} kind="default" />
         </div>
         <div>
           <Label label={classB.label} />

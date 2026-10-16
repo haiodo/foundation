@@ -45,7 +45,7 @@
 <div class="ml-2 flex-col">
   {#each objects as doc (doc.doc._id)}
     <div class="flex-presenter p-1 flex flex-between">
-      <FixedColumn key={'reactions_link'}>
+      <FixedColumn key="reactions_link">
         <ObjectPresenter _class={doc.doc._class} objectId={doc.doc._id} value={doc.doc} noUnderline />
       </FixedColumn>
       <RatingEditor _class={doc.doc._class} _id={doc.doc._id} reactions={doc.reactions} showMy={false} />

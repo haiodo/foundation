@@ -94,7 +94,7 @@
   }
 </script>
 
-<Header adaptive={'freezeActions'} hideActions={!(createLabel !== undefined && createComponent)}>
+<Header adaptive="freezeActions" hideActions={!(createLabel !== undefined && createComponent)}>
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       bind:viewlet
@@ -121,7 +121,7 @@
       <Button
         icon={IconAdd}
         label={createLabel}
-        kind={'primary'}
+        kind="primary"
         disabled={isCreationDisabled}
         on:click={() => {
           showCreateDialog()

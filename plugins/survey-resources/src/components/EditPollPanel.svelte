@@ -125,7 +125,7 @@
         <Button
           icon={survey.icon.Submit}
           label={survey.string.SurveySubmit}
-          kind={'primary'}
+          kind="primary"
           disabled={!canSubmit}
           showTooltip={{ label: canSubmit ? undefined : survey.string.ValidateFail }}
           on:click={submit}
@@ -142,7 +142,7 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         on:click={(e) => {
           showMenu(e, { object, excludedActions: [view.action.Open] })
         }}

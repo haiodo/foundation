@@ -58,7 +58,7 @@
     <slot name="header-tools" />
   </svelte:fragment>
 
-  <Breadcrumb {icon} title={label} size={'large'} isCurrent />
+  <Breadcrumb {icon} title={label} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed />
@@ -80,7 +80,7 @@
   <svelte:fragment slot="extra">
     <slot name="extra" />
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>

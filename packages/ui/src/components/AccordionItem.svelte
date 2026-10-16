@@ -86,7 +86,7 @@
     >
       {#if size === 'large' && !disabled}
         <div class="hulyAccordionItem-header__chevron">
-          <Icon icon={IconChevronRight} size={'small'} />
+          <Icon icon={IconChevronRight} size="small" />
         </div>
       {/if}
       {#if size !== 'small' && icon !== undefined && !disabled}

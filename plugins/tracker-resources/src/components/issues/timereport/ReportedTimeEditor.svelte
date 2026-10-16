@@ -160,7 +160,7 @@
     {/if}
     {#if !readonly}
       <div class="add-action">
-        <ActionIcon icon={IconAdd} size={'small'} action={addTimeReport} />
+        <ActionIcon icon={IconAdd} size="small" action={addTimeReport} />
       </div>
     {/if}
   </div>

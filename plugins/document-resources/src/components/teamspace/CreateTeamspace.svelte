@@ -294,8 +294,8 @@
   okAction={handleSave}
   {canSave}
   accentHeader
-  width={'medium'}
-  gap={'gapV-6'}
+  width="medium"
+  gap="gapV-6"
   onCancel={close}
   on:changeContent
 >
@@ -325,7 +325,7 @@
           id="teamspace-title"
           bind:value={name}
           placeholder={documentRes.string.TeamspaceTitlePlaceholder}
-          kind={'large-style'}
+          kind="large-style"
           autoFocus
           on:input={() => {
             if (isNew) {
@@ -364,7 +364,7 @@
                 getPaletteColorDef(color, $themeStore.dark)?.icon ??
                 getPlatformColorForTextDef(name, $themeStore.dark).icon
             }}
-        size={'large'}
+        size="large"
         on:click={chooseIcon}
       />
     </div>
@@ -377,8 +377,8 @@
         value={owners}
         label={core.string.Owners}
         onChange={handleOwnersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -387,7 +387,7 @@
         <Label label={presentation.string.MakePrivate} />
         <span><Label label={presentation.string.MakePrivateDescription} /></span>
       </div>
-      <Toggle id={'teamspace-private'} bind:on={isPrivate} disabled={!isPrivate && members.length === 0} />
+      <Toggle id="teamspace-private" bind:on={isPrivate} disabled={!isPrivate && members.length === 0} />
     </div>
 
     <div class="antiGrid-row">
@@ -399,8 +399,8 @@
         allowGuests
         label={documentRes.string.TeamspaceMembers}
         onChange={handleMembersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -409,7 +409,7 @@
         <Label label={core.string.AutoJoin} />
         <span><Label label={core.string.AutoJoinDescr} /></span>
       </div>
-      <Toggle id={'teamspace-autoJoin'} bind:on={autoJoin} />
+      <Toggle id="teamspace-autoJoin" bind:on={autoJoin} />
     </div>
 
     {#each roles as role}
@@ -425,8 +425,8 @@
           onChange={(refs) => {
             handleRoleAssignmentChanged(role._id, refs)
           }}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       </div>
     {/each}

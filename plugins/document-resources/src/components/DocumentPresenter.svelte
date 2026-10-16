@@ -48,7 +48,7 @@
       >
         {#if shouldShowAvatar}
           <div class="icon">
-            <DocumentIcon {value} size={'small'} defaultIcon={document.icon.Document} />
+            <DocumentIcon {value} size="small" defaultIcon={document.icon.Document} />
           </div>
         {/if}
         <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>

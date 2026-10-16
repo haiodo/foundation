@@ -57,7 +57,7 @@
   {#each statuses as value, i (value._id)}
     {#if value != null && i < 5}
       <div>
-        <IssueStatusIcon {space} {value} size={'small'} />
+        <IssueStatusIcon {space} {value} size="small" />
       </div>
     {/if}
   {/each}
