@@ -975,6 +975,14 @@ export function createModel (builder: Builder): void {
     func: contact.function.EmployeeSort
   })
 
+  builder.mixin(contact.class.Person, core.class.Class, view.mixin.SortFuncs, {
+    func: contact.function.PersonSort
+  })
+
+  builder.mixin(core.class.TypePersonId, core.class.Class, view.mixin.SortFuncs, {
+    func: contact.function.PersonIdSort
+  })
+
   builder.mixin(contact.class.Person, core.class.Class, view.mixin.AttributePresenter, {
     presenter: contact.component.PersonRefPresenter,
     arrayPresenter: contact.component.ContactArrayEditor
