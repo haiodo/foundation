@@ -44,13 +44,7 @@
             {@const documentClass = client.getHierarchy().getClass(target.rule.ofClass)}
 
             <div class="flex-row-center">
-              <Button
-                label={documentClass.label}
-                icon={documentClass.icon}
-                disabled={true}
-                size="medium"
-                kind="link"
-              />
+              <Button label={documentClass.label} icon={documentClass.icon} disabled={true} size="medium" kind="link" />
             </div>
           {:else if target.rule.kind === 'spaceRule'}
             <SpaceSelector

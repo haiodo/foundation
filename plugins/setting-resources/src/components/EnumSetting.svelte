@@ -59,13 +59,7 @@
   <Header adaptive="disabled">
     <Breadcrumb icon={setting.icon.Enums} label={setting.string.Enums} size="large" isCurrent />
     <svelte:fragment slot="actions">
-      <ModernButton
-        kind="primary"
-        icon={IconAdd}
-        label={setting.string.CreateEnum}
-        size="small"
-        on:click={create}
-      />
+      <ModernButton kind="primary" icon={IconAdd} label={setting.string.CreateEnum} size="small" on:click={create} />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__container columns">

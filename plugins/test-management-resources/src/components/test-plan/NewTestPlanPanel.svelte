@@ -119,12 +119,7 @@
     <svelte:fragment slot="title">
       <Label label={testManagement.string.CreateTestPlan} />
     </svelte:fragment>
-    <EditBox
-      bind:value={object.name}
-      placeholder={testManagement.string.TestPlanTitle}
-      kind="large-style"
-      autoFocus
-    />
+    <EditBox bind:value={object.name} placeholder={testManagement.string.TestPlanTitle} kind="large-style" autoFocus />
 
     <AttachmentStyledBox
       bind:this={descriptionBox}

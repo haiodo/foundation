@@ -219,21 +219,9 @@
         <NavItem icon={setting.icon.Signout} label={setting.string.Signout} on:click={signOut} />
       </NavFooter>
     </div>
-    <Separator
-      name="setting"
-      float={$deviceInfo.navigator.float ? 'navigator' : true}
-      index={0}
-      color="transparent"
-    />
+    <Separator name="setting" float={$deviceInfo.navigator.float ? 'navigator' : true} index={0} color="transparent" />
   </div>
-  <Separator
-    name="setting"
-    float={$deviceInfo.navigator.float}
-    index={0}
-    color="transparent"
-    separatorSize={0}
-    short
-  />
+  <Separator name="setting" float={$deviceInfo.navigator.float} index={0} color="transparent" separatorSize={0} short />
 {/if}
 
 <div

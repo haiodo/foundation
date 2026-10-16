@@ -212,13 +212,7 @@
         </div>
       </div>
       <div class="ml-4 flex">
-        <EditableAvatar
-          person={object}
-          size="large"
-          name={object.name}
-          bind:this={avatarEditor}
-          bind:direct={avatar}
-        />
+        <EditableAvatar person={object} size="large" name={object.name} bind:this={avatarEditor} bind:direct={avatar} />
       </div>
     </div>
   {:else}

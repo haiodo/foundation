@@ -249,13 +249,7 @@
       <slot name="extraControls" />
     </div>
     <div class="ml-4">
-      <EditableAvatar
-        {person}
-        name={combineName(firstName, lastName)}
-        {email}
-        size="large"
-        bind:this={avatarEditor}
-      />
+      <EditableAvatar {person} name={combineName(firstName, lastName)} {email} size="large" bind:this={avatarEditor} />
     </div>
   </div>
   <svelte:fragment slot="pool">

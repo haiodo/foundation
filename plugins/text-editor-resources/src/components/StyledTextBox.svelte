@@ -366,13 +366,7 @@
     </div>
     {#if !alwaysEdit && !hideExtraButtons && !readonly}
       <div class="flex flex-reverse">
-        <ActionIcon
-          size="medium"
-          icon={IconEdit}
-          direction="top"
-          label={textEditor.string.Edit}
-          action={startEdit}
-        />
+        <ActionIcon size="medium" icon={IconEdit} direction="top" label={textEditor.string.Edit} action={startEdit} />
       </div>
     {/if}
   {/if}

@@ -23,10 +23,4 @@
   }
 </script>
 
-<Button
-  icon={IconAdd}
-  justify="left"
-  kind="primary"
-  label={testManagement.string.CreateTestRun}
-  on:click={handleRun}
-/>
+<Button icon={IconAdd} justify="left" kind="primary" label={testManagement.string.CreateTestRun} on:click={handleRun} />

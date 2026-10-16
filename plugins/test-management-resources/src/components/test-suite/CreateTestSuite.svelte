@@ -83,12 +83,7 @@
       focusIndex={20000}
     />
   </svelte:fragment>
-  <EditBox
-    bind:value={object.name}
-    placeholder={testManagement.string.NamePlaceholder}
-    kind="large-style"
-    autoFocus
-  />
+  <EditBox bind:value={object.name} placeholder={testManagement.string.NamePlaceholder} kind="large-style" autoFocus />
   <StyledTextArea
     bind:content={object.description}
     placeholder={testManagement.string.DescriptionPlaceholder}

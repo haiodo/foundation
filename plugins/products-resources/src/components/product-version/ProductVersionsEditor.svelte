@@ -55,12 +55,7 @@
   <svelte:fragment slot="header">
     {#if !readonly}
       <div class="buttons-group xsmall-gap">
-        <Button
-          id={products.string.CreateProductVersion}
-          icon={IconAdd}
-          kind="ghost"
-          on:click={createProductVersion}
-        />
+        <Button id={products.string.CreateProductVersion} icon={IconAdd} kind="ghost" on:click={createProductVersion} />
       </div>
     {/if}
   </svelte:fragment>

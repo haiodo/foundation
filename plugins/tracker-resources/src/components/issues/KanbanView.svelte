@@ -847,13 +847,7 @@
           </div>
           <div class="card-labels meta">
             {#if enabledConfig(config, 'priority') && (!compactMode || issue.priority !== IssuePriority.NoPriority)}
-              <PriorityEditor
-                value={issue}
-                isEditable={true}
-                kind="link-bordered"
-                size="small"
-                justify="center"
-              />
+              <PriorityEditor value={issue} isEditable={true} kind="link-bordered" size="small" justify="center" />
             {/if}
             {#if enabledConfig(config, 'subIssues') && issue && issue.subIssues > 0}
               <SubIssuesSelector value={issue} {currentProject} size="small" />

@@ -361,13 +361,7 @@
           {#await getPerson(personInfo.person) then person}
             {#if personInfo}
               <div class="relative">
-                <Avatar
-                  name={person?.name ?? personInfo.name}
-                  {person}
-                  size="large"
-                  showStatus={false}
-                  adaptiveName
-                />
+                <Avatar name={person?.name ?? personInfo.name} {person} size="large" showStatus={false} adaptiveName />
                 {#if isBusy}
                   <div class="busy-badge" data-id="busy-badge">
                     <Label label={love.string.Busy} />

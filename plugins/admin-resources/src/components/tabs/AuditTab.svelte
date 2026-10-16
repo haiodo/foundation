@@ -119,12 +119,7 @@
     <Label label={adminRes.string.Page} />
     {Math.floor(skip / limit) + 1} / {Math.max(1, Math.ceil(total / limit))}
   </span>
-  <Button
-    label={adminRes.string.Next}
-    size="small"
-    disabled={skip + limit >= total}
-    on:click={() => (skip += limit)}
-  />
+  <Button label={adminRes.string.Next} size="small" disabled={skip + limit >= total} on:click={() => (skip += limit)} />
 
   <span class="ml-4 mr-1"><Label label={adminRes.string.Operation} /></span>
   <ButtonMenu

@@ -148,13 +148,7 @@
       <Label label={setting.string.Custom} />
     </div>
     <div class="flex items-center">
-      <ButtonIcon
-        icon={icon ?? setting.icon.Enums}
-        size="medium"
-        iconSize="large"
-        kind="tertiary"
-        on:click={setIcon}
-      />
+      <ButtonIcon icon={icon ?? setting.icon.Enums} size="medium" iconSize="large" kind="tertiary" on:click={setIcon} />
       <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" autoFocus />
     </div>
   </div>

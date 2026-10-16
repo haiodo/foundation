@@ -157,13 +157,7 @@
   />
   <svelte:fragment slot="pool">
     <DateRangePresenter bind:value editable labelNull={ui.string.SelectDate} kind="regular" size="large" />
-    <DateRangePresenter
-      bind:value={dueDate}
-      labelNull={calendar.string.DueTo}
-      editable
-      kind="regular"
-      size="large"
-    />
+    <DateRangePresenter bind:value={dueDate} labelNull={calendar.string.DueTo} editable kind="regular" size="large" />
   </svelte:fragment>
   <svelte:fragment slot="footer">
     <Button

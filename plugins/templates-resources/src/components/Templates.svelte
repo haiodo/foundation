@@ -153,12 +153,7 @@
 
 <div class="hulyComponent">
   <Header adaptive="disabled">
-    <Breadcrumb
-      icon={templatesPlugin.icon.Templates}
-      label={templatesPlugin.string.Templates}
-      size="large"
-      isCurrent
-    />
+    <Breadcrumb icon={templatesPlugin.icon.Templates} label={templatesPlugin.string.Templates} size="large" isCurrent />
   </Header>
 
   <div class="hulyComponent-content__container columns">
