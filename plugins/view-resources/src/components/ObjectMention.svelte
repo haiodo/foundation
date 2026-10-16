@@ -181,7 +181,7 @@
             icon={clazz?.color ?? 0}
             size="smaller"
             inline
-          />{:else}<Icon {icon} size="small" />{/if}{' '}<!-- eslint-disable-line svelte/no-useless-mustaches -->{:else}@{/if}{displayTitle}
+          />{:else}<Icon {icon} size="small" />{/if}&#32;{:else}@{/if}{displayTitle}
     </DocNavLink>
   </span>
 {/if}

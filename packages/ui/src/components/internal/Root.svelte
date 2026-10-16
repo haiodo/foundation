@@ -278,11 +278,7 @@
           </div>
         {/if}
         {#if !secondRow}
-          <div
-            class="flex-row-center left-items flex-gap-1"
-            class:ml-14={appsMini}
-            style:-webkit-app-region="no-drag"
-          >
+          <div class="flex-row-center left-items flex-gap-1" class:ml-14={appsMini} style:-webkit-app-region="no-drag">
             <RootBarExtension position="left" />
           </div>
         {/if}
