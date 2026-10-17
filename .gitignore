@@ -11,7 +11,6 @@ pods/workspace/init-scripts/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-*./rush-logs
 *tests/sanity/screenshots
 
 # Runtime data
@@ -73,9 +72,7 @@ jspm_packages/
 
 # Rush temporary files
 common/deploy/
-common/temp/
 common/autoinstallers/*/.npmrc
-**/.rush/temp/
 bundle.js
 bundle/*.js
 dist
@@ -115,7 +112,6 @@ dev/tool/history.json
 /combined_dependencies
 .tmp
 ws-tests/docker-compose.override.yml
-diff
 tests/docker-compose.override.versions.yml
 benchmarks/front-benchmark/front-benchmark
 build-comparison/
@@ -123,3 +119,10 @@ dev/gh-picker/gh-picker
 /dev/prod/.build_cache
 .claude/settings.local.json
 get-model-bundle.js
+# CI cache
+.cache
+tests/sanity/step-report.ndjson
+
+.profile-tests
+.tmp-shots/
+coverage-stand.json

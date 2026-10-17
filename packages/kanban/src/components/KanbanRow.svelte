@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
+  import type {
     CategoryType,
     Class,
     Doc,
@@ -22,12 +22,12 @@
     IdMap,
     RateLimiter,
     Ref,
-    Space,
-    toIdMap
+    Space
   } from '@hcengineering/core'
+  import { toIdMap } from '@hcengineering/core'
   import ui, { Button, IconMoreH, Lazy, mouseAttractor } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
-  import { CardDragEvent, DocWithRank, Item } from '../types'
+  import type { CardDragEvent, DocWithRank, Item } from '../types'
   import { createQuery } from '@hcengineering/presentation'
 
   export let stateObjects: Item[]
@@ -188,10 +188,10 @@
     <div class="card-container flex-center flex-row-center p-4 gap-2 no-word-wrap">
       <span class="caption-color">{limitedObjects.size}</span> <span>/</span><span>{stateObjects.length}</span>
       <Button
-        size={'small'}
+        size="small"
         icon={IconMoreH}
         label={ui.string.ShowMore}
-        dataId={'btn-kanban-show-more'}
+        dataId="btn-kanban-show-more"
         on:click={() => {
           limit = limit + limitStep
         }}

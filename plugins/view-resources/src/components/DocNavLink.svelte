@@ -13,11 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { concatLink, Doc, Hierarchy } from '@hcengineering/core'
+  import type { Doc } from '@hcengineering/core'
+  import { concatLink, Hierarchy } from '@hcengineering/core'
   import presentation, { NavLink, getClient, createQuery, MessageBox } from '@hcengineering/presentation'
-  import { AnyComponent, getPanelURI, locationToUrl, showPopup } from '@hcengineering/ui'
+  import type { AnyComponent } from '@hcengineering/ui'
+  import { getPanelURI, locationToUrl, showPopup } from '@hcengineering/ui'
   import view from '../plugin'
-  import { getObjectLinkFragment, restrictionStore } from '../utils'
+  import { getObjectLinkFragment, openDocInSidebar, restrictionStore } from '../utils'
   import { getMetadata } from '@hcengineering/platform'
 
   export let object: Doc | undefined
@@ -73,7 +75,7 @@
       : concatLink(frontUrl, locationToUrl(loc))
   }
 
-  $: if (object !== undefined) getHref(object)
+  $: if (object !== undefined) void getHref(object)
 
   function onBrokenLinkClick (event: MouseEvent): void {
     showPopup(MessageBox, {
@@ -81,6 +83,13 @@
       message: presentation.string.AccessDenied,
       canSubmit: false
     })
+  }
+
+  // Option/Alt + click opens the object in the right sidebar instead of navigating
+  function onAltClick (event: MouseEvent): void {
+    if (object !== undefined && !_disabled) {
+      void openDocInSidebar(object)
+    }
   }
 </script>
 
@@ -94,6 +103,7 @@
   <NavLink
     disabled={_disabled}
     {onClick}
+    {onAltClick}
     {noUnderline}
     {inline}
     {shrink}

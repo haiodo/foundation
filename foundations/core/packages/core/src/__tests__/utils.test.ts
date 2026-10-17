@@ -13,7 +13,9 @@
 // limitations under the License.
 //
 
-import { mergeQueries } from '..'
+import { mergeQueries, buildSocialIdString, parseSocialIdString, canonicalJson } from '..'
+import { SocialIdType } from '../classes'
+import { TxFactory } from '../tx'
 
 describe('mergeQueries', () => {
   it('merges query with empty query', () => {
@@ -181,5 +183,48 @@ describe('mergeQueries', () => {
     } as any
     expect(mergeQueries(q1, q2)).toEqual(res)
     expect(mergeQueries(q2, q1)).toEqual(res)
+  })
+})
+
+describe('buildSocialIdString / parseSocialIdString', () => {
+  it('round-trips a webhook social key built with a uuid value', () => {
+    const key = { type: SocialIdType.WEBHOOK, value: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d' }
+    expect(parseSocialIdString(buildSocialIdString(key))).toEqual(key)
+  })
+
+  // Documents current behaviour, not desired behaviour: split(':') keeps only the first two
+  // parts, so a value containing ':' is silently truncated on parse.
+  it('truncates the value at the first extra colon (current behaviour, not a spec)', () => {
+    const built = buildSocialIdString({ type: SocialIdType.WEBHOOK, value: 'aaa:bbb' })
+    expect(parseSocialIdString(built)).toEqual({ type: SocialIdType.WEBHOOK, value: 'aaa' })
+  })
+})
+
+describe('TxFactory with meta', () => {
+  it('creates transaction with TxMeta', () => {
+    const factory = new TxFactory('system' as any)
+    const tx = factory.createTxCreateDoc(
+      'class:Test' as any,
+      'space:Test' as any,
+      {},
+      undefined,
+      undefined,
+      undefined,
+      { silent: true }
+    )
+    expect(tx.meta).toEqual({ silent: true })
+  })
+})
+
+describe('canonicalJson', () => {
+  it('does not depend on key order at any level', () => {
+    const a = { b: 1, a: { d: [{ y: 1, x: 2 }], c: null } }
+    const b = { a: { c: null, d: [{ x: 2, y: 1 }] }, b: 1 }
+    expect(canonicalJson(a)).toEqual(canonicalJson(b))
+    expect(canonicalJson(a)).toEqual('{"a":{"c":null,"d":[{"x":2,"y":1}]},"b":1}')
+  })
+
+  it('keeps array order', () => {
+    expect(canonicalJson([2, 1])).not.toEqual(canonicalJson([1, 2]))
   })
 })

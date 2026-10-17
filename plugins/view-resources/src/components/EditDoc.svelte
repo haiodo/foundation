@@ -1,6 +1,7 @@
 <!--
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,26 +15,30 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Hierarchy, Mixin, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Mixin, Ref } from '@hcengineering/core'
+  import { Hierarchy } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { Panel } from '@hcengineering/panel'
   import { getResource } from '@hcengineering/platform'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
   import {
     ActionContext,
     AttributesBar,
     ComponentExtensions,
-    KeyedAttribute,
     createQuery,
     getClient,
     hasResource,
     reduceCalls
   } from '@hcengineering/presentation'
-  import { AnyComponent, Button, Component, IconMixin, IconMoreH, languageStore } from '@hcengineering/ui'
-  import view, { AttributeCategory } from '@hcengineering/view'
+  import type { AnyComponent } from '@hcengineering/ui'
+  import { Button, Component, IconMixin, IconMoreH, languageStore } from '@hcengineering/ui'
+  import type { AttributeCategory } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { createEventDispatcher, onDestroy } from 'svelte'
 
   import { DocNavLink, ParentsNavigator, getDocAttrsInfo, getDocLabel, getDocMixins, showMenu, parseLinkId } from '..'
-  import { getCollectionCounter } from '../utils'
+  import { getCollectionCounter, openDocInSidebar } from '../utils'
+  import ClassSettingButton from './ClassSettingButton.svelte'
   import DocAttributeBar from './DocAttributeBar.svelte'
   import RelationsEditor from './RelationsEditor.svelte'
 
@@ -42,6 +47,7 @@
   export let embedded: boolean = false
   export let readonly: boolean = false
   export let selectedAside: boolean | undefined = undefined
+  export let allowClose: boolean = !embedded
 
   let realObjectClass: Ref<Class<Doc>> = _class
   let lastId: Ref<Doc> | undefined
@@ -50,7 +56,7 @@
 
   const pClient = getClient()
   const hierarchy = pClient.getHierarchy()
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
   const linkProviders = pClient.getModel().findAllSync(view.mixin.LinkIdProvider, {})
 
   $: void parseLinkId(linkProviders, _id, _class).then((res) => {
@@ -242,7 +248,7 @@
   <Panel
     {object}
     isHeader={mainEditor?.pinned ?? false}
-    allowClose={!embedded}
+    {allowClose}
     isAside={true}
     {embedded}
     {selectedAside}
@@ -260,6 +266,10 @@
     withoutInput={!activityOptions.showInput || readonly}
   >
     <svelte:fragment slot="title">
+      <ComponentExtensions
+        extension={view.extensions.EditDocPreTitleExtension}
+        props={{ _id, _class, value: object, readonly }}
+      />
       {#if !embedded}<ParentsNavigator element={object} />{/if}
       {#if embedded && object}
         <DocNavLink noUnderline {object}>
@@ -273,12 +283,24 @@
         extension={view.extensions.EditDocTitleExtension}
         props={{ size: 'medium', kind: 'ghost', _id, _class, value: object, readonly }}
       />
+      {#if !embedded && object}
+        <Button
+          icon={view.icon.DetailsFilled}
+          iconProps={{ size: 'medium' }}
+          kind="icon"
+          dataId="btnOpenInSidebar"
+          showTooltip={{ label: view.string.OpenInSidebar }}
+          on:click={() => {
+            void openDocInSidebar(object)
+          }}
+        />
+      {/if}
       {#if !readonly}
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnMoreActions'}
+          kind="icon"
+          dataId="btnMoreActions"
           on:click={(e) => {
             showMenu(e, { object, excludedActions: [view.action.Open] })
           }}
@@ -287,13 +309,14 @@
       <Button
         icon={IconMixin}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         selected={showAllMixins}
-        dataId={'btnMixin'}
+        dataId="btnMixin"
         on:click={() => {
           showAllMixins = !showAllMixins
         }}
       />
+      <ClassSettingButton _class={realObjectClass} />
     </svelte:fragment>
 
     <svelte:fragment slot="attributes" let:direction={dir}>
@@ -327,14 +350,14 @@
     </svelte:fragment>
 
     <svelte:fragment slot="header">
-      {#if mainEditor && mainEditor.editor && mainEditor.pinned}
+      {#if mainEditor?.editor && mainEditor.pinned}
         <div class="flex-col flex-grow my-4">
           <Component is={mainEditor.editor} props={{ object, readonly }} on:open={handleOpen} />
         </div>
       {/if}
     </svelte:fragment>
 
-    {#if mainEditor && mainEditor.editor && !mainEditor.pinned}
+    {#if mainEditor?.editor && !mainEditor.pinned}
       <div class="flex-col flex-grow flex-no-shrink step-tb-6">
         <Component is={mainEditor.editor} props={{ object, readonly }} on:open={handleOpen} />
       </div>

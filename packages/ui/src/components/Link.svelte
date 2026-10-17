@@ -31,7 +31,7 @@
 <span class="container" class:disabled on:click>
   {#if icon}
     <span class="icon">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </span>
   {/if}
   {#if disabled}

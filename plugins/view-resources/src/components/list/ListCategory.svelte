@@ -13,37 +13,32 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
+  import type {
     AggregateValue,
     Class,
     Doc,
     DocumentQuery,
     DocumentUpdate,
     FindOptions,
-    Hierarchy,
     Lookup,
     PrimitiveType,
     RateLimiter,
     Ref,
     Space
   } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import { Hierarchy } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { DocWithRank, makeRank } from '@hcengineering/task'
-  import ui, {
-    AnyComponent,
-    AnySvelteComponent,
-    ExpandCollapse,
-    mouseAttractor,
-    Loading,
-    Label,
-    Scroller
-  } from '@hcengineering/ui'
-  import { AttributeModel, BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { DocWithRank } from '@hcengineering/task'
+  import { makeRank } from '@hcengineering/task'
+  import type { AnyComponent, AnySvelteComponent } from '@hcengineering/ui'
+  import ui, { ExpandCollapse, mouseAttractor, Loading, Label, Scroller } from '@hcengineering/ui'
+  import type { AttributeModel, BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import { fade } from 'svelte/transition'
   import { showMenu } from '../../actions'
-  import { FocusSelection, SelectionFocusProvider, focusStore } from '../../selection'
+  import type { FocusSelection, SelectionFocusProvider } from '../../selection'
+  import { focusStore } from '../../selection'
   import ListHeader from './ListHeader.svelte'
   import ListItem from './ListItem.svelte'
 
@@ -82,7 +77,6 @@
     revert?: () => void
   }
   export let listDiv: HTMLDivElement
-  // export let index: number
   export let groupPersistKey: string
   export let compactMode: boolean = false
   export let resultQuery: DocumentQuery<Doc>
@@ -131,9 +125,9 @@
   $: finalResultQuery =
     itemProj.length < 20 && resultQuery.$search !== null
       ? noSearch({
-        ...resultQuery,
-        _id: { $in: itemProj.map((it) => it._id) }
-      })
+          ...resultQuery,
+          _id: { $in: itemProj.map((it) => it._id) }
+        })
       : resultQuery
 
   $: if (lastLevel) {
@@ -175,18 +169,17 @@
     return res
   }
 
-  function initCollapsed (singleCat: boolean, lastLevel: boolean, level: number): void {
+  // `count` re-runs it as a search narrows the list: decided once, Backlog folded at 20+ rows stayed folded with one.
+  function initCollapsed (singleCat: boolean, lastLevel: boolean, level: number, count: number): void {
     if (localStorage.getItem(categoryCollapseKey) === null) {
       collapsed =
-        (!disableHeader &&
-          !singleCat &&
-          itemProj.length > (lastLevel ? autoFoldLimit : singleCategoryLimit) / (level + 1)) ||
+        (!disableHeader && !singleCat && count > (lastLevel ? autoFoldLimit : singleCategoryLimit) / (level + 1)) ||
         parentCategories > 10 ||
         (level > 1 && parentCategories > 5)
     }
   }
 
-  $: initCollapsed(singleCat, lastLevel, level)
+  $: initCollapsed(singleCat, lastLevel, level, itemProj.length)
 
   const handleRowFocused = (object: Doc) => {
     dispatch('row-focus', object)
@@ -590,7 +583,7 @@
                 <span class="caption-color"><Label label={ui.string.ShowMore} /></span>
                 {#if loading}
                   <div class="p-1">
-                    <Loading shrink size={'small'} />
+                    <Loading shrink size="small" />
                   </div>
                 {:else}
                   <span class="content-halfcontent-color ml-0-5">({HLimited} / {itemProj.length})</span>

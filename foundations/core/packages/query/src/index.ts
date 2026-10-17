@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -66,7 +67,6 @@ import core, {
   type DomainResult,
   type OperationDomain
 } from '@hcengineering/core'
-import { PlatformError } from '@hcengineering/platform'
 import { deepEqual } from 'fast-equals'
 import { Refs } from './refs'
 import { ResultArray } from './results'
@@ -195,14 +195,9 @@ export class LiveQuery implements WithTx, Client {
       if (clean) {
         this.cleanQuery(q)
       }
+      // q.refresh never rejects: reduceCalls catches and logs the error itself.
       void limiter.add(async () => {
-        try {
-          await this.refresh(q)
-        } catch (err: any) {
-          if (err instanceof PlatformError && err.message === 'connection closed') return
-          Analytics.handleError(err)
-          console.error(err)
-        }
+        await this.refresh(q)
       })
     }
     await limiter.waitProcessing()
@@ -214,6 +209,7 @@ export class LiveQuery implements WithTx, Client {
       callback(toFindResult([], 0))
     })
     q.result = new ResultArray([], this.getHierarchy())
+    q.refsRegistered = false
     q.total = -1
   }
 
@@ -235,7 +231,7 @@ export class LiveQuery implements WithTx, Client {
     const query = q.query
     for (const key in query) {
       if (key === '$search') continue
-      if (key === '$searchStrict') continue
+      if (key === '$searchIn') continue
       if (skipLookup && key.startsWith('$lookup')) continue
       const value = (query as any)[key]
       const result = findProperty([doc], key, value)
@@ -315,18 +311,18 @@ export class LiveQuery implements WithTx, Client {
       return await this.client.findOne(_class, query, options)
     }
     if (options?.projection !== undefined) {
-      options.projection = {
-        ...options.projection,
-        _class: 1,
-        space: 1,
-        modifiedOn: 1
+      options = {
+        ...options,
+        projection: {
+          ...options.projection,
+          _class: 1,
+          space: 1,
+          modifiedOn: 1
+        }
       }
     }
 
-    if (options === undefined) {
-      options = {}
-    }
-    options.limit = 1
+    options = { ...options, limit: 1 }
 
     const d = this.refs.findFromDocs(_class, query, options)
     if (d !== null) {
@@ -378,6 +374,8 @@ export class LiveQuery implements WithTx, Client {
         if (update) {
           if (!(q.result instanceof Promise)) {
             this.refs.updateDocuments(q, q.result.getDocs(), true)
+            // Unregistered from Refs, so a revived query has to register the result again.
+            q.refsRegistered = false
           }
         }
         return true
@@ -394,14 +392,15 @@ export class LiveQuery implements WithTx, Client {
     }
   ): void {
     q.callbacks.set(callback.callbackId, callback.callback)
-    setTimeout(async () => {
-      if (q !== undefined) {
+    // A microtask delivers the cached result before the next render; setTimeout costs >= 1ms.
+    queueMicrotask(() => {
+      void (async () => {
         if (q.result instanceof Promise) {
           q.result = await q.result
         }
         callback.callback(toFindResult(q.result.getResult(callback.callbackId), q.total))
-      }
-    }, 0)
+      })()
+    })
   }
 
   private getQuery<T extends Doc>(
@@ -446,10 +445,11 @@ export class LiveQuery implements WithTx, Client {
       query: _query,
       result: result.then((docs) => new ResultArray(docs, this.getHierarchy())),
       total: 0,
-      options: options as FindOptions<Doc>,
+      options,
       callbacks: new Map(),
       refresh: reduceCalls(() => this.doRefresh(q)),
-      refreshId: 0
+      refreshId: 0,
+      refsRegistered: false
     }
     if (callback !== undefined) {
       q.callbacks.set(callback.callbackId, callback.callback as unknown as Callback)
@@ -491,6 +491,7 @@ export class LiveQuery implements WithTx, Client {
     if (removed) {
       if (!(q.result instanceof Promise)) {
         this.refs.updateDocuments(q, q.result.getDocs(), true)
+        q.refsRegistered = false
       }
     }
   }
@@ -502,11 +503,15 @@ export class LiveQuery implements WithTx, Client {
     options?: FindOptions<T>
   ): () => void {
     if (options?.projection !== undefined) {
-      options.projection = {
-        ...options.projection,
-        _class: 1,
-        space: 1,
-        modifiedOn: 1
+      // Copy: callers compare options with their previous call; a mutated object never matches.
+      options = {
+        ...options,
+        projection: {
+          ...options.projection,
+          _class: 1,
+          space: 1,
+          modifiedOn: 1
+        }
       }
     }
     const callbackId = generateId()
@@ -535,11 +540,14 @@ export class LiveQuery implements WithTx, Client {
     options?: FindOptions<T>
   ): Promise<FindResult<T>> {
     if (options?.projection !== undefined) {
-      options.projection = {
-        ...options.projection,
-        _class: 1,
-        space: 1,
-        modifiedOn: 1
+      options = {
+        ...options,
+        projection: {
+          ...options.projection,
+          _class: 1,
+          space: 1,
+          modifiedOn: 1
+        }
       }
     }
     const current = this.findQuery(_class, query, options)
@@ -564,7 +572,7 @@ export class LiveQuery implements WithTx, Client {
   private async checkSearch (q: Query, _id: Ref<Doc>): Promise<boolean> {
     const match = await this.client.findOne(
       q._class,
-      { $search: q.query.$search, $searchStrict: q.query.$searchStrict, _id },
+      { $search: q.query.$search, $searchIn: q.query.$searchIn, _id },
       q.options
     )
     if (q.result instanceof Promise) {
@@ -645,7 +653,11 @@ export class LiveQuery implements WithTx, Client {
       current = this.asMixin(current, q._class)
     }
     if (current !== undefined && this.match(q, current)) {
-      q.result.updateDoc(current, false)
+      // Clone: docCache hands the same object to every query in the batch, and later $inc txes
+      // are applied per query - a shared object would be incremented once per subscriber.
+      q.result.updateDoc(current)
+      // The server copy may already hold an $inc still in flight; an equal-ts one must not reapply.
+      q.result.setLoadedModifiedOn(_id, current.modifiedOn)
       this.refs.updateDocuments(q, [current])
     } else {
       if (q.options?.limit === q.result.length) {
@@ -783,8 +795,24 @@ export class LiveQuery implements WithTx, Client {
         const searchRefresh = await this.checkSearch(q, tx.objectId)
         if (searchRefresh) return
       } else {
-        if (updatedDoc.modifiedOn < tx.modifiedOn || tx.meta?.forceApply === true) {
+        // $inc is commutative, so an equal-timestamp $inc-only tx (derived counter
+        // txes share the parent tx timestamp) is applied locally instead of
+        // re-fetching the doc from the server — UNLESS the doc was freshly loaded
+        // from the server at this exact modifiedOn timestamp (in which case it already
+        // incorporates the $inc from the database).
+        const isLoadedAtSameTs = q.result.isLoadedAtModifiedOn(tx.objectId, tx.modifiedOn)
+        const isIncOnly = tx.operations.$inc != null && Object.keys(tx.operations).every((k) => k === '$inc')
+        const incOnlyAtSameTime = !isLoadedAtSameTs && updatedDoc.modifiedOn === tx.modifiedOn && isIncOnly
+        // A re-delivered tx (reconnect replay, double notify) must change nothing at all. Applying
+        // it moves the doc to tx.modifiedOn, so the repeat arrives as an equal-timestamp $inc.
+        if (incOnlyAtSameTime && q.result.isIncApplied(tx.objectId, tx._id, tx.modifiedOn)) {
+          return
+        }
+        if (updatedDoc.modifiedOn < tx.modifiedOn || incOnlyAtSameTime || tx.meta?.forceApply === true) {
           await this.__updateDoc(q, updatedDoc, tx)
+          if (isIncOnly) {
+            q.result.markIncApplied(tx.objectId, tx._id, tx.modifiedOn)
+          }
           const updateRefresh = this.checkUpdatedDocMatch(q, q.result, updatedDoc)
           if (updateRefresh) {
             return
@@ -951,8 +979,13 @@ export class LiveQuery implements WithTx, Client {
   private async doRefresh (q: Query): Promise<void> {
     const qid = ++q.refreshId
     const res = await this.client.findAll(q._class, q.query, q.options)
-    if (q.refreshId === qid && (!deepEqual(res, q.result) || (res.total !== q.total && q.options?.total === true))) {
+    const current = q.result instanceof Promise ? await q.result : q.result
+    if (
+      q.refreshId === qid &&
+      (!deepEqual(res, current.getDocs()) || (res.total !== q.total && q.options?.total === true))
+    ) {
       q.result = new ResultArray(res, this.getHierarchy())
+      q.refsRegistered = false
       q.total = res.total
       await this.callback(q)
     }
@@ -977,12 +1010,25 @@ export class LiveQuery implements WithTx, Client {
       space: tx.objectSpace
     }
 
-    // we cannot handle $inc correctly, let's skip it
+    // we cannot handle $inc correctly, skip it
     const { $inc, ...ops } = tx.operations
+    const matchedByInc =
+      $inc != null &&
+      Object.keys(q.query).some((key) => checkMixinKey(key, q._class, this.client.getHierarchy()) in $inc)
 
     const emptyOps = Object.keys(ops).length === 0
-    let matched = emptyOps || Object.keys(q.query).length === 0
-    if (!emptyOps) {
+    if (emptyOps && $inc != null) {
+      // $inc-only tx (e.g. collection counters): the doc was not in the result, and a
+      // counter change cannot start matching unless the query/sort references that field.
+      const incTouchesQuery = Object.keys($inc).some(
+        (k) => (q.query as any)[k] !== undefined || (q.options?.sort as any)?.[k] !== undefined
+      )
+      if (!incTouchesQuery) {
+        return false
+      }
+    }
+    let matched = emptyOps || Object.keys(q.query).length === 0 || matchedByInc
+    if (!emptyOps && !matchedByInc) {
       const virtualTx = {
         ...tx,
         operations: ops
@@ -993,7 +1039,7 @@ export class LiveQuery implements WithTx, Client {
       for (const key in q.query) {
         const value = (q.query as any)[key]
         const tkey = checkMixinKey(key, q._class, this.client.getHierarchy())
-        if ((doc as any)[tkey] === undefined) continue
+        if (getObjectValue(tkey, doc) === undefined) continue
         const res = findProperty([doc], tkey, value)
         if (res.length === 0) {
           return false
@@ -1019,12 +1065,12 @@ export class LiveQuery implements WithTx, Client {
           q.result = await q.result
         }
         const doc = res[0]
+        q.result.setLoadedModifiedOn(doc._id, doc.modifiedOn) // as in getCurrentDoc
         const pos = q.result.findDoc(doc._id)
         if (pos !== undefined) {
-          q.result.updateDoc(doc)
-          this.refs.updateDocuments(q, [doc])
+          this.refs.updateDocuments(q, [q.result.updateDoc(doc)])
         } else {
-          q.result.push(doc)
+          this.refs.updateDocuments(q, [q.result.push(doc)])
           if (q.options?.total === true) {
             q.total++
           }
@@ -1048,9 +1094,12 @@ export class LiveQuery implements WithTx, Client {
       }
       const value = (lookup as any)[key]
       const tkey = checkMixinKey(key, _class, this.client.getHierarchy())
+      const refId = getObjectValue(tkey, doc)
+      if (refId == null) continue
+
       if (Array.isArray(value)) {
         const [_class, nested] = value
-        ;(result as any)[key] = await this.findOne(_class, { _id: getObjectValue(tkey, doc) })
+        ;(result as any)[key] = await this.findOne(_class, { _id: refId })
         const nestedResult = {}
         const parent = (result as any)[key]
         if (parent !== undefined) {
@@ -1060,7 +1109,7 @@ export class LiveQuery implements WithTx, Client {
           })
         }
       } else {
-        ;(result as any)[key] = await this.findOne(value, { _id: getObjectValue(tkey, doc) })
+        ;(result as any)[key] = await this.findOne(value, { _id: refId })
       }
     }
   }
@@ -1101,7 +1150,6 @@ export class LiveQuery implements WithTx, Client {
     for (const queries of this.queries.entries()) {
       const doc = this.client.getHierarchy().isDerived(queries[0], core.class.Tx) ? tx : docTx
       for (const q of queries[1].values()) {
-        // await this.handleDocAdd(q, doc, true, docCache)
         if (this.match(q, doc, q.options?.lookup !== undefined)) {
           await this.handleDocAdd(q, doc, true, docCache)
         }
@@ -1138,15 +1186,20 @@ export class LiveQuery implements WithTx, Client {
           q._class,
           {
             $search: q.query.$search,
-            $searchStrict: q.query.$searchStrict,
+            $searchIn: q.query.$searchIn,
             _id: doc._id
           },
           q.options
         )
         if (match === undefined) return
+        // Copy: the tx doc is shared between queries
+        const source = (match as WithLookup<Doc>).$source
+        if (source != null) {
+          doc = { ...doc, $source: source } as unknown as Doc
+        }
       }
 
-      q.result.push(doc)
+      const stored = q.result.push(doc)
       if (q.options?.total === true) {
         q.total++
       }
@@ -1156,10 +1209,21 @@ export class LiveQuery implements WithTx, Client {
       }
 
       if (q.options?.limit !== undefined && q.result.length > q.options.limit) {
-        if (q.result.pop()?._id !== doc._id || q.options?.total === true) {
+        // Whatever leaves the window is held by this query no longer, and the clean pass only
+        // walks the result - unregister it here or it stays in Refs forever.
+        const popped = q.result.pop()
+        if (popped !== undefined) {
+          this.refs.updateDocuments(q, [popped], true)
+        }
+        const kept = popped?._id !== doc._id
+        if (kept) {
+          this.refs.updateDocuments(q, [stored])
+        }
+        if (kept || q.options?.total === true) {
           await this.callback(q, true)
         }
       } else {
+        this.refs.updateDocuments(q, [stored])
         await this.callback(q, true)
       }
     }
@@ -1172,7 +1236,10 @@ export class LiveQuery implements WithTx, Client {
 
     const result = q.result
 
-    this.refs.updateDocuments(q, result.getDocs())
+    if (!q.refsRegistered) {
+      this.refs.updateDocuments(q, result.getDocs())
+      q.refsRegistered = true
+    }
 
     if (bulkUpdate) {
       this.queriesToUpdate.set(q.id, q)
@@ -1232,9 +1299,7 @@ export class LiveQuery implements WithTx, Client {
               options
             )
             if (docToPush === undefined) continue
-            if (doc.$associations === undefined) {
-              doc.$associations = {}
-            }
+            doc.$associations ??= {}
             const key = direct ? 'b' : 'a'
             const arr = doc.$associations?.[`${assoc[0]}_${key}`] ?? []
             const exists = arr.findIndex((p) => p._id === docToPush._id)
@@ -1427,7 +1492,7 @@ export class LiveQuery implements WithTx, Client {
     const result: [string, string, string?][] = []
     const hierarchy = this.client.getHierarchy()
     if (lookup._id !== undefined) {
-      for (const key in lookup._id) {
+      for (const key of Object.keys(lookup._id)) {
         const value = (lookup._id as any)[key]
         const [valueClass, reverseLookupKey] = Array.isArray(value) ? value : [value, 'attachedTo']
         const clazz = hierarchy.isMixin(valueClass) ? hierarchy.getBaseClass(valueClass) : valueClass
@@ -1550,6 +1615,8 @@ export class LiveQuery implements WithTx, Client {
               Analytics.handleError(err)
               console.error(err)
             }
+          } else {
+            this.removeQueue(q)
           }
         }
       }
@@ -1579,6 +1646,8 @@ export class LiveQuery implements WithTx, Client {
               Analytics.handleError(err)
               console.error(err)
             }
+          } else {
+            this.removeQueue(q)
           }
         }
       }
@@ -1674,6 +1743,9 @@ export class LiveQuery implements WithTx, Client {
   }
 
   private async __updateDoc (q: Query, updatedDoc: WithLookup<Doc>, tx: TxUpdateDoc<Doc>): Promise<void> {
+    if (q.result instanceof ResultArray) {
+      q.result.clearLoadedModifiedOn(tx.objectId)
+    }
     TxProcessor.updateDoc2Doc(updatedDoc, tx)
 
     const ops = {
@@ -1725,7 +1797,11 @@ export class LiveQuery implements WithTx, Client {
         await this.refresh(q)
         return
       }
-      if (res.pop()?._id !== updatedDoc._id) {
+      const popped = res.pop()
+      if (popped !== undefined) {
+        this.refs.updateDocuments(q, [popped], true)
+      }
+      if (popped?._id !== updatedDoc._id) {
         await this.callback(q, true)
       }
     } else {

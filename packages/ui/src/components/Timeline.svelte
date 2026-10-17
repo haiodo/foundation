@@ -14,8 +14,8 @@
 -->
 <script lang="ts">
   import { fly } from 'svelte/transition'
-  import { Timestamp } from '@hcengineering/core'
-  import { TimelinePoint, TimelineRow, TimelineState } from '../types'
+  import type { Timestamp } from '@hcengineering/core'
+  import type { TimelinePoint, TimelineRow, TimelineState } from '../types'
   import ui, {
     CheckBox,
     Icon,
@@ -392,7 +392,7 @@
                     if (rangeRow !== null) time.offsetView = -getOffsetByDate(rangeRow.min.date) + dayWidth * 5
                   }}
                 >
-                  <IconArrowRight size={'small'} />
+                  <IconArrowRight size="small" />
                 </button>
               {/if}
               {#if rangeRow !== null && -time.offsetView > rangeRow.max.x}
@@ -403,13 +403,13 @@
                     if (rangeRow !== null) time.offsetView = -getOffsetByDate(rangeRow.min.date) + dayWidth * 5
                   }}
                 >
-                  <IconArrowLeft size={'small'} />
+                  <IconArrowLeft size="small" />
                 </button>
               {/if}
             {/if}
             {#if rangeRow === null && selectedRow === row && time.cursorMarker && !moving}
               <button class="timeline-action__button add" style:left={`${time.offsetView + time.cursorMarker.x}px`}>
-                <IconAdd size={'small'} />
+                <IconAdd size="small" />
               </button>
             {/if}
           </div>
@@ -458,7 +458,6 @@
     // z-index: 2;
   }
   .timeline-header__time {
-    // overflow: hidden;
     position: relative;
     flex-grow: 1;
     height: 100%;

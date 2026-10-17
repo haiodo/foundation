@@ -20,6 +20,7 @@ import { createAction } from '@hcengineering/model-view'
 import core, { TClass, TDoc } from '@hcengineering/model-core'
 import { type Asset, getEmbeddedLabel, type IntlString, type Resource } from '@hcengineering/platform'
 import view, { type KeyBinding } from '@hcengineering/view'
+import { WidgetType } from '@hcengineering/workbench'
 import type {
   Application,
   ApplicationNavModel,
@@ -29,7 +30,6 @@ import type {
   Widget,
   WidgetPreference,
   WidgetTab,
-  WidgetType,
   WorkbenchTab
 } from '@hcengineering/workbench'
 import { type AnyComponent } from '@hcengineering/ui/src/types'
@@ -130,18 +130,18 @@ export function createModel (builder: Builder): void {
     actions: [view.action.Delete]
   })
 
+  // Client-side statistics of the current session, available to everyone
   createAction(builder, {
     action: view.actionImpl.ShowPopup,
     actionProps: {
       component: workbench.component.ServerManager,
       element: 'content'
     },
-    label: getEmbeddedLabel('Server statistics'),
+    label: getEmbeddedLabel('Client statistics'),
     icon: view.icon.Configure,
     input: 'none',
     category: view.category.General,
     target: core.class.Doc,
-    secured: true,
     context: {
       mode: ['workbench']
     }
@@ -206,6 +206,19 @@ export function createModel (builder: Builder): void {
       context: { mode: ['workbench', 'browser', 'panel', 'editor', 'input'] }
     },
     workbench.action.CloseCurrentTab
+  )
+
+  builder.createDoc(
+    workbench.class.Widget,
+    core.space.Model,
+    {
+      label: view.string.Open,
+      type: WidgetType.Flexible,
+      icon: view.icon.Open,
+      closeIfNoTabs: true,
+      component: view.component.SidebarPreviewWidget
+    },
+    view.ids.PreviewWidget as Ref<Widget>
   )
 }
 

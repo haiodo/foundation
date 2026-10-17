@@ -13,20 +13,24 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccountRole, getCurrentAccount, hasAccountRole, Ref, WithLookup } from '@hcengineering/core'
-  import { Floor, Room } from '@hcengineering/love'
-  import { Component, DropdownLabels, Header, IconEdit, ModernButton } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import type { Floor, Room } from '@hcengineering/love'
+  import { Component, DropdownLabels, Header, IconEdit } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { ViewletSelector } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
 
   import lovePlg from '../plugin'
-  import { floors, selectedFloor } from '../stores'
+  import { ensureOfficeDetailsLoaded, floors, selectedFloor } from '../stores'
 
   export let rooms: Room[] = []
   export let floor: Ref<Floor>
 
   const dispatch = createEventDispatcher()
+
+  void ensureOfficeDetailsLoaded()
 
   let viewlet: WithLookup<Viewlet> | undefined
   let preference: ViewletPreference | undefined
@@ -55,12 +59,12 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <DropdownLabels
       {items}
       selected={selected?._id}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       enableSearch={false}
       autoSelect={false}
       on:selected={changeFloor}
@@ -70,12 +74,7 @@
     </svelte:fragment>
     <svelte:fragment slot="actions">
       {#if editable}
-        <ModernButton
-          icon={IconEdit}
-          label={lovePlg.string.EditOffice}
-          size={'small'}
-          on:click={() => dispatch('configure')}
-        />
+        <Button icon={IconEdit} label={lovePlg.string.EditOffice} size="small" on:click={() => dispatch('configure')} />
       {/if}
     </svelte:fragment>
   </Header>

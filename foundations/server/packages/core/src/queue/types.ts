@@ -4,6 +4,9 @@ export enum QueueTopic {
   // Topic with partitions to split workspace transactions into
   Tx = 'tx',
 
+  // Topic for transactions to be processed by the transactor pipeline for online users
+  OnlineUserTx = 'online-user-tx',
+
   // Topic to send workspace information into
   Workspace = 'workspace',
 
@@ -12,8 +15,6 @@ export enum QueueTopic {
 
   // A topic about user activity.
   Users = 'users',
-
-  TelegramBot = 'telegramBot',
 
   // A topic about calendar events.
   CalendarEventCUD = 'calendarEventCUD',
@@ -36,12 +37,43 @@ export enum QueueTopic {
 
   TimeMachine = 'timeMachine',
 
-  CrmQueue = 'crm'
+  CrmQueue = 'crm',
+
+  UserNotifications = 'user-notifications',
+
+  // A letter the notifications service held and the time machine fired at its due time.
+  HeldNotifications = 'held-notifications',
+
+  // Single billing topic: usage deltas + LiveKit session/egress/participant records (discriminated union).
+  BillingUsage = 'billing-usage',
+
+  // Subscription lifecycle events from payment providers (stripe/polar/tbank). Providers verify and
+  // publish here; pod-payment is the single consumer that bakes limits and writes to the account DB.
+  Subscription = 'subscription',
+
+  // Append-only payment audit events (init charge / webhook / recurrent charge / cancel / refund) from
+  // any provider pod. The account service is the single consumer, writing the immutable ledger row.
+  PaymentOperation = 'payment-operation',
+
+  // Raw inbound TBank webhooks. The HTTP handler verifies the signature and enqueues here; the pod's
+  // own consumer rechecks state via GetState and applies the effect. Decouples the bank's 200 from
+  // downstream processing (reliability) and keeps unverified payloads out of the pipeline (security).
+  TbankWebhook = 'tbank-webhook',
+
+  // Incoming webhook jobs (API-key authenticated). pod-webhook's HTTP handler verifies the key and
+  // enqueues here; the pod's own consumer resolves the space and runs the action.
+  Webhook = 'webhook',
+
+  // Outgoing webhook deliveries (to be produced once workspaces can register outbound webhooks).
+  WebhookDelivery = 'webhook-delivery'
 }
 
 export interface ConsumerHandle {
   close: () => Promise<void>
   isConnected: () => boolean
+  // Resolves once the consumer joined its group and performed the first fetch, so the group start
+  // offset is settled. Until then messages produced may be skipped by a brand new group.
+  waitReady?: () => Promise<void>
 }
 
 export interface ConsumerMessage<T> {

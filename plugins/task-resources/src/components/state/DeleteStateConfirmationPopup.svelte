@@ -1,10 +1,11 @@
 <script lang="ts">
   import { DeleteConfirmationPopup } from '@hcengineering/contact-resources'
-  import { Status } from '@hcengineering/core'
+  import type { Status } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import task, { TaskType } from '@hcengineering/task'
-  import { ButtonMenu } from '@hcengineering/ui'
+  import type { TaskType } from '@hcengineering/task'
+  import task from '@hcengineering/task'
+  import { MenuButton } from '@hcengineering/ui/kit'
 
   export let object: Status
   export let taskType: TaskType
@@ -47,12 +48,12 @@
       </div>
       <div class="flex-grow justify-between mt-2">
         <span> A new status should be selected. </span>
-        <ButtonMenu
+        <MenuButton
           {items}
           {selected}
           label={getEmbeddedLabel(selectedState?.name ?? '')}
-          kind={'secondary'}
-          size={'medium'}
+          kind="secondary"
+          size="medium"
           on:selected={(it) => {
             selected = it.detail
           }}

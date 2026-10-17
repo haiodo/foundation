@@ -17,7 +17,8 @@
 <script lang="ts">
   import type { Schedule, ScheduleAvailability } from '@hcengineering/calendar'
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import core, { Data, generateId, Space } from '@hcengineering/core'
+  import type { Data, Space } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
   import {
     ComponentExtensions,
     createQuery,
@@ -28,7 +29,6 @@
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
   import ui, {
     Button,
-    ButtonIcon,
     capitalizeFirstLetter,
     createFocusManager,
     deviceOptionsStore as deviceInfo,
@@ -50,6 +50,7 @@
     themeStore,
     TimeInputBox
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import calendar from '../plugin'
@@ -286,7 +287,7 @@
     <EditBox
       bind:value={title}
       placeholder={calendar.string.ScheduleTitlePlaceholder}
-      kind={'ghost-large'}
+      kind="ghost-large"
       fullSize
       focusable
       autoFocus
@@ -297,8 +298,8 @@
         id="card-close"
         focusIndex={10002}
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -308,12 +309,12 @@
   <Scroller thinScrollBars>
     <div class="block row">
       <div class="top-icon">
-        <Icon icon={calendar.icon.Description} size={'small'} />
+        <Icon icon={calendar.icon.Description} size="small" />
       </div>
       <StyledTextBox
         alwaysEdit={true}
         isScrollable={false}
-        kind={'indented'}
+        kind="indented"
         showButtons={false}
         focusIndex={10003}
         placeholder={calendar.string.Description}
@@ -322,7 +323,7 @@
     </div>
     <div class="block">
       <div class="flex-row-top flex-gap-1">
-        <Icon icon={calendar.icon.Duration} size={'small'} />
+        <Icon icon={calendar.icon.Duration} size="small" />
         <div class="prop">
           <Label label={calendar.string.MeetingDuration} />
           <Button
@@ -347,17 +348,17 @@
     </div>
     <div class="block">
       <div class="flex-row-center flex-gap-1-5">
-        <Icon icon={calendar.icon.Globe} size={'small'} />
+        <Icon icon={calendar.icon.Globe} size="small" />
         <TimeZoneSelector bind:timeZone flex="1" />
       </div>
       <div class="flex-row-center flex-gap-1-5">
-        <Icon icon={calendar.icon.Calendar} size={'small'} />
+        <Icon icon={calendar.icon.Calendar} size="small" />
         <CalendarSelector bind:value={_calendar} withIcon={false} />
       </div>
     </div>
     <div class="block">
       <div class="flex-row-top flex-gap-1">
-        <Icon icon={calendar.icon.Timer} size={'small'} />
+        <Icon icon={calendar.icon.Timer} size="small" />
         <div class="prop">
           <Label label={calendar.string.ScheduleAvailability} />
           {#each getWeekDayNames() as { weekDay, dayName }}
@@ -375,7 +376,7 @@
                 {/if}
               </div>
               {#if availability[weekDay].length > 0}
-                <ButtonIcon
+                <IconButton
                   icon={IconDelete}
                   size="small"
                   kind="tertiary"
@@ -385,7 +386,7 @@
                   }}
                 />
               {:else}
-                <ButtonIcon
+                <IconButton
                   icon={IconCircleAdd}
                   size="small"
                   kind="tertiary"
@@ -402,7 +403,7 @@
     </div>
     <div class="block">
       {#if schedule === undefined}
-        <DocCreateExtComponent manager={docCreateManager} kind={'body'} />
+        <DocCreateExtComponent manager={docCreateManager} kind="body" />
       {:else}
         <ComponentExtensions extension={calendar.extensions.EditScheduleExtensions} props={{ value: schedule }} />
       {/if}

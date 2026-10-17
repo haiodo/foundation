@@ -17,7 +17,8 @@
 
 <script lang="ts">
   import { AttachmentStyleBoxEditor } from '@hcengineering/attachment-resources'
-  import core, { Class, Doc, Ref, WithLookup, getCurrentAccount } from '@hcengineering/core'
+  import type { Class, Doc, Ref, WithLookup } from '@hcengineering/core'
+  import core, { getCurrentAccount } from '@hcengineering/core'
   import { checkMyPermission, permissionsStore } from '@hcengineering/contact-resources'
   import notification from '@hcengineering/notification'
   import { Panel } from '@hcengineering/panel'
@@ -38,7 +39,7 @@
 
   const client = getClient()
   const dispatch = createEventDispatcher()
-  const notificationClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const notificationClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   let object: WithLookup<ProductVersion> | undefined
 
@@ -100,7 +101,7 @@
     isSub={false}
     on:close={() => dispatch('close')}
     useMaxWidth
-    adaptive={'default'}
+    adaptive="default"
   >
     <svelte:fragment slot="title">
       <div class="flex-row-center no-word-wrap">
@@ -137,14 +138,14 @@
       <Button
         icon={IconMoreH}
         kind="ghost"
-        size={'medium'}
+        size="medium"
         on:click={(e) => {
           showMenu(e, { object })
         }}
       />
       <Button
         icon={IconMixin}
-        kind={'icon'}
+        kind="icon"
         iconProps={{ size: 'medium' }}
         selected={showAllMixins}
         on:click={() => {

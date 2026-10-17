@@ -1,4 +1,7 @@
 {
+  "status": {
+    "ImagePasteNotSupported": "Não é possível colar imagens aqui. Remova-as do conteúdo copiado e tente novamente."
+  },
   "string": {
     "TableOfContents": "Índice",
     "Suggested": "SUGERIDO",
@@ -71,6 +74,7 @@
     "UnableToLoadEmbeddedContent": "Não foi possível carregar a pré-visualização do link devido às permissões ou a conteúdo não suportado",
     "CannotConnectToCollaborationService": "Não foi possível conectar ao serviço de colaboração",
     "SourceURL": "URL de origem",
-    "SelectedDocuments": "Documentos selecionados ({count, plural, =1 {1 item} other {# itens}})"
+    "SelectedDocuments": "Documentos selecionados ({count, plural, =1 {1 item} other {# itens}})",
+    "LatestVersion": "Última"
   }
 }

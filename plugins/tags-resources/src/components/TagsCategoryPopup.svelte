@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { translateCB } from '@hcengineering/platform'
   import presentation, { createQuery } from '@hcengineering/presentation'
-  import { TagCategory, TagElement } from '@hcengineering/tags'
+  import type { TagCategory, TagElement } from '@hcengineering/tags'
   import {
     Button,
     CheckBox,
@@ -132,7 +132,7 @@
             searchElement.focus()
           }}
         >
-          {#if search !== ''}<div class="icon"><Icon icon={IconClose} size={'inline'} /></div>{/if}
+          {#if search !== ''}<div class="icon"><Icon icon={IconClose} size="inline" /></div>{/if}
         </div>
       </div>
     </div>
@@ -151,7 +151,7 @@
                 }}
               >
                 <div class="check pointer-events-none">
-                  <CheckBox checked={isSelected(element, selected)} kind={'primary'} />
+                  <CheckBox checked={isSelected(element, selected)} kind="primary" />
                 </div>
                 <div class="tag" style="background-color: {color.background};" />
                 <span style:color={color.title}>
@@ -174,14 +174,14 @@
   </div>
   <div class="flex-between p-2">
     <Button
-      kind={'ghost'}
+      kind="ghost"
       label={tags.string.SelectAll}
       on:click={() => {
         selected = elements.map((it) => it._id)
       }}
     />
     <Button
-      kind={'ghost'}
+      kind="ghost"
       label={tags.string.SelectNone}
       on:click={() => {
         selected = []
@@ -189,7 +189,7 @@
     />
   </div>
   <Button
-    shape={'round'}
+    shape="round"
     label={tags.string.ApplyTags}
     on:click={() =>
       dispatch(

@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { AttributesBar, getClient } from '@hcengineering/presentation'
-  import { ProjectType } from '@hcengineering/task'
+  import type { ProjectType } from '@hcengineering/task'
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
   import tracker from '@hcengineering/tracker'
   import { Button, Component, Icon, IconAdd, Label, showPopup } from '@hcengineering/ui'
@@ -44,9 +44,9 @@
   <div class="mt-3">
     {#key type._id}
       <StyledTextBox
-        kind={'emphasized'}
+        kind="emphasized"
         alwaysEdit
-        maxHeight={'card'}
+        maxHeight="card"
         showButtons={false}
         content={type.description ?? ''}
         focusable={!disabled}
@@ -59,7 +59,7 @@
 <div class="antiSection mt-9 mb-9">
   <div class="antiSection-header">
     <div class="antiSection-header__icon">
-      <Icon icon={recruit.icon.Issue} size={'small'} />
+      <Icon icon={recruit.icon.Issue} size="small" />
     </div>
     <span class="antiSection-header__title">
       <Label label={tracker.string.RelatedIssues} />
@@ -73,8 +73,8 @@
           label={undefined}
           labelParams={{ subIssues: 0 }}
           {disabled}
-          kind={'ghost'}
-          size={'small'}
+          kind="ghost"
+          size="small"
           on:click={() => showPopup(tracker.component.CreateIssueTemplate, { relatedTo: type })}
         />
       </div>

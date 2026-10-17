@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -22,14 +23,17 @@ import {
   type DocumentQuery,
   type IdMap,
   type Ref,
+  type Space,
   type Status,
   type TxOperations
 } from '@hcengineering/core'
 import { type IntlString, type Resources } from '@hcengineering/platform'
-import { createQuery, onClient } from '@hcengineering/presentation'
+import { createQuery, getClient, onClient } from '@hcengineering/presentation'
 import task, {
-  getStatusIndex,
+  getOrderedTaskTypes,
   makeRank,
+  getStatusCategoryOrder,
+  statusOrderComparator,
   type Project,
   type ProjectType,
   type Rank,
@@ -62,6 +66,7 @@ import StateRefPresenter from './components/state/StateRefPresenter.svelte'
 import TypeStatesPopup from './components/state/TypeStatesPopup.svelte'
 import ProjectTypeClassPresenter from './components/taskTypes/ProjectTypeClassPresenter.svelte'
 import TaskKindSelector from './components/taskTypes/TaskKindSelector.svelte'
+import TaskTypeIcon from './components/taskTypes/TaskTypeIcon.svelte'
 import TaskTypeClassPresenter from './components/taskTypes/TaskTypeClassPresenter.svelte'
 import TaskTypePresenter from './components/taskTypes/TaskTypePresenter.svelte'
 import TaskTypeListPresenter from './components/taskTypes/TaskTypeListPresenter.svelte'
@@ -70,13 +75,24 @@ import CreateProjectType from './components/projectTypes/CreateProjectType.svelt
 import ProjectTypeAutomationsSectionEditor from './components/projectTypes/ProjectTypeAutomationsSectionEditor.svelte'
 import ProjectTypeGeneralSectionEditor from './components/projectTypes/ProjectTypeGeneralSectionEditor.svelte'
 import ProjectTypeSelector from './components/projectTypes/ProjectTypeSelector.svelte'
+import ProjectTypeSettingsLink from './components/projectTypes/ProjectTypeSettingsLink.svelte'
 import ProjectTypeTasksTypeSectionEditor from './components/projectTypes/ProjectTypeTasksTypeSectionEditor.svelte'
 import TaskTypeEditor from './components/taskTypes/TaskTypeEditor.svelte'
+import TaskTypeDiagramPopup from './components/taskTypes/TaskTypeDiagramPopup.svelte'
 
 export { default as AssigneePresenter } from './components/AssigneePresenter.svelte'
 export { default as TypeSelector } from './components/TypeSelector.svelte'
+export { default as StatusCategoryIcon } from './components/state/StatusCategoryIcon.svelte'
 export * from './utils'
-export { StatePresenter, StateRefPresenter, TaskKindSelector, TypeStatesPopup }
+export {
+  StatePresenter,
+  StateRefPresenter,
+  TaskKindSelector,
+  TaskTypeIcon,
+  TypeStatesPopup,
+  TaskTypeDiagramPopup,
+  ProjectTypeSettingsLink
+}
 
 async function editStatuses (object: Project, ev: Event): Promise<void> {
   const loc = getCurrentLocation()
@@ -133,7 +149,8 @@ export default async (): Promise<Resources> => ({
     ProjectTypeGeneralSectionEditor,
     ProjectTypeTasksTypeSectionEditor,
     ProjectTypeAutomationsSectionEditor,
-    TaskTypeEditor
+    TaskTypeEditor,
+    TaskTypeDiagramPopup
   },
   actionImpl: {
     EditStatuses: editStatuses,
@@ -150,14 +167,20 @@ export async function getAllStates (
   onUpdate: () => void,
   queryId: Ref<Doc>,
   attr: Attribute<Status>,
+  space?: Ref<Space>,
   filterDone: boolean = true
 ): Promise<any[]> {
   const joinedProjectsTypes = get(typesOfJoinedProjectsStore) ?? []
-  const typeId = get(selectedTypeStore) ?? (joinedProjectsTypes.length === 1 ? joinedProjectsTypes[0] : undefined)
+  const typeId =
+    get(selectedTypeStore) ??
+    (await getProjectType(space)) ??
+    (joinedProjectsTypes.length === 1 ? joinedProjectsTypes[0] : undefined)
   const type = typeId !== undefined ? get(typeStore).get(typeId) : undefined
   const $taskType = get(taskTypeStore)
+  // With a known project type only its own task types count: a single task type of another joined project
+  // must not supply the statuses of this one.
   const joinedTaskTypes = Array.from($taskType.values()).filter((taskType) =>
-    joinedProjectsTypes.includes(taskType.parent)
+    typeId !== undefined ? taskType.parent === typeId : joinedProjectsTypes.includes(taskType.parent)
   )
   const taskTypeId = get(selectedTaskTypeStore) ?? (joinedTaskTypes.length === 1 ? joinedTaskTypes[0]?._id : undefined)
   if (taskTypeId !== undefined) {
@@ -166,6 +189,7 @@ export async function getAllStates (
       return []
     }
     if (type !== undefined) {
+      watchTaskTypes(queryId, { _id: taskTypeId }, onUpdate)
       const statusMap = get(statusStore).byId
       const statuses = (taskType.statuses.map((p) => statusMap.get(p)) as Status[]) ?? []
       if (filterDone) {
@@ -204,8 +228,12 @@ export async function getAllStates (
       return await promise
     }
   } else if (type !== undefined) {
+    watchTaskTypes(queryId, { parent: type._id }, onUpdate)
+    // From the task types, not from type.statuses: a renamed status replaces the old one in its task type first,
+    // and the watch above follows the task types
     const statusMap = get(statusStore).byId
-    const statuses = (type.statuses.map((p) => statusMap.get(p._id)) as Status[]) ?? []
+    const statusIds = joinedTaskTypes.flatMap((it) => it.statuses).filter((it, idx, arr) => arr.indexOf(it) === idx)
+    const statuses = statusIds.map((p) => statusMap.get(p)).filter((p): p is Status => p !== undefined)
     if (filterDone) {
       return statuses
         .filter((p) => p?.category !== task.statusCategory.Lost && p?.category !== task.statusCategory.Won)
@@ -214,10 +242,11 @@ export async function getAllStates (
       return statuses.map((p) => p?._id)
     }
   }
+  watchTaskTypes(queryId, { parent: { $in: joinedProjectsTypes } }, onUpdate)
   const includedStatuses = new Set(joinedTaskTypes.flatMap((taskType) => taskType.statuses))
   const $statusStore = get(statusStore)
   const allStates = [...includedStatuses].map((p) => $statusStore.byId.get(p))
-  const states = allStates.filter((p) => p !== undefined && p.ofAttribute === attr._id)
+  const states = allStates.filter((p) => p?.ofAttribute === attr._id)
   if (filterDone) {
     return states
       .filter((p) => p?.category !== task.statusCategory.Lost && p?.category !== task.statusCategory.Won)
@@ -225,6 +254,54 @@ export async function getAllStates (
   } else {
     return states.map((p) => p?._id)
   }
+}
+
+// The groups are computed from task type statuses once, so a change of those task types (a status added, renamed
+// or removed) asks the view to compute them again. The first answer only reports the current state.
+function watchTaskTypes (queryId: Ref<Doc>, query: DocumentQuery<TaskType>, onUpdate: () => void): void {
+  let initial = true
+  CategoryQuery.getLiveQuery(queryId).query(task.class.TaskType, query, (res) => {
+    if (initial) {
+      initial = false
+      return
+    }
+    whenStoresHave(res, onUpdate)
+  })
+}
+
+// getAllStates reads the stores, which get the same change through their own queries, maybe later. Computing
+// before they catch up shows the previous statuses.
+function whenStoresHave (taskTypes: TaskType[], fn: () => void): void {
+  const isFresh = (): boolean => {
+    const $taskTypes = get(taskTypeStore)
+    const statuses = get(statusStore).byId
+    return taskTypes.every(
+      (it) => $taskTypes.get(it._id)?.modifiedOn === it.modifiedOn && it.statuses.every((s) => statuses.has(s))
+    )
+  }
+  if (isFresh()) {
+    fn()
+    return
+  }
+  let done = false
+  const check = (): void => {
+    if (done || !isFresh()) return
+    done = true
+    unsubscribeTaskTypes()
+    unsubscribeStatuses()
+    fn()
+  }
+  const unsubscribeTaskTypes = taskTypeStore.subscribe(check)
+  const unsubscribeStatuses = statusStore.subscribe(check)
+}
+
+export async function getProjectType (space: Ref<Space> | undefined): Promise<Ref<ProjectType> | undefined> {
+  if (space === undefined) return undefined
+  const projectId = space as Ref<Project>
+  // activeProjects has no archived projects, the server has every project the user can open
+  const project =
+    get(activeProjects).get(projectId) ?? (await getClient().findOne(task.class.Project, { _id: projectId }))
+  return project?.type
 }
 
 async function statusSort (
@@ -239,30 +316,18 @@ async function statusSort (
   const taskTypes = get(taskTypeStore)
 
   if (type !== undefined) {
-    value.sort((a, b) => {
-      const aVal = statuses.get(a) as Status
-      const bVal = statuses.get(b) as Status
-      if (type != null) {
-        const aIndex = getStatusIndex(type, taskTypes, a)
-        const bIndex = getStatusIndex(type, taskTypes, b)
-        return aIndex - bIndex
-      } else if (aVal != null && bVal != null) {
-        return aVal.name.localeCompare(bVal.name)
-      } else {
-        return 0
-      }
-    })
+    value.sort(statusOrderComparator(getStatusCategoryOrder(), getOrderedTaskTypes(type, taskTypes), statuses))
   } else {
     const res = new Map<Ref<Status>, Rank>()
     let prevRank: Rank | undefined
     const types = await client.findAll(task.class.ProjectType, {})
     for (const state of value) {
       if (res.has(state)) continue
-      const index = types.findIndex((p) => p.tasks.some((q) => taskTypes.get(q)?.statuses.includes(state)))
+      const index = types.findIndex((p) => p.tasks.some((q) => taskTypes.get(q)?.statuses.includes(state) ?? false))
       if (index === -1) continue
       const type = types.splice(index, 1)[0]
       const statuses =
-        type.tasks.map((it) => taskTypes.get(it)).find((it) => it?.statuses.includes(state))?.statuses ?? []
+        type.tasks.map((it) => taskTypes.get(it)).find((it) => it?.statuses.includes(state) ?? false)?.statuses ?? []
 
       // TODO: Check correctness
       for (let index = 0; index < statuses.length; index++) {

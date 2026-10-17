@@ -2,11 +2,15 @@
   import calendar from '@hcengineering/calendar'
   import { ScheduleNavSection } from '@hcengineering/calendar-resources'
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import { Ref, getCurrentAccount } from '@hcengineering/core'
-  import { Asset, getMetadata, getResource, IntlString } from '@hcengineering/platform'
-  import { createQuery } from '@hcengineering/presentation'
+  import type { Ref } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getMetadata, getResource } from '@hcengineering/platform'
+  import { createQuery, isDisabled } from '@hcengineering/presentation'
   import { NavFooter } from '@hcengineering/workbench-resources'
-  import tagsPlugin, { TagElement as TagElementType } from '@hcengineering/tags'
+  import type { TagElement as TagElementType } from '@hcengineering/tags'
+  import tagsPlugin from '@hcengineering/tags'
+  import type { Action } from '@hcengineering/ui'
   import ui, {
     Label,
     Separator,
@@ -17,19 +21,20 @@
     getPlatformColorDef,
     themeStore,
     deviceOptionsStore as deviceInfo,
-    ButtonIcon,
     showPopup,
     Menu,
     IconMoreV,
-    IconLink,
-    Action
+    IconLink
   } from '@hcengineering/ui'
-  import { ToDosMode } from '..'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { ToDosMode } from '..'
+  import view from '@hcengineering/view'
   import time from '../plugin'
 
   export let mode: ToDosMode
   export let tag: Ref<TagElementType> | undefined
   export let currentDate: Date
+  export let separatorName: string = 'time'
 
   const currentAccount = getCurrentAccount()
   const currentUser = getCurrentEmployee()
@@ -116,7 +121,9 @@
 
   function getHeaderMenuActions (): Action[] {
     const actions: Action[] = []
-    if (getMetadata(calendar.metadata.CalDavServerURL)) {
+    const caldavUrl = getMetadata(calendar.metadata.CalDavServerURL)
+
+    if (!isDisabled('caldav') && caldavUrl != null && caldavUrl !== '') {
       actions.push({
         label: calendar.string.CalDavAccess,
         icon: IconLink,
@@ -146,7 +153,15 @@
     <div class="hulyNavPanel-header">
       <Label label={time.string.Planner} />
       {#if actions.length > 0}
-        <ButtonIcon icon={IconMoreV} hasMenu {pressed} kind="tertiary" size="small" on:click={menuButtonClicked} />
+        <IconButton
+          icon={IconMoreV}
+          hasMenu
+          {pressed}
+          kind="tertiary"
+          size="small"
+          tooltip={{ label: view.string.MoreActions }}
+          on:click={menuButtonClicked}
+        />
       {/if}
     </div>
 
@@ -166,6 +181,7 @@
           }}
         />
       {/each}
+
       <div class="min-h-3 flex-no-shrink" />
 
       <div class="hulyAccordionItem-container border" class:noBorder={tags.length === 0}>
@@ -208,10 +224,10 @@
 
       {#if tags.length > 0}
         <NavGroup
-          _id={'planner-tags'}
+          _id="planner-tags"
           label={tagsPlugin.string.Tags}
           highlighted={mode === 'tag'}
-          categoryName={'tags'}
+          categoryName="tags"
           noDivider
           isFold
           visible={tag !== undefined}
@@ -222,7 +238,7 @@
               color={color.color}
               title={_tag.title}
               selected={tag === _tag._id}
-              type={'type-tag'}
+              type="type-tag"
               on:click={() => {
                 mode = 'tag'
                 tag = _tag._id
@@ -236,7 +252,7 @@
               {@const visibleTag = tags.find((t) => t._id === tag)}
               {#if visibleTag}
                 {@const color = getPlatformColorDef(visibleTag.color ?? 0, $themeStore.dark)}
-                <NavItem color={color.color} title={visibleTag.title} selected type={'type-tag'} />
+                <NavItem color={color.color} title={visibleTag.title} selected type="type-tag" />
               {/if}
             {/if}
           </svelte:fragment>
@@ -247,11 +263,11 @@
   </div>
   {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
     <Separator
-      name={'time'}
+      name={separatorName}
       float={$deviceInfo.navigator.float ? 'navigator' : true}
       index={0}
       disabledWhen={['panel-aside']}
-      color={'var(--theme-divider-color)'}
+      color="var(--theme-divider-color)"
     />
   {/if}
 </div>

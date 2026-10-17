@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022-2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,30 +14,28 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import card, { Card } from '@hcengineering/card'
-  import chat from '@hcengineering/chat'
-  import communication, { GuestCommunicationSettings } from '@hcengineering/communication'
+  import chunter from '@hcengineering/chunter'
   import contact, { AvatarType, ensureEmployeeForPerson } from '@hcengineering/contact'
   import { EditableAvatar, getAccountClient } from '@hcengineering/contact-resources'
+  import type { AccountUuid, Configuration } from '@hcengineering/core'
   import core, {
     type Account,
     AccountRole,
-    AccountUuid,
-    Configuration,
     getCurrentAccount,
+    isActiveMode,
     pickPrimarySocialId,
     readOnlyGuestAccountUuid,
-    Ref,
     WorkspaceAccountPermission
   } from '@hcengineering/core'
-  import { loginId } from '@hcengineering/login'
+  import login, { loginId } from '@hcengineering/login'
   import { translateCB } from '@hcengineering/platform'
-  import { createQuery, getClient, MessageBox, uiContext } from '@hcengineering/presentation'
-  import { WorkspaceSetting } from '@hcengineering/setting'
+  import { configurationStore, createQuery, getClient, MessageBox, uiContext } from '@hcengineering/presentation'
+  import type { WorkspaceSetting } from '@hcengineering/setting'
+
+  import { requestOperationOtpCode } from '../utils'
   import {
     Breadcrumb,
     Button,
-    Component,
     deviceOptionsStore as deviceInfo,
     DropdownLabels,
     type DropdownTextItem,
@@ -57,27 +56,29 @@
     Toggle
   } from '@hcengineering/ui'
   import settingsRes from '../plugin'
-  import ApiTokenPopup from './ApiTokenPopup.svelte'
   import WorkspacePermissionEditor from './WorkspacePermissionEditor.svelte'
-  import de from 'date-fns/locale/de'
 
   let loading = true
   let isEditingName = false
   let oldName: string
   let name: string = ''
-  let workspaceUrl = ''
   let allowReadOnlyGuests: boolean
   let allowGuestSignUp: boolean
   let passwordAgingRule: number | undefined = undefined
+  let workspaceDeleteOn: number | undefined = undefined
+  let workspaceActive = true
 
   const accountClient = getAccountClient()
   const disabledSet = ['\n', '<', '>', '/', '\\']
 
   let allowReadonlyGuests = false
 
-  void accountClient.isAllowReadOnlyGuests().then(({ allowed }) => {
-    allowReadonlyGuests = allowed
-  })
+  void accountClient
+    .isAllowReadOnlyGuests()
+    .then(({ allowed }) => {
+      allowReadonlyGuests = allowed
+    })
+    .catch(() => {})
 
   $: editNameDisabled =
     isEditingName &&
@@ -86,17 +87,22 @@
       name.trim() === '' ||
       disabledSet.some((it) => name.includes(it)))
 
+  // Already scheduled or mid-transition (archiving/restoring/etc) - deleting again is either
+  // redundant or unsafe.
+  $: deleteWorkspaceDisabled = workspaceDeleteOn != null || !workspaceActive
+
   void loadWorkspaceName()
 
   async function loadWorkspaceName (): Promise<void> {
     const res = await accountClient.getWorkspaceInfo()
 
-    workspaceUrl = res.url
     oldName = res.name
     name = oldName
     allowReadOnlyGuests = res.allowReadOnlyGuest ?? false
     allowGuestSignUp = res.allowGuestSignUp ?? false
     passwordAgingRule = res.passwordAgingRule ?? undefined
+    workspaceDeleteOn = res.deleteOn
+    workspaceActive = isActiveMode(res.mode)
     loading = false
   }
 
@@ -117,13 +123,22 @@
     isEditingName = false
   }
 
+  // Deleting a workspace wipes it for every member, so only its owners get the button at all.
+  const isWorkspaceOwner = getCurrentAccount().role === AccountRole.Owner
+
   async function handleDelete (): Promise<void> {
+    // Deferral windows come from the account pod - they are configurable per installation.
+    const policy = await accountClient.getDeletionPolicy().catch(() => ({ graceDays: 21, readonlyDays: 7 }))
     showPopup(MessageBox, {
       label: settingsRes.string.DeleteWorkspace,
       message: settingsRes.string.DeleteWorkspaceConfirm,
+      params: { days: policy.graceDays, readonlyDays: policy.readonlyDays },
       dangerous: true,
       action: async () => {
-        await accountClient.deleteWorkspace()
+        // Irreversible for every member: a code sent to the owner's email confirms it.
+        const code = await requestOperationOtpCode()
+        if (code === undefined) return
+        await accountClient.deleteWorkspace(code)
         navigate({ path: [loginId] })
       }
     })
@@ -203,19 +218,29 @@
     }
   }
 
+  $: reportsConfiguration = $configurationStore.get(chunter.ids.ContentReportsConfiguration)
+
+  async function handleToggleReports (e: CustomEvent<boolean>): Promise<void> {
+    if (reportsConfiguration === undefined) {
+      await client.createDoc(
+        core.class.Configuration,
+        core.space.Workspace,
+        { enabled: e.detail },
+        chunter.ids.ContentReportsConfiguration
+      )
+    } else {
+      await client.update(reportsConfiguration, { enabled: e.detail })
+    }
+  }
+
   async function handleToggleGuestSignUp (e: CustomEvent<boolean>): Promise<void> {
     await accountClient.updateAllowGuestSignUp(e.detail)
   }
 
   async function changePasswordAgingRules (val: number | undefined): Promise<void> {
-    passwordAgingRule = Math.max(val ?? 1, 1)
+    passwordAgingRule = val !== undefined ? Math.max(val, 1) : undefined
     await accountClient.updatePasswordAgingRule(passwordAgingRule)
   }
-
-  // async function handleGenerateApiToken (): Promise<void> {
-  //   const { token } = await accountClient.selectWorkspace(workspaceUrl)
-  //   showPopup(ApiTokenPopup, { token })
-  // }
 
   function handleTogglePermissions (): void {
     const newState = !arePermissionsDisabled
@@ -256,32 +281,9 @@
         ...Array.from(weekNames.entries()).map((it) => ({ id: it[0].toString(), label: it[1] }))
       ]
       const savedFirstDayOfWeek = localStorage.getItem('firstDayOfWeek') ?? 'system'
-      selected = items[savedFirstDayOfWeek === 'system' ? 0 : $deviceInfo.firstDayOfWeek + 1].id
+      selected = items[savedFirstDayOfWeek === 'system' ? 0 : $deviceInfo.firstDayOfWeek + 1].id.toString()
     }
   )
-
-  let existingGuestChatSettings: GuestCommunicationSettings | undefined = undefined
-  const query = createQuery()
-
-  $: query.query(communication.class.GuestCommunicationSettings, {}, (settings) => {
-    existingGuestChatSettings = settings[0]
-  })
-
-  async function onAllowedCardsChange (value: Ref<Card>[]): Promise<void> {
-    if (existingGuestChatSettings === undefined) {
-      await client.createDoc(communication.class.GuestCommunicationSettings, core.space.Workspace, {
-        allowedCards: value,
-        enabled: true
-      })
-    } else {
-      await client.updateDoc(
-        communication.class.GuestCommunicationSettings,
-        core.space.Workspace,
-        existingGuestChatSettings._id,
-        { allowedCards: value, enabled: true }
-      )
-    }
-  }
 
   const onSelected = (e: CustomEvent<string>): void => {
     selected = e.detail
@@ -291,8 +293,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={settingsRes.icon.Setting} label={settingsRes.string.WorkspaceSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={settingsRes.icon.Setting} label={settingsRes.string.WorkspaceSettings} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
     {#if loading}
@@ -300,7 +302,7 @@
         <Loading />
       </div>
     {:else}
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content flex-col flex-gap-4">
           <div class="title"><Label label={settingsRes.string.Workspace} /></div>
           <div class="ws">
@@ -353,7 +355,7 @@
               {#if passwordAgingRule}
                 <div class="w-32">
                   <EditBox
-                    format={'number'}
+                    format="number"
                     minValue={1}
                     maxDigitsAfterPoint={0}
                     bind:value={passwordAgingRule}
@@ -371,8 +373,8 @@
               <Label label={settingsRes.string.StartOfTheWeek} />
               <DropdownLabels
                 {items}
-                kind={'regular'}
-                size={'medium'}
+                kind="regular"
+                size="medium"
                 {selected}
                 enableSearch={false}
                 on:selected={onSelected}
@@ -403,19 +405,6 @@
                   }}
                 />
               </div>
-
-              <div class="flex-row-center flex-gap-4">
-                <Label label={settingsRes.string.GuestChannelsDescription} />
-                <Component
-                  is={card.component.CardArrayEditor}
-                  props={{
-                    _class: chat.masterTag.Thread,
-                    value: existingGuestChatSettings !== undefined ? existingGuestChatSettings.allowedCards : [],
-                    label: settingsRes.string.GuestChannelsArrayLabel,
-                    onChange: onAllowedCardsChange
-                  }}
-                />
-              </div>
             </div>
           {/if}
 
@@ -438,31 +427,39 @@
             description={settingsRes.string.ImportDocumentDescription}
             allowGuests={true}
           />
-          <!--
-          <div class="flex-col flex-gap-4 mt-6">
-            <div class="title"><Label label={settingsRes.string.ApiAccess} /></div>
-            <div class="w-32">
-              <Button
-                label={settingsRes.string.GenerateApiToken}
-                kind="regular"
-                disabled={workspaceUrl === ''}
-                showTooltip={{ label: settingsRes.string.GenerateApiToken }}
-                on:click={handleGenerateApiToken}
-              />
-            </div>
-          </div> -->
 
-          <div class="flex-col flex-gap-4 mt-6">
-            <div class="title"><Label label={settingsRes.string.DangerZone} /></div>
-            <div class="w-32">
-              <Button
-                label={settingsRes.string.DeleteWorkspace}
-                kind="dangerous"
-                on:click={handleDelete}
-                showTooltip={{ label: settingsRes.string.DeleteWorkspace }}
-              />
+          {#if isWorkspaceOwner}
+            <div class="flex-col flex-gap-4 mt-6">
+              <div class="title"><Label label={settingsRes.string.ContentReports} /></div>
+              <div class="flex-row-center flex-gap-4">
+                <Label label={settingsRes.string.ContentReportsDescription} />
+                <Toggle
+                  on={reportsConfiguration?.enabled === true}
+                  on:change={(e) => {
+                    void handleToggleReports(e)
+                  }}
+                />
+              </div>
             </div>
-          </div>
+
+            <div class="flex-col flex-gap-4 mt-6">
+              <div class="title"><Label label={settingsRes.string.DangerZone} /></div>
+              <div class="w-32">
+                <Button
+                  label={settingsRes.string.DeleteWorkspace}
+                  kind="dangerous"
+                  disabled={deleteWorkspaceDisabled}
+                  on:click={handleDelete}
+                  showTooltip={workspaceDeleteOn != null
+                    ? {
+                        label: login.string.WorkspaceDeletionScheduledDesc,
+                        props: { date: new Date(workspaceDeleteOn).toLocaleDateString() }
+                      }
+                    : { label: settingsRes.string.DeleteWorkspace }}
+                />
+              </div>
+            </div>
+          {/if}
         </div>
       </Scroller>
     {/if}

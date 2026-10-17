@@ -13,9 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Association, Class, Data, Doc, Ref, Relation, SortingOrder } from '@hcengineering/core'
+  import type { Association, Class, Data, Doc, Ref, Relation } from '@hcengineering/core'
+  import core, { SortingOrder } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
-  import { Dropdown, ListItem } from '@hcengineering/ui'
+  import type { ListItem } from '@hcengineering/ui'
+  import { Dropdown } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import ObjectBox from '../ObjectBox.svelte'
 
@@ -52,9 +54,18 @@
   function getItems (value: Doc | Doc[]): Item[] {
     const _class = getCommonClass(value)
     if (_class === undefined) return []
-    const descendants = h.getDescendants(_class)
-    const leftAssociations = client.getModel().findAllSync(core.class.Association, { classA: { $in: descendants } })
-    const rightAssociations = client.getModel().findAllSync(core.class.Association, { classB: { $in: descendants } })
+    const values = Array.isArray(value) ? value : [value]
+    const ancestors = h.getAncestors(_class)
+    const mixins = h
+      .getDescendants(_class)
+      .filter((descendant) => h.isMixin(descendant) && values.every((val) => h.hasMixin(val, descendant)))
+    const associationClasses = [...ancestors, ...mixins]
+    const leftAssociations = client
+      .getModel()
+      .findAllSync(core.class.Association, { classA: { $in: associationClasses } })
+    const rightAssociations = client
+      .getModel()
+      .findAllSync(core.class.Association, { classB: { $in: associationClasses } })
     const items: Item[] = []
     rightAssociations.forEach((a) => {
       items.push({
@@ -89,7 +100,7 @@
         association: selected.association
       }
       const op = client.apply(obj._id).notMatch(core.class.Relation, data)
-      op.createDoc(core.class.Relation, core.space.Workspace, data)
+      void op.createDoc(core.class.Relation, core.space.Workspace, data)
       await op.commit()
     }
     dispatch('close')
@@ -101,7 +112,7 @@
 <Card
   label={core.string.AddRelation}
   okAction={save}
-  width={'x-small'}
+  width="x-small"
   canSave={target !== undefined}
   on:close={() => {
     dispatch('close')
@@ -117,7 +128,7 @@
       options={{ sort: { modifiedOn: SortingOrder.Descending } }}
       bind:value={target}
       label={core.string.Relation}
-      kind={'ghost'}
+      kind="ghost"
       size="small"
       allowDeselect={false}
       showNavigate={false}

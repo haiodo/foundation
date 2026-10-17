@@ -44,9 +44,10 @@ import chunter from '@hcengineering/model-chunter'
 import contact, { TContact } from '@hcengineering/model-contact'
 import core from '@hcengineering/model-core'
 import task, { TProject, TTask } from '@hcengineering/model-task'
+import tags from '@hcengineering/tags'
+import tracker from '@hcengineering/model-tracker'
 
 import lead from './plugin'
-import { getEmbeddedLabel } from '@hcengineering/platform'
 
 export { leadId } from '@hcengineering/lead'
 export { leadOperation } from './migration'
@@ -57,13 +58,13 @@ export { default } from './plugin'
 export class TFunnel extends TProject implements Funnel {
   @Prop(TypeMarkup(), lead.string.FullDescription)
   @Index(IndexKind.FullText)
-    fullDescription?: string
+  fullDescription?: string
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
-    comments?: number
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
+  comments?: number
 }
 
 @Model(lead.class.Lead, task.class.Task)
@@ -74,11 +75,11 @@ export class TLead extends TTask implements Lead {
   declare attachedTo: Ref<Customer>
 
   @Prop(TypeDate(), task.string.StartDate)
-    startDate!: Timestamp | null
+  startDate!: Timestamp | null
 
   @Prop(TypeString(), lead.string.Title)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeRef(contact.mixin.Employee), lead.string.Assignee)
   declare assignee: Ref<Employee> | null
@@ -90,22 +91,31 @@ export class TLead extends TTask implements Lead {
 }
 
 @Mixin(lead.mixin.Customer, contact.class.Contact)
-@UX(lead.string.Customer, lead.icon.LeadApplication, undefined, undefined, undefined, lead.string.Customers)
+@UX(lead.string.Customer, lead.icon.LeadApplication, 'CUST', undefined, undefined, lead.string.Customers)
 export class TCustomer extends TContact implements Customer {
   @Prop(Collection(lead.class.Lead), lead.string.Leads)
-    leads?: number
+  leads?: number
 
   @Prop(TypeCollaborativeDoc(), lead.string.Description)
   @Index(IndexKind.FullText)
-    customerDescription!: MarkupBlobRef | null
+  customerDescription!: MarkupBlobRef | null
+
+  @Prop(TypeString(), lead.string.Website)
+  website?: string
+
+  @Prop(TypeString(), lead.string.Industry)
+  industry?: string
+
+  @Prop(Collection(tags.class.TagReference, tracker.string.Label), tracker.string.Labels)
+  labels?: number
 }
 
 @Mixin(lead.mixin.DefaultFunnelTypeData, lead.class.Funnel)
-@UX(getEmbeddedLabel('Default funnel'), lead.icon.Funnel)
+@UX(lead.string.DefaultFunnel, lead.icon.Funnel)
 export class TDefaultFunnelTypeData extends TFunnel implements RolesAssignment {
   [key: Ref<Role>]: AccountUuid[]
 }
 
-@Mixin(lead.mixin.LeadTypeData, lead.class.Lead)
-@UX(getEmbeddedLabel('Lead'), lead.icon.Lead)
-export class TLeadTypeData extends TLead {}
+@Model(lead.class.LeadTaskType, lead.class.Lead)
+@UX(lead.string.Lead, lead.icon.Lead, 'LEAD', 'title', undefined, lead.string.Leads, 'title')
+export class TLeadTaskType extends TLead {}

@@ -13,17 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment } from '@hcengineering/attachment'
-  import { Ref, type WithLookup } from '@hcengineering/core'
+  import type { Attachment } from '@hcengineering/attachment'
+  import type { Ref } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import { ListSelectionProvider } from '@hcengineering/view-resources'
   import { updatePopup } from '@hcengineering/ui'
-  import { AttachmentImageSize } from '../types'
+  import type { AttachmentImageSize } from '../types'
   import AttachmentPreview from './AttachmentPreview.svelte'
 
   export let attachments: WithLookup<Attachment>[] = []
   export let savedAttachmentsIds: Ref<Attachment>[] = []
   export let imageSize: AttachmentImageSize | undefined = undefined
   export let videoPreload = false
+  export let withActions = true
+  export let removable: boolean = false
 
   let attachmentPopupId = ''
 
@@ -50,7 +53,9 @@
         isSaved={savedAttachmentsIds?.includes(attachment._id) ?? false}
         {imageSize}
         {videoPreload}
+        {removable}
         {listProvider}
+        {withActions}
         on:open={(res) => (attachmentPopupId = res.detail)}
       />
     {/each}

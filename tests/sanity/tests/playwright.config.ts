@@ -2,35 +2,112 @@ import { devices, PlaywrightTestConfig } from '@playwright/test'
 import { config as dotenvConfig } from 'dotenv'
 dotenvConfig()
 
+const PlatformURI = process.env.PLATFORM_URI ?? 'http://localhost:8083'
+
 let maxFailures: number | undefined
 if (process.env.TESTS_MAX_FAILURES !== undefined) {
   maxFailures = parseInt(process.env.TESTS_MAX_FAILURES)
 }
 
+// A green run needs no trace, and a stable failure is reproduced by the retry anyway. Tracing
+// costs the whole run, so it's opt-in: TRACE_MODE=retain-on-failure when hunting a flake.
+const traceModes = ['on-first-retry', 'retain-on-failure', 'on', 'off', 'on-all-retries'] as const
+type TraceMode = (typeof traceModes)[number]
+
+const requested = (process.env.TRACE_MODE ?? '').trim()
+const traceMode: TraceMode = traceModes.includes(requested as TraceMode) ? (requested as TraceMode) : 'on-first-retry'
+if (requested !== '' && requested !== traceMode) {
+  console.warn(`TRACE_MODE=${JSON.stringify(requested)} is not one of ${traceModes.join(', ')}; using ${traceMode}`)
+}
+
+// love drives the wall time: meetings.all.spec.ts pulls in all 17 love files as one sequential
+// ~178s job. Its own project puts it at the queue head, not ~80s in, finishing alone while idle.
+const platformUse: PlaywrightTestConfig['use'] = {
+  // A toast lives 10s (packages/ui/src/utils.ts) in the bottom-left corner - on top of
+  // #profile-button. Every click on it then waits the toast out; that cost 166s of the run
+  // and is what timed the flaky tests out. setTestOptions() does the same, but only 8 of
+  // the 85 spec files call it, so put it where every context gets it.
+  storageState: {
+    cookies: [],
+    origins: [
+      {
+        origin: PlatformURI,
+        localStorage: [{ name: '#platform.notification.timeout', value: '0' }]
+      }
+    ]
+  },
+  // Without it, an action inherits the test timeout: clicking a covered element (a panel, a stale
+  // overlay) hangs a minute with no useful report. 30s: a button can take twenty under 5 workers.
+  actionTimeout: 30000,
+  testIdAttribute: 'data-id',
+  permissions: ['clipboard-read', 'clipboard-write', 'microphone', 'camera'],
+  launchOptions: {
+    args: [
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
+      // WebRTC ICE: on Linux CI runners mDNS .local hostnames don't resolve, killing the DTLS
+      // handshake. Disable mDNS obfuscation so LiveKit gets a real loopback/host IP candidate.
+      '--disable-features=WebRtcHideLocalIpsWithMdns'
+    ]
+  },
+  ...devices['Desktop Chrome'],
+  screenshot: 'only-on-failure',
+  viewport: {
+    width: 1440,
+    height: 900
+  },
+  trace: {
+    mode: traceMode,
+    snapshots: true,
+    screenshots: true,
+    sources: true
+  },
+  contextOptions: {
+    reducedMotion: 'reduce'
+  }
+}
+
+// Opt-in, for Safari-only paths (ClipboardItem with a promise): WEBKIT=1 pnpm run uitest.
+// Needs `npx playwright install webkit`. WebKit rejects the Chromium flags and every permission
+// except clipboard-read.
+const webkitProject: NonNullable<PlaywrightTestConfig['projects']> =
+  process.env.WEBKIT === '1'
+    ? [
+        {
+          name: 'WebKit',
+          testMatch: /clipboard\/.*\.spec\.ts/,
+          use: {
+            ...platformUse,
+            ...devices['Desktop Safari'],
+            viewport: { width: 1440, height: 900 },
+            permissions: ['clipboard-read'],
+            launchOptions: {}
+          },
+          dependencies: ['setup']
+        }
+      ]
+    : []
+
 const config: PlaywrightTestConfig = {
+  globalSetup: require.resolve('./global.setup.ts'),
+  globalTeardown: require.resolve('./global.teardown.ts'),
   projects: [
     { name: 'setup', testMatch: /.*\.setup\.ts/ },
     {
+      name: 'Love',
+      testMatch: /love\/.*\.spec\.ts/,
+      use: platformUse,
+      fullyParallel: false,
+      dependencies: ['setup']
+    },
+    ...webkitProject,
+    {
       name: 'Platform',
-      use: {
-        testIdAttribute: 'data-id',
-        permissions: ['clipboard-read', 'clipboard-write'],
-        ...devices['Desktop Chrome'],
-        screenshot: 'only-on-failure',
-        viewport: {
-          width: 1440,
-          height: 900
-        },
-        trace: {
-          mode: 'retain-on-failure',
-          snapshots: true,
-          screenshots: true,
-          sources: true
-        },
-        contextOptions: {
-          reducedMotion: 'reduce'
-        }
-      },
+      testIgnore: /love\//,
+      use: platformUse,
+      // Measured alternatives are worse: per-test scheduling 382.9s, a separate lane for the
+      // heavy tracker specs 346.4s, this 314.2s.
       fullyParallel: false,
       dependencies: ['setup']
     }
@@ -41,10 +118,16 @@ const config: PlaywrightTestConfig = {
   expect: {
     timeout: 15000
   },
-  globalTimeout: 1_800_000,
+  globalTimeout: 4_680_000,
   reporter: [
     ['list'],
-    ['html'],
+    // open: 'never' - the default parks a report server on failure and hangs the terminal.
+    ['html', { open: 'never' }],
+    // Machine-readable twin of the html report, consumed by analyze_failures.js.
+    // Relative to this config's directory, so '..' puts it next to package.json.
+    ['json', { outputFile: '../playwright-report.json' }],
+    // Per-step timings, which the json reporter drops. Consumed by analyze_steps.js.
+    [require.resolve('./step-reporter.ts')],
     [
       'allure-playwright',
       {

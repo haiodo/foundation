@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
   import ui from '../plugin'
   import { showPopup } from '../popups'
@@ -70,7 +70,7 @@
     </span>
     <svelte:fragment slot="iconRight">
       {#if withSelectIcon}
-        <DropdownIcon size={'small'} fill={!disabled ? 'var(--theme-content-color)' : 'var(--theme-dark-color)'} />
+        <DropdownIcon size="small" fill={!disabled ? 'var(--theme-content-color)' : 'var(--theme-dark-color)'} />
       {/if}
     </svelte:fragment>
   </Button>

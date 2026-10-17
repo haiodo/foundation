@@ -13,19 +13,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import type { IconSize } from '@hcengineering/ui'
   import {
     type Action,
     ActionIcon,
     type AnySvelteComponent,
     Icon,
     IconMoreH,
-    IconSize,
     Menu,
     showPopup,
     NavItem
   } from '@hcengineering/ui'
   import { NotifyMarker } from '@hcengineering/notification-resources'
-  import { Asset, IntlString } from '@hcengineering/platform'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import notification from '@hcengineering/notification'
 
   export let _id: string
@@ -35,10 +35,11 @@
   export let withIconBackground: boolean = true
   export let isSelected: boolean = false
   export let count: number | null = null
-  export let secondaryNotifyMarker: boolean = false
+  export let countColor: 'red' | 'gray' = 'red'
   export let title: string | undefined = undefined
+  export let subTitle: string | undefined = undefined
   export let intlTitle: IntlString | undefined = undefined
-  export let description: string | undefined = undefined
+  export let identifier: string | undefined = undefined
   export let actions: Action[] = []
   export let elementsCount: number = 0
   export let type: 'type-link' | 'type-tag' | 'type-anchor-link' | 'type-object' = 'type-link'
@@ -70,8 +71,9 @@
   {iconProps}
   {iconSize}
   label={intlTitle}
-  {title}
-  {description}
+  title={identifier ?? title}
+  {subTitle}
+  description={identifier ? title : undefined}
   selected={isSelected}
   count={elementsCount > 0 ? elementsCount : null}
   {type}
@@ -100,7 +102,7 @@
     {/each}
     {#if menuActions.length > 0}
       <button class="action" class:pressed={menuOpened} on:click|preventDefault|stopPropagation={handleMenuClicked}>
-        <IconMoreH size={'small'} />
+        <IconMoreH size="small" />
       </button>
     {/if}
   </svelte:fragment>
@@ -108,13 +110,7 @@
     {#if count != null && count > 0}
       <div class="antiHSpacer" />
       <div class="notify">
-        <NotifyMarker {count} />
-      </div>
-      <div class="antiHSpacer" />
-    {:else if secondaryNotifyMarker}
-      <div class="antiHSpacer" />
-      <div class="notify">
-        <NotifyMarker count={0} kind="simple" size="xx-small" color="gray" />
+        <NotifyMarker {count} color={countColor} />
       </div>
       <div class="antiHSpacer" />
     {/if}

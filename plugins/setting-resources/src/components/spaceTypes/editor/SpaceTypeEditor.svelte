@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,19 +15,22 @@
 -->
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import core, { SpaceType, SpaceTypeDescriptor } from '@hcengineering/core'
+  import type { SpaceType, SpaceTypeDescriptor } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
-  import { SpaceTypeEditor } from '@hcengineering/setting'
+  import type { SpaceTypeEditor } from '@hcengineering/setting'
   import {
-    ButtonIcon,
     Component,
     IconDescription,
     NavItem,
+    resolvedLocationStore,
     Scroller,
     Separator,
     defineSeparators,
     secondNavSeparators
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import settingRes from '../../../plugin'
 
   export let type: SpaceType
   export let descriptor: SpaceTypeDescriptor | undefined
@@ -50,14 +54,27 @@
   }[] =
     editorDescriptor !== undefined
       ? editorDescriptor.sections.map(({ id, label }) => ({
-        id,
-        label
-      }))
+          id,
+          label
+        }))
       : []
 
   const sectionRefs: Record<string, HTMLElement | undefined> = {}
 
   defineSeparators('spaceTypeEditor', secondNavSeparators)
+
+  let lastScrolledFragment: string | undefined = undefined
+
+  $: fragment = $resolvedLocationStore.fragment
+  $: if (fragment != null && fragment !== lastScrolledFragment && sectionRefs[fragment] != null) {
+    lastScrolledFragment = fragment
+    const target = sectionRefs[fragment]
+    setTimeout(() => {
+      target?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  } else if (fragment == null) {
+    lastScrolledFragment = undefined
+  }
 </script>
 
 {#if type !== undefined && descriptor !== undefined}
@@ -66,7 +83,13 @@
       <div class="hulyComponent-content__column">
         <div class="hulyComponent-content__navHeader">
           <div class="hulyComponent-content__navHeader-menu">
-            <ButtonIcon kind="tertiary" icon={IconDescription} size="small" inheritColor />
+            <IconButton
+              kind="tertiary"
+              icon={IconDescription}
+              size="small"
+              inheritColor
+              tooltip={{ label: settingRes.string.SpaceTypes }}
+            />
           </div>
         </div>
         {#each navigator as navItem, i (navItem.id)}
@@ -86,7 +109,11 @@
         <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
           <div class="hulyComponent-content gap">
             {#each editorDescriptor.sections as section}
-              <div bind:this={sectionRefs[section.id]} class:hulyTableAttr-container={!section.withoutContainer}>
+              <div
+                id={section.id}
+                bind:this={sectionRefs[section.id]}
+                class:hulyTableAttr-container={!section.withoutContainer}
+              >
                 <Component
                   is={section.component}
                   disabled={readonly}

@@ -14,9 +14,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, DocumentQuery, FindOptions, Ref, Status } from '@hcengineering/core'
+  import type { Class, DocumentQuery, FindOptions, Ref, Status } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Project, Task, getStates } from '@hcengineering/task'
+  import type { Project, Task } from '@hcengineering/task'
+  import { getStates } from '@hcengineering/task'
   import type { TabItem } from '@hcengineering/ui'
   import { ScrollerBar, TabList, Switcher } from '@hcengineering/ui'
   import { TableBrowser, statusStore } from '@hcengineering/view-resources'
@@ -152,8 +153,8 @@
 
 <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
   <Switcher
-    name={'status-table-states'}
-    kind={'subtle'}
+    name="status-table-states"
+    kind="subtle"
     selected={doneStatusesView ? 'DoneStates' : 'AllStates'}
     items={[
       { id: 'AllStates', labelIntl: task.string.AllStates },
@@ -162,14 +163,14 @@
     on:select={handleSelect}
   />
   {#if doneStatusesView}
-    <ScrollerBar gap={'none'} bind:scroller={divScroll}>
+    <ScrollerBar gap="none" bind:scroller={divScroll}>
       <TabList items={itemsDS} bind:selected={selectedDS} multiselect on:select={handleDoneSelect} />
     </ScrollerBar>
   {:else}
     <StatesBar
       bind:state
       {space}
-      gap={'none'}
+      gap="none"
       on:change={() => {
         updateQuery(query, selectedDoneStates)
       }}

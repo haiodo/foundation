@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,17 +14,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
-  import { PermissionsStore } from '@hcengineering/contact'
+  import type { Card } from '@hcengineering/card'
+  import type { PermissionsStore } from '@hcengineering/contact'
   import { permissionsStore } from '@hcengineering/contact-resources'
-  import core, { AnyAttribute, Class, Doc, Ref, toRank, TypedSpace } from '@hcengineering/core'
-  import {
-    AttributeBarEditor,
-    createQuery,
-    getClient,
-    isCollectionAttr,
-    KeyedAttribute
-  } from '@hcengineering/presentation'
+  import type { AnyAttribute, Class, Doc, Ref, TypedSpace } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import { toRank } from '@hcengineering/rank'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import { AttributeBarEditor, createQuery, getClient, isCollectionAttr } from '@hcengineering/presentation'
   import { canChangeAttribute } from '@hcengineering/view-resources'
 
   export let object: Card
@@ -44,7 +42,10 @@
     const filtredKeys = [...hierarchy.getAllAttributes(_class, to).entries()]
       .filter(
         ([key, value]) =>
-          value.hidden !== true && !ignoreKeys.includes(key) && !isCollectionAttr(hierarchy, { key, attr: value })
+          value.hidden !== true &&
+          !ignoreKeys.includes(key) &&
+          !isCollectionAttr(hierarchy, { key, attr: value }) &&
+          value.type._class !== core.class.TypeMarkup
       )
       .map(([key, attr]) => ({ key, attr }))
 
@@ -81,7 +82,7 @@
   {/each}
   {#if showCollaborators}
     <AttributeBarEditor
-      key={'collaborators'}
+      key="collaborators"
       _class={object._class}
       {object}
       {showHeader}

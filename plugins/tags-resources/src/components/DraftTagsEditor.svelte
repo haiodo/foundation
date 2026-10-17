@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
-  import { TagReference } from '@hcengineering/tags'
-  import { Button, ButtonKind, Icon, Label, getEventPopupPositionElement, showPopup } from '@hcengineering/ui'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import type { TagReference } from '@hcengineering/tags'
+  import type { ButtonKind } from '@hcengineering/ui'
+  import { Button, Icon, Label, getEventPopupPositionElement, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import tagsPlugin from '../plugin'
   import DraftTagsPopup from './DraftTagsPopup.svelte'
@@ -53,9 +54,9 @@
 </script>
 
 <div>
-  <Button {kind} padding={'0rem;'} on:click={click}>
+  <Button {kind} padding="0rem;" on:click={click}>
     <div slot="content" class="flex-row-center flex-gap-1">
-      <Icon icon={TagIcon} size={'medium'} />
+      <Icon icon={TagIcon} size="medium" />
       <span class="overflow-label label"><Label label={tagsPlugin.string.AddLabel} /></span>
     </div>
   </Button>
@@ -67,7 +68,7 @@
             attr={undefined}
             isEditable
             {value}
-            kind={'list'}
+            kind="list"
             on:remove={(res) => {
               removeTag(res.detail)
             }}

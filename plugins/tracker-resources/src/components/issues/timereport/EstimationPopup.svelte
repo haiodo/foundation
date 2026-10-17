@@ -15,17 +15,11 @@
 -->
 <script lang="ts">
   import presentation, { Card, createQuery, getClient } from '@hcengineering/presentation'
-  import { Issue, Project, reduceChildInfoTree } from '@hcengineering/tracker'
-  import {
-    Button,
-    EditStyle,
-    eventToHTMLElement,
-    floorFractionDigits,
-    IconAdd,
-    Label,
-    showPopup
-  } from '@hcengineering/ui'
-  import { EditBoxPopup } from '@hcengineering/view-resources'
+  import type { Issue, Project } from '@hcengineering/tracker'
+  import { reduceChildInfoTree } from '@hcengineering/tracker'
+  import type { EditStyle } from '@hcengineering/ui'
+  import { Button, eventToHTMLElement, floorFractionDigits, IconAdd, Label, showPopup } from '@hcengineering/ui'
+  import EditEstimationPopup from './EditEstimationPopup.svelte'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../../plugin'
   import IssuePresenter from '../IssuePresenter.svelte'
@@ -84,7 +78,7 @@
     dispatch('close')
   }}
   okLabel={presentation.string.Ok}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close', null)
   }}
@@ -96,26 +90,15 @@
       <div
         class="ml-2 mr-4"
         on:click={(evt) => {
-          showPopup(
-            EditBoxPopup,
-            {
-              value: object.estimation === 0 ? undefined : object.estimation,
-              format,
-              kind,
-              placeholder: tracker.string.Estimation,
-              maxDigitsAfterPoint: 3
-            },
-            eventToHTMLElement(evt),
-            (res) => {
-              if (typeof res === 'number') {
-                if (_value !== res) {
-                  _value = res
-                  void client.update(object, { estimation: res })
-                  object.estimation = res
-                }
+          showPopup(EditEstimationPopup, { value: object.estimation }, eventToHTMLElement(evt), (res) => {
+            if (typeof res === 'number') {
+              if (_value !== res) {
+                _value = res
+                void client.update(object, { estimation: res })
+                object.estimation = res
               }
             }
-          )
+          })
         }}
       >
         <EstimationStatsPresenter value={object} estimation={_value} />
@@ -167,7 +150,7 @@
   <svelte:fragment slot="buttons">
     <Button
       icon={IconAdd}
-      size={'large'}
+      size="large"
       on:click={() => {
         showPopup(
           TimeSpendReportPopup,

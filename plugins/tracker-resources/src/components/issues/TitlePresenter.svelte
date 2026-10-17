@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import type { Issue } from '@hcengineering/tracker'
   import { DocNavLink } from '@hcengineering/view-resources'
   import tracker from '../../plugin'
@@ -26,6 +26,7 @@
   export let onClick: (() => void) | undefined = undefined
   export let disabled: boolean = false
   export let maxWidth: string | undefined = undefined
+  export let minWidth: string | undefined = undefined
 </script>
 
 {#if value}
@@ -34,6 +35,7 @@
     class:with-margin={shouldUseMargin}
     class:list={kind === 'list'}
     style:max-width={maxWidth}
+    style:min-width={minWidth}
     title={value.title}
   >
     <DocNavLink object={value} {onClick} component={tracker.component.EditIssue} shrink={1} {disabled} colorInherit>
@@ -52,7 +54,7 @@
     display: inline-flex;
     align-items: center;
     flex-shrink: 1;
-    min-width: 1rem;
+    min-width: 1.5rem;
     transition: flex-shrink 0.25s cubic-bezier(0.38, 0.01, 0.33, 1) 0s;
     &:hover {
       flex-shrink: 0;

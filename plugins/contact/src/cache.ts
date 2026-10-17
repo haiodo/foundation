@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -88,9 +89,7 @@ export default class ContactCache {
   }
 
   public static get instance (): ContactCache {
-    if (this._instance === undefined) {
-      this._instance = new ContactCache()
-    }
+    this._instance ??= new ContactCache()
 
     return this._instance
   }
@@ -112,6 +111,10 @@ export default class ContactCache {
 
   public get socialIdByPersonId (): ReadonlyMap<PersonId, Readonly<SocialIdentity> | null> {
     return this._socialIdByPersonId
+  }
+
+  public get personIdsByPersonRef (): ReadonlyMap<Ref<Person>, ReadonlySet<PersonId>> {
+    return this._personIdsByPersonRef
   }
 
   private addPersonIdToPersonRef (personRef: Ref<Person>, personId: PersonId): void {
@@ -225,6 +228,15 @@ export default class ContactCache {
       personRef: ref,
       personIds
     })
+  }
+
+  // Cached persons belong to one workspace, while PersonId keys are the same in all of them.
+  public clear (): void {
+    this._personIdsByPersonRef.clear()
+    this._personRefByPersonId.clear()
+    this._personByPersonId.clear()
+    this._personByRef.clear()
+    this._socialIdByPersonId.clear()
   }
 
   public addChangeListener (listener: (change: Change) => void | Promise<void>): void {

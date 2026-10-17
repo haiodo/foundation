@@ -13,24 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DirectMessage } from '@hcengineering/chunter'
+  import type { DirectMessage } from '@hcengineering/chunter'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
-  import { CombineAvatars, employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
-  import { type Ref, notEmpty } from '@hcengineering/core'
+  import { CombineAvatars, SystemAvatar, employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
+  import { systemAccountUuid, type Ref, notEmpty } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { SearchEdit } from '@hcengineering/ui'
   import { openDoc } from '@hcengineering/view-resources'
 
-  import { userSearch } from '../index'
   import chunter from '../plugin'
   import { getDmName } from '../utils'
-  import { navigateToSpecial } from '../navigation'
 
   export let spaceId: Ref<DirectMessage> | undefined
-  export let withSearch: boolean = true
-
-  let userSearch_: string = ''
-  userSearch.subscribe((v) => (userSearch_ = v))
 
   const client = getClient()
   const query = createQuery()
@@ -45,7 +38,7 @@
 
   async function onSpaceEdit (): Promise<void> {
     if (dm === undefined) return
-    openDoc(client.getHierarchy(), dm)
+    void openDoc(client.getHierarchy(), dm)
   }
 </script>
 
@@ -56,23 +49,15 @@
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="ac-header__wrap-title" on:click={onSpaceEdit}>
         <div class="ac-header__icon">
-          <CombineAvatars _class={contact.mixin.Employee} items={dmPersonsToDisplay} size={'x-small'} />
+          {#if dmPersonsToDisplay.length === 0 && dm.members.includes(systemAccountUuid)}
+            <SystemAvatar size="x-small" />
+          {:else}
+            <CombineAvatars _class={contact.mixin.Employee} items={dmPersonsToDisplay} size="x-small" />
+          {/if}
         </div>
         <span class="ac-header__title">{name}</span>
       </div>
     {/await}
-  {/if}
-  {#if withSearch}
-    <SearchEdit
-      value={userSearch_}
-      on:change={(ev) => {
-        userSearch.set(ev.detail)
-
-        if (ev.detail !== '') {
-          navigateToSpecial('browser')
-        }
-      }}
-    />
   {/if}
 </div>
 

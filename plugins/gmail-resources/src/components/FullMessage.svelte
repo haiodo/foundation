@@ -14,16 +14,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { NewMessage, SharedMessage } from '@hcengineering/gmail'
+  import type { NewMessage, SharedMessage } from '@hcengineering/gmail'
   import { Button, IconArrowLeft, Label, Scroller, tooltip } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import gmail from '../plugin'
   import FullMessageContent from './FullMessageContent.svelte'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import attachment, { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
   import { AttachmentPresenter } from '@hcengineering/attachment-resources'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
 
   export let currentMessage: SharedMessage
   export let newMessage: boolean
@@ -59,7 +60,7 @@
   <div class="flex-row-center clear-mins">
     <Button
       icon={IconArrowLeft}
-      kind={'ghost'}
+      kind="ghost"
       on:click={() => {
         dispatch('close')
       }}
@@ -78,7 +79,7 @@
     label={hasError ? gmail.string.Resend : gmail.string.Reply}
     on:click={() => {
       if (hasError) {
-        resendMessage()
+        void resendMessage()
         dispatch('close')
       } else newMessage = true
     }}
@@ -96,7 +97,7 @@
 </div>
 {#if attachments.length}
   <div class="flex-row-center background-bg-accent-color bottom-divider">
-    <Scroller padding={'.5rem'} gap={'gap-2'} horizontal contentDirection={'horizontal'} noFade={false}>
+    <Scroller padding=".5rem" gap="gap-2" horizontal contentDirection="horizontal" noFade={false}>
       {#each attachments as attachment}
         <AttachmentPresenter value={attachment} showPreview />
       {/each}
@@ -105,6 +106,6 @@
   </div>
 {/if}
 
-<Scroller padding={'1rem'}>
+<Scroller padding="1rem">
   <FullMessageContent content={currentMessage.content} />
 </Scroller>

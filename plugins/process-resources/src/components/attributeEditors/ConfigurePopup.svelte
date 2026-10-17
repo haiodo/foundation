@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { AnyAttribute, Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
-  import { Context, Func, Process, ProcessFunction, SelectedContext } from '@hcengineering/process'
+  import type { AnyAttribute, Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import presentation, { getClient } from '@hcengineering/presentation'
+  import type { Context, Func, Process, ProcessFunction, SelectedContext } from '@hcengineering/process'
   import {
-    ButtonIcon,
     CheckBox,
     closeTooltip,
     eventToHTMLElement,
@@ -29,7 +29,8 @@
     showPopup,
     Submenu
   } from '@hcengineering/ui'
-  import { AttributeCategory } from '@hcengineering/view'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { AttributeCategory } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
   import FallbackEditor from '../contextEditors/FallbackEditor.svelte'
@@ -110,8 +111,8 @@
   $: funcs =
     (contextValue.functions?.length ?? 0) > 0
       ? client
-        .getModel()
-        .findAllSync(plugin.class.ProcessFunction, { _id: { $in: contextValue.functions?.map((it) => it.func) } })
+          .getModel()
+          .findAllSync(plugin.class.ProcessFunction, { _id: { $in: contextValue.functions?.map((it) => it.func) } })
       : []
 
   $: sourceFunc =
@@ -339,19 +340,21 @@
             </div>
             <div>
               {#if getFunction(f.func).editor}
-                <ButtonIcon
+                <IconButton
                   icon={IconSettings}
                   size="small"
                   kind="tertiary"
+                  tooltip={{ label: plugin.string.Settings }}
                   on:click={(e) => {
                     onConfigure(e, f, i)
                   }}
                 />
               {/if}
-              <ButtonIcon
+              <IconButton
                 icon={IconClose}
                 size="small"
                 kind="tertiary"
+                tooltip={{ label: presentation.string.Remove }}
                 on:click={() => {
                   onFunctionRemove(i)
                 }}
@@ -407,8 +410,8 @@
         <CheckBox
           on:click={onFallbackChange}
           checked={contextValue.fallbackValue === undefined}
-          size={'medium'}
-          kind={'primary'}
+          size="medium"
+          kind="primary"
         />
       </button>
       {#if contextValue.fallbackValue !== undefined}

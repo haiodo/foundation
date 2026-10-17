@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -15,6 +16,12 @@
 import type { AccountRole, Blob, Permission, Ref, Timestamp, TypedSpace } from '@hcengineering/core'
 import type { Asset, IntlString, Resource } from '@hcengineering/platform'
 import { type ComponentType } from 'svelte'
+
+export interface BlankViewProps {
+  icon: Asset
+  header: IntlString
+  label?: IntlString
+}
 
 /**
  * Describe a browser URI location parsed to path, query and fragment.
@@ -80,7 +87,7 @@ export interface Action {
   id?: string
   label: IntlString
   labelParams?: Record<string, any>
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   iconProps?: Record<string, any>
   action: (props: any, ev: Event) => Promise<void>
   inline?: boolean
@@ -90,11 +97,14 @@ export interface Action {
   component?: AnyComponent | AnySvelteComponent
   props?: Record<string, any>
   isSubmenuRightClicking?: boolean
+  // Called with submenu popup close/update result for components which do not apply changes themselves
+  onSubmenuResult?: (result: any) => void | Promise<void>
 
   inlineComponent?: AnyComponent | AnySvelteComponent
   inlineComponentProps?: Record<string, any>
 
   group?: string
+  order?: number
 }
 
 export interface IPopupItem {
@@ -123,15 +133,18 @@ export interface TabItem {
   label?: string
   labelIntl?: IntlString
   labelParams?: Record<string, any>
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   color?: string
   tooltip?: IntlString
   action?: () => void
+  // Small secondary label rendered next to the main one inside the tab (e.g. a "−15%" discount hint).
+  badge?: IntlString
+  badgeParams?: Record<string, any>
 }
 
 export interface BreadcrumbItem {
   id?: string
-  icon?: Asset | AnySvelteComponent | ComponentType
+  icon?: IconComponent
   iconProps?: any
   iconWidth?: string
   iconMargin?: string
@@ -201,7 +214,7 @@ export type HeaderAdaptive = 'default' | 'freezeActions' | 'autoExtra' | 'double
 
 export interface ButtonItem {
   id: string
-  icon?: Asset | AnySvelteComponent | ComponentType
+  icon?: IconComponent
   label?: IntlString
   labelParams?: Record<string, any>
   disabled?: boolean
@@ -243,7 +256,7 @@ export const posAlignment = [
 export type PopupPosAlignment = (typeof posAlignment)[number]
 
 export function isPopupPosAlignment (x: any): x is PopupPosAlignment {
-  return typeof x === 'string' && (posAlignment as typeof posAlignment).includes(x as PopupPosAlignment)
+  return typeof x === 'string' && posAlignment.includes(x as PopupPosAlignment)
 }
 
 export type PopupAlignment = PopupPosAlignment | PopupPositionElement | null
@@ -316,31 +329,46 @@ export interface LabelAndProps {
   textAlign?: 'left' | 'center' | 'right'
 }
 
+/** A tooltip that carries a label, so it can also name the element it is attached to. */
+export type TooltipWithLabel = LabelAndProps & { label: IntlString }
+
 export interface ListItem {
   _id: string
   label: string
-  icon?: Asset
-  iconProps?: any
+  icon?: IconComponent
+  iconProps?: Record<string, any>
   image?: string
+  component?: AnySvelteComponent
+  componentProps?: Record<string, any>
   isSelectable?: boolean
   fontWeight?: 'normal' | 'medium' | 'semi-bold'
   paddingLeft?: number
 }
 
 export interface DropdownTextItem {
-  id: string
+  id: string | number
   label: string
+  icon?: IconComponent
+  iconProps?: Record<string, any>
+  exclusive?: boolean
+  separatorBefore?: boolean
+  separatorLabel?: IntlString
 }
 
-export interface DropdownIntlItem {
-  id: string | number
+export interface DropdownIntlItem<Id extends string | number = string | number> {
+  id: Id
   label: IntlString
-  icon?: Asset | AnySvelteComponent | ComponentType
+  icon?: IconComponent
   iconProps?: Record<string, any>
   params?: Record<string, any>
   description?: IntlString
   paramsDescription?: Record<string, any>
+  component?: AnySvelteComponent
+  componentProps?: Record<string, any>
+  exclusive?: boolean
   keys?: string[]
+  separatorBefore?: boolean
+  separatorLabel?: IntlString
 }
 
 export interface NestedSelectItem extends DropdownIntlItem {
@@ -397,6 +425,8 @@ export interface DeviceOptions {
   size: WidthType | null
   sizes: Record<WidthType, boolean>
   minWidth: boolean
+  // Viewport is too narrow for the full app panel - it collapses to compact buttons.
+  appsMini: boolean
   twoRows: boolean
   firstDayOfWeek: number
   theme?: string
@@ -405,7 +435,7 @@ export interface DeviceOptions {
 }
 
 export interface TimelineItem {
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   iconSize?: IconSize
   iconProps?: Record<string, any>
   presenter?: AnySvelteComponent
@@ -508,7 +538,7 @@ export interface SeparatedElement {
  */
 export interface SelectPopupValueType {
   id: number | string | null
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   iconProps?: Record<string, any>
   iconColor?: string
   label?: IntlString

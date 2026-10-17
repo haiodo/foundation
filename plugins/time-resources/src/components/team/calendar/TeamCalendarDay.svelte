@@ -13,14 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Event, getAllEvents } from '@hcengineering/calendar'
+  import type { BusySlot, Event } from '@hcengineering/calendar'
+  import { getAllEvents } from '@hcengineering/calendar'
   import { calendarByIdStore } from '@hcengineering/calendar-resources'
   import { getCurrentEmployee, Person } from '@hcengineering/contact'
-  import { IdMap, Ref } from '@hcengineering/core'
-  import { Project } from '@hcengineering/task'
-  import { ToDo, WorkSlot } from '@hcengineering/time'
+  import type { IdMap, Ref } from '@hcengineering/core'
+  import type { Project } from '@hcengineering/task'
+  import type { ToDo, WorkSlot } from '@hcengineering/time'
   import WithTeamData from '../WithTeamData.svelte'
   import { groupTeamData, toSlots } from '../utils'
+  import BusyElement from './BusyElement.svelte'
   import EventElement from './EventElement.svelte'
   import PersonCalendar from './PersonCalendar.svelte'
   import { employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
@@ -34,12 +36,14 @@
   $: toDate = new Date(currentDate).setDate(currentDate.getDate() + Math.round(maxDays / 2 + 1))
   const me = getCurrentEmployee()
 
-  let project: Project | undefined
+  let projects: Project[] = []
   let slots: WorkSlot[] = []
   let events: Event[] = []
   let todos: IdMap<ToDo> = new Map()
+  let busySlots: BusySlot[] = []
 
-  $: persons = (project?.members ?? [])
+  $: persons = projects
+    .flatMap((p) => p.members ?? [])
     .map((it) => $employeeRefByAccountUuidStore.get(it))
     .filter((it) => it !== undefined)
 
@@ -67,7 +71,7 @@
     '1hour': 1,
     '30mins': 2
   }
-  function calcTop (event: Event, prevEvent?: Event): number {
+  function calcTop (event: Pick<Event, 'date' | 'dueDate'>, prevEvent?: Pick<Event, 'date' | 'dueDate'>): number {
     if (prevEvent === undefined) {
       return 0
     }
@@ -81,7 +85,17 @@
   }
 </script>
 
-<WithTeamData {space} {fromDate} {toDate} bind:project bind:todos bind:slots bind:events bind:persons />
+<WithTeamData
+  spaces={[space]}
+  {fromDate}
+  {toDate}
+  bind:projects
+  bind:todos
+  bind:slots
+  bind:events
+  bind:persons
+  bind:busySlots
+/>
 <PersonCalendar
   {persons}
   startDate={currentDate}
@@ -97,7 +111,7 @@
     {@const totalSlots = toSlots(getAllEvents(slots, dayFrom, dayTo))}
     {@const totalEvents = getAllEvents(events, dayFrom, dayTo)}
     {@const hourWidths = calcHourWidth([...totalSlots, ...totalEvents], width)}
-    <div class="flex-nowrap w-full p-1" style:display={'inline-flex'}>
+    <div class="flex-nowrap w-full p-1" style:display="inline-flex">
       {#each Array.from(Array(25).keys()) as hour}
         {@const width = hourWidths[hour]}
         <div class="flex-row-center" style:width="{width}rem">
@@ -127,7 +141,7 @@
     {@const dayTo = new Date(day).setHours(23, 59, 59, 999)}
     {@const totalSlots = toSlots(getAllEvents(slots, dayFrom, dayTo))}
     {@const totalEvents = getAllEvents(events, dayFrom, dayTo)}
-    {@const grouped = groupTeamData(totalSlots, todos, totalEvents, me, $calendarByIdStore)}
+    {@const grouped = groupTeamData(totalSlots, todos, totalEvents, busySlots, me, $calendarByIdStore, dayFrom, dayTo)}
     {@const gitem = grouped.find((it) => it.user === person)}
     {@const hourWidths = calcHourWidth([...totalSlots, ...totalEvents], width)}
     {#if gitem}
@@ -135,11 +149,12 @@
         ...Array.from(gitem.mappings.flatMap((it) => it.slots)),
         ...gitem.events,
         ...gitem.busyEvents,
-        ...gitem.busy.slots
+        ...gitem.busy.slots,
+        ...gitem.busySlots
       ].sort((a, b) => a.date - b.date)}
-      <div style:overflow-x={'hidden'} style:overflow-y={'auto'} style:height="{height}rem">
+      <div style:overflow-x="hidden" style:overflow-y="auto" style:height="{height}rem">
         <div class="flex flex-row-center">
-          <div class="flex-nowrap p-1 w-full" style:display={'inline-flex'}>
+          <div class="flex-nowrap p-1 w-full" style:display="inline-flex">
             {#each Array.from(Array(24).keys()) as hour}
               {@const _slots = slots
                 .filter((it) => new Date(it.date).getHours() === hour)
@@ -149,7 +164,11 @@
                 {#each _slots as m, i}
                   <!-- <div class="flex-col mr-1"> -->
                   <!-- <TimePresenter value={m.dueDate - m.date} /> -->
-                  <EventElement event={m} hour={cwidth} top={calcTop(m, _slots[i - 1])} />
+                  {#if '_class' in m}
+                    <EventElement event={m} hour={cwidth} top={calcTop(m, _slots[i - 1])} />
+                  {:else}
+                    <BusyElement busySlot={m} hour={cwidth} top={calcTop(m, _slots[i - 1])} />
+                  {/if}
                   <!-- </div> -->
                 {/each}
               </div>

@@ -13,10 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { MasterTag, Tag } from '@hcengineering/card'
-  import { AnyAttribute, Ref } from '@hcengineering/core'
+  import type { MasterTag, Tag } from '@hcengineering/card'
+  import type { AnyAttribute, Ref } from '@hcengineering/core'
   import presentation, { Card, getAttributePresenterClass, getClient } from '@hcengineering/presentation'
-  import { Process, ProcessFunction } from '@hcengineering/process'
+  import type { Process, ProcessFunction } from '@hcengineering/process'
   import { createEventDispatcher } from 'svelte'
   import { getContext } from '../../utils'
   import ProcessAttribute from '../ProcessAttribute.svelte'
@@ -43,7 +43,7 @@
   $: elementContext = getContext(client, process, presenterClass.attrClass, 'attribute', undefined, true)
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <ProcessAttribute
       {process}

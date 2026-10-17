@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { Milestone } from '@hcengineering/tracker'
+  import type { Milestone } from '@hcengineering/tracker'
+  import type { ButtonKind } from '@hcengineering/ui'
   import {
-    ButtonKind,
     DatePresenter,
     deviceOptionsStore as deviceInfo,
     getPlatformAvatarColorDef,
@@ -64,7 +64,7 @@
   {#if milestone && kind === 'list-header' && display !== 'kanban'}
     <div class="flex-row-center" class:minus-margin-space={kind === 'list-header'} class:text-sm={twoRows}>
       {#if milestone}
-        <DatePresenter value={milestone.targetDate} kind={'ghost'} />
+        <DatePresenter value={milestone.targetDate} kind="ghost" />
       {/if}
     </div>
   {/if}

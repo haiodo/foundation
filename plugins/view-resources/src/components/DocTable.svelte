@@ -13,19 +13,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { PermissionsStore } from '@hcengineering/contact'
-  import core, { AnyAttribute, Class, Doc, Ref, TxOperations, TypedSpace, getObjectValue } from '@hcengineering/core'
+  import type { PermissionsStore } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { AnyAttribute, Class, Doc, Ref, TxOperations, TypedSpace } from '@hcengineering/core'
+  import core, { getObjectValue } from '@hcengineering/core'
   import { getClient, reduceCalls, updateAttribute } from '@hcengineering/presentation'
   import { Label, Loading, mouseAttractor } from '@hcengineering/ui'
-  import { AttributeModel, BuildModelKey, BuildModelOptions, Viewlet } from '@hcengineering/view'
+  import type { AttributeModel, BuildModelKey, BuildModelOptions, Viewlet } from '@hcengineering/view'
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher, onMount } from 'svelte'
   import { showMenu } from '../actions'
   import view from '../plugin'
   import { buildModel, restrictionStore } from '../utils'
   import { getResource } from '@hcengineering/platform'
-  import { Readable } from 'svelte/store'
+  import type { Readable } from 'svelte/store'
   import { canChangeAttribute } from '../permissions'
+  import { canEditSpace } from '../visibilityTester'
 
   export let objects: Doc[]
   export let config: Array<string | BuildModelKey>
@@ -46,7 +49,20 @@
 
   const refs: HTMLElement[] = []
 
-  $: refs.length = objects.length
+  $: uniqueObjects = deduplicate(objects)
+
+  function deduplicate (list: Doc[] | undefined): Doc[] {
+    if (!list) return []
+    const seen = new Set<string>()
+    return list.filter((item) => {
+      if (item?._id == null) return false
+      if (seen.has(item._id)) return false
+      seen.add(item._id)
+      return true
+    })
+  }
+
+  $: refs.length = uniqueObjects.length
 
   $: viewlet = getViewlet(_class)
 
@@ -81,7 +97,7 @@
     dispatch('row-focus', object)
   }
 
-  const joinProps = (attribute: AttributeModel, object: Doc, readonly: boolean) => {
+  const joinProps = (attribute: AttributeModel, object: Doc, readonly: boolean, editable: boolean) => {
     const readonlyParams =
       readonly || (attribute?.attribute?.readonly ?? false)
         ? {
@@ -89,7 +105,11 @@
             editable: false,
             disabled: true
           }
-        : {}
+        : {
+            readonly: !editable,
+            editable
+          }
+
     if (attribute.collectionAttr || attribute.attribute?.type?._class === core.class.TypeIdentifier) {
       return { object, ...attribute.props, ...readonlyParams }
     }
@@ -98,6 +118,7 @@
     }
     return { ...attribute.props, space: object.space, ...readonlyParams }
   }
+
   function getValue (attribute: AttributeModel, object: Doc): any {
     if (attribute.castRequest) {
       return getObjectValue(
@@ -109,7 +130,7 @@
   }
 
   function onChange (value: any, doc: Doc, key: string, attribute: AnyAttribute) {
-    updateAttribute(client, doc, _class, { key, attr: attribute }, value)
+    void updateAttribute(client, doc, _class, { key, attr: attribute }, value)
   }
 
   function getOnChange (doc: Doc, attribute: AttributeModel) {
@@ -117,6 +138,7 @@
     if (attr === undefined) return
     if (attribute.collectionAttr) return
     if (attribute.isLookup) return
+    if (attribute.attribute?.readonly === true) return
     const key = attribute.castRequest ? attribute.key.substring(attribute.castRequest.length + 1) : attribute.key
     return (value: any) => {
       onChange(value, doc, key, attr)
@@ -170,6 +192,13 @@
     if (permissionsStore === undefined) return true
     return canChangeAttribute(attr, object.space as Ref<TypedSpace>, permissionsStore, object._class)
   }
+
+  async function canEdit (object: Doc): Promise<boolean> {
+    if (client.getHierarchy().isDerived(object._class, core.class.Space)) {
+      return await canEditSpace(object)
+    }
+    return true
+  }
 </script>
 
 {#if !model || isBuildingModel}
@@ -196,9 +225,9 @@
         </tr>
       </thead>
     {/if}
-    {#if objects.length > 0}
+    {#if uniqueObjects.length > 0}
       <tbody>
-        {#each objects as object, row (object._id)}
+        {#each uniqueObjects as object, row (object._id)}
           <tr
             class="antiTable-body__row"
             class:fixed={row === selection}
@@ -213,30 +242,33 @@
             bind:this={refs[row]}
             on:contextmenu={contextHandler(object, row)}
           >
-            {#each model as attribute, cell}
-              <td
-                class:align-left={attribute.displayProps?.align === 'left'}
-                class:align-center={attribute.displayProps?.align === 'center'}
-                class:align-right={attribute.displayProps?.align === 'right'}
-              >
-                <div class:antiTable-cells__firstCell={!cell}>
-                  <svelte:component
-                    this={attribute.presenter}
-                    value={getValue(attribute, object)}
-                    onChange={getOnChange(object, attribute)}
-                    label={attribute.label}
-                    attribute={attribute.attribute}
-                    {...joinProps(
-                      attribute,
-                      object,
-                      readonly ||
-                        $restrictionStore.readonly ||
-                        !canChangeAttr(object, attribute.attribute, $permissionsStore)
-                    )}
-                  />
-                </div>
-              </td>
-            {/each}
+            {#await canEdit(object) then canEditObject}
+              {#each model as attribute, cell}
+                <td
+                  class:align-left={attribute.displayProps?.align === 'left'}
+                  class:align-center={attribute.displayProps?.align === 'center'}
+                  class:align-right={attribute.displayProps?.align === 'right'}
+                >
+                  <div class:antiTable-cells__firstCell={!cell}>
+                    <svelte:component
+                      this={attribute.presenter}
+                      value={getValue(attribute, object)}
+                      onChange={getOnChange(object, attribute)}
+                      label={attribute.label}
+                      attribute={attribute.attribute}
+                      {...joinProps(
+                        attribute,
+                        object,
+                        readonly ||
+                          $restrictionStore.readonly ||
+                          !canChangeAttr(object, attribute.attribute, $permissionsStore),
+                        canEditObject
+                      )}
+                    />
+                  </div>
+                </td>
+              {/each}
+            {/await}
           </tr>
         {/each}
       </tbody>

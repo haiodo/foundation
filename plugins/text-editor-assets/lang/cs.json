@@ -1,4 +1,7 @@
 {
+  "status": {
+    "ImagePasteNotSupported": "Sem nelze vložit obrázky. Odstraňte je z kopírovaného obsahu a zkuste to znovu."
+  },
   "string": {
     "TableOfContents": "Obsah",
     "Suggested": "NAVRŽENO",
@@ -81,6 +84,7 @@
     "UnableToLoadEmbeddedContent": "Náhled odkazu nelze načíst kvůli nastavení oprávnění nebo nepodporovanému obsahu",
     "CannotConnectToCollaborationService": "Nelze se připojit k službě spolupráce",
     "SourceURL": "Zdrojová URL",
-    "SelectedDocuments": "Vybrané dokumenty ({count, plural, =1 {1 položka} other {# položek}})"
+    "SelectedDocuments": "Vybrané dokumenty ({count, plural, =1 {1 položka} other {# položek}})",
+    "LatestVersion": "Nejnovější"
   }
 }

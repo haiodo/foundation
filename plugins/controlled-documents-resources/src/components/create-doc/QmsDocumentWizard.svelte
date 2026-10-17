@@ -17,8 +17,8 @@
   import { getCurrentEmployee } from '@hcengineering/contact'
   import { generateId, type AttachedData, type Class, type Data, type Ref } from '@hcengineering/core'
   import { MessageBox, getClient } from '@hcengineering/presentation'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
   import {
-    AnySvelteComponent,
     addNotification,
     navigate,
     showPopup,
@@ -83,7 +83,7 @@
   ]
 
   // eslint-disable-next-line no-unused-vars
-  const stepComponents: { [key in DocumentWizardStep]: AnySvelteComponent } = {
+  const stepComponents: Record<DocumentWizardStep, AnySvelteComponent> = {
     location: LocationStep,
     template: TemplateStep,
     info: InfoStep,
@@ -126,7 +126,7 @@
     reviewInterval: DEFAULT_PERIODIC_REVIEW_INTERVAL
   }
 
-  let canProceed: false // Note: determined by individual steps
+  let canProceed = false // Note: determined by individual steps
   const isLoading = false
 
   function getStepComponent (step: DocumentWizardStep): AnySvelteComponent {

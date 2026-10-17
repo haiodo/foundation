@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card, MasterTag } from '@hcengineering/card'
-  import core, { AnyAttribute, Class, Ref } from '@hcengineering/core'
+  import type { Card, MasterTag } from '@hcengineering/card'
+  import type { AnyAttribute, Class, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import { Process, Step } from '@hcengineering/process'
+  import type { Process, Step } from '@hcengineering/process'
   import { Button, eventToHTMLElement, SelectPopup, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import ParamsEditor from './ParamsEditor.svelte'
@@ -54,7 +55,12 @@
   let keys = Object.keys(params)
 
   $: allAttrs = getKeys(process.masterTag)
-  $: possibleAttrs = allAttrs.filter((attr) => !keys.includes(attr.name))
+  $: slots = Object.entries(process.requiredSlots ?? {}).map(([id, s]) => ({
+    name: id,
+    label: (s as any).label,
+    isSlot: true
+  }))
+  $: possibleAttrs = [...allAttrs, ...slots].filter((attr) => !keys.includes(attr.name))
 
   function addKey (key: string): void {
     keys = [...keys, key]
@@ -92,6 +98,6 @@
 <ParamsEditor _class={process.masterTag} {process} {keys} {params} allowRemove on:remove={remove} on:change={change} />
 {#if possibleAttrs.length > 0}
   <div class="flex-center mt-4">
-    <Button label={presentation.string.Add} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+    <Button label={presentation.string.Add} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
   </div>
 {/if}

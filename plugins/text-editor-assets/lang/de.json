@@ -1,4 +1,7 @@
 {
+  "status": {
+    "ImagePasteNotSupported": "Bilder können hier nicht eingefügt werden. Entfernen Sie sie aus dem kopierten Inhalt und versuchen Sie es erneut."
+  },
   "string": {
     "TableOfContents": "Inhaltsverzeichnis",
     "Suggested": "NLICHE",
@@ -80,6 +83,7 @@
     "UnableToLoadEmbeddedContent": "Die Linkvorschau konnte aufgrund von Berechtigungseinstellungen oder nicht unterstütztem Inhalt nicht geladen werden",
     "CannotConnectToCollaborationService": "Kann keine Verbindung zum Kollaborationsdienst herstellen",
     "SourceURL": "Quell-URL",
-    "SelectedDocuments": "Ausgewählte Dokumente ({count, plural, =1 {1 Element} other {# Elemente}})"
+    "SelectedDocuments": "Ausgewählte Dokumente ({count, plural, =1 {1 Element} other {# Elemente}})",
+    "LatestVersion": "Neueste"
   }
 }

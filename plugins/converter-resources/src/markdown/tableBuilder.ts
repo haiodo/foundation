@@ -1,5 +1,6 @@
 //
 // Copyright © 2026 Hardcore Engineering Inc.
+// Copyright © 2026 TraceX SAS.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,6 +15,8 @@
 //
 
 import core, { type Class, type Client, type Doc, type Hierarchy, type Ref, type PersonId } from '@hcengineering/core'
+import { type MarkupNode, MarkupNodeType } from '@hcengineering/text'
+import { markdownToMarkup, markupToMarkdown } from '@hcengineering/text-markdown'
 import { getCurrentLanguage } from '@hcengineering/theme'
 import type {
   AttributeModel,
@@ -23,13 +26,47 @@ import type {
   BuildModelKey
 } from '@hcengineering/view'
 import viewPlugin from '@hcengineering/view'
-import { buildConfigLookup, buildModel, getAttributeValue } from '@hcengineering/view-resources'
+import { buildConfigLookup, buildModel, getAttributeValue, buildConfigAssociation } from '@hcengineering/view-resources'
 import type { CopyAsMarkdownTableProps, CopyRelationshipTableAsMarkdownProps } from '../types'
 import { formatValue } from '../formatter'
 import { generateHeaders, loadViewletConfig, buildTableModel } from '../model'
 import { rebuildRelationshipTableViewModel, isRelationshipTable } from '../data'
 import { escapeMarkdownTableCellContent } from './escape'
 import { createMarkdownLink } from './link'
+
+function markdownToTableCellContent (markdown: string): MarkupNode[] {
+  const content = markdownToMarkup(markdown).content
+  if (content !== undefined && content.length > 0) {
+    return content
+  }
+
+  return [{ type: MarkupNodeType.paragraph, content: [] }]
+}
+
+function buildRelationshipTableMarkup (headers: string[], rows: MarkupNode[]): MarkupNode {
+  const headerRow: MarkupNode = {
+    type: MarkupNodeType.table_row,
+    content: headers.map((header) => ({
+      type: MarkupNodeType.table_header,
+      content: [
+        {
+          type: MarkupNodeType.paragraph,
+          content: header.length > 0 ? [{ type: MarkupNodeType.text, text: header }] : []
+        }
+      ]
+    }))
+  }
+
+  return {
+    type: MarkupNodeType.doc,
+    content: [
+      {
+        type: MarkupNodeType.table,
+        content: [headerRow, ...rows]
+      }
+    ]
+  }
+}
 
 async function preloadRefLookups (
   docs: Doc[],
@@ -74,7 +111,7 @@ async function preloadRefLookups (
     const refDocs = await client.findAll(targetClass, { _id: { $in: ids as any } })
     const byId = new Map<string, Doc>()
     for (const d of refDocs) {
-      byId.set(d._id as string, d)
+      byId.set(d._id, d)
     }
 
     for (const doc of docs) {
@@ -99,13 +136,43 @@ async function preloadRefLookups (
   }
 }
 
+async function preloadAssociations (docs: Doc[], model: AttributeModel[], client: Client): Promise<void> {
+  const associationQueries = buildConfigAssociation(model.map((m) => m.key))
+  if (associationQueries === undefined || associationQueries.length === 0) return
+
+  const ids = docs.map((d) => d._id)
+  const firstDoc = docs[0]
+  if (firstDoc === undefined) return
+
+  try {
+    const refreshedDocs = await client.findAll(
+      firstDoc._class,
+      { _id: { $in: ids as any } },
+      {
+        associations: associationQueries
+      }
+    )
+
+    const refreshedMap = new Map(refreshedDocs.map((d) => [d._id, d]))
+
+    for (const doc of docs) {
+      const refreshed = refreshedMap.get(doc._id)
+      if (refreshed !== undefined) {
+        ;(doc as any).$associations = (refreshed as any).$associations
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to preload associations for markdown table', error)
+  }
+}
+
 function collectRelationshipDocsForRefPreload (
   props: CopyRelationshipTableAsMarkdownProps,
   hierarchy: Hierarchy
 ): Doc[] {
   const byId = new Map<string, Doc>()
   const add = (d: Doc | undefined): void => {
-    if (d !== undefined) byId.set(d._id as string, d)
+    if (d !== undefined) byId.set(d._id, d)
   }
 
   for (const o of props.objects) add(o)
@@ -252,6 +319,8 @@ export async function buildMarkdownTableFromDocs (
 
   // Preload referenced documents for RefTo / ArrOf<RefTo> attributes into $lookup
   await preloadRefLookups(docs, displayableModel, hierarchy, client)
+  // Preload associations for $associations keys
+  await preloadAssociations(docs, displayableModel, client)
 
   const language = getCurrentLanguage()
   const userCache = new Map<PersonId, string>()
@@ -319,29 +388,26 @@ export async function buildRelationshipTableMarkdown (
     attributeKeyToIndex.set(attr.key, index)
   })
 
-  const activeRowSpans = new Map<string, { value: string, remaining: number }>()
-  const rows: string[][] = []
+  const rows: MarkupNode[] = []
+  // Without merged cells a plain pipe table is kept, it stays readable outside the editor
+  const pipeRows: string[][] = []
+  let hasRowSpans = false
 
-  for (let rowIdx = 0; rowIdx < props.viewModel.length; rowIdx++) {
-    const rowModel = props.viewModel[rowIdx]
-    const row: string[] = new Array(headers.length).fill('')
+  for (const rowModel of props.viewModel) {
+    const rowCells: MarkupNode[] = []
+    const pipeRow: string[] = new Array(headers.length).fill('')
+    const cells = rowModel.cells
+      .filter((cell) => cell.rowSpan > 0)
+      .sort(
+        (a, b) =>
+          (attributeKeyToIndex.get(a.attribute.key) ?? Number.MAX_SAFE_INTEGER) -
+          (attributeKeyToIndex.get(b.attribute.key) ?? Number.MAX_SAFE_INTEGER)
+      )
 
-    for (const [attrKey, spanInfo] of activeRowSpans.entries()) {
-      if (spanInfo.remaining > 0) {
-        const attrIndex = attributeKeyToIndex.get(attrKey)
-        if (attrIndex !== undefined) {
-          row[attrIndex] = spanInfo.value
-          spanInfo.remaining--
-          if (spanInfo.remaining === 0) {
-            activeRowSpans.delete(attrKey)
-          }
-        }
-      }
-    }
-
-    for (const cell of rowModel.cells) {
+    for (const cell of cells) {
       const attrIndex = attributeKeyToIndex.get(cell.attribute.key)
       if (attrIndex === undefined) continue
+      if (cell.rowSpan > 1) hasRowSpans = true
 
       const isAssociationKey = cell.attribute.key.startsWith('$associations')
 
@@ -353,50 +419,62 @@ export async function buildRelationshipTableMarkdown (
       }
 
       if (doc === undefined) {
-        if (cell.rowSpan === 0) continue
-        row[attrIndex] = ''
+        rowCells.push({
+          type: MarkupNodeType.table_cell,
+          attrs: { rowspan: cell.rowSpan },
+          content: markdownToTableCellContent('')
+        })
         continue
       }
 
-      const rawValue = getAttributeValue(cell.attribute, doc, hierarchy)
-
-      let docToUse = doc
+      let docToUse: Doc | undefined = doc
       let docClass = props.cardClass
       let attributeToUse = cell.attribute
 
       if (isAssociationKey) {
-        if (rawValue !== undefined && rawValue !== null && typeof rawValue === 'object' && '_class' in rawValue) {
-          docToUse = rawValue as Doc
+        if (cell.object !== undefined) {
+          docToUse = cell.object
           docClass = docToUse._class
-          const parts = cell.attribute.key.split('$associations.')
-          if (parts.length > 1) {
-            const afterAssoc = parts[1].substring(1)
-            const dotIndex = afterAssoc.indexOf('.')
-            if (dotIndex > 0) {
-              const attributeName = afterAssoc.substring(dotIndex + 1)
-              attributeToUse = {
-                ...cell.attribute,
-                key: attributeName
-              }
-            } else {
-              attributeToUse = {
-                ...cell.attribute,
-                key: ''
-              }
+
+          // Strip association prefix for formatValue
+          const parts = cell.attribute.key.split('.')
+          let lastAssocIndex = -1
+          for (let i = 0; i < parts.length; i++) {
+            if (parts[i] === '$associations' && i + 1 < parts.length) {
+              lastAssocIndex = i
             }
+          }
+          if (lastAssocIndex !== -1) {
+            attributeToUse = {
+              ...cell.attribute,
+              key: parts.slice(lastAssocIndex + 2).join('.')
+            }
+          }
+        } else {
+          docToUse = cell.parentObject
+          if (docToUse !== undefined) {
+            docClass = docToUse._class
           }
         }
       }
 
+      if (docToUse === undefined) {
+        rowCells.push({
+          type: MarkupNodeType.table_cell,
+          attrs: { rowspan: cell.rowSpan },
+          content: markdownToTableCellContent('')
+        })
+        continue
+      }
+
       const isFirstColumn = attrIndex === 0
-      const allowEmptyKey = isFirstColumn || isAssociationKey
       let value = await formatValue(
         attributeToUse,
         docToUse,
         hierarchy,
         docClass,
         language,
-        allowEmptyKey,
+        isFirstColumn || isAssociationKey,
         userCache,
         props.valueFormatter
       )
@@ -408,24 +486,30 @@ export async function buildRelationshipTableMarkdown (
         value = escapeMarkdownTableCellContent(value == null ? '' : String(value))
       }
 
-      row[attrIndex] = value
-
-      if (cell.rowSpan > 1) {
-        activeRowSpans.set(cell.attribute.key, {
-          value,
-          remaining: cell.rowSpan - 1
-        })
-      }
+      pipeRow[attrIndex] = value
+      rowCells.push({
+        type: MarkupNodeType.table_cell,
+        attrs: { rowspan: cell.rowSpan },
+        content: markdownToTableCellContent(value)
+      })
     }
 
-    rows.push(row)
+    pipeRows.push(pipeRow)
+
+    rows.push({
+      type: MarkupNodeType.table_row,
+      content: rowCells
+    })
   }
 
-  let markdown = '| ' + headers.join(' | ') + ' |\n'
-  markdown += '| ' + headers.map(() => '---').join(' | ') + ' |\n'
-  for (const row of rows) {
-    markdown += '| ' + row.join(' | ') + ' |\n'
+  if (!hasRowSpans) {
+    let markdown = '| ' + headers.join(' | ') + ' |\n'
+    markdown += '| ' + headers.map(() => '---').join(' | ') + ' |\n'
+    for (const row of pipeRows) {
+      markdown += '| ' + row.join(' | ') + ' |\n'
+    }
+    return markdown
   }
 
-  return markdown
+  return markupToMarkdown(buildRelationshipTableMarkup(headers, rows))
 }

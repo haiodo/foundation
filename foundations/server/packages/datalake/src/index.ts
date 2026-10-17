@@ -33,7 +33,15 @@ import {
 } from '@hcengineering/server-core'
 import serverToken, { generateToken } from '@hcengineering/server-token'
 import { type Readable } from 'stream'
-import { type UploadObjectParams, DatalakeClient, type WorkspaceStats, type WorkspaceStatsByType } from './client'
+import { buffer } from 'stream/consumers'
+import {
+  type ObjectMetadata,
+  type UploadObjectParams,
+  DatalakeClient,
+  directUploadLimit,
+  type WorkspaceStats,
+  type WorkspaceStatsByType
+} from './client'
 import { NotFoundError } from './error'
 
 export { DatalakeClient, type WorkspaceStats, type WorkspaceStatsByType }
@@ -48,9 +56,21 @@ export interface DatalakeConfig extends StorageConfig {
 /**
  * @public
  */
+function withPort (endpoint: string, port: number | undefined): string {
+  if (!Number.isInteger(port)) return endpoint
+  try {
+    const u = new URL(endpoint)
+    u.port = String(port)
+    let s = u.toString()
+    if (s.endsWith('/') && !endpoint.endsWith('/')) s = s.slice(0, -1)
+    return s
+  } catch {
+    return `${endpoint}:${port}`
+  }
+}
+
 export function createDatalakeClient (cfg: DatalakeConfig, token: string): DatalakeClient {
-  const endpoint = Number.isInteger(cfg.port) ? `${cfg.endpoint}:${cfg.port}` : cfg.endpoint
-  return new DatalakeClient(endpoint, token)
+  return new DatalakeClient(withPort(cfg.endpoint, cfg.port), token)
 }
 
 export const CONFIG_KIND = 'datalake'
@@ -118,7 +138,7 @@ export class DatalakeService implements StorageAdapter {
   }
 
   @withContext('listStream')
-  async listStream (ctx: MeasureContext, wsIds: WorkspaceIds): Promise<BlobStorageIterator> {
+  async listStream (ctx: MeasureContext, wsIds: WorkspaceIds, prefix?: string): Promise<BlobStorageIterator> {
     let hasMore = true
     const buffer: ListBlobResult[] = []
     let cursor: string | undefined
@@ -127,7 +147,7 @@ export class DatalakeService implements StorageAdapter {
       next: async () => {
         try {
           while (hasMore && buffer.length < 50) {
-            const res = await this.retry(ctx, () => this.client.listObjects(ctx, wsIds.uuid, cursor, 10000))
+            const res = await this.retry(ctx, () => this.client.listObjects(ctx, wsIds.uuid, cursor, 10000, prefix))
             hasMore = res.cursor !== undefined
             cursor = res.cursor
 
@@ -197,10 +217,19 @@ export class DatalakeService implements StorageAdapter {
       size
     }
 
+    // The direct upload reads the stream into memory anyway; as a buffer it survives a retry.
+    if (typeof stream !== 'string' && !Buffer.isBuffer(stream) && (size === undefined || size < directUploadLimit)) {
+      stream = await buffer(stream)
+    }
+    // A stream is consumed by the failed attempt and cannot be replayed; multipart retries each part itself.
+    const replayable = typeof stream === 'string' || Buffer.isBuffer(stream)
     const { etag } = await ctx.with(
       'put',
       {},
-      (ctx) => this.retry(ctx, () => this.client.putObject(ctx, wsIds.uuid, objectName, stream, params)),
+      (ctx) => {
+        const upload = (): Promise<ObjectMetadata> => this.client.putObject(ctx, wsIds.uuid, objectName, stream, params)
+        return replayable ? this.retry(ctx, upload) : upload()
+      },
       { workspace: wsIds.uuid, objectName }
     )
 

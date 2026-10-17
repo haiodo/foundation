@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -24,10 +25,12 @@ import {
   Doc,
   DocManager,
   DocumentQuery,
+  DocumentUpdate,
   FindOptions,
   Hierarchy,
   Lookup,
   Mixin,
+  TxCUD,
   Obj,
   ObjQueryType,
   PrimitiveType,
@@ -188,6 +191,16 @@ export interface AttributePresenter extends Class<Doc> {
   arrayPresenter?: AnyComponent
 }
 
+export interface AttributeApplierResult<T extends Doc = Doc> {
+  update?: DocumentUpdate<T>
+  txes?: Array<TxCUD<Doc>>
+}
+
+export type AttributeApplierFn<T extends Doc = Doc, V = any> = (
+  doc: Doc,
+  value: V
+) => Promise<AttributeApplierResult<T>> | AttributeApplierResult<T>
+
 /**
  * @public
  */
@@ -315,6 +328,23 @@ export interface ReferenceObjectProvider extends Class<Doc> {
 /**
  * @public
  */
+export interface ReferenceVersion {
+  id: Ref<Doc>
+  objectclass: Ref<Class<Doc>>
+  label: string
+  fixed?: boolean
+}
+
+/**
+ * @public
+ */
+export interface ReferenceVersionsProvider extends Class<Doc> {
+  provider: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<ReferenceVersion[]>>
+}
+
+/**
+ * @public
+ */
 export interface ObjectTooltip extends Class<Doc> {
   provider: Resource<(client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>>
 }
@@ -337,12 +367,12 @@ export interface ListHeaderExtra extends Class<Doc> {
  * @public
  */
 export type SortFunc = Resource<
-(
-  client: TxOperations,
-  values: PrimitiveType[],
-  space: Ref<Space> | undefined,
-  viewletDescriptorId?: Ref<ViewletDescriptor>
-) => Promise<any[]>
+  (
+    client: TxOperations,
+    values: PrimitiveType[],
+    space: Ref<Space> | undefined,
+    viewletDescriptorId?: Ref<ViewletDescriptor>
+  ) => Promise<any[]>
 >
 
 /**
@@ -356,12 +386,13 @@ export interface ClassSortFuncs extends Class<Doc> {
  * @public
  */
 export type GetAllValuesFunc = Resource<
-(
-  query: DocumentQuery<Doc> | undefined,
-  onUpdate: () => void,
-  queryId: Ref<Doc>,
-  attr: AnyAttribute
-) => Promise<any[] | undefined>
+  (
+    query: DocumentQuery<Doc> | undefined,
+    onUpdate: () => void,
+    queryId: Ref<Doc>,
+    attr: AnyAttribute,
+    space?: Ref<Space>
+  ) => Promise<any[] | undefined>
 >
 
 /**
@@ -418,13 +449,13 @@ export type AggregationManagerResource = Resource<IAggregationManager<any>>
  * @public
  */
 export type CreateAggregationManagerFunc = Resource<
-(
-  client: Client,
-  lqCallback: () => void,
-  setStore: (manager: DocManager<any>) => void,
-  categorizingFunc: (doc: any, target: any) => boolean,
-  _class: Ref<Class<any>>
-) => IAggregationManager<any>
+  (
+    client: Client,
+    lqCallback: () => void,
+    setStore: (manager: DocManager<any>) => void,
+    categorizingFunc: (doc: any, target: any) => boolean,
+    _class: Ref<Class<any>>
+  ) => IAggregationManager<any>
 >
 
 /**
@@ -593,6 +624,8 @@ export interface Action<T extends Doc = Doc, P = Record<string, any>> extends Do
   allowedForEditableContent?: 'always' | 'noSelection'
 
   analyticsEvent?: string
+
+  feature?: string
 }
 
 /**
@@ -617,6 +650,8 @@ export interface ViewContext {
 
   // Optional groupping
   group?: ActionGroup
+  // Sort actions inside group
+  order?: number
 }
 
 /**
@@ -658,6 +693,9 @@ export interface DisplayProps {
   grow?: boolean
   dividerBefore?: boolean // should show divider before
   custom?: boolean // render as custom attribute label
+  minWidth?: string
+  maxWidth?: string
+  _class?: Ref<Class<Doc>> // Target model class for descendant attribute
 }
 
 /**
@@ -723,12 +761,22 @@ export interface ObjectFactory extends Class<Obj> {
 }
 
 /**
+ * Represents an attribute belonging to a descendant subclass to be displayed in a viewlet.
+ *
+ * @public
+ */
+export interface DescendantAttribute {
+  _class: Ref<Class<Doc>>
+  key: string
+}
+/**
  * @public
  */
 export interface ViewletPreference extends Preference {
   attachedTo: Ref<Viewlet>
   config: (BuildModelKey | string)[]
   customAttributes?: string[]
+  descendantAttributes?: DescendantAttribute[]
 }
 
 /**
@@ -756,7 +804,7 @@ export interface ViewOption {
  * @public
  */
 export type ViewOptionsAction<T extends Doc = Doc> = Resource<
-(value: any, query: FindOptions<T> | undefined) => FindOptions<T>
+  (value: any, query: FindOptions<T> | undefined) => FindOptions<T>
 >
 
 /**
@@ -796,7 +844,7 @@ export interface CategoryOption extends ViewOption {
  * @public
  */
 export type ViewQueryAction = Resource<
-(value: any, query: DocumentQuery<Doc>) => DocumentQuery<Doc> | Promise<DocumentQuery<Doc>>
+  (value: any, query: DocumentQuery<Doc>) => DocumentQuery<Doc> | Promise<DocumentQuery<Doc>>
 >
 
 /**
@@ -836,6 +884,8 @@ export type ViewOptionModel = ToggleViewOption | DropdownViewOption
  */
 export type OrderOption = [string, SortingOrder]
 
+export type GroupingKey = string | { key: string, hidden?: boolean }
+
 /**
  * @public
  */
@@ -855,6 +905,14 @@ export interface ObjectPanel extends Class<Doc> {
   component: AnyComponent
 }
 
+/**
+ * Per-class override of the component shown when a Doc is previewed in the right sidebar.
+ * @public
+ */
+export interface SidebarObjectPreview extends Class<Doc> {
+  component: AnyComponent
+}
+
 // Temp workaround for cards-based apps navigation
 export interface CustomObjectLinkProvider extends Class<Doc> {
   match: Resource<(doc: Doc) => boolean>
@@ -865,7 +923,7 @@ export interface CustomObjectLinkProvider extends Class<Doc> {
  * @public
  */
 export interface ViewOptionsModel {
-  groupBy: string[]
+  groupBy: GroupingKey[]
   orderBy: OrderOption[]
   other: ViewOptionModel[]
   groupDepth?: number
@@ -922,6 +980,12 @@ export interface AttrPresenter extends Doc {
   category: AttributeCategory
   objectClass: Ref<Class<Doc>>
   component: AnyComponent
+}
+
+export interface AttrApplier extends Doc {
+  objectClass: Ref<Class<Doc>>
+  key: string
+  applier: Resource<AttributeApplierFn>
 }
 
 /**

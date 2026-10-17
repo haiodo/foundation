@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,6 +21,7 @@ import {
   type Account,
   type AccountUuid,
   type Class,
+  type ClientKind,
   type Doc,
   type DocumentQuery,
   type Domain,
@@ -46,14 +48,14 @@ import {
   type WorkspaceDataId,
   type WorkspaceIds
 } from '@hcengineering/core'
-import { PlatformError, unknownError } from '@hcengineering/platform'
+import platform, { PlatformError, Severity, Status, unknownError } from '@hcengineering/platform'
 import {
   BackupClientOps,
   createBroadcastEvent,
-  estimateDocSize,
   SessionDataImpl,
   type ClientSessionCtx,
   type ConnectionSocket,
+  type SendMemo,
   type OneSecondCounters,
   type Pipeline,
   type Session,
@@ -76,6 +78,8 @@ export class ClientSession implements Session {
   lastRequest = Date.now()
 
   lastPing: number = Date.now()
+  away = false
+  clientKind: ClientKind | undefined = undefined
 
   total: StatisticsElement = { find: 0, tx: 0 }
   current: StatisticsElement = { find: 0, tx: 0 }
@@ -86,6 +90,14 @@ export class ClientSession implements Session {
   opsPipeline: Pipeline | undefined
   isAdmin: boolean
 
+  // Cached materialised workspace shape used by every includeSessionContext call.
+  // workspace is readonly + dataId is derived once; reuse the same object reference
+  // instead of spreading on every request.
+  private readonly workspaceForSession: WorkspaceIds
+  private readonly permissionsGrantCached: PermissionsGrant | undefined
+  private readonly apiKeyCached: SessionData['apiKey']
+  private readonly serviceName: string
+
   constructor (
     readonly token: Token,
     readonly workspace: WorkspaceIds,
@@ -95,6 +107,41 @@ export class ClientSession implements Session {
     readonly counter: OneSecondCounters
   ) {
     this.isAdmin = this.token.extra?.admin === 'true'
+    const dataId = workspace.dataId ?? (workspace.uuid as unknown as WorkspaceDataId)
+    this.workspaceForSession = workspace.dataId === dataId ? workspace : { ...workspace, dataId }
+    this.permissionsGrantCached = this.computePermissionsGrant()
+    this.apiKeyCached = this.computeApiKeyPermissions()
+    this.serviceName = this.token.extra?.service ?? '🤦‍♂️user'
+  }
+
+  // extra.apikey/apiops/apispaces/apiall come from loginWithApiKey; ApiKeyPermissionsMiddleware enforces them.
+  // An unrestricted key (extra.apiall) writes with the user's own rights, still narrowed by its spaces.
+  private computeApiKeyPermissions (): SessionData['apiKey'] {
+    const extra = this.token.extra
+    if (extra?.apikey == null) {
+      return
+    }
+    const unrestricted = extra.apiall != null
+    const ops = typeof extra.apiops === 'string' && extra.apiops !== '' ? extra.apiops.split(',') : []
+    const spaces =
+      typeof extra.apispaces === 'string' && extra.apispaces !== '' ? (extra.apispaces.split(',') as Ref<Space>[]) : []
+    // extra.apiws marks a workspace key; a personal key stays within its user's own membership.
+    return {
+      canWrite: unrestricted || ops.length > 0,
+      opsOnly: !unrestricted,
+      spaces,
+      grantsSpaces: extra.apiws != null
+    }
+  }
+
+  private computePermissionsGrant (): PermissionsGrant | undefined {
+    if (this.token.grant == null) {
+      return
+    }
+    return {
+      spaces: this.token.grant?.spaces as Ref<Space>[] | undefined,
+      grantedBy: this.token.grant?.grantedBy
+    }
   }
 
   getUser (): AccountUuid {
@@ -137,9 +184,7 @@ export class ClientSession implements Session {
         ctx.pipeline.loadModel(ctx.ctx, lastModelTx, hash)
       )
 
-      await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-        ctx.sendResponse(ctx.requestId, result)
-      )
+      await ctx.sendResponse(ctx.requestId, result)
     } catch (err) {
       await ctx.sendError(ctx.requestId, 'Failed to loadModel', unknownError(err))
       ctx.ctx.error('failed to loadModel', { err })
@@ -152,35 +197,21 @@ export class ClientSession implements Session {
     return await ctx.ctx.with('load-model', {}, (_ctx) => ctx.pipeline.loadModel(_ctx, lastModelTx, hash))
   }
 
-  private getPermissionsGrant (): PermissionsGrant | undefined {
-    if (this.token.grant == null) {
-      return
-    }
-
-    return {
-      spaces: this.token.grant?.spaces as Ref<Space>[] | undefined,
-      grantedBy: this.token.grant?.grantedBy
-    }
-  }
-
   includeSessionContext (ctx: ClientSessionCtx): void {
-    const dataId = this.workspace.dataId ?? (this.workspace.uuid as unknown as WorkspaceDataId)
     const contextData = new SessionDataImpl(
       this.account,
       this.sessionId,
       this.isAdmin,
       undefined,
-      {
-        ...this.workspace,
-        dataId
-      },
+      this.workspaceForSession,
       false,
       undefined,
       undefined,
       ctx.pipeline.context.modelDb,
       ctx.socialStringsToUsers,
-      this.token.extra?.service ?? '🤦‍♂️user',
-      this.getPermissionsGrant()
+      this.serviceName,
+      this.permissionsGrantCached,
+      this.apiKeyCached
     )
     ctx.ctx.contextData = contextData
   }
@@ -196,10 +227,6 @@ export class ClientSession implements Session {
     this.current.find++
     this.includeSessionContext(ctx)
     return ctx.pipeline.findAll(ctx.ctx, _class, query, options)
-  }
-
-  estimateSize (doc: any): number {
-    return Math.round((estimateDocSize(doc) * 10) / (1024 * 1024)) / 10
   }
 
   async findAll<T extends Doc>(
@@ -223,9 +250,7 @@ export class ClientSession implements Session {
         domain
       })
 
-      await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-        ctx.sendResponse(ctx.requestId, result)
-      )
+      await ctx.sendResponse(ctx.requestId, result)
     } catch (err) {
       await ctx.sendError(ctx.requestId, 'Failed to findAll', unknownError(err))
       ctx.ctx.error('failed to findAll', { err })
@@ -239,9 +264,7 @@ export class ClientSession implements Session {
       const result = await this.counter.withCounter('fulltext', 1, () =>
         ctx.pipeline.searchFulltext(ctx.ctx, query, options)
       )
-      await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-        ctx.sendResponse(ctx.requestId, result)
-      )
+      await ctx.sendResponse(ctx.requestId, result)
     } catch (err) {
       await ctx.sendError(ctx.requestId, 'Failed to searchFulltext', unknownError(err))
       ctx.ctx.error('failed to searchFulltext', { err })
@@ -258,10 +281,15 @@ export class ClientSession implements Session {
     ctx: ClientSessionCtx,
     tx: Tx
   ): Promise<{
-      result: TxResult
-      broadcastPromise: Promise<void>
-      asyncsPromise: Promise<void> | undefined
-    }> {
+    result: TxResult
+    broadcastPromise: Promise<void>
+    asyncsPromise: Promise<void> | undefined
+  }> {
+    // Read-only sessions (guests, impersonation, a workspace archived or scheduled for deletion)
+    // never write, not even derived tx. Its own status: this is not a missing permission.
+    if (this.token.extra?.readonly === 'true') {
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceReadOnly, {}))
+    }
     this.lastRequest = Date.now()
     this.total.tx++
     this.current.tx++
@@ -276,7 +304,7 @@ export class ClientSession implements Session {
     } finally {
       onEnd?.()
     }
-    // Send result immideately
+    // Send result immediately
     await ctx.sendResponse(ctx.requestId, result)
 
     // We need to broadcast all collected transactions
@@ -321,15 +349,21 @@ export class ClientSession implements Session {
           }
         } catch (err) {
           await ctx.sendError(ctx.requestId, 'Failed to tx', unknownError(err))
-          ctx.ctx.error('failed to tx', { err })
+          ctx.ctx.error('failed to tx', {
+            err,
+            _id: tx._id,
+            _class: tx._class,
+            objectClass: (tx as any).objectClass,
+            objectId: (tx as any).objectId
+          })
         }
       },
       { domain }
     )
   }
 
-  broadcast (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[]): void {
-    if (this.tx.length > 10000) {
+  broadcast (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[], memo?: SendMemo): void {
+    if (tx.length > 10000) {
       const classes = new Set<Ref<Class<Doc>>>()
       for (const dtx of tx) {
         if (TxProcessor.isExtendsCUD(dtx._class)) {
@@ -350,7 +384,7 @@ export class ClientSession implements Session {
         this.useCompression
       )
     } else {
-      void socket.send(ctx, { result: tx }, this.binaryMode, this.useCompression)
+      void socket.send(ctx, { result: tx }, this.binaryMode, this.useCompression, memo)
     }
   }
 
@@ -412,6 +446,7 @@ export class ClientSession implements Session {
   async upload (ctx: ClientSessionCtx, domain: Domain, docs: Doc[]): Promise<void> {
     if (!this.allowUpload) {
       await ctx.sendResponse(ctx.requestId, { error: 'Upload not allowed' })
+      return
     }
     this.lastRequest = Date.now()
     try {
@@ -427,6 +462,7 @@ export class ClientSession implements Session {
   async clean (ctx: ClientSessionCtx, domain: Domain, docs: Ref<Doc>[]): Promise<void> {
     if (!this.allowUpload) {
       await ctx.sendResponse(ctx.requestId, { error: 'Clean not allowed' })
+      return
     }
     this.lastRequest = Date.now()
     try {
@@ -467,10 +503,10 @@ export class ClientSession implements Session {
     domain: OperationDomain,
     params: DomainParams
   ): Promise<{
-      result: DomainResult
-      broadcastPromise: Promise<void>
-      asyncsPromise: Promise<void> | undefined
-    }> {
+    result: DomainResult
+    broadcastPromise: Promise<void>
+    asyncsPromise: Promise<void> | undefined
+  }> {
     this.lastRequest = Date.now()
     this.total.find++
     this.current.find++
@@ -478,9 +514,7 @@ export class ClientSession implements Session {
 
     const result: DomainResult = await ctx.pipeline.domainRequest(ctx.ctx, domain, params)
 
-    await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-      ctx.sendResponse(ctx.requestId, result)
-    )
+    await ctx.sendResponse(ctx.requestId, result)
     // We need to broadcast all collected transactions
     const broadcastPromise = ctx.pipeline.handleBroadcast(ctx.ctx)
 

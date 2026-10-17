@@ -16,7 +16,7 @@
   import type { Asset, IntlString } from '@hcengineering/platform'
   import type { AnySvelteComponent, ButtonKind, ButtonSize, IconProps } from '@hcengineering/ui'
   import { Button, Label, eventToHTMLElement, parseURL, showPopup } from '@hcengineering/ui'
-  import { ComponentType } from 'svelte'
+  import type { ComponentType } from 'svelte'
   import HyperlinkEditorPopup from './HyperlinkEditorPopup.svelte'
 
   export let placeholder: IntlString
@@ -64,7 +64,7 @@
     {:else if value}
       <span class="label caption-color overflow-label pointer-events-none">{value}</span>
     {:else}
-      <span class="label content-dark-color pointer-events-none">
+      <span class="label content-dark-color overflow-label pointer-events-none">
         <Label label={placeholder} />
       </span>
     {/if}

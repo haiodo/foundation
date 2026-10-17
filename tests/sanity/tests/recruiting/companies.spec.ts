@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { CompaniesPage } from '../model/recruiting/companies-page'
@@ -56,8 +56,8 @@ test.describe('Companies tests', () => {
           value: 'edit-company+1@gmail.com'
         },
         {
-          type: 'LinkedIn',
-          value: 'https://www.linkedin.com/in/test-contact/'
+          type: 'Home page',
+          value: 'https://www.example.com/in/test-contact/'
         }
       ],
       location: 'London'

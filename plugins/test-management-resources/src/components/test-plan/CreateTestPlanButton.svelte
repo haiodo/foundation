@@ -25,8 +25,8 @@
 
 <Button
   icon={IconAdd}
-  justify={'left'}
-  kind={'primary'}
+  justify="left"
+  kind="primary"
   label={testManagement.string.CreateTestPlan}
   on:click={handleRun}
 />

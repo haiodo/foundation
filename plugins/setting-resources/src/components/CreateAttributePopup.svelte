@@ -13,30 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
-    AnyAttribute,
-    Class,
-    Data,
-    Doc,
-    generateId,
-    IndexKind,
-    PropertyType,
-    Ref,
-    Type
-  } from '@hcengineering/core'
-  import { Asset, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { AnyAttribute, Class, Data, Doc, IndexKind, PropertyType, Ref, Type } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { getClient, Card } from '@hcengineering/presentation'
-  import {
-    AnyComponent,
-    Component,
-    DropdownLabelsIntl,
-    ModernEditbox,
-    Label,
-    showPopup,
-    ButtonIcon,
-    Toggle
-  } from '@hcengineering/ui'
-  import { DropdownIntlItem } from '@hcengineering/ui/src/types'
+  import type { AnyComponent } from '@hcengineering/ui'
+  import { Component, DropdownLabelsIntl, ModernEditbox, Label, showPopup, Toggle } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import viewRes from '@hcengineering/view-resources/src/plugin'
+  import type { DropdownIntlItem } from '@hcengineering/ui/src/types'
   import setting from '../plugin'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
@@ -146,14 +132,15 @@
   <div class="hulyModal-container">
     <div class="hulyModal-content__titleGroup">
       <div class="flex items-center">
-        <ButtonIcon
+        <IconButton
+          tooltip={{ label: viewRes.string.ChooseIcon }}
           icon={icon ?? setting.icon.Enums}
-          size={'medium'}
-          iconSize={'large'}
-          kind={'tertiary'}
+          size="medium"
+          iconSize="large"
+          kind="tertiary"
           on:click={setIcon}
         />
-        <ModernEditbox bind:value={name} label={core.string.Name} size={'large'} kind={'ghost'} autoFocus />
+        <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" autoFocus />
       </div>
     </div>
     <div class="grid">
@@ -163,8 +150,8 @@
       <DropdownLabelsIntl
         label={setting.string.Type}
         {items}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         bind:selected={selectedType}
         on:selected={handleSelection}
       />

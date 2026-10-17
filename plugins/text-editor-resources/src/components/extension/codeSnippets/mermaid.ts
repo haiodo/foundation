@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 TraceX SAS.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -255,6 +256,14 @@ export const MermaidExtension = CodeBlockLowlight.extend<MermaidOptions>({
         const diagram = nodeState.diagramBuilder?.(editor.view) ?? null
         const error = diagram?.error ?? null
         const diagramNode = error === null ? (diagram?.domFragments[0] ?? null) : null
+
+        containerNode.dataset.mermaidRenderState = isEmpty
+          ? 'empty'
+          : error !== null
+            ? 'error'
+            : diagram?.svg !== undefined
+              ? 'ready'
+              : 'pending'
 
         const allowFold = !isEmpty && error === null
 
@@ -666,9 +675,7 @@ function buildState (
       textContent: node.textContent
     }
 
-    const patch =
-      nodeStatePatchByPos?.get(pos) ??
-      (nodeStatePatch !== undefined && pos === nodeStatePatch.pos ? nodeStatePatch : undefined)
+    const patch = nodeStatePatchByPos?.get(pos) ?? (nodeStatePatch?.pos === pos ? nodeStatePatch : undefined)
     if (patch !== undefined) {
       newState.folded = patch.folded
       newState.selected = patch.selected
@@ -780,9 +787,7 @@ function yRelativePositionToString (id: RelativePosition): string | undefined {
   return `${id.item.client}_${id.item.clock}`
 }
 
-// There is no public implementation of memraid syntax for higlightjs, while implementations for
-// other highlighting tools are either incomplete or outdated (even the one used in the official live editor).
-// This is a crude (broken) and incomplete port of the grammar.
+// No public mermaid grammar for highlight.js; other highlighters are incomplete.
 function mermaidHLJS (hljs: any): any {
   return {
     case_insensitive: false,

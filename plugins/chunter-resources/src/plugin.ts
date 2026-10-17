@@ -18,7 +18,7 @@ import type { Client, Doc, Ref, Space } from '@hcengineering/core'
 import type { IntlString, Resource } from '@hcengineering/platform'
 import { mergeIds } from '@hcengineering/platform'
 import type { AnyComponent } from '@hcengineering/ui/src/types'
-import { type DocNotifyContext, type InboxNotification } from '@hcengineering/notification'
+import type { NavCountStore } from '@hcengineering/workbench'
 
 export default mergeIds(chunterId, chunter, {
   component: {
@@ -44,9 +44,7 @@ export default mergeIds(chunterId, chunter, {
     DirectLabelProvider: '' as Resource<(client: Client, id: Ref<Doc>) => Promise<IntlString>>,
     ChannelTitleProvider: '' as Resource<(client: Client, id: Ref<Doc>) => Promise<string>>,
     ChunterBrowserVisible: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
-    GetUnreadThreadsCount: '' as Resource<
-    (inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => number
-    >
+    GetUnreadThreadsCountStore: '' as Resource<() => Promise<NavCountStore>>
   },
   actionImpl: {},
   string: {
@@ -64,7 +62,6 @@ export default mergeIds(chunterId, chunter, {
     In: '' as IntlString,
     Replies: '' as IntlString,
     Topic: '' as IntlString,
-    Threads: '' as IntlString,
     New: '' as IntlString,
     GetNewReplies: '' as IntlString,
     TurnOffReplies: '' as IntlString,
@@ -88,6 +85,38 @@ export default mergeIds(chunterId, chunter, {
     ChunterBrowser: '' as IntlString,
     Messages: '' as IntlString,
     NoResults: '' as IntlString,
+    SearchPlaceholder: '' as IntlString,
+    SearchInChannelPlaceholder: '' as IntlString,
+    SearchHintTitle: '' as IntlString,
+    SearchHintTyping: '' as IntlString,
+    SearchFilterObjectClass: '' as IntlString,
+    SearchFilterAllClasses: '' as IntlString,
+    SearchFilterMoreClasses: '' as IntlString,
+    SearchFilterThreads: '' as IntlString,
+    SearchFilterSuggestedClasses: '' as IntlString,
+    SearchFilterOtherClasses: '' as IntlString,
+    SearchFilterAuthor: '' as IntlString,
+    SearchFilterSelected: '' as IntlString,
+    SearchFilterObject: '' as IntlString,
+    SearchFilterObjectMore: '' as IntlString,
+    SearchFilterDate: '' as IntlString,
+    SearchFilterHasAttachment: '' as IntlString,
+    SearchFilterOptions: '' as IntlString,
+    SearchFilterIncludeTranscription: '' as IntlString,
+    SearchFilterClear: '' as IntlString,
+    SearchNoResultsTitle: '' as IntlString,
+    SearchNoResultsHint: '' as IntlString,
+    SearchFailed: '' as IntlString,
+    SearchUnavailable: '' as IntlString,
+    SearchRetry: '' as IntlString,
+    SearchResultsCount: '' as IntlString,
+    SearchResultsCountApprox: '' as IntlString,
+    SortByRelevance: '' as IntlString,
+    SortByNewest: '' as IntlString,
+    SortByOldest: '' as IntlString,
+    SearchAllChannels: '' as IntlString,
+    SearchClose: '' as IntlString,
+    SearchInChannel: '' as IntlString,
     CopyLink: '' as IntlString,
     You: '' as IntlString,
     YouHaveJoinedTheConversation: '' as IntlString,
@@ -105,9 +134,15 @@ export default mergeIds(chunterId, chunter, {
     LatestMessages: '' as IntlString,
     ResolveThread: '' as IntlString,
     NoThreadsYet: '' as IntlString,
+    ThreadsSortByLastReply: '' as IntlString,
+    ThreadsSortByCreated: '' as IntlString,
     DeleteMessageDescription: '' as IntlString,
     ChannelsAndDMs: '' as IntlString,
     CreateDirect: '' as IntlString,
-    ChangeIcon: '' as IntlString
+    ChangeIcon: '' as IntlString,
+    PrivateChat: '' as IntlString,
+    ShowMessage: '' as IntlString,
+    ForwardMessage: '' as IntlString,
+    ToWhom: '' as IntlString
   }
 })

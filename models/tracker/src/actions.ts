@@ -350,6 +350,25 @@ export function createActions (builder: Builder, issuesId: string, componentsId:
   })
 
   createAction(builder, {
+    action: view.actionImpl.CopyDocumentMarkdown,
+    actionProps: {
+      contentClass: tracker.class.Issue,
+      contentField: 'description'
+    },
+    label: view.string.CopyDocumentMarkdown,
+    icon: view.icon.Print,
+    input: 'focus',
+    category: tracker.category.Tracker,
+    target: tracker.class.Issue,
+    query: {},
+    context: {
+      mode: ['context', 'browser'],
+      application: tracker.app.Tracker,
+      group: 'tools'
+    }
+  })
+
+  createAction(builder, {
     ...actionTemplates.open,
     actionProps: {
       component: tracker.component.EditIssue
@@ -659,6 +678,24 @@ export function createActions (builder: Builder, issuesId: string, componentsId:
   createAction(
     builder,
     {
+      action: tracker.actionImpl.ChangeTaskType,
+      label: tracker.string.ChangeTaskType,
+      icon: task.icon.Task,
+      input: 'focus',
+      category: tracker.category.Tracker,
+      target: tracker.class.Issue,
+      visibilityTester: tracker.function.CanChangeTaskType,
+      context: {
+        mode: ['context', 'browser'],
+        application: tracker.app.Tracker,
+        group: 'edit'
+      }
+    },
+    tracker.action.ChangeTaskType
+  )
+  createAction(
+    builder,
+    {
       action: view.actionImpl.ValueSelector,
       actionPopup: tracker.component.RelationsPopup,
       actionProps: {
@@ -768,5 +805,19 @@ export function createActions (builder: Builder, issuesId: string, componentsId:
       }
     },
     tracker.action.EditRelatedTargets
+  )
+
+  createAction(
+    builder,
+    {
+      action: view.actionImpl.OpenInSidebar,
+      label: view.string.OpenInSidebar,
+      icon: view.icon.DetailsFilled,
+      input: 'focus',
+      category: view.category.Editor,
+      target: tracker.class.Issue,
+      context: { mode: ['context', 'browser'], group: 'create' }
+    },
+    view.action.OpenInSidebar
   )
 }

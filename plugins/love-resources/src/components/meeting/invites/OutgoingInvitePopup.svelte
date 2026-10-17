@@ -12,36 +12,33 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person, formatName } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import { formatName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import { Label, ModernButton, Scroller } from '@hcengineering/ui'
-  import { createEventDispatcher, onDestroy, onMount } from 'svelte'
+  import { Label, Scroller } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
+  import { createEventDispatcher } from 'svelte'
 
   import love from '../../../plugin'
-  import { cancelInvites, inviteRequestSecondsToLive } from '../../../invites'
-  import { UserMeetingInvite } from '@hcengineering/love'
+  import { cancelInvites, allInvites } from '../../../invites'
+  import type { UserMeetingInvite } from '@hcengineering/love'
 
   export let person: Person
   export let invite: UserMeetingInvite
 
   const dispatch = createEventDispatcher()
 
-  let timeLeft: number = inviteRequestSecondsToLive
-  let countdownInterval: ReturnType<typeof setInterval>
-
-  onMount(() => {
-    // Start countdown
-    countdownInterval = setInterval(() => {
-      timeLeft--
-      if (timeLeft <= 0) {
-        clearInterval(countdownInterval)
-      }
-    }, 1000)
-  })
-
-  onDestroy(() => {
-    clearInterval(countdownInterval)
-  })
+  // Close the popup when the invite disappears (cancel, accept, TTL expire,
+  // sender stopped heartbeating, etc).
+  let seenInStore = false
+  let closed = false
+  $: storeInvite = $allInvites.find((it) => it._id === invite._id)
+  $: liveInvite = storeInvite ?? invite
+  $: if (storeInvite !== undefined) seenInStore = true
+  $: if (!closed && seenInStore && storeInvite === undefined) {
+    closed = true
+    dispatch('close')
+  }
 
   async function handleCancel (): Promise<void> {
     await cancelInvites(undefined, [invite])
@@ -49,19 +46,20 @@
   }
 </script>
 
-<div class="antiPopup invite-popup flex-gap-4">
+<div class="antiPopup invite-popup flex-gap-4" data-id="outgoing-invite-popup">
   <div class="popup-header">
-    <Label label={love.string.YouInvite} />
-    {#if timeLeft <= 10}
-      <span class="timer urgent">{timeLeft}s</span>
+    {#if liveInvite.room !== undefined}
+      <Label label={love.string.KnockingTo} />
+    {:else}
+      <Label label={love.string.YouInvite} />
     {/if}
   </div>
 
   <div class="popup-content">
-    <Scroller padding={'0.5rem'} stickedScrollBars>
+    <Scroller padding="0.5rem" stickedScrollBars>
       <div class="persons-grid">
         <div class="person-item">
-          <Avatar {person} size={'medium'} name={person.name} />
+          <Avatar {person} size="medium" name={person.name} />
           <span class="person-name">{formatName(person.name)}</span>
         </div>
       </div>
@@ -69,7 +67,7 @@
   </div>
 
   <div class="popup-actions">
-    <ModernButton label={love.string.Cancel} kind={'secondary'} size={'medium'} on:click={handleCancel} />
+    <Button label={love.string.Cancel} kind="secondary" size="medium" on:click={handleCancel} />
   </div>
 </div>
 

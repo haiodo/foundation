@@ -1,5 +1,6 @@
+import type { WorkspaceLoginInfo } from '@hcengineering/account'
 import { faker } from '@faker-js/faker'
-import { APIRequestContext, Browser, BrowserContext, Locator, Page, expect } from '@playwright/test'
+import { APIRequestContext, Browser, BrowserContext, Locator, Page, expect, test } from '@playwright/test'
 import { attachment } from 'allure-js-commons'
 import path from 'path'
 import { ApiEndpoint } from './API/Api'
@@ -9,15 +10,18 @@ import { LeftSideMenuPage } from './model/left-side-menu-page'
 import { LoginPage } from './model/login-page'
 import { SelectWorkspacePage } from './model/select-workspace-page'
 import { SignInJoinPage } from './model/signin-page'
+import { waitStable } from './retry'
 
 export const PlatformURI = process.env.PLATFORM_URI as string
 export const PlatformTransactor = process.env.PLATFORM_TRANSACTOR as string
 export const PlatformUser = process.env.PLATFORM_USER as string
 export const PlatformUserSecond = process.env.PLATFORM_USER_SECOND as string
+export const PlatformUserThird = process.env.PLATFORM_USER_THIRD as string
 export const PlatformAdmin = process.env.PLATFORM_ADMIN as string
 export const PlatformWs = process.env.PLATFORM_WS as string
 export const PlatformSetting = process.env.SETTING as string
 export const PlatformSettingSecond = process.env.SETTING_SECOND as string
+export const PlatformSettingThird = process.env.SETTING_THIRD as string
 export const PlatformWorkspaceRegion = process.env.WORKSPACE_REGION as string
 
 export const DefaultWorkspace = 'sanity-ws'
@@ -27,12 +31,16 @@ export const StagingUrl = process.env.STAGING_URL as string
 
 export function generateTestData (): TestData {
   const generateWordStartingWithA = (): string => {
-    const randomWord = faker.lorem.word()
+    // faker's word list contains one-letter words, and a channel named "A" matches every
+    // getByRole({ name }) lookup in the navigator - keep the name long enough to be unique.
+    const randomWord = faker.lorem.word({ length: { min: 5, max: 10 } })
     return 'A' + randomWord.slice(1)
   }
 
   return {
-    workspaceName: faker.lorem.word(),
+    // Faker words aren't identifiers: the list is finite; on clash the account service gives
+    // the workspace its own url (`<name>-<id>`) - any built url hits someone else's login.
+    workspaceName: `${faker.lorem.word()}-${generateId(8)}`,
     userName: faker.internet.userName(),
     firstName: faker.person.firstName(),
     lastName: faker.person.lastName(),
@@ -59,7 +67,7 @@ export function getNextHourTimeForPlanner (): string {
 }
 
 // Consistent data
-export const workspaceName = faker.lorem.word()
+export const workspaceName = `${faker.lorem.word()}-${faker.string.alphanumeric(8).toLowerCase()}`
 export const userName = faker.internet.userName()
 export const firstName = faker.person.firstName()
 export const lastName = faker.person.lastName()
@@ -155,6 +163,22 @@ export async function getSecondPageByInvite (
   await newPage.goto(linkText ?? '')
   const joinPage: SignInJoinPage = new SignInJoinPage(newPage)
   await joinPage.join(newUser)
+  // The click only starts the login: return before the workbench is up and the first side-menu
+  // lookup waits out its timeout on a menu that is not there.
+  await expect(newPage).toHaveURL(/workbench/)
+  try {
+    await expect(newPage.locator('#profile-button')).toBeVisible()
+  } catch (e) {
+    // Suspect: Workbench.svelte renders nothing for a non-owner until $myEmployeeStore resolves.
+    // An empty body here confirms it, any other text points elsewhere.
+    const bodyText = await newPage
+      .locator('body')
+      .innerText()
+      .catch(() => '<unreadable>')
+    throw new Error(`#profile-button missing at ${newPage.url()}; body: ${JSON.stringify(bodyText.slice(0, 300))}`, {
+      cause: e
+    })
+  }
 
   return {
     page: newPage,
@@ -175,8 +199,16 @@ export function expectToContainsOrdered (val: Locator, text: string[], timeout?:
   return expect(val).toHaveText(origIssuesExp, { timeout })
 }
 
-export async function * iterateLocator (locator: Locator): AsyncGenerator<Locator> {
-  for (let index = 0; index < (await locator.count()); index++) {
+/**
+ * Walks matched elements. Pass `limit` where the check is per-element and the list grows with the
+ * data other tests leave behind - otherwise the test slows down as the stand fills up.
+ */
+export async function * iterateLocator (locator: Locator, limit?: number): AsyncGenerator<Locator> {
+  // count() never waits: read right after a filter is applied it still sees the pre-filter rows,
+  // and every nth() yielded then points at a row that is about to be replaced.
+  const total = await waitStable(async () => await locator.count(), { stableFor: 500, interval: 100, timeout: 15000 })
+  const max = limit !== undefined ? Math.min(limit, total) : total
+  for (let index = 0; index < max; index++) {
     yield locator.nth(index)
   }
 }
@@ -228,27 +260,45 @@ export async function uploadFile (page: Page, fileName: string, fileUploadTestId
 
   // Resolve the file path using the 'resolveFilePath' function
   const filePath = resolveFilePath(fileName)
+  // Armed before setFiles: the response can land before setFiles returns.
+  const uploaded = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/upload/'), {
+    timeout: 15000
+  })
+  // Avatar pickers upload only on Save and show the cropper first; Save does nothing until it is ready.
+  const cropperReady = page.locator('.cropper-container').waitFor({ state: 'visible', timeout: 15000 })
   await fileChooser.setFiles(filePath)
-
-  // Replace with a more reliable condition for determining when the upload is complete, if possible.
-  await page.waitForTimeout(2000)
+  await Promise.any([uploaded, cropperReady])
 }
 
 export async function getInviteLink (page: Page): Promise<string | null> {
   const leftSideMenuPage = new LeftSideMenuPage(page)
-  // If we don't wait and it's called on inital render initial navigate may close the popup in the middle
-  await leftSideMenuPage.appHeader().waitFor({ state: 'visible' })
-  await leftSideMenuPage.openProfileMenu()
-  await leftSideMenuPage.inviteToWorkspace()
-  await leftSideMenuPage.getInviteLink()
-  // Wait for the link to be visible before getting text content with retry
+  // Settle the initial render, or a navigate closes the popup mid-flight. Profile button, not
+  // appHeader: a fresh workspace has no header. Bounded and optional, the toPass below retries.
+  await leftSideMenuPage
+    .profileButton()
+    .waitFor({ state: 'visible', timeout: 5000 })
+    .catch(() => {})
   const linkLocator = page.locator('.antiPopup .link')
+  // Redo the whole chain on retry: when a click lands on a popup that is still mounting, no link is
+  // ever generated and re-checking its visibility alone can only wait the timeout out.
+  let linkText: string | null = null
   await expect(async () => {
+    if ((await linkLocator.count()) === 0) {
+      await page.keyboard.press('Escape')
+      await leftSideMenuPage.openProfileMenu()
+      await leftSideMenuPage.inviteToWorkspace()
+      await leftSideMenuPage.getInviteLink()
+    }
     await expect(linkLocator).toBeVisible({ timeout: 5000 })
+    // Read it here: the popup can close between the check and the read, and an unbounded
+    // textContent() then waits out the whole test timeout instead of redoing the chain.
+    linkText = await linkLocator.textContent({ timeout: 5000 })
   }).toPass({ intervals: [200, 500, 1000], timeout: 20000 })
-  const linkText = await linkLocator.textContent()
   expect(linkText).not.toBeNull()
-  await leftSideMenuPage.clickOnCloseInvite()
+  // Escape instead of the Close button: with a document open behind, its floating editor toolbar
+  // overlays the button and swallows the click.
+  await page.keyboard.press('Escape')
+  await expect(linkLocator).toHaveCount(0)
   return linkText
 }
 
@@ -274,11 +324,73 @@ export async function reLogin (page: Page, data: TestData): Promise<void> {
   await swp.selectWorkspace(data.workspaceName)
 }
 
-export async function createAccountAndWorkspace (page: Page, request: APIRequestContext, data: TestData): Promise<void> {
+// Pushes the analytics batch out before a context closes - tests are shorter than the 10s ping
+// tick and the 5s batch timer, so without this most ws traffic is never reported.
+export async function flushTelemetry (page: Page): Promise<void> {
+  // The flush is a round trip to the collector per context - CLIENT_TELEMETRY=0 measures its cost.
+  if (process.env.CLIENT_TELEMETRY === '0') return
+  try {
+    await page.evaluate(async () => {
+      await (window as any).__analyticsFlush?.()
+    })
+  } catch {
+    // Page already gone, or an older bundle without the hook.
+  }
+}
+
+// Skips the login form and workspace picker: with LastAccount and the account cookie set, the
+// client fetches the token via getAccount() on first load - one navigation instead of three.
+export async function loginByToken (
+  page: Page,
+  accountToken: string,
+  ws: WorkspaceLoginInfo,
+  app?: string
+): Promise<void> {
+  await page.context().addCookies([{ name: 'account-metadata-Token', value: accountToken, url: PlatformURI }])
+  await page.context().addInitScript(
+    ([account, endpoint]) => {
+      localStorage.setItem('login:metadata:LastAccount', account)
+      localStorage.setItem('login:metadata:LoginAccount', account)
+      localStorage.setItem('login:metadata:LoginEndpoint', endpoint)
+      // Without this notifications stay up for their default 10s and cover the sidebar, so the
+      // next click on it waits the toast out.
+      localStorage.setItem('#platform.notification.timeout', '0')
+    },
+    [ws.account, ws.endpoint]
+  )
+  // Landing straight on the app costs the same as the bare workbench url and saves the ~900ms
+  // the left-menu click spends loading the same chunk afterwards.
+  await (
+    await page.goto(`${PlatformURI}/workbench/${ws.workspaceUrl}${app !== undefined ? `/${app}` : ''}`)
+  )?.finished()
+}
+
+export async function createAccountWithWorkspace (
+  request: APIRequestContext,
+  data: TestData
+): Promise<{ ws: WorkspaceLoginInfo, token: string }> {
   const api: ApiEndpoint = new ApiEndpoint(request)
   await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-  await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-  await reLogin(page, data)
+  const created = await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
+  // The login has to come after the workspace: a token issued before it does not carry the new
+  // membership, and the browser lands in a workspace it is not a member of.
+  return { ws: created, token: await api.loginAndGetToken(data.userName, '1234') }
+}
+
+export async function createAccountAndWorkspace (
+  page: Page,
+  request: APIRequestContext,
+  data: TestData,
+  app?: string
+): Promise<{ ws: WorkspaceLoginInfo, token: string }> {
+  // Two steps, not one: per-test setup is a quarter of the Platform lane; without the split,
+  // the report can't say if that's the account service or the client booting a workspace.
+  const { ws, token } = await test.step('setup: account and workspace', async () =>
+    await createAccountWithWorkspace(request, data))
+  await test.step('setup: open the workspace', async () => {
+    await loginByToken(page, token, ws, app)
+  })
+  return { ws, token }
 }
 
 export const convertDate = (date: Date): { day: string, month: string, year: string } => {

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { getSecondPage, PlatformSetting, PlatformURI } from '../utils'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { ApplicationsPage } from '../model/recruiting/applications-page'
@@ -44,13 +44,6 @@ test.describe('Collaborative tests for Application', () => {
       await leftSideMenuPageSecond.checkExistNewNotification()
       await leftSideMenuPageSecond.clickNotification()
 
-      // TODO: rewrite checkNotificationCollaborators and uncomment
-      // const notificationPageSecond = new NotificationPage(userSecondPage)
-      // await notificationPageSecond.checkNotificationCollaborators(
-      //   `${talentName.lastName} ${talentName.firstName}`,
-      //   'You have been added to collaborators'
-      // )
-
       await userSecondPage.goto(`${PlatformURI}/workbench/sanity-ws/recruit`)
       const navigationMenuPageSecond = new NavigationMenuPage(userSecondPage)
       await navigationMenuPageSecond.clickButtonApplications()
@@ -68,13 +61,6 @@ test.describe('Collaborative tests for Application', () => {
       const leftSideMenuPage = new LeftSideMenuPage(page)
       await leftSideMenuPage.checkExistNewNotification()
       await leftSideMenuPage.clickNotification()
-
-      // TODO: rewrite checkNotificationCollaborators and uncomment
-      // const notificationPage = new NotificationPage(page)
-      // await notificationPage.checkNotificationCollaborators(
-      //   `${talentName.lastName} ${talentName.firstName}`,
-      //   'left a comment'
-      // )
 
       await page.goto(`${PlatformURI}/workbench/sanity-ws/recruit`)
       const navigationMenuPage = new NavigationMenuPage(page)

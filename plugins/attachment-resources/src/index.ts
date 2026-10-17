@@ -27,12 +27,14 @@ import AttachmentGalleryPresenter from './components/AttachmentGalleryPresenter.
 import AttachmentList from './components/AttachmentList.svelte'
 import AttachmentGroup from './components/AttachmentGroup.svelte'
 import AttachmentPresenter from './components/AttachmentPresenter.svelte'
+import VoiceAttachmentPresenter from './components/VoiceAttachmentPresenter.svelte'
 import AttachmentPreview from './components/AttachmentPreview.svelte'
 import AttachmentRefInput from './components/AttachmentRefInput.svelte'
 import AttachmentStyleBoxCollabEditor from './components/AttachmentStyleBoxCollabEditor.svelte'
 import AttachmentStyleBoxEditor from './components/AttachmentStyleBoxEditor.svelte'
 import AttachmentStyledBox from './components/AttachmentStyledBox.svelte'
 import Attachments from './components/Attachments.svelte'
+import AttachmentsGrid from './components/AttachmentsGrid.svelte'
 import AttachmentsPresenter from './components/AttachmentsPresenter.svelte'
 import AttachmentsTooltip from './components/AttachmentsTooltip.svelte'
 import FileBrowser from './components/FileBrowser.svelte'
@@ -45,14 +47,19 @@ import PreviewPopupActions from './components/PreviewPopupActions.svelte'
 import DrawingPresenter from './components/DrawingPresenter.svelte'
 import LinkPreview from './components/LinkPreview.svelte'
 import LinkPreviewCard from './components/LinkPreviewCard.svelte'
+import AttachmentSimplePreview from './components/AttachmentSimplePreview.svelte'
+import DraftAttachmentsEditor from './components/DraftAttachmentsEditor.svelte'
+import { attachmentsApplier } from './utils'
 
-export * from './types'
+export type * from './types'
 export * from './stores'
+export * from './utils'
 
 export {
   AccordionEditor,
   AddAttachment,
   AttachmentDocList,
+  DraftAttachmentsEditor,
   AttachmentDroppable,
   AttachmentGalleryPresenter,
   AttachmentList,
@@ -64,6 +71,7 @@ export {
   AttachmentStyleBoxEditor,
   AttachmentStyledBox,
   Attachments,
+  AttachmentsGrid,
   AttachmentsPresenter,
   AttachmentsTooltip,
   FileBrowser,
@@ -71,7 +79,8 @@ export {
   IconAttachment,
   IconUploadDuo,
   LinkPreview,
-  LinkPreviewCard
+  LinkPreviewCard,
+  AttachmentSimplePreview
 }
 
 export enum FileBrowserSortMode {
@@ -102,9 +111,7 @@ export const sortModeToOptionObject = (sortMode: FileBrowserSortMode): SortingQu
 
 const msInDay = 24 * 60 * 60 * 1000
 const getBeginningOfDate = (customDate?: Date): number => {
-  if (customDate == null) {
-    customDate = new Date()
-  }
+  customDate ??= new Date()
   customDate.setUTCHours(0, 0, 0, 0)
   return customDate.getTime()
 }
@@ -261,8 +268,10 @@ export default async (): Promise<Resources> => ({
   component: {
     AttachmentsPresenter,
     AttachmentPresenter,
+    VoiceAttachmentPresenter,
     AttachmentGalleryPresenter,
     Attachments,
+    DraftAttachmentsEditor,
     DrawingPresenter,
     FileBrowser,
     Photos,
@@ -278,6 +287,9 @@ export default async (): Promise<Resources> => ({
     AddAttachmentToSaved,
     DeleteAttachmentFromSaved,
     DeleteAttachment
+  },
+  function: {
+    AttachmentsApplier: attachmentsApplier
   }
 })
 

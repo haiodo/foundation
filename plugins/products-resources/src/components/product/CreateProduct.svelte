@@ -19,24 +19,13 @@
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher } from 'svelte'
 
-  import { type DocumentSpaceType } from '@hcengineering/controlled-documents'
+  import type { DocumentSpaceType } from '@hcengineering/controlled-documents'
   import { type Product, ProductVersionState } from '@hcengineering/products'
-  import { type Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
   import { AttachmentPresenter, AttachmentStyledBox } from '@hcengineering/attachment-resources'
   import { AccountArrayEditor, employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
-  import core, {
-    AccountUuid,
-    Data,
-    Ref,
-    Role,
-    RolesAssignment,
-    SortingOrder,
-    SpaceType,
-    WithLookup,
-    generateId,
-    getCurrentAccount,
-    notEmpty
-  } from '@hcengineering/core'
+  import type { AccountUuid, Data, Ref, Role, RolesAssignment, SpaceType, WithLookup } from '@hcengineering/core'
+  import core, { SortingOrder, generateId, getCurrentAccount, notEmpty } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Card, MessageBox, IconWithEmoji, createQuery, getClient } from '@hcengineering/presentation'
   import {
@@ -46,7 +35,7 @@
     FocusHandler,
     IconAttachment,
     createFocusManager,
-    getPlatformColorDef,
+    getPaletteColorDef,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
@@ -255,17 +244,14 @@
 
   <div class="flex-row-center flex-gap-3 clear-mins">
     <Button
-      size={'medium'}
-      kind={'link-bordered'}
+      size="medium"
+      kind="link-bordered"
       noFocus
       icon={object.icon === view.ids.IconWithEmoji ? IconWithEmoji : (object.icon ?? products.icon.Product)}
       iconProps={object.icon === view.ids.IconWithEmoji
         ? { icon: object.color }
         : {
-            fill:
-              object.color !== undefined && typeof object.color !== 'string'
-                ? getPlatformColorDef(object.color, $themeStore.dark).icon
-                : 'currentColor'
+            fill: getPaletteColorDef(object.color, $themeStore.dark)?.icon ?? 'currentColor'
           }}
       on:click={chooseIcon}
     />
@@ -287,7 +273,7 @@
       focusIndex={2}
       alwaysEdit
       showButtons={false}
-      kind={'indented'}
+      kind="indented"
       maxHeight="limited"
       kitOptions={{ reference: true }}
       enableAttachments={false}
@@ -312,8 +298,8 @@
   <svelte:fragment slot="pool">
     <DropdownLabelsIntl
       label={core.string.Private}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       items={[
         { id: products.string.Public, label: products.string.Public },
         { id: products.string.Private, label: products.string.Private }
@@ -330,8 +316,8 @@
       label={core.string.Owners}
       emptyLabel={core.string.Owners}
       onChange={handleOwnersChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
 
     <AccountArrayEditor
@@ -339,8 +325,8 @@
       label={products.string.Members}
       emptyLabel={products.string.Members}
       onChange={handleMembersChanged}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       allowGuests
     />
 
@@ -354,8 +340,8 @@
         onChange={(refs) => {
           handleRoleAssignmentChanged(role._id, refs)
         }}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/each}
   </svelte:fragment>
@@ -369,7 +355,7 @@
           removable
           on:remove={(result) => {
             if (result.detail !== undefined) {
-              descriptionBox.removeAttachmentById(result.detail._id)
+              void descriptionBox.removeAttachmentById(result.detail._id)
             }
           }}
         />
@@ -382,8 +368,8 @@
       focusIndex={20}
       icon={IconAttachment}
       iconProps={{ fill: 'var(--theme-dark-color)' }}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       on:click={() => {
         descriptionBox.handleAttach()
       }}

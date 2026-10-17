@@ -17,10 +17,12 @@
 import { UNAUTHORIZED } from '@hcengineering/platform'
 import { RPCHandler, type Response } from '@hcengineering/rpc'
 import { generateToken } from '@hcengineering/server-token'
+import { createServer, type AddressInfo } from 'net'
 import WebSocket from 'ws'
 
 import {
   Hierarchy,
+  systemAccountUuid,
   MeasureMetricsContext,
   ModelDb,
   toFindResult,
@@ -34,6 +36,7 @@ import {
   type PersonId,
   type PersonUuid,
   type Ref,
+  type SearchOptions,
   type SessionData,
   type Space,
   type Tx,
@@ -45,8 +48,21 @@ import { createDummyQueue, createDummyStorageAdapter } from '@hcengineering/serv
 import { startHttpServer } from '../server_http'
 import { genMinModel } from './minmodel'
 
+/** A fixed port collides with whatever else already listens on the machine. */
+async function freePort (): Promise<number> {
+  const probe = createServer()
+  await new Promise<void>((resolve) => probe.listen(0, resolve))
+  const { port } = probe.address() as AddressInfo
+  await new Promise<void>((resolve) =>
+    probe.close(() => {
+      resolve()
+    })
+  )
+  return port
+}
+
 describe('server', () => {
-  const port = 10000
+  let port = 0
   const handler = new RPCHandler()
   async function getModelDb (): Promise<{ modelDb: ModelDb, hierarchy: Hierarchy }> {
     const txes = genMinModel()
@@ -105,7 +121,12 @@ describe('server', () => {
   }
   const sessionMgr = startSessionManager(toolCtx, opt)
 
-  const serverShutdown = startHttpServer(toolCtx, sessionMgr, port, opt.accountsUrl, createDummyStorageAdapter())
+  let serverShutdown: () => Promise<void>
+
+  beforeAll(async () => {
+    port = await freePort()
+    serverShutdown = startHttpServer(toolCtx, sessionMgr, port, opt.accountsUrl, createDummyStorageAdapter())
+  })
 
   function connect (): WebSocket {
     const token: string = generateToken(
@@ -118,6 +139,60 @@ describe('server', () => {
   afterAll(async () => {
     await sessionMgr.closeWorkspaces(new MeasureMetricsContext('test', {}))
     await serverShutdown()
+  })
+
+  describe('broadcast', () => {
+    const workspace = '123e4567-e89b-12d3-a456-426614174001' as WorkspaceUuid
+    const put = async (token: string): Promise<number> =>
+      (
+        await fetch(`http://localhost:${port}/api/v1/broadcast?workspace=${workspace}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ _id: 'tx1' })
+        })
+      ).status
+
+    afterEach(() => {
+      jest.restoreAllMocks()
+    })
+
+    it('accepts the system token only', async () => {
+      const spy = jest.spyOn(sessionMgr, 'broadcastAll').mockImplementation(() => {})
+
+      expect(await put(generateToken('123e4567-e89b-12d3-a456-426614174000' as PersonUuid, workspace))).toBe(404)
+      expect(spy).not.toHaveBeenCalled()
+
+      expect(await put(generateToken(systemAccountUuid, workspace))).toBe(200)
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('search-fulltext', () => {
+    afterEach(() => {
+      jest.restoreAllMocks()
+    })
+
+    it('reads searchIn as a comma separated list', async () => {
+      const workspace = '123e4567-e89b-12d3-a456-426614174001' as WorkspaceUuid
+      // No account service here: a stub session takes the call
+      const searchFulltextRaw = jest.fn(async (ctx: any, query: any, options: SearchOptions) => ({ docs: [] }))
+      jest
+        .spyOn(sessionMgr, 'addSession')
+        .mockResolvedValue({ session: { searchFulltextRaw }, workspaceId: workspace, context: toolCtx } as any)
+      jest.spyOn(sessionMgr, 'handleRPC').mockImplementation(async (ctx, service, method, ws, operation) => {
+        await operation({} as any, undefined)
+        return undefined
+      })
+
+      const token = generateToken('123e4567-e89b-12d3-a456-426614174000' as PersonUuid, workspace)
+      const res = await fetch(
+        `http://localhost:${port}/api/v1/search-fulltext/${workspace}?query=q&searchIn=title,identifier`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      expect(res.status).toBe(200)
+      expect(searchFulltextRaw.mock.calls[0][2].searchIn).toEqual(['title', 'identifier'])
+    })
   })
 
   it('should connect to server', (done) => {
@@ -149,7 +224,6 @@ describe('server', () => {
   it('should send many requests', (done) => {
     const conn = connect()
     const total = 10
-    // const start = Date.now()
     conn.on('open', () => {
       for (let i = 0; i < total; i++) {
         conn.send(handler.serialize({ method: 'tx', params: [], id: i }, false))
@@ -159,7 +233,6 @@ describe('server', () => {
     conn.on('message', (msg: string) => {
       handler.readResponse(msg, false)
       if (++received === total) {
-        // console.log('resp:', resp, ' Time: ', Date.now() - start)
         conn.close(1000)
       }
     })

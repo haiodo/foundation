@@ -1,10 +1,13 @@
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import core, { Ref, WithLookup, generateId } from '@hcengineering/core'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
   import { getMetadata, translate } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import task, { TaskType, updateProjectType, type TaskStatusFactory } from '@hcengineering/task'
-  import tracker, { Project, createStatesData } from '@hcengineering/tracker'
+  import type { TaskType } from '@hcengineering/task'
+  import task, { updateProjectType, type TaskStatusFactory } from '@hcengineering/task'
+  import type { Project } from '@hcengineering/tracker'
+  import tracker, { createStatesData } from '@hcengineering/tracker'
   import ui, {
     Button,
     IconChevronDown,
@@ -13,12 +16,8 @@
     showPopup,
     DropdownLabelsPopup
   } from '@hcengineering/ui'
-  import {
-    GithubIntegration,
-    GithubIntegrationRepository,
-    githubPullRequestStates,
-    type GithubProject
-  } from '@hcengineering/github'
+  import type { GithubIntegration, GithubIntegrationRepository } from '@hcengineering/github'
+  import { githubPullRequestStates, type GithubProject } from '@hcengineering/github'
   import github from '../plugin'
 
   export let integration: WithLookup<GithubIntegration>
@@ -82,26 +81,28 @@
       {
         _id: issueId,
         descriptor: tracker.descriptors.Issue,
-        kind: 'both',
         name: await translate(tracker.string.Issue, {}),
         ofClass: tracker.class.Issue,
         statusCategories: baseIssueTaskStatuses.map((it) => it.category),
         statusClass: tracker.class.IssueStatus,
         icon: tracker.icon.Issue,
         color: 0,
+        isRootTaskType: true,
+        allowAnyParent: true,
         allowedAsChildOf: [issueId],
         factory: createStatesData(baseIssueTaskStatuses)
       },
       {
         _id: generateId(),
         descriptor: github.descriptors.PullRequest,
-        kind: 'both',
         name: await translate(github.string.PullRequest, {}),
         ofClass: github.class.GithubPullRequest,
         statusCategories: githubPullRequestStates.map((it) => it.category),
         statusClass: tracker.class.IssueStatus,
         icon: tracker.icon.Issue,
         color: 0,
+        isRootTaskType: true,
+        allowAnyParent: true,
         allowedAsChildOf: [issueId],
         factory: createStatesData(githubPullRequestStates)
       }
@@ -155,8 +156,8 @@
 </script>
 
 <Button
-  size={'medium'}
-  kind={'primary'}
+  size="medium"
+  kind="primary"
   label={github.string.LinkToProject}
   labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
   on:click={selectProject}

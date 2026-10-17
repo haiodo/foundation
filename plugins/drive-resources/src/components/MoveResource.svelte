@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import type { Drive, Folder, Resource } from '@hcengineering/drive'
   import presentation, { Card, SpaceSelector } from '@hcengineering/presentation'
   import view from '@hcengineering/view'
@@ -66,8 +66,8 @@
       label={drive.string.Drive}
       iconWithEmoji={view.ids.IconWithEmoji}
       defaultIcon={drive.icon.Drive}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       on:change={() => {
         parent = drive.ids.Root
       }}
@@ -77,9 +77,9 @@
       _class={drive.class.Folder}
       label={drive.string.Root}
       docQuery={{ space }}
-      kind={'regular'}
-      size={'small'}
-      searchField={'title'}
+      kind="regular"
+      size="small"
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}

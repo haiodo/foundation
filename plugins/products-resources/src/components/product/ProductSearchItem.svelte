@@ -15,8 +15,8 @@
 //
 -->
 <script lang="ts">
-  import { Product } from '@hcengineering/products'
-  import { WithLookup } from '@hcengineering/core'
+  import type { Product } from '@hcengineering/products'
+  import type { WithLookup } from '@hcengineering/core'
   import products from '../../plugin'
   import DocIcon from '../DocIcon.svelte'
 
@@ -25,7 +25,7 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <DocIcon {value} size={'medium'} defaultIcon={products.icon.Product} />
+    <DocIcon {value} size="medium" defaultIcon={products.icon.Product} />
   </div>
   <span class="overflow-label">
     {value.name}

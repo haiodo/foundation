@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -17,8 +18,19 @@ import { getDBClient, retryTxn } from '@hcengineering/postgres-base'
 import type { WorkspaceDestroyAdapter } from '@hcengineering/server-core'
 import { domainSchemas } from './schemas'
 
-export { domainSchemas, getDocFieldsByDomains, translateDomain, type FieldSchema, type Schema } from './schemas'
+export {
+  customIndexes,
+  domainSchemas,
+  getDocFieldsByDomains,
+  getIndex,
+  getSchema,
+  translateDomain,
+  type FieldSchema,
+  type Schema
+} from './schemas'
+export * from './version'
 export * from './storage'
+export * from './lastTx'
 export { convertDoc, createTables } from './utils'
 
 export * from '@hcengineering/postgres-base'

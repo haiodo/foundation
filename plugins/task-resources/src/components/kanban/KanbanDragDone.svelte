@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref, Status } from '@hcengineering/core'
+  import type { Ref, Status } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import type { Project } from '@hcengineering/task'
   import task, { getStates } from '@hcengineering/task'
@@ -63,7 +63,7 @@
       on:dragover|preventDefault={() => {}}
       on:drop={onDone(wonState)}
     >
-      <div class="mr-2"><Won size={'small'} /></div>
+      <div class="mr-2"><Won size="small" /></div>
       {wonState.name}
     </div>
   {/each}
@@ -83,7 +83,7 @@
       on:dragover|preventDefault={() => {}}
       on:drop={onDone(lostState)}
     >
-      <div class="mr-2"><Lost size={'small'} /></div>
+      <div class="mr-2"><Lost size="small" /></div>
       {lostState.name}
     </div>
   {/each}

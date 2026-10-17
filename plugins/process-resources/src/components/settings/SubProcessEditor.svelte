@@ -14,10 +14,12 @@
 -->
 <script lang="ts">
   import card from '@hcengineering/card'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Execution, ExecutionContext, parseContext, Process, Step } from '@hcengineering/process'
-  import { DropdownLabels, DropdownTextItem, Label, Toggle } from '@hcengineering/ui'
+  import type { Execution, ExecutionContext, Process, Step } from '@hcengineering/process'
+  import { parseContext } from '@hcengineering/process'
+  import type { DropdownTextItem } from '@hcengineering/ui'
+  import { DropdownLabels, Label, Toggle } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
   import { getContextMasterTag } from '../../utils'
@@ -86,7 +88,7 @@
     <ProcessAttributeEditor
       {process}
       _class={plugin.class.Execution}
-      key={'card'}
+      key="card"
       object={step.params}
       allowRemove
       allowArray
@@ -102,7 +104,7 @@
   <DropdownLabels
     autoSelect={false}
     enableSearch={false}
-    width={'100%'}
+    width="100%"
     {items}
     {selected}
     placeholder={plugin.string.Process}

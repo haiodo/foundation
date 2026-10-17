@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AttachedData } from '@hcengineering/core'
+  import type { AttachedData } from '@hcengineering/core'
 
-  import { Issue, reduceChildInfoTree } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
+  import { reduceChildInfoTree } from '@hcengineering/tracker'
   import EstimationProgressCircle from './EstimationProgressCircle.svelte'
   import TimePresenter from './TimePresenter.svelte'
 
@@ -43,13 +44,6 @@
     />
   </div>
   <span class="overflow-label label flex-row-center flex-nowrap {kind}">
-    <div
-      class="flex flex-nowrap"
-      class:showError={value.estimation !== 0 && treeResult.totalReportedTime > value.estimation}
-    >
-      <TimePresenter value={value.reportedTime + treeResult.totalReportedTime} />
-    </div>
-    <span>/</span>
     <div
       class="flex flex-nowrap"
       class:showWarning={value.estimation !== 0 && treeResult.totalEstimation > value.estimation}

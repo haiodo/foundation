@@ -14,12 +14,13 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
+  import Button from '../ui-kit/button/Button.svelte'
   import Header from './Header.svelte'
   import Label from './Label.svelte'
-  import ButtonBase from './ButtonBase.svelte'
   import Scroller from './Scroller.svelte'
-  import ui, { LabelAndProps } from '..'
+  import type { ButtonBaseKind, LabelAndProps } from '..'
+  import ui from '..'
 
   export let type: 'type-aside' | 'type-popup' | 'type-component'
   export let width: 'large' | 'medium' | 'small' | 'x-small' | 'menu' | undefined = undefined
@@ -29,6 +30,7 @@
   export let okAction: () => Promise<void> | void = () => {}
   export let okLoading: boolean = false
   export let okTooltip: LabelAndProps | undefined = undefined
+  export let okKind: ButtonBaseKind = 'primary'
   export let onCancel: (() => void) | undefined = undefined
   export let canSave: boolean = false
   export let okLabel: IntlString = ui.string.Ok
@@ -40,6 +42,7 @@
   export let adaptive: 'default' | 'freezeActions' | 'doubleRow' | 'disabled' = 'disabled'
   export let showCancelButton: boolean = true
   export let scrollableContent = true
+  export let className: string | undefined = undefined
 
   const dispatch = createEventDispatcher()
 
@@ -71,7 +74,7 @@
 <svelte:window on:keydown={onKeyDown} />
 
 <div
-  class="hulyModal-container {type} {width ?? ''}"
+  class="hulyModal-container {type} {width ?? ''} {className ?? ''}"
   class:hidden
   class:noTopIndent
   style={maxWidth ? `max-width: ${maxWidth};` : ''}
@@ -113,9 +116,8 @@
   <slot name="afterContent" />
   {#if type !== 'type-component' && !hideFooter}
     <div class="hulyModal-footer">
-      <ButtonBase
-        type={'type-button'}
-        kind={'primary'}
+      <Button
+        kind={okKind}
         size={type === 'type-aside' ? 'large' : 'medium'}
         tooltip={okTooltip}
         label={okLabel}
@@ -124,9 +126,8 @@
         disabled={!canSave}
       />
       {#if showCancelButton}
-        <ButtonBase
-          type={'type-button'}
-          kind={'secondary'}
+        <Button
+          kind="secondary"
           size={type === 'type-aside' ? 'large' : 'medium'}
           label={ui.string.Cancel}
           on:click={onCancel}

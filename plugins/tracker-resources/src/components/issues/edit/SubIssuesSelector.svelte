@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,13 +14,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, SortingOrder, StatusCategory, WithLookup, toIdMap } from '@hcengineering/core'
+  import type { IdMap, Ref, StatusCategory, WithLookup } from '@hcengineering/core'
+  import core, { SortingOrder, toIdMap } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import task, { getStates } from '@hcengineering/task'
   import { typeStore } from '@hcengineering/task-resources'
-  import { Issue, Project } from '@hcengineering/tracker'
-  import { Button, ButtonKind, ButtonSize, ProgressCircle, SelectPopup, showPanel } from '@hcengineering/ui'
-  import { statusStore } from '@hcengineering/view-resources'
+  import type { Issue, Project } from '@hcengineering/tracker'
+  import type { ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import { Button, ProgressCircle, SelectPopup, closeTooltip } from '@hcengineering/ui'
+  import { openDoc, openDocFromRef, statusStore } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
   import { listIssueStatusOrder } from '../../../utils'
   import IssueStatusIcon from '../IssueStatusIcon.svelte'
@@ -96,23 +99,28 @@
   }
   $: hasSubIssues = (subIssues?.length ?? 0) > 0
 
+  const client = getClient()
+
   function openIssue (target: Ref<Issue>): void {
+    closeTooltip()
     if (target !== value._id) {
-      showPanel(tracker.component.EditIssue, target, value._class, 'content')
+      const targetDoc = subIssues.find((it) => it._id === target)
+      if (targetDoc !== undefined) {
+        void openDoc(client.getHierarchy(), targetDoc)
+      } else {
+        void openDocFromRef(value._class, target)
+      }
     }
   }
 
-  $: {
-    subIssues.sort((a, b) => {
-      const aStatus = $statusStore.byId.get(a.status)
-      const bStatus = $statusStore.byId.get(b.status)
-      const res =
-        listIssueStatusOrder.indexOf(aStatus?.category ?? task.statusCategory.UnStarted) -
-        listIssueStatusOrder.indexOf(bStatus?.category ?? task.statusCategory.UnStarted)
-      return res
-    })
-    _subIssues = subIssues
-  }
+  $: _subIssues = [...subIssues].sort((a, b) => {
+    const aStatus = $statusStore.byId.get(a.status)
+    const bStatus = $statusStore.byId.get(b.status)
+    const res =
+      listIssueStatusOrder.indexOf(aStatus?.category ?? task.statusCategory.UnStarted) -
+      listIssueStatusOrder.indexOf(bStatus?.category ?? task.statusCategory.UnStarted)
+    return res
+  })
 
   $: subIssuesValue = _subIssues.map((iss) => {
     const text = `${iss.identifier} ${iss.title}`
@@ -161,7 +169,7 @@
           <div class="flex-row-center content-color text-sm pointer-events-none">
             {#if !compactMode}
               <div class="mr-1-5">
-                <ProgressCircle bind:value={countComplete} bind:max={subIssues.length} size={'small'} primary />
+                <ProgressCircle bind:value={countComplete} bind:max={subIssues.length} size="small" primary />
               </div>
             {/if}
             {countComplete}/{subIssues.length}

@@ -14,11 +14,13 @@
 -->
 
 <script lang="ts">
-  import { Doc, Ref } from '@hcengineering/core'
+  import type { Doc, Ref } from '@hcengineering/core'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import { Method, Process, Transition, type Step } from '@hcengineering/process'
+  import type { Method, Process, Transition } from '@hcengineering/process'
+  import type { Step } from '@hcengineering/process'
   import { clearSettingsStore } from '@hcengineering/setting-resources'
-  import { ButtonIcon, IconDelete, Label, Modal } from '@hcengineering/ui'
+  import { IconDelete, Label, Modal } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import plugin from '../../plugin'
   import StepEditor from './StepEditor.svelte'
   import ContextFooter from './ContextFooter.svelte'
@@ -66,7 +68,7 @@
 </script>
 
 <Modal
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={true}
@@ -75,7 +77,13 @@
 >
   <svelte:fragment slot="actions">
     {#if !readonly}
-      <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} on:click={remove} />
+      <IconButton
+        icon={IconDelete}
+        size="small"
+        kind="tertiary"
+        tooltip={{ label: presentation.string.Delete }}
+        on:click={remove}
+      />
     {/if}
   </svelte:fragment>
   <div class="fs-title title text-xl" slot="title">

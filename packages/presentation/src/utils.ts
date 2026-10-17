@@ -21,6 +21,7 @@ import core, {
   type AnyAttribute,
   type ArrOf,
   type AttachedDoc,
+  type BulkUpdateEvent,
   type Class,
   type Client,
   type Collection,
@@ -54,6 +55,8 @@ import core, {
   type TxCreateDoc,
   type TxCUD,
   TxOperations,
+  type TxWorkspaceEvent,
+  WorkspaceEvent,
   TxProcessor,
   type TxResult,
   type TxUpdateDoc,
@@ -62,15 +65,21 @@ import core, {
   type WithLookup,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import { getMetadata, getResource } from '@hcengineering/platform'
+import { addEventListener, getMetadata, getResource } from '@hcengineering/platform'
 import { LiveQuery as LQ } from '@hcengineering/query'
-import { type AnyComponent, type AnySvelteComponent, getRawCurrentLocation, workspaceId } from '@hcengineering/ui'
+import {
+  type AnyComponent,
+  type AnySvelteComponent,
+  getRawCurrentLocation,
+  isSafari,
+  workspaceId
+} from '@hcengineering/ui'
 import view, { type AttributeCategory, type AttributeEditor } from '@hcengineering/view'
 import { deepEqual } from 'fast-equals'
 import { onDestroy } from 'svelte'
 import { get, writable } from 'svelte/store'
 
-import { type KeyedAttribute } from '..'
+import { type KeyedAttribute } from '.'
 import { OptimizeQueryMiddleware, type PresentationPipeline, PresentationPipelineImpl } from './pipeline'
 import plugin, { type ClientHook } from './plugin'
 
@@ -84,6 +93,8 @@ let pipeline: PresentationPipeline
 export type TxListener = (tx: Tx[]) => void
 const txListeners: TxListener[] = []
 
+const alwaysDisabled: string[] = ['relation', 'caldav']
+
 /**
  * @public
  */
@@ -93,6 +104,26 @@ export function addTxListener (l: TxListener): void {
 
 export function getRawLiveQuery (): LQ {
   return rawLiveQuery
+}
+
+/**
+ * Re-runs the live queries over these classes, as a BulkUpdate from the server does. For documents
+ * a service changed in the database past the tx stream and announced with an event of its own.
+ * @public
+ */
+export async function refreshQueries (classes: Array<Ref<Class<Doc>>>): Promise<void> {
+  const event: TxWorkspaceEvent<BulkUpdateEvent> = {
+    _id: generateId(),
+    _class: core.class.TxWorkspaceEvent,
+    event: WorkspaceEvent.BulkUpdate,
+    params: { _class: classes },
+    modifiedBy: core.account.System,
+    modifiedOn: Date.now(),
+    objectSpace: core.space.DerivedTx,
+    space: core.space.DerivedTx
+  }
+  await liveQuery?.tx(event)
+  await rawLiveQuery?.tx(event)
 }
 
 /**
@@ -108,6 +139,34 @@ export function removeTxListener (l: TxListener): void {
 export const uiContext = new MeasureMetricsContext('client-ui', {})
 uiContext.externalMetricSink = (name, value, labels) => {
   Analytics.handleMetric(name, value, labels)
+}
+
+// Connection traffic, reported by the ws client through ConnectionStatsEvent. Counters there are
+// cumulative, so send deltas; bytes are compressed, i.e. what actually went over the wire.
+const wsTraffic = { sent: 0, received: 0, sentBytes: 0, receivedBytes: 0 }
+addEventListener('connection-stats', async (_event: string, data: any) => {
+  const names = { sent: 'sent', received: 'received', sentBytes: 'sent_bytes', receivedBytes: 'received_bytes' }
+  for (const key of ['sent', 'received', 'sentBytes', 'receivedBytes'] as const) {
+    const value = (data?.[key] ?? 0) - wsTraffic[key]
+    wsTraffic[key] = data?.[key] ?? 0
+    if (value > 0) {
+      uiContext.measure(`client.ws.${names[key]}`, value)
+    }
+  }
+  if (typeof data?.latency === 'number' && data.latency > 0) {
+    uiContext.measure('client.ws.latency_ms', data.latency)
+  }
+})
+
+// Tests close a context seconds after opening it, long before the 10s ping tick and the 5s
+// analytics batch. This lets a teardown push the last numbers out explicitly.
+if (typeof window !== 'undefined') {
+  ;(window as any).__analyticsFlush = async (): Promise<void> => {
+    // Without this the batch carries whatever the last 10s ping tick caught - on a short
+    // test, nothing.
+    await (globalThis as any).__connStatsPush?.()
+    await Analytics.flush()
+  }
 }
 
 // Browser memory sampler (Chromium-only). Emits client.memory.* gauges every 30s.
@@ -347,7 +406,17 @@ export function isDisabled (feature?: string): boolean {
   if (feature === undefined) {
     return false
   }
-  return getMetadata(plugin.metadata.DisabledFeatures)?.has(feature) ?? false
+  return alwaysDisabled.includes(feature) || (getMetadata(plugin.metadata.DisabledFeatures)?.has(feature) ?? false)
+}
+
+/**
+ * Server bundles are `<semver>-<sha>`, desktop is bare semver - compatibility checks
+ * must compare the semver part only.
+ *
+ * @public
+ */
+export function releaseVersion (version: string): string {
+  return version.split('-')[0]
 }
 
 export type OnClientListener = (client: Client, account: Account) => void | Promise<void>
@@ -360,6 +429,19 @@ export function onClient (l: OnClientListener): void {
       void l(client, getCurrentAccount())
     })
   }
+}
+
+const workspaceChangeListeners: Array<() => void> = []
+let clientWorkspace: string | undefined
+
+/**
+ * Runs when setClient connects to another workspace, before that workspace's UI mounts. Module-level
+ * caches keyed by document ids must drop their content here: system documents such as the `general`
+ * channel have the same `_id` in every workspace.
+ * @public
+ */
+export function onWorkspaceChange (l: () => void): void {
+  workspaceChangeListeners.push(l)
 }
 
 let txQueue: Tx[] = []
@@ -475,6 +557,13 @@ class ClientHookImpl implements Client {
  */
 export async function setClient (_client: Client): Promise<void> {
   pendingCreatedDocs.set({})
+  const workspace = getMetadata(plugin.metadata.WorkspaceUuid)
+  if (clientWorkspace !== undefined && clientWorkspace !== workspace) {
+    for (const l of workspaceChangeListeners) {
+      l()
+    }
+  }
+  clientWorkspace = workspace
   if (liveQuery !== undefined) {
     await liveQuery.close()
   }
@@ -516,7 +605,7 @@ export async function setClient (_client: Client): Promise<void> {
     txQueue.push(...tx)
     void notifyCaller()
   }
-  if (needRefresh || globalQueries.length > 0) {
+  if (needRefresh || globalQueries.size > 0) {
     await refreshClient(true)
   }
   const acc = getCurrentAccount()
@@ -574,28 +663,44 @@ export async function closeClient (): Promise<void> {
   await client?.close()
 }
 
-const globalQueries: LiveQuery[] = []
+const globalQueries = new Set<LiveQuery>()
+
+interface QueryRequest {
+  _class: Ref<Class<Doc>>
+  query: DocumentQuery<Doc>
+  callback: (result: FindResult<any>) => void | Promise<void>
+  options: FindOptions<Doc> | undefined
+}
+
+interface ActiveQuery {
+  request: QueryRequest
+  release: () => void
+}
 
 /**
  * @public
  */
 export class LiveQuery {
-  private oldClass: Ref<Class<Doc>> | undefined
-  private oldQuery: DocumentQuery<Doc> | undefined
-  private oldOptions: FindOptions<Doc> | undefined
-  private oldCallback: ((result: FindResult<any>) => void | Promise<void>) | undefined
-  private reqId = 0
-  unsubscribe: () => void = () => {}
-  clientRecreated = false
+  // Calls within one microtask are coalesced: only the last pending request gets subscribed.
+  private pending: QueryRequest | undefined
+  private scheduled = false
+  private active: ActiveQuery | undefined
+  private closed = false
 
-  constructor (noDestroy: boolean = false) {
+  constructor (private readonly noDestroy: boolean = false) {
     if (!noDestroy) {
       onDestroy(() => {
+        this.closed = true
         this.unsubscribe()
       })
-    } else {
-      globalQueries.push(this)
     }
+  }
+
+  unsubscribe = (): void => {
+    this.pending = undefined
+    this.active?.release()
+    this.active = undefined
+    globalQueries.delete(this)
   }
 
   query<T extends Doc>(
@@ -604,95 +709,74 @@ export class LiveQuery {
     callback: (result: FindResult<T>) => void | Promise<void>,
     options?: FindOptions<T>
   ): boolean {
-    if (!this.needUpdate(_class, query, callback, options) && !this.clientRecreated) {
+    // Components may query from async code that finishes after destroy; such a subscription would never be released.
+    if (this.closed) {
       return false
     }
-    // We need to prevent callback with old values to be happening
-    // One time refresh in case of client recreation
-    this.clientRecreated = false
-    void this.reducedDoQuery(++this.reqId, _class, query, callback as any, options)
+    if (!this.needUpdate(_class, query, callback, options)) {
+      return false
+    }
+    this.pending = { _class, query, callback, options } satisfies QueryRequest
+    if (this.noDestroy) {
+      globalQueries.add(this)
+    }
+    if (!this.scheduled) {
+      this.scheduled = true
+      queueMicrotask(() => {
+        this.flush()
+      })
+    }
     return true
   }
 
-  reducedDoQuery = reduceCalls(
-    async (
-      id: number,
-      _class: Ref<Class<Doc>>,
-      query: DocumentQuery<Doc>,
-      callback: (result: FindResult<Doc>) => void | Promise<void>,
-      options: FindOptions<Doc> | undefined
-    ) => {
-      this.doQuery(id, _class, query, callback, options)
-    }
-  )
-
-  private doQuery<T extends Doc>(
-    id: number,
-    _class: Ref<Class<T>>,
-    query: DocumentQuery<T>,
-    callback: (result: FindResult<T>) => void | Promise<void>,
-    options: FindOptions<T> | undefined
-  ): void {
-    if (pipeline === undefined) {
-      // We need remember values to perform refresh.
-      this.oldCallback = callback
-      this.oldClass = _class
-      this.oldOptions = options
-      this.oldQuery = query
-
+  private flush (): void {
+    this.scheduled = false
+    // Without a pipeline the request stays pending: refreshClient subscribes it once the client is set.
+    if (this.pending === undefined || this.closed || pipeline === undefined) {
       return
     }
-    const piplineQuery = pipeline.subscribe(_class, query, options, () => {
+    const request = this.pending
+    this.pending = undefined
+    this.subscribe(request)
+  }
+
+  private subscribe (request: QueryRequest): void {
+    this.active?.release()
+    this.active = undefined
+    // Becomes this.active after both subscriptions exist; until then, and after release, their callbacks are ignored.
+    const active: ActiveQuery = { request, release: () => {} }
+    const pipelineQuery = pipeline.subscribe(request._class, request.query, request.options, () => {
       // Refresh query if pipeline decide it is required.
-      this.refreshClient()
+      if (this.active === active) {
+        this.refreshClient()
+      }
     })
-    if (id !== this.reqId) {
-      // If we have one more request after this one, no need to do something.
-      void piplineQuery.then((res) => {
-        res.unsubscribe()
-      })
-      return
-    }
-
-    this.unsubscribe()
-    this.oldCallback = callback
-    this.oldClass = _class
-    this.oldOptions = options
-    this.oldQuery = query
-
     const unsub = liveQuery.query(
-      _class,
-      query,
+      request._class,
+      request.query,
       (result) => {
-        // If we have one more request after this one, no need to do something.
-        if (id === this.reqId) {
-          void callback(result)
+        if (this.active === active) {
+          void request.callback(result)
         }
       },
-      options
+      request.options
     )
-    this.unsubscribe = () => {
+    active.release = () => {
       unsub()
-      void piplineQuery.then((res) => {
+      void pipelineQuery.then((res) => {
         res.unsubscribe()
       })
-      this.oldCallback = undefined
-      this.oldClass = undefined
-      this.oldOptions = undefined
-      this.oldQuery = undefined
-      this.unsubscribe = () => {}
     }
+    this.active = active
   }
 
   refreshClient (): void {
-    this.clientRecreated = true
-    if (this.oldClass !== undefined && this.oldQuery !== undefined && this.oldCallback !== undefined) {
-      const _class = this.oldClass
-      const query = this.oldQuery
-      const callback = this.oldCallback
-      const options = this.oldOptions
-      this.doQuery(++this.reqId, _class, query, callback, options)
+    const request = this.pending ?? this.active?.request
+    if (request === undefined || this.closed || pipeline === undefined) {
+      return
     }
+    this.pending = undefined
+    this.subscribe(request)
   }
 
   private needUpdate<T extends Doc>(
@@ -701,10 +785,12 @@ export class LiveQuery {
     callback: (result: FindResult<T>) => void | Promise<void>,
     options?: FindOptions<T>
   ): boolean {
-    if (!deepEqual(_class, this.oldClass)) return true
-    if (!deepEqual(query, this.oldQuery)) return true
-    if (!deepEqual(callback.toString(), this.oldCallback?.toString())) return true
-    if (!deepEqual(options, this.oldOptions)) return true
+    const current = this.pending ?? this.active?.request
+    if (current === undefined) return true
+    if (!deepEqual(_class, current._class)) return true
+    if (!deepEqual(query, current.query)) return true
+    if (!deepEqual(callback.toString(), current.callback.toString())) return true
+    if (!deepEqual(options, current.options)) return true
     return false
   }
 }
@@ -796,12 +882,17 @@ export function copyTextToClipboardOldBrowser (text: string): void {
  */
 export async function copyTextToClipboard (text: string | Promise<string>): Promise<void> {
   try {
-    // Safari specific behavior
-    // see https://bugs.webkit.org/show_bug.cgi?id=222262
-    const clipboardItem = new ClipboardItem({
-      'text/plain': text instanceof Promise ? text : Promise.resolve(text)
-    })
-    await navigator.clipboard.write([clipboardItem])
+    if (isSafari()) {
+      // Safari specific behavior
+      // see https://bugs.webkit.org/show_bug.cgi?id=222262
+      const clipboardItem = new ClipboardItem({
+        'text/plain': text instanceof Promise ? text : Promise.resolve(text)
+      })
+      await navigator.clipboard.write([clipboardItem])
+    } else {
+      // Chromium keeps every ClipboardItem write in a persistent root, which retains the page after reload
+      await navigator.clipboard.writeText(text instanceof Promise ? await text : text)
+    }
   } catch {
     // Fallback to default clipboard API implementation
     if (navigator.clipboard != null && typeof navigator.clipboard.writeText === 'function') {
@@ -875,7 +966,16 @@ export function getAttrEditor (type: Type<any>, hierarchy: Hierarchy): AnyCompon
   }
 
   const editorMixin = hierarchy.classHierarchyMixin(attrClass.attrClass, mixin)
-  return editorMixin?.inlineEditor
+  if (editorMixin?.inlineEditor != null) {
+    return editorMixin?.inlineEditor
+  }
+
+  if (attrClass.category === 'inplace') {
+    const editorMixin = hierarchy.classHierarchyMixin(attrClass.attrClass, view.mixin.InlineAttributEditor)
+    return editorMixin?.editor
+  }
+
+  return undefined
 }
 
 export function findAttributeEditorByAttribute (client: Client, attribute: AnyAttribute): AnyComponent | undefined {
@@ -915,10 +1015,16 @@ export function findAttributeEditorByAttribute (client: Client, attribute: AnyAt
 
   const editorMixin = hierarchy.classHierarchyMixin(presenterClass.attrClass, mixin)
 
-  if (editorMixin?.inlineEditor === undefined) {
-    return
+  if (editorMixin?.inlineEditor != null) {
+    return editorMixin.inlineEditor
   }
-  return editorMixin.inlineEditor
+
+  if (presenterClass.category === 'inplace') {
+    const editorMixin = hierarchy.classHierarchyMixin(presenterClass.attrClass, view.mixin.InlineAttributEditor)
+    return editorMixin?.editor
+  }
+
+  return undefined
 }
 
 export function findAttributeEditor (
@@ -928,7 +1034,7 @@ export function findAttributeEditor (
 ): AnyComponent | undefined {
   const hierarchy = client.getHierarchy()
   const attribute = typeof key === 'string' ? hierarchy.findAttribute(_class, key) : key.attr
-  if (attribute === undefined) return
+  if (attribute === undefined || !hierarchy.hasClass(attribute.type._class)) return
   return findAttributeEditorByAttribute(client, attribute)
 }
 
@@ -951,6 +1057,7 @@ function filterKeys (hierarchy: Hierarchy, keys: KeyedAttribute[], ignoreKeys: s
   const docKeys: Set<string> = new Set<string>(hierarchy.getAllAttributes(core.class.AttachedDoc).keys())
   keys = keys.filter((k) => !docKeys.has(k.key) || k.attr.editor !== undefined)
   keys = keys.filter((k) => !ignoreKeys.includes(k.key))
+  keys = keys.filter((k) => hierarchy.hasClass(k.attr.type._class))
   return keys
 }
 
@@ -1015,6 +1122,12 @@ export function isAdminUser (): boolean {
   return decodedToken.extra?.admin === 'true'
 }
 
+// Read-only admin: may open the admin panel, but every mutating action stays gated on isAdminUser().
+export function isBillingAdminUser (): boolean {
+  const decodedToken = decodeTokenPayload(getMetadata(plugin.metadata.Token) ?? '')
+  return decodedToken.extra?.billingAdmin === 'true'
+}
+
 export function isSpace (space: Doc): space is Space {
   return isSpaceClass(space._class)
 }
@@ -1037,6 +1150,22 @@ export function setPresentationCookie (token: string, workspaceUuid: WorkspaceUu
     const normalized = path.startsWith('/') ? path : `/${path}`
     document.cookie = `${cookieName}=${cookieValue}; path=${normalized}`
   }
+}
+
+// Leaving the workspace tears down anything workspace-scoped (a live meeting, in particular), so a
+// plugin can register a guard here.
+const leaveWorkspaceGuards = new Set<() => Promise<boolean>>()
+
+export function addLeaveWorkspaceGuard (guard: () => Promise<boolean>): () => void {
+  leaveWorkspaceGuards.add(guard)
+  return () => leaveWorkspaceGuards.delete(guard)
+}
+
+export async function canLeaveWorkspace (): Promise<boolean> {
+  for (const guard of leaveWorkspaceGuards) {
+    if (!(await guard())) return false
+  }
+  return true
 }
 
 export const upgradeDownloadProgress = writable(-1)

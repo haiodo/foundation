@@ -13,29 +13,40 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
   import { UserInfo, getPersonByPersonRef } from '@hcengineering/contact-resources'
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
 
-  import { IconArrowLeft, Location, ModernButton, Scroller, location, navigate, panelstore } from '@hcengineering/ui'
+  import type { Location } from '@hcengineering/ui'
+  import { IconArrowLeft, Scroller, location, navigate, panelstore } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
 
-  import { MeetingMinutes, ParticipantInfo, Room, loveId } from '@hcengineering/love'
+  import type { MeetingMinutes, ParticipantInfo, Room } from '@hcengineering/love'
+  import { loveId } from '@hcengineering/love'
   import { getClient } from '@hcengineering/presentation'
   import view from '@hcengineering/view'
   import { getObjectLinkFragment } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import love from '../plugin'
-  import { currentMeetingMinutes, infos, myInfo } from '../stores'
+  import { currentMeetingMinutes, infos, myInfo, meetings } from '../stores'
   import { lkSessionConnected } from '../liveKitClient'
   import MicrophoneButton from './meeting/controls/MicrophoneButton.svelte'
   import CameraButton from './meeting/controls/CameraButton.svelte'
   import ShareScreenButton from './meeting/controls/ShareScreenButton.svelte'
   import LeaveRoomButton from './meeting/controls/LeaveRoomButton.svelte'
   import MeetingHeader from './meeting/MeetingHeader.svelte'
+  import KnockingList from './meeting/invites/KnockingList.svelte'
   import { createMeeting } from '../meetings'
 
   export let room: Room
-  export let meeting: MeetingMinutes
+  export let meetingId: Ref<MeetingMinutes>
+
+  // Get meeting from store
+  $: meeting = $meetings.find((m) => m._id === meetingId)
+  // If participants exist in room but meeting is not accessible (private and not a member),
+  // the meeting won't appear in our meetings store - detect this case
+  $: hasParticipants = info.length > 0
+  $: isPrivateMeeting = hasParticipants && meeting === undefined
 
   const client = getClient()
   async function getPerson (info: ParticipantInfo | undefined): Promise<Person | null> {
@@ -56,11 +67,14 @@
   const dispatch = createEventDispatcher()
 
   async function connect (): Promise<void> {
-    await createMeeting(room, meeting)
+    if (meeting !== undefined) {
+      await createMeeting(room, meeting)
+    }
     dispatch('close')
   }
 
   async function backOrOpen (): Promise<void> {
+    const meeting = $meetings.find((m) => m._id === meetingId)
     if (meeting !== undefined) {
       const hierarchy = client.getHierarchy()
       const panelComponent = hierarchy.classHierarchyMixin(meeting._class as Ref<Class<Doc>>, view.mixin.ObjectPanel)
@@ -72,33 +86,36 @@
     }
   }
 
-  function canGoBack (joined: boolean, location: Location, meetingMinutes?: MeetingMinutes): boolean {
+  function canGoBack (joined: boolean, location: Location, meetingMinutesId?: Ref<MeetingMinutes>): boolean {
     if (!joined) return false
     if (location.path[2] !== loveId) return true
-    if (meetingMinutes === undefined) return false
+    if (meetingMinutesId === undefined) return false
 
     const panel = $panelstore.panel
     const { _id } = panel ?? {}
 
-    return _id !== meetingMinutes._id
+    return _id !== meetingMinutesId
   }
 </script>
 
 <div class="antiPopup room-popup flex-gap-4">
   <MeetingHeader {room} />
   <div class="room-popup__content">
-    <Scroller padding={'0.5rem'} stickedScrollBars>
+    <Scroller padding="0.5rem" stickedScrollBars>
       <div class="room-popup__content-grid">
         {#each info as inf}
           {#await getPerson(inf) then person}
             {#if person}
-              <div class="person"><UserInfo value={person} size={'medium'} showStatus={false} /></div>
+              <div class="person"><UserInfo value={person} size="medium" showStatus={false} /></div>
             {/if}
           {/await}
         {/each}
       </div>
     </Scroller>
   </div>
+  {#if meeting !== undefined}
+    <KnockingList compact meetingId={meeting._id} />
+  {/if}
   <div class="flex-between gap-2">
     {#if joined && $lkSessionConnected}
       <div class="flex-between gap-2">
@@ -108,33 +125,34 @@
       </div>
     {/if}
     <div style="width: auto" />
-    {#if canGoBack(joined, $location, $currentMeetingMinutes)}
-      <ModernButton
+    {#if canGoBack(joined, $location, meetingId)}
+      <Button
         icon={IconArrowLeft}
         label={love.string.MeetingMinutes}
-        kind={'primary'}
-        size={'medium'}
+        kind="primary"
+        size="medium"
         on:click={backOrOpen}
       />
     {/if}
     {#if joined}
       <LeaveRoomButton {room} noLabel={false} size="medium" on:leave={() => dispatch('close')} />
-    {:else}
+    {:else if !isPrivateMeeting}
       <div class="flex flex-row-center gap-2">
-        <ModernButton
+        <Button
           icon={love.icon.MeetingMinutes}
           label={love.string.MeetingMinutes}
-          kind={'secondary'}
-          size={'medium'}
+          kind="secondary"
+          size="medium"
           on:click={backOrOpen}
         />
-        <ModernButton
+        <Button
           icon={love.icon.EnterRoom}
           label={love.string.EnterRoom}
-          size={'medium'}
-          kind={'primary'}
-          autoFocus
+          size="medium"
+          kind="primary"
+          autofocus
           on:click={connect}
+          data-id="room-enter"
         />
       </div>
     {/if}

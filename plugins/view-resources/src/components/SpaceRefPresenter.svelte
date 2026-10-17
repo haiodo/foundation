@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Ref, Space } from '@hcengineering/core'
+  import type { Ref, Space } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { ObjectPresenter } from '..'
 
   export let value: Ref<Space>
@@ -24,10 +25,12 @@
   export let disabled: boolean = false
   export let shouldShowName: boolean = true
   export let shrink: number = 0
+
+  $: validValue = typeof value === 'string' ? value : undefined
 </script>
 
 <ObjectPresenter
-  objectId={value}
+  objectId={validValue}
   _class={core.class.Space}
   {shouldShowAvatar}
   {shouldShowName}

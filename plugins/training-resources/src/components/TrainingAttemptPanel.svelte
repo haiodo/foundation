@@ -16,13 +16,14 @@
 -->
 
 <script lang="ts">
-  import { Class, Ref, type WithLookup } from '@hcengineering/core'
+  import type { Class, Ref } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import { Panel } from '@hcengineering/panel'
   import { ActionContext, createQuery } from '@hcengineering/presentation'
   import { Button, IconMoreH, navigate, type IModeSelector, rawLocation } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { showMenu } from '@hcengineering/view-resources'
-  import { type Training, type TrainingAttempt, type TrainingRequest } from '@hcengineering/training'
+  import type { Training, TrainingAttempt, TrainingRequest } from '@hcengineering/training'
   import training from '../plugin'
   import { MyResultsRouteTab, myResultsRoute } from '../routing/routes/myResultsRoute'
   import { TrainingAttemptRouteTab, trainingAttemptRoute } from '../routing/routes/trainingAttemptRoute'
@@ -165,7 +166,7 @@
       on:close
       withoutActivity
       contentClasses="h-full"
-      adaptive={'default'}
+      adaptive="default"
     >
       <svelte:fragment slot="title">
         <PanelTitle training={trainingObject}>
@@ -185,7 +186,7 @@
         {/if}
       </svelte:fragment>
       <svelte:fragment slot="post-utils">
-        <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind={'icon'} on:click={showContextMenu} />
+        <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind="icon" on:click={showContextMenu} />
       </svelte:fragment>
       <svelte:fragment slot="aside">
         <TrainingAttributes object={trainingObject} showHeader />

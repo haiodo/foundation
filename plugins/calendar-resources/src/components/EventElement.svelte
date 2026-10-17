@@ -13,17 +13,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import calendar, { CalendarEventPresenter, Event } from '@hcengineering/calendar'
-  import { Doc } from '@hcengineering/core'
+  import type { CalendarEventPresenter, Event } from '@hcengineering/calendar'
+  import calendar from '@hcengineering/calendar'
+  import type { Doc } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Component, MILLISECONDS_IN_MINUTE, showPopup, tooltip } from '@hcengineering/ui'
-  import view, { ObjectEditor } from '@hcengineering/view'
+  import type { ObjectEditor } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { showMenu } from '@hcengineering/view-resources'
   import { calendarByIdStore, isVisible } from '../utils'
   import EventPresenter from './EventPresenter.svelte'
 
   export let event: Event
-  // export let hourHeight: number
   export let size: { width: number, height: number }
 
   $: oneRow = size.height < 42 || event.allDay

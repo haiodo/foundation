@@ -14,21 +14,15 @@
 -->
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import { AttachedDoc, Class, DocumentQuery, getCurrentAccount, Ref } from '@hcengineering/core'
-  import { Lead } from '@hcengineering/lead'
-  import { IntlString, Asset } from '@hcengineering/platform'
+  import type { AttachedDoc, Class, DocumentQuery, Ref } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
+  import type { Lead } from '@hcengineering/lead'
+  import type { IntlString, Asset } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
-  import {
-    IModeSelector,
-    Breadcrumb,
-    Loading,
-    ModeSelector,
-    resolvedLocationStore,
-    SearchInput,
-    Header
-  } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
+  import type { IModeSelector } from '@hcengineering/ui'
+  import { Breadcrumb, Loading, ModeSelector, resolvedLocationStore, SearchInput, Header } from '@hcengineering/ui'
+  import type { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
   import {
     FilterBar,
     FilterButton,
@@ -100,7 +94,7 @@
   let viewOptions: ViewOptions | undefined = undefined
 </script>
 
-<Header adaptive={'freezeActions'} hideActions={modeSelectorProps === undefined}>
+<Header adaptive="freezeActions" hideActions={modeSelectorProps === undefined}>
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       hidden
@@ -115,7 +109,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb {icon} label={labelTasks} size={'large'} isCurrent />
+  <Breadcrumb {icon} label={labelTasks} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed on:change={(e) => (search = e.detail)} />
@@ -123,7 +117,7 @@
   </svelte:fragment>
   <svelte:fragment slot="actions">
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>

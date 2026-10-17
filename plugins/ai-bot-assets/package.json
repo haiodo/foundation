@@ -1,0 +1,60 @@
+{
+  "name": "@hcengineering/ai-bot-assets",
+  "version": "0.7.0",
+  "main": "./lib/index.js",
+  "types": "./types/index.d.ts",
+  "files": [
+    "lib",
+    "types",
+    "src",
+    "lang"
+  ],
+  "author": "Intabia Fusion",
+  "template": "@hcengineering/assets-package",
+  "license": "EPL-2.0",
+  "scripts": {
+    "build": "compile",
+    "test": "jest --passWithNoTests --silent",
+    "format": "format src",
+    "build:watch": "compile",
+    "build:docs": "",
+    "_phase:build": "compile build",
+    "_phase:test": "jest --passWithNoTests --silent",
+    "_phase:format": "format src"
+  },
+  "devDependencies": {
+    "@hcengineering/platform-rig": "workspace:^0.7.19",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "@types/node": "catalog:",
+    "jest": "catalog:",
+    "ts-jest": "catalog:",
+    "@types/jest": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
+  },
+  "dependencies": {
+    "@hcengineering/platform": "workspace:^0.7.19"
+  },
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./lang/*.json": {
+      "require": "./lang/*.json",
+      "import": "./lang/*.json"
+    },
+    "./lang": {
+      "require": "./lang",
+      "import": "./lang"
+    }
+  }
+}

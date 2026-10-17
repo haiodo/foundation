@@ -16,7 +16,7 @@
 <script lang="ts">
   import core from '@hcengineering/core'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import { ContextId, Process, ProcessContext } from '@hcengineering/process'
+  import type { ContextId, Process, ProcessContext } from '@hcengineering/process'
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
   import { EditBox, getCurrentLocation, Grid, Modal, navigate } from '@hcengineering/ui'
   import plugin from '../../plugin'
@@ -54,7 +54,7 @@
 
 <Modal
   label={plugin.string.Data}
-  type={'type-aside'}
+  type="type-aside"
   canSave={!readonly}
   okLabel={presentation.string.Save}
   okAction={save}
@@ -69,7 +69,7 @@
           <ProcessContextRawPresenter context={val[1]} />
         </div>
         <EditBox
-          kind={'ghost'}
+          kind="ghost"
           value={val[1].name ?? ''}
           placeholder={core.string.Name}
           disabled={readonly}

@@ -13,24 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Event } from '@hcengineering/calendar'
-  import { Class, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
-  import { IntlString, Asset } from '@hcengineering/platform'
-  import {
-    AnyComponent,
-    Button,
-    Component,
-    IconAdd,
-    Label,
-    Loading,
-    showPopup,
-    Header,
-    Breadcrumb
-  } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Event } from '@hcengineering/calendar'
+  import type { Class, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
+  import type { IntlString, Asset } from '@hcengineering/platform'
+  import type { AnyComponent } from '@hcengineering/ui'
+  import { Button, Component, IconAdd, Label, Loading, showPopup, Header, Breadcrumb } from '@hcengineering/ui'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { ViewletSelector, getViewOptions, viewOptionStore } from '@hcengineering/view-resources'
   import calendar from '../plugin'
-  // import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
 
   export let _class: Ref<Class<Event>> = calendar.class.Event
   export let space: Ref<Space> | undefined = undefined
@@ -68,15 +58,15 @@
   $: viewOptions = getViewOptions(viewlet, $viewOptionStore)
 </script>
 
-<Header adaptive={'disabled'}>
+<Header adaptive="disabled">
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector bind:viewlet bind:loading bind:preference bind:viewlets viewletQuery={{ attachTo: _class }} />
   </svelte:fragment>
 
-  <Breadcrumb icon={viewIcon} label={viewLabel} size={'large'} isCurrent />
+  <Breadcrumb icon={viewIcon} label={viewLabel} size="large" isCurrent />
 
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={createLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={createLabel} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </Header>
 

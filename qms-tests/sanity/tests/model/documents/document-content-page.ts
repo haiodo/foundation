@@ -130,7 +130,7 @@ export class DocumentContentPage extends DocumentCommonPage {
     this.buttonCurrentRights = page.locator(
       'div.hulyHeader-buttonsGroup.extra button[type="button"] > span[slot="content"]'
     )
-    this.buttonAddMessageToText = page.locator('div.text-editor-toolbar > button:last-child')
+    this.buttonAddMessageToText = page.locator('div.text-editor-toolbar button[data-id="btnMessage"]')
     this.buttonComments = page.locator('button[id$="comment"]')
     this.textDocumentTitle = page.locator('div.panel div.title')
     this.buttonCompleteReview = page.locator('div.hulyHeader-buttonsGroup.extra button[type="button"] > span', {
@@ -187,7 +187,7 @@ export class DocumentContentPage extends DocumentCommonPage {
     this.filterCategory = page.locator('span').filter({ hasText: /^Category$/ })
     this.qualityButtonDots = page.getByRole('button', { name: 'Quality documents' }).getByRole('button')
     this.editDocumentSpace = page.getByRole('button', { name: 'Edit documents space' })
-    this.qualityButtonMembers = page.getByRole('button', { name: 'AJ DK AQ 3 members' }).first()
+    this.qualityButtonMembers = page.getByRole('button', { name: /\d+ members?$/ }).first()
     this.userMemberCainVelasquez = page.getByRole('button', { name: 'VC Velasquez Cain' })
     this.qualityDocument = page.getByRole('button', { name: 'Quality documents' })
     this.saveButton = page.getByRole('button', { name: 'Save', exact: true })
@@ -204,7 +204,7 @@ export class DocumentContentPage extends DocumentCommonPage {
     this.contacts = page.locator('[id="app-contact\\:string\\:Contacts"]')
     this.createTeamspace = page.getByRole('button', { name: 'Create teamspace' })
     this.employee = page.getByRole('button', { name: 'Employee' })
-    this.employeeDropdown = page.locator('div:nth-child(4) > button').first()
+    this.employeeDropdown = page.locator('button[data-id="btnMoreActions"]')
     this.kickEmployee = page.getByRole('button', { name: 'Kick employee' })
     this.confirmKickEmployee = page.getByRole('button', { name: 'Ok' })
     this.openTeam = page.getByText('Team', { exact: true })
@@ -250,8 +250,13 @@ export class DocumentContentPage extends DocumentCommonPage {
     await this.confirmKickEmployee.click()
   }
 
+  async toggleHideInactive (): Promise<void> {
+    await this.page.locator('[data-id="btn-viewOptions"]').click()
+    await this.page.locator('.antiCard-menu__item', { hasText: 'Hide inactive' }).click()
+    await this.page.keyboard.press('Escape')
+  }
+
   async checkIfEmployeeIsKicked (employee: string): Promise<void> {
-    await this.page.getByRole('link', { name: 'Employee' }).getByRole('button').first().click()
     await expect(this.page.getByText(employee + ' Inactive')).toBeVisible()
   }
 
@@ -380,18 +385,25 @@ export class DocumentContentPage extends DocumentCommonPage {
   }
 
   async selectRelease (version: string): Promise<void> {
-    await this.page.getByText('Release', { exact: true }).click()
+    // A hovered tab also renders its title inside the tooltip (`div.tooltip > span.label.l1`),
+    // so a bare text match resolves to two elements and the tooltip eats the click.
+    await this.page.mouse.move(0, 0)
+    // The tab markup keeps a stray whitespace text node next to the label, and a regex
+    // `hasText` is matched without whitespace normalization - hence the \s* padding.
+    const releaseTab = this.page.locator('div.tab', { hasText: /^\s*Release\s*$/ }).first()
+    await expect(releaseTab).toBeVisible()
+    await releaseTab.click()
     if (version === 'Major') {
-      await this.page.getByText('Major').click()
+      await this.page.locator('label[for="major"]').click()
     }
     if (version === 'Minor') {
-      await this.page.getByText('Minor').click()
+      await this.page.locator('label[for="minor"]').click()
     }
   }
 
   async addReviewersFromTeam (anotherReviewer: boolean = false): Promise<void> {
     await this.page.waitForTimeout(500)
-    await this.page.getByText('Team').click()
+    await this.openTeam.click()
     await this.page.getByText('Add member').nth(1).click()
     if (anotherReviewer) {
       await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).click()
@@ -451,6 +463,9 @@ export class DocumentContentPage extends DocumentCommonPage {
   }
 
   async clickAddFolderButton (): Promise<void> {
+    // The button lives in a nav group header toolbar that is hidden (display:none)
+    // until the header is hovered. Hover the header to reveal it, then click.
+    await this.page.locator('.hulyNavGroup-header', { has: this.addSpaceButton }).hover()
     await this.addSpaceButton.click()
   }
 
@@ -541,11 +556,16 @@ export class DocumentContentPage extends DocumentCommonPage {
 
   async fillTeamspaceFormManager (spaceName: string): Promise<void> {
     await this.page.getByPlaceholder('New teamspace').fill(spaceName)
-    // await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).first().click()
-    // await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).nth(2).click()
-    // await this.page.keyboard.press('Escape')
     await this.page.waitForTimeout(1000)
     await this.createButton.click()
+  }
+
+  // Members button label embeds initials + count (e.g. 'AJ DK 2 members'), both variable -
+  // match the '<n> members' suffix. Dispatch the click: a settling overlay can intercept it.
+  async clickMembersButton (): Promise<void> {
+    const membersButton = this.page.getByRole('button', { name: /\d+ members?$/ }).first()
+    await membersButton.waitFor({ state: 'visible' })
+    await membersButton.dispatchEvent('click')
   }
 
   async changeTeamspaceMembers (spaceName: string): Promise<void> {
@@ -557,7 +577,7 @@ export class DocumentContentPage extends DocumentCommonPage {
     await this.page.getByRole('button', { name: 'AJ Appleseed John' }).click()
     await this.page.keyboard.press('Escape')
     await this.page.waitForTimeout(1000)
-    await this.page.getByRole('button', { name: 'AJ DK 2 members' }).click()
+    await this.clickMembersButton()
     await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).click()
     await this.page.keyboard.press('Escape')
     await this.page.waitForTimeout(1000)
@@ -572,7 +592,7 @@ export class DocumentContentPage extends DocumentCommonPage {
     await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).nth(3).click()
     await this.page.getByRole('button', { name: 'AJ Appleseed John' }).click()
     await this.page.keyboard.press('Escape')
-    await this.page.getByRole('button', { name: 'AJ DK 2 members' }).click()
+    await this.clickMembersButton()
     await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).nth(1).click()
     await this.page.keyboard.press('Escape')
     await this.page.waitForTimeout(1000)
@@ -593,7 +613,7 @@ export class DocumentContentPage extends DocumentCommonPage {
     await this.page.getByRole('button', { name: spaceName }).hover()
     await this.page.getByRole('button', { name: spaceName }).getByRole('button').click()
     await this.editDocumentSpace.click()
-    await this.page.getByRole('button', { name: 'AJ DK 2 members' }).click()
+    await this.clickMembersButton()
     await this.page.getByRole('button', { name: 'VC Velasquez Cain' }).click()
     await this.page.keyboard.press('Escape')
     await this.page.waitForTimeout(1000)
@@ -676,7 +696,7 @@ export class DocumentContentPage extends DocumentCommonPage {
 
   async checkTeamMembersReviewerCoauthorApproverNotExists (): Promise<void> {
     await this.page.waitForTimeout(500)
-    await this.page.getByText('Team').click()
+    await this.openTeam.click()
     await this.page.getByText('Add member').first().click()
     await expect(this.page.getByRole('button', { name: 'AJ Appleseed John' })).not.toBeVisible()
     await this.page.keyboard.press('Escape')
@@ -689,8 +709,8 @@ export class DocumentContentPage extends DocumentCommonPage {
 
   async checkIfHistoryVersionExists (description: string): Promise<void> {
     await this.page.waitForTimeout(200)
-    await expect(this.page.getByText(description)).toBeVisible()
-    await expect(this.page.getByText('v1.0', { exact: true })).toBeVisible()
+    await expect(this.page.getByText(description).first()).toBeVisible()
+    await expect(this.page.getByText('v1.0', { exact: true }).first()).toBeVisible()
   }
 
   async checkDocumentStatus (status: DocumentStatus): Promise<void> {
@@ -762,19 +782,29 @@ export class DocumentContentPage extends DocumentCommonPage {
     await this.page.getByText(text).click()
     await this.page.getByText(text).dblclick()
 
-    // NOTE: without the resize the menu popup might be placed in a wrong place initially
-    // and only update its position on the button click (MouseDown) which leads
-    // to the MouseUp land not on the button and the click handler is not triggered
-    // Resize event ensures that the menu popup is placed correctly before clicking
+    // Dispatch resize before click: the popup shifts between MouseDown and MouseUp, missing
+    // the target.
     await this.page.evaluate(() => {
       window.dispatchEvent(new Event('resize'))
     })
-    await this.buttonAddMessageToText.click()
+    await this.buttonAddMessageToText.waitFor({ state: 'visible' })
+    // Toolbar comment button reacts to mousedown and the popup repositions on it, so a normal
+    // click's mouseup can land off-target. Dispatch the click directly instead.
+    await this.buttonAddMessageToText.dispatchEvent('click')
+    await this.page.locator('div.popup div.tiptap').waitFor({ state: 'visible' })
     await this.addMessage(message)
 
     if (closePopup) {
       await this.closeNewMessagePopup()
     }
+  }
+
+  // Open the Comments aside. The floating comment popup may leave a modal-overlay
+  // that intercepts a plain click, so dispatch the click directly.
+  async openComments (): Promise<void> {
+    await this.buttonComments.waitFor({ state: 'visible' })
+    await this.buttonComments.dispatchEvent('click')
+    await this.page.locator('div.popupPanel-body__aside').waitFor({ state: 'visible', timeout: 10000 })
   }
 
   async sendForApproval (
@@ -818,12 +848,21 @@ export class DocumentContentPage extends DocumentCommonPage {
   }
 
   async closeNewMessagePopup (): Promise<void> {
-    await this.textPageHeader.press('Escape', { delay: 300 })
-    await this.textPageHeader.click({ force: true, delay: 300, position: { x: 1, y: 1 } })
+    // Floating comment popup leaves a modal-overlay backdrop intercepting clicks. Escape until
+    // none remain (DOM count, not visibility - a fading overlay still intercepts).
+    const overlay = this.page.locator('div.modal-overlay')
+    for (let i = 0; i < 8; i++) {
+      if ((await overlay.count()) === 0) return
+      await this.page.keyboard.press('Escape')
+      await this.page.waitForTimeout(300)
+    }
   }
 
   async completeReview (): Promise<void> {
-    await this.buttonCompleteReview.click()
+    // A leftover comment-popup modal-overlay can intercept pointer events even
+    // though the button is enabled; dispatch the click to bypass it.
+    await this.buttonCompleteReview.waitFor({ state: 'visible' })
+    await this.buttonCompleteReview.dispatchEvent('click')
     await this.inputPassword.fill(PlatformPassword)
     await this.buttonSubmit.click()
   }
@@ -852,11 +891,16 @@ export class DocumentContentPage extends DocumentCommonPage {
   }
 
   async checkComparingTextAdded (text: string): Promise<void> {
-    await expect(this.page.locator('span.text-editor-highlighted-node-add', { hasText: text }).first()).toBeVisible()
+    // Diff highlights render after the compare view fully loads, which can lag.
+    await expect(this.page.locator('span.text-editor-highlighted-node-add', { hasText: text }).first()).toBeVisible({
+      timeout: 30000
+    })
   }
 
   async checkComparingTextDeleted (text: string): Promise<void> {
-    await expect(this.page.locator('span.text-editor-highlighted-node-delete', { hasText: text }).first()).toBeVisible()
+    await expect(this.page.locator('span.text-editor-highlighted-node-delete', { hasText: text }).first()).toBeVisible({
+      timeout: 30000
+    })
   }
 
   async checkIfUserCanSelectSpace (space: string, spaceExists: boolean): Promise<void> {

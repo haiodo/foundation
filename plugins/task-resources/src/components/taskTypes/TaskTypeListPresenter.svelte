@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import type { TaskType } from '@hcengineering/task'
   import view from '@hcengineering/view'
   import { taskTypeStore } from '../../'
@@ -30,6 +30,6 @@
 
 {#if _value !== undefined && visible}
   <span class="label flex-row-center gap-1 ml-3">
-    <TaskTypeIcon value={_value} size={'small'} />
+    <TaskTypeIcon value={_value} size="small" />
   </span>
 {/if}

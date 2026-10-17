@@ -12,24 +12,28 @@
 <!-- limitations under the License. -->
 
 <script lang="ts">
-  import core, { Data } from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
+  import type { Data } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import { Breadcrumb, Header, Label, Toggle } from '@hcengineering/ui'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import view from '@hcengineering/view'
-  import { getCurrentEmployee, Translation } from '@hcengineering/contact'
+  import type { Translation } from '@hcengineering/contact'
+  import { getCurrentEmployee } from '@hcengineering/contact'
 
   import contact from '../plugin'
   import LanguageEditor from './LanguageEditor.svelte'
   import LanguagesArrayEditor from './LanguagesArrayEditor.svelte'
-  import { translationStore } from '../translation'
 
   const client = getClient()
   const me = getCurrentEmployee()
+  const query = createQuery()
 
   let settings: Translation | undefined = undefined
 
-  $: settings = $translationStore
+  $: query.query(contact.class.Translation, { attachedTo: me }, (res) => {
+    settings = res[0]
+  })
   $: enabled = settings?.enabled ?? false
 
   async function toggle (data: Partial<Data<Translation>>): Promise<void> {
@@ -52,8 +56,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={view.icon.Translate} label={contact.string.AutoTranslation} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={view.icon.Translate} label={contact.string.AutoTranslation} size="large" isCurrent />
   </Header>
   <div class="flex-row-stretch flex-grow p-10">
     <div class="flex-grow flex-col flex-gap-4">

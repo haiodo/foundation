@@ -3,6 +3,7 @@
     "CreateFunnel": "Yeni Huni",
     "CreateLead": "Yeni Aday",
     "Funnel": "Huni",
+    "DefaultFunnel": "Varsayılan huni",
     "FunnelName": "Huni adı",
     "Funnels": "Huniler",
     "LeadApplication": "Adaylar (beta)",
@@ -33,7 +34,9 @@
     "ConfigLabel": "CRM",
     "ConfigDescription": "Müşteri ilişkiler yönetimi için uzantı",
     "EditFunnel": "Huniyi Düzenle",
-    "FunnelMembers": "Üyeler"
+    "FunnelMembers": "Üyeler",
+    "Website": "Web sitesi",
+    "Industry": "Sektör"
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{doc} was assigned to you by {sender}",

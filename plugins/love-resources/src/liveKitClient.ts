@@ -1,9 +1,13 @@
 import {
   ConnectionState,
+  DisconnectReason,
   type RemoteParticipant,
   Room as LKRoom,
   RoomEvent,
   type VideoCaptureOptions,
+  type ScreenShareCaptureOptions,
+  ScreenSharePresets,
+  type TrackPublishOptions,
   type RemoteTrack,
   type RemoteTrackPublication,
   Track,
@@ -12,18 +16,26 @@ import {
   type TrackPublication,
   type Participant
 } from 'livekit-client'
-import { translate } from '@hcengineering/platform'
-import { getMediaDevices, getSelectedSpeakerId, type MediaSession } from '@hcengineering/media'
+import { type IntlString, getMetadata, translate } from '@hcengineering/platform'
+import {
+  getMediaDevices,
+  getSelectedCamId,
+  getSelectedMicId,
+  getSelectedSpeakerId,
+  type MediaSession
+} from '@hcengineering/media'
 import { LoveEvents } from '@hcengineering/love'
 import { useMedia } from '@hcengineering/media-resources'
 import { get, writable } from 'svelte/store'
 import { Analytics } from '@hcengineering/analytics'
-import { addNotification, NotificationSeverity } from '@hcengineering/ui'
+import { addNotification, NotificationSeverity, showPopup } from '@hcengineering/ui'
 import { getCurrentLanguage } from '@hcengineering/theme'
 import LastParticipantNotification from './components/meeting/LastParticipantNotification.svelte'
 import love from './plugin'
 import { $myPreferences } from './stores'
 import { leaveMeeting } from './meetings'
+import CameraInUsePopup from './components/meeting/CameraInUsePopup.svelte'
+import media from '@hcengineering/media'
 
 export enum ScreenSharingState {
   Inactive,
@@ -35,7 +47,32 @@ export const screenSharingState = writable<ScreenSharingState>(ScreenSharingStat
 export const lkSessionConnected = writable<boolean>(false)
 export const lkReconnected = writable<number>(0)
 
+// Bumped when the server ended this session for good - the room was deleted or we were removed.
+// Reconnecting then lands in a meeting that no longer exists.
+export const lkSessionEnded = writable<number>(0)
+
 export const lkIsConnecting = writable<boolean>(false)
+// Sticky across disconnects AND reloads: a ParticipantInfo row still carrying it is this tab's own
+// leftover, not a second session. sessionStorage is per-tab, so another tab never reads this one.
+const MY_SID_KEY = 'love.lastSessionSid'
+export const myLastSessionSid = writable<string | undefined>(readMySid())
+
+function readMySid (): string | undefined {
+  try {
+    return window.sessionStorage.getItem(MY_SID_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+function rememberMySid (sid: string): void {
+  myLastSessionSid.set(sid)
+  try {
+    window.sessionStorage.setItem(MY_SID_KEY, sid)
+  } catch {
+    // Private mode or storage disabled - the store still covers this tab until it reloads.
+  }
+}
 
 const LAST_PARTICIPANT_NOTIFICATION_DELAY_MS = 60 * 1000
 const AUTO_DISCONNECT_DELAY_MS = 10 * 60 * 1000 // set 10 minutes
@@ -53,6 +90,23 @@ const defaultCaptureOptions: VideoCaptureOptions = {
   }
 }
 
+// `detail` keeps text sharp. Capture is uncapped: the default 1920x1080 made Chrome downscale a HiDPI
+// screen before encoding. See docs/memory/love_recording_quality.md.
+const screenShareCaptureOptions: ScreenShareCaptureOptions = {
+  contentHint: 'detail',
+  resolution: ScreenSharePresets.original.resolution
+}
+// VP8, not the room's VP9: for SVC codecs livekit-client forces `contentHint = 'motion'`. Simulcast is
+// off by default: the recorder silently fell back to the half-resolution layer whenever the full one was
+// paused. Viewers on a weak link then get a paused share instead; front env LOVE_SCREEN_SHARE_SIMULCAST
+// turns it back on.
+function screenSharePublishOptions (): TrackPublishOptions {
+  return {
+    videoCodec: 'vp8',
+    simulcast: getMetadata(love.metadata.ScreenShareSimulcast) === true
+  }
+}
+
 export class LiveKitClient {
   public readonly liveKitRoom: LKRoom
 
@@ -60,6 +114,7 @@ export class LiveKitClient {
   private currentSessionSupportsVideo: boolean = false
   private lastParticipantNotificationTimeout: number = -1
   private lastParticipantDisconnectTimeout: number = -1
+  private cameraInUsePopup: (() => void) | undefined = undefined
 
   constructor () {
     const lkRoom = new LKRoom({
@@ -69,7 +124,8 @@ export class LiveKitClient {
         videoCodec: 'vp9',
         screenShareEncoding: {
           maxBitrate: 15_000_000,
-          maxFramerate: 24,
+          // Static text costs nothing at any fps; 15 fps doubles the bits per frame while scrolling.
+          maxFramerate: 15,
           priority: 'high'
         }
       },
@@ -112,6 +168,8 @@ export class LiveKitClient {
 
     lkIsConnecting.set(true)
     this.currentSessionSupportsVideo = withVideo
+    // `$myPreferences` is whatever is loaded by now: the workbench join awaits the office details
+    // before calling here, the guest join has no workspace client and no preferences at all.
     const ncEnabled = $myPreferences?.noiseCancellation ?? true
     this.liveKitRoom.options.audioCaptureDefaults = {
       ...this.liveKitRoom.options.audioCaptureDefaults,
@@ -121,6 +179,7 @@ export class LiveKitClient {
     }
     try {
       const setupMediaSession = async (): Promise<void> => {
+        this.closeMediaSession()
         this.currentMediaSession = await useMedia({
           state: {
             camera: this.currentSessionSupportsVideo ? { enabled: $myPreferences?.camEnabled ?? true } : undefined,
@@ -129,16 +188,28 @@ export class LiveKitClient {
           autoDestroy: false
         })
       }
-      await Promise.all([
-        this.liveKitRoom.connect(wsURL, token, {
-          maxRetries: 1,
-          websocketTimeout: 10000,
-          peerConnectionTimeout: 10000
-        }),
-        setupMediaSession()
-      ])
+      // request media permissions first so the browser prompt does not race
+      // with LiveKit's PeerConnection timeout. denied permissions are fine -
+      // useMedia returns a session without active devices and the room still
+      // connects (user joins as listener).
+      try {
+        await setupMediaSession()
+      } catch (err) {
+        console.warn('[LiveKitClient.connect] media session failed, joining without devices', err)
+        this.closeMediaSession()
+      }
+      await this.liveKitRoom.connect(wsURL, token, {
+        maxRetries: 3,
+        websocketTimeout: 20000,
+        peerConnectionTimeout: 30000
+      })
 
       this.currentMediaSession?.on('camera', (enabled) => {
+        if (!enabled && this.cameraInUsePopup !== undefined) {
+          this.clearCameraInUse()
+          return
+        }
+
         void this.setCameraEnabled(enabled)
       })
       this.currentMediaSession?.on('microphone', (enabled) => {
@@ -158,30 +229,63 @@ export class LiveKitClient {
         void this.setScreenShareEnabled(enabled, true)
       })
 
-      await this.updateActiveDevices()
+      try {
+        await this.updateActiveDevices()
+      } catch (err) {
+        console.warn('[LiveKitClient.connect] failed to apply device state, devices stay off', err)
+      }
       console.log('[LiveKitClient.connect] Connection established successfully', { state: this.liveKitRoom.state })
     } catch (error) {
       console.error('[LiveKitClient.connect] Connection failed', { error, state: this.liveKitRoom.state })
       lkIsConnecting.set(false)
-      this.currentMediaSession?.close()
-      this.currentMediaSession?.removeAllListeners()
-      this.currentMediaSession = undefined
+      this.closeMediaSession()
+
+      if (this.liveKitRoom.state === ConnectionState.Connected) {
+        await this.disconnect().catch(() => {})
+      }
+
       throw error
     }
   }
 
   async disconnect (): Promise<void> {
     console.log('[LiveKitClient.disconnect] Disconnecting...', { state: this.liveKitRoom.state })
+    this.clearCameraInUse()
     screenSharingState.set(ScreenSharingState.Inactive)
     clearTimeout(this.lastParticipantNotificationTimeout)
     const me = this.liveKitRoom.localParticipant
-    await Promise.all([me.setScreenShareEnabled(false), me.setCameraEnabled(false), me.setMicrophoneEnabled(false)])
-    await this.liveKitRoom.disconnect()
-    this.currentSessionSupportsVideo = false
-    this.currentMediaSession?.close()
-    this.currentMediaSession?.removeAllListeners()
-    this.currentMediaSession = undefined
+    try {
+      await Promise.all([me.setScreenShareEnabled(false), me.setCameraEnabled(false), me.setMicrophoneEnabled(false)])
+      await this.liveKitRoom.disconnect()
+    } finally {
+      this.currentSessionSupportsVideo = false
+      this.closeMediaSession()
+    }
     console.log('[LiveKitClient.disconnect] Disconnected', { state: this.liveKitRoom.state })
+  }
+
+  // Every leak of this registers a second entry in the global media `sessions` store, and the
+  // aggregated mic state is an OR across all of them - a stale one freezes the mic button.
+  private closeMediaSession (): void {
+    if (this.currentMediaSession === undefined) return
+
+    const cameraTrack = this.currentMediaSession.state?.camera?.track
+    const micTrack = this.currentMediaSession.state?.microphone?.track
+
+    try {
+      if (cameraTrack !== undefined) {
+        cameraTrack.stop()
+      }
+      if (micTrack !== undefined) {
+        micTrack.stop()
+      }
+    } catch (err) {
+      console.warn('[LiveKitClient.closeMediaSession] failed to stop tracks', err)
+    }
+
+    this.currentMediaSession.close()
+    this.currentMediaSession.removeAllListeners()
+    this.currentMediaSession = undefined
   }
 
   async awaitConnect (): Promise<void> {
@@ -198,6 +302,7 @@ export class LiveKitClient {
   onConnected = (): void => {
     console.log('[LiveKitClient.onConnected] Connected event fired')
     lkSessionConnected.set(true)
+    rememberMySid(this.liveKitRoom.localParticipant.sid)
     lkIsConnecting.set(false)
 
     this.liveKitRoom.on(RoomEvent.ParticipantConnected, this.onParticipantConnected)
@@ -220,10 +325,18 @@ export class LiveKitClient {
     lkReconnected.update((v) => v + 1)
   }
 
-  onDisconnected = (): void => {
-    console.log('[LiveKitClient.onDisconnected] Disconnected event fired')
+  onDisconnected = (reason?: DisconnectReason): void => {
     lkSessionConnected.set(false)
     lkIsConnecting.set(false)
+    // A network drop or a refresh is transient and must stay reconnectable; these three mean the
+    // meeting is over on the server side.
+    if (
+      reason === DisconnectReason.ROOM_DELETED ||
+      reason === DisconnectReason.ROOM_CLOSED ||
+      reason === DisconnectReason.PARTICIPANT_REMOVED
+    ) {
+      lkSessionEnded.update((v) => v + 1)
+    }
     this.liveKitRoom.off(RoomEvent.ParticipantConnected, this.onParticipantConnected)
     this.liveKitRoom.off(RoomEvent.ParticipantDisconnected, this.onParticipantDisconnected)
     this.liveKitRoom.off(RoomEvent.TrackSubscribed, this.onTrackSubscribed)
@@ -450,21 +563,31 @@ export class LiveKitClient {
   }
 
   async updateActiveDevices (): Promise<void> {
-    await this.setActiveCamera(this.currentMediaSession?.state.camera?.deviceId)
-    await this.setActiveMicrophone(this.currentMediaSession?.state.microphone?.deviceId)
+    // Fall back to the stored choice: a session created muted carries no deviceId.
+    await this.setActiveCamera(this.currentMediaSession?.state.camera?.deviceId ?? getSelectedCamId())
+    await this.setActiveMicrophone(this.currentMediaSession?.state.microphone?.deviceId ?? getSelectedMicId())
     await this.setCameraEnabled(this.currentMediaSession?.state.camera?.enabled ?? false)
     await this.setMicrophoneEnabled(this.currentMediaSession?.state.microphone?.enabled ?? false)
   }
 
   async setActiveCamera (deviceId: string | undefined): Promise<void> {
-    if (deviceId === undefined || deviceId === null) return
+    if (deviceId === undefined || deviceId === null || deviceId === '') return
     if (!this.currentSessionSupportsVideo) return
-    await this.liveKitRoom.switchActiveDevice('videoinput', deviceId, true)
+    try {
+      await this.liveKitRoom.switchActiveDevice('videoinput', deviceId, true)
+    } catch (error) {
+      // Stored device may be gone; LiveKit keeps the previous default.
+      console.warn('[LiveKitClient.setActiveCamera] failed to switch camera', { deviceId, error })
+    }
   }
 
   async setActiveMicrophone (deviceId: string | undefined): Promise<void> {
-    if (deviceId === undefined || deviceId === null) return
-    await this.liveKitRoom.switchActiveDevice('audioinput', deviceId, true)
+    if (deviceId === undefined || deviceId === null || deviceId === '') return
+    try {
+      await this.liveKitRoom.switchActiveDevice('audioinput', deviceId, true)
+    } catch (error) {
+      console.warn('[LiveKitClient.setActiveMicrophone] failed to switch microphone', { deviceId, error })
+    }
   }
 
   async setActiveSpeaker (deviceId: string | undefined): Promise<void> {
@@ -503,16 +626,68 @@ export class LiveKitClient {
 
     try {
       await this.liveKitRoom.localParticipant.setCameraEnabled(value)
+      if (value) this.clearCameraInUse()
     } catch (e) {
-      // If enabling failed, try to select an available camera and enable again.
       if (value) {
-        const mediaDevices = await getMediaDevices(false, true)
-        if (mediaDevices.activeCamera !== undefined) {
-          await this.setActiveCamera(mediaDevices.activeCamera.deviceId)
-          await this.liveKitRoom.localParticipant.setCameraEnabled(true)
-        }
+        await this.handleCameraError(e)
       }
     }
+  }
+
+  private showCameraInUseNotification (err: unknown): void {
+    const name = (err as DOMException)?.name ?? ''
+    const msg = ((err as Error)?.message ?? '').toLowerCase()
+
+    let message: IntlString = media.string.DefaultCameraError
+    if (name === 'NotReadableError' || name === 'AbortError' || msg.includes('in use')) {
+      message = media.string.CameraInUseMessage
+    } else if (name === 'NotAllowedError' || name === 'SecurityError' || msg.includes('permission')) {
+      message = media.string.CameraNotAllowed
+    }
+
+    if (this.cameraInUsePopup !== undefined) return
+
+    const result = showPopup(
+      CameraInUsePopup,
+      {
+        message,
+        onRetry: () => {
+          this.clearCameraInUse()
+          void this.setCameraEnabled(true)
+        }
+      },
+      'centered',
+      () => {
+        this.currentMediaSession?.setCamera({ enabled: false })
+        this.clearCameraInUse()
+      }
+    )
+
+    this.cameraInUsePopup = result.close
+  }
+
+  private clearCameraInUse (): void {
+    this.cameraInUsePopup?.()
+    this.cameraInUsePopup = undefined
+  }
+
+  private async handleCameraError (error: unknown): Promise<void> {
+    let retryError: unknown | undefined
+
+    try {
+      const mediaDevices = await getMediaDevices(false, true)
+      if (mediaDevices.activeCamera !== undefined) {
+        await this.setActiveCamera(mediaDevices.activeCamera.deviceId)
+        await this.liveKitRoom.localParticipant.setCameraEnabled(true)
+        this.clearCameraInUse()
+        return
+      }
+    } catch (retryErr) {
+      console.warn('[LiveKitClient.handleCameraError] camera unavailable, stays off', retryErr)
+      retryError = retryErr
+    }
+
+    this.showCameraInUseNotification(retryError ?? error)
   }
 
   async applyNoiseCancellation (value: boolean): Promise<void> {
@@ -540,10 +715,14 @@ export class LiveKitClient {
       await this.liveKitRoom.localParticipant.setMicrophoneEnabled(value)
     } catch (e) {
       if (value) {
-        const mediaDevices = await getMediaDevices(true, false)
-        if (mediaDevices.activeMicrophone !== undefined) {
-          await this.setActiveMicrophone(mediaDevices.activeMicrophone.deviceId)
-          await this.liveKitRoom.localParticipant.setMicrophoneEnabled(true)
+        try {
+          const mediaDevices = await getMediaDevices(true, false)
+          if (mediaDevices.activeMicrophone !== undefined) {
+            await this.setActiveMicrophone(mediaDevices.activeMicrophone.deviceId)
+            await this.liveKitRoom.localParticipant.setMicrophoneEnabled(true)
+          }
+        } catch (retryErr) {
+          console.warn('[LiveKitClient.setMicrophoneEnabled] microphone unavailable, stays off', retryErr)
         }
       }
     }
@@ -551,7 +730,11 @@ export class LiveKitClient {
 
   async setScreenShareEnabled (value: boolean, withAudio: boolean = false): Promise<void> {
     try {
-      await this.liveKitRoom.localParticipant.setScreenShareEnabled(value, { audio: withAudio })
+      await this.liveKitRoom.localParticipant.setScreenShareEnabled(
+        value,
+        { audio: withAudio, ...screenShareCaptureOptions },
+        screenSharePublishOptions()
+      )
     } catch (e) {
       console.log(e)
     }

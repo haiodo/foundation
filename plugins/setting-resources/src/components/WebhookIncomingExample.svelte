@@ -1,0 +1,298 @@
+<!--
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+-->
+<script lang="ts">
+  import { apiKeyOperations, type ApiKeyOperation } from '@hcengineering/account-client'
+  import { concatLink, type Doc } from '@hcengineering/core'
+  import { getMetadata } from '@hcengineering/platform'
+  import { copyTextToClipboard } from '@hcengineering/presentation'
+  import setting from '@hcengineering/setting'
+  import {
+    Button,
+    DropdownLabels,
+    Icon,
+    IconCopy,
+    Label,
+    Scroller,
+    eventToHTMLElement,
+    showPopup,
+    type DropdownTextItem
+  } from '@hcengineering/ui'
+  import view from '@hcengineering/view'
+  import settingsRes from '../plugin'
+  import { buildWebhookExamples, PLACEHOLDER_KEY, targetKind } from '../webhookTargetKind'
+  import {
+    renderWebhookSnippet,
+    webhookSnippetToolLabels,
+    webhookSnippetTools,
+    type WebhookSnippetTool
+  } from '../webhookSnippets'
+  import WebhookTargetPicker from './WebhookTargetPicker.svelte'
+
+  interface TargetLike extends Doc {
+    identifier?: string
+    name?: string
+    title?: string
+  }
+
+  let op: ApiKeyOperation = apiKeyOperations[0]
+  const opItems: DropdownTextItem[] = apiKeyOperations.map((o) => ({ id: o, label: o }))
+
+  let target: TargetLike | undefined
+  $: kind = targetKind(op)
+  // The kind changes with the operation, so a target picked for the previous one no longer applies.
+  $: if (kind._class !== undefined) target = undefined
+  $: targetValue = target?.[kind.field]
+  $: targetLabel = target !== undefined ? (target.name ?? target.title ?? target.identifier ?? '') : undefined
+
+  let tool: WebhookSnippetTool = 'json'
+  const toolItems: DropdownTextItem[] = webhookSnippetTools.map((t) => ({ id: t, label: webhookSnippetToolLabels[t] }))
+
+  const serviceUrl = getMetadata(setting.metadata.WebhookServiceUrl) ?? ''
+  // Absolute: the service url is relative when the pod sits behind the front's own origin, and these
+  // lines are pasted into curl or a script running elsewhere.
+  // Only the base goes through URL: it would percent-encode the <API_KEY> placeholder in the path.
+  const serviceBase = new URL(serviceUrl, window.location.origin).href
+  function absoluteUrl (path: string): string {
+    return concatLink(serviceBase, path)
+  }
+  const actionUrl = absoluteUrl('/api/v1/webhook/action')
+  // No live key/token ever appears here - examples get pasted into tickets and chats, and one carrying
+  // a real credential would leak it. Only the placeholder and the header/path shape are shown.
+  const pathEndpoint = absoluteUrl(`/api/v1/webhook/k/${PLACEHOLDER_KEY}`)
+  const rulesEndpoint = absoluteUrl('/api/v1/webhook/in')
+  // Without the `Bearer` scheme the key is not recognized and the call gets 401.
+  const authHeader = `Authorization: Bearer ${PLACEHOLDER_KEY}`
+
+  function pickTarget (event: MouseEvent): void {
+    showPopup(
+      WebhookTargetPicker,
+      {
+        _class: kind._class,
+        docQuery: kind.docQuery,
+        searchField: kind.searchField,
+        searchMode: kind.category !== undefined ? 'spotlight' : 'field',
+        category: kind.category,
+        selected: target?._id
+      },
+      eventToHTMLElement(event),
+      (result?: Doc) => {
+        if (result !== undefined) target = result as TargetLike
+      }
+    )
+  }
+
+  async function copyText (text: string): Promise<void> {
+    if (!window.isSecureContext) return
+    await copyTextToClipboard(text)
+  }
+
+  $: examples = buildWebhookExamples(op, targetValue)
+</script>
+
+<div class="hulyComponent-content__container columns">
+  <div class="hulyComponent-content__column content">
+    <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
+      <div class="hulyComponent-content gap">
+        <div class="hulyTableAttr-container">
+          <div class="hulyTableAttr-header font-medium-12">
+            <Icon icon={settingsRes.icon.Setting} size="small" />
+            <span><Label label={settingsRes.string.WebhookIncomingEndpoint} /></span>
+          </div>
+          <div class="hulyTableAttr-content section">
+            <div class="endpointLine">
+              <div class="hint"><Label label={settingsRes.string.WebhookIncomingEndpointHeaderAuth} /></div>
+              <div class="flex-row-center flex-gap-2">
+                <code class="endpointUrl select-text">POST {actionUrl}</code>
+                <Button
+                  kind="ghost"
+                  size="small"
+                  icon={IconCopy}
+                  showTooltip={{ label: view.string.CopyToClipboard }}
+                  on:click={() => {
+                    void copyText(actionUrl)
+                  }}
+                />
+              </div>
+              <div class="flex-row-center flex-gap-2">
+                <code class="endpointUrl select-text">{authHeader}</code>
+                <Button
+                  kind="ghost"
+                  size="small"
+                  icon={IconCopy}
+                  showTooltip={{ label: view.string.CopyToClipboard }}
+                  on:click={() => {
+                    void copyText(authHeader)
+                  }}
+                />
+              </div>
+            </div>
+            <div class="endpointLine">
+              <div class="hint"><Label label={settingsRes.string.WebhookIncomingEndpointPathAuth} /></div>
+              <div class="flex-row-center flex-gap-2">
+                <code class="endpointUrl select-text">POST {pathEndpoint}</code>
+                <Button
+                  kind="ghost"
+                  size="small"
+                  icon={IconCopy}
+                  showTooltip={{ label: view.string.CopyToClipboard }}
+                  on:click={() => {
+                    void copyText(pathEndpoint)
+                  }}
+                />
+              </div>
+            </div>
+            <div class="endpointLine">
+              <div class="hint"><Label label={settingsRes.string.WebhookIncomingEndpointRules} /></div>
+              <div class="flex-row-center flex-gap-2">
+                <code class="endpointUrl select-text">POST {rulesEndpoint}</code>
+                <Button
+                  kind="ghost"
+                  size="small"
+                  icon={IconCopy}
+                  showTooltip={{ label: view.string.CopyToClipboard }}
+                  on:click={() => {
+                    void copyText(rulesEndpoint)
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hulyTableAttr-container">
+          <div class="hulyTableAttr-header font-medium-12">
+            <Icon icon={settingsRes.icon.Integrations} size="small" />
+            <span><Label label={settingsRes.string.WebhookExamplesIncoming} /></span>
+          </div>
+          <div class="hulyTableAttr-content section">
+            <div class="hint"><Label label={settingsRes.string.WebhookConstructHint} /></div>
+            <div class="pickers">
+              <div class="flex-col flex-gap-1">
+                <Label label={settingsRes.string.WebhookConstructOperation} />
+                <DropdownLabels items={opItems} bind:selected={op} kind="regular" size="medium" justify="left" />
+              </div>
+              <div class="flex-col flex-gap-1">
+                <Label label={settingsRes.string.WebhookExampleTool} />
+                <DropdownLabels items={toolItems} bind:selected={tool} kind="regular" size="medium" justify="left" />
+              </div>
+              <div class="flex-col flex-gap-1">
+                <Label label={settingsRes.string.WebhookConstructTarget} />
+                <Button kind="regular" size="medium" justify="left" on:click={pickTarget}>
+                  <svelte:fragment slot="content">
+                    {#if targetLabel !== undefined}
+                      {targetLabel}
+                    {:else}
+                      <Label label={settingsRes.string.WebhookConstructPickTarget} />
+                    {/if}
+                  </svelte:fragment>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hulyTableAttr-container">
+          <div class="hulyTableAttr-header font-medium-12">
+            <Icon icon={settingsRes.icon.Setting} size="small" />
+            <span><Label label={settingsRes.string.WebhookExamplePayload} /></span>
+          </div>
+          <div class="hulyTableAttr-content section">
+            {#if tool === 'postman'}
+              <div class="hint"><Label label={settingsRes.string.WebhookExamplePostmanHint} /></div>
+            {/if}
+            {#each examples as example (example.title)}
+              <div class="exampleCard">
+                <div class="flex-row-center flex-between">
+                  <span class="opLabel">{example.title}</span>
+                  <Button
+                    kind="ghost"
+                    size="small"
+                    icon={IconCopy}
+                    showTooltip={{ label: view.string.CopyToClipboard }}
+                    on:click={() => {
+                      void copyText(renderWebhookSnippet(tool, actionUrl, PLACEHOLDER_KEY, example.json))
+                    }}
+                  />
+                </div>
+                {#if example.hint}
+                  <div class="hint warn"><Label label={example.hint} /></div>
+                {/if}
+                <pre class="samplePayload select-text">{renderWebhookSnippet(
+                  tool,
+                  actionUrl,
+                  PLACEHOLDER_KEY,
+                  example.json
+                )}</pre>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </Scroller>
+  </div>
+</div>
+
+<style lang="scss">
+  .section {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.75rem;
+    padding: var(--spacing-2);
+  }
+  .pickers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .hint {
+    color: var(--theme-dark-color);
+    font-size: 0.8125rem;
+  }
+  .warn {
+    color: var(--theme-error-color);
+  }
+  .opLabel {
+    font-family: monospace;
+  }
+  .endpointLine {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .endpointUrl {
+    font-family: monospace;
+    font-size: 0.8125rem;
+    word-break: break-all;
+  }
+  .exampleCard {
+    padding: 0.75rem;
+    border: 1px solid var(--theme-divider-color);
+    border-radius: 0.5rem;
+  }
+  .samplePayload {
+    max-width: 100%;
+    max-height: 16rem;
+    overflow: auto;
+    margin: 0.375rem 0 0;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.75rem;
+    background: var(--theme-bg-color);
+    border: 1px solid var(--theme-divider-color);
+    border-radius: 0.375rem;
+  }
+</style>

@@ -13,13 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Employee } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import { UsersPopup } from '@hcengineering/contact-resources'
   import type { Ref } from '@hcengineering/core'
-  import { type Department } from '@hcengineering/hr'
+  import type { Department } from '@hcengineering/hr'
   import { getClient } from '@hcengineering/presentation'
   import { Button, IconAdd, Label, Section, showPopup, Scroller } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { Table, ViewletSelector, ViewletSettingButton } from '@hcengineering/view-resources'
   import hr from '../plugin'
 
@@ -72,9 +73,9 @@
         bind:loading
         viewletQuery={{ _id: hr.viewlet.TableMember }}
       />
-      <ViewletSettingButton kind={'tertiary'} bind:viewlet />
+      <ViewletSettingButton kind="tertiary" bind:viewlet />
       {#if !readonly}
-        <Button id={hr.string.AddMember} icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id={hr.string.AddMember} icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </svelte:fragment>

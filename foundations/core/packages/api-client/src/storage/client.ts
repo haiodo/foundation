@@ -144,7 +144,7 @@ export class StorageClientImpl implements StorageClient {
     const response = await wrappedFetch(url, {
       headers: {
         ...this.headers,
-        Range: length !== undefined ? `bytes=${offset}-${offset + length - 1}` : `bytes=${offset}`
+        Range: length !== undefined ? `bytes=${offset}-${offset + length - 1}` : `bytes=${offset}-`
       }
     })
 
@@ -173,7 +173,7 @@ async function toBuffer (data: Buffer | string | Readable): Promise<Buffer> {
     for await (const chunk of data) {
       chunks.push(chunk)
     }
-    return Buffer.concat(chunks as any)
+    return Buffer.concat(chunks)
   } else {
     throw new TypeError('Unsupported data type')
   }

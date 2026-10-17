@@ -13,19 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import documents, {
-    ControlledDocument,
-    ControlledDocumentState,
-    DocumentRequest,
-    DocumentState,
-    Project
-  } from '@hcengineering/controlled-documents'
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { ControlledDocument, DocumentRequest, Project } from '@hcengineering/controlled-documents'
+  import documents, { ControlledDocumentState, DocumentState } from '@hcengineering/controlled-documents'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { Panel } from '@hcengineering/panel'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import { Collaboration } from '@hcengineering/text-editor-resources'
+  import type { Tab } from '@hcengineering/ui'
   import {
     Button,
     Chevron,
@@ -35,7 +31,6 @@
     navigate,
     resolvedLocationStore,
     showPopup,
-    Tab,
     Tabs
   } from '@hcengineering/ui'
   import { showMenu } from '@hcengineering/view-resources'
@@ -69,7 +64,8 @@
     $isProjectEditable as isProjectEditable,
     rightPanelTabChanged
   } from '../stores/editors/document'
-  import { completeRequest, getDocumentVersionString, getLatestProjectId, rejectRequest, TeamPopupData } from '../utils'
+  import type { TeamPopupData } from '../utils'
+  import { completeRequest, getDocumentVersionString, getLatestProjectId, rejectRequest } from '../utils'
   import DocumentDiffViewer from './document/DocumentDiffViewer.svelte'
   import DocumentHistory from './document/DocumentHistory.svelte'
   import EditDocContent from './document/EditDocContent.svelte'
@@ -102,7 +98,7 @@
   let isTitlePressed: boolean = false
   let creating: boolean = false
 
-  const notificationClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const notificationClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   $: read(_id)
   function read (_id: Ref<Doc>): void {
@@ -324,7 +320,7 @@
     allowClose={withClose && !embedded}
     {embedded}
     printHeader={false}
-    adaptive={'autoExtra'}
+    adaptive="autoExtra"
     overflowExtra
     hideSearch
     on:close
@@ -336,9 +332,9 @@
           <ProjectSelector
             value={project}
             space={$controlledDocument.space}
-            kind={'ghost'}
-            size={'medium'}
-            justify={'left'}
+            kind="ghost"
+            size="medium"
+            justify="left"
             disabled
             on:change={(e) => {
               project = e.detail
@@ -460,7 +456,7 @@
       {#if $editorMode === 'comparing'}
         <DocumentDiffViewer />
       {:else}
-        <Tabs model={tabs} bind:selected={selectedTab} size={'large'} padding="0 1.5rem" noMargin />
+        <Tabs model={tabs} bind:selected={selectedTab} size="large" padding="0 1.5rem" noMargin />
       {/if}
     </Collaboration>
     <svelte:fragment slot="custom-attributes">

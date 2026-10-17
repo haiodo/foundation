@@ -2,6 +2,7 @@ const esbuild = require('esbuild')
 const path = require('path')
 const fs = require('fs')
 const { execSync } = require('child_process')
+const { escapeNonLatin1File } = require('./escape-non-latin1.js')
 
 const SCRIPT_DIR = __dirname
 
@@ -24,6 +25,22 @@ function getGitRevision() {
   } catch (error) {
     console.warn('Failed to get git revision:', error.message)
     return ''
+  }
+}
+
+// Bundles carry the build commit so a stand can be traced back to it.
+// Desktop is unaffected: it goes through webpack, not this script.
+function getVersionWithRevision() {
+  const version = getVersionFromScript('./show_tag.js')
+  if (version === '') {
+    return version
+  }
+  try {
+    const revision = execSync('git rev-parse --short HEAD').toString().trim()
+    return JSON.stringify(`${JSON.parse(version)}-${revision}`)
+  } catch (error) {
+    console.warn('Failed to get git revision:', error.message)
+    return version
   }
 }
 
@@ -63,8 +80,10 @@ async function bundle(config) {
       keepNames: config.keepNames,
       sourcemap: config.sourcemap,
       external: config.external,
-      define: config.define
+      define: config.define,
+      charset: 'ascii'
     })
+    escapeNonLatin1File(path.join(config.outdir, config.outfile))
 
     console.log('Build completed successfully!')
   } catch (error) {
@@ -89,6 +108,9 @@ async function main() {
         case 'out':
           config.outfile = value
           break
+        case 'platform':
+          config.platform = value
+          break
         case 'minify':
           config.minify = value !== 'false'
           break
@@ -110,8 +132,13 @@ async function main() {
 
   const env = {
     MODEL_VERSION: define['MODEL_VERSION'] ? getVersionFromScript('./show_version.js') : undefined,
-    VERSION: getVersionFromScript('./show_tag.js'),
-    GIT_REVISION: define['GIT_REVISION'] ? getGitRevision() : undefined
+    VERSION: getVersionWithRevision(),
+    GIT_REVISION: define['GIT_REVISION'] ? getGitRevision() : undefined,
+    // License public key (base64 PEM), baked at CI build time. Empty/unset on dev/local builds ->
+    // license.ts treats the build as edition 'dev' (unlimited, no gating). JSON.stringify so esbuild
+    // define gets a quoted string literal (VERSION etc. arrive pre-quoted from their scripts).
+    LICENSE_PUBLIC_KEY:
+      process.env.LICENSE_PUBLIC_KEY !== undefined ? JSON.stringify(process.env.LICENSE_PUBLIC_KEY) : undefined
   }
 
   Object.entries(env).forEach(([key, value]) => {

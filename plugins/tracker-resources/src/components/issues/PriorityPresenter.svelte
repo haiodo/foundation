@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, IntlString } from '@hcengineering/platform'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import { IssuePriority } from '@hcengineering/tracker'
   import { Icon, Label, getPlatformColorDef, themeStore } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
@@ -39,7 +39,7 @@
 {#if value !== undefined}
   <div class="flex-presenter">
     <div class="icon">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
     <span class="overflow-label">
       <Label {label} />

@@ -235,46 +235,44 @@ export async function benchmark (
 
       try {
         const fetchUrl = endpoint.replace('ws:/', 'http:/') + '/api/v1/statistics'
-        if (p === undefined) {
-          p = fetch(fetchUrl, {
-            headers: {
-              Authorization: 'Bearer ' + token
-            },
-            keepalive: true
+        p ??= fetch(fetchUrl, {
+          headers: {
+            Authorization: 'Bearer ' + token
+          },
+          keepalive: true
+        })
+          .then((res) => {
+            void res
+              .json()
+              .then((json) => {
+                memUsed = json.statistics.memoryUsed
+                memTotal = json.statistics.memoryTotal
+                memRSS = json.statistics.memoryRSS
+                memArrays = json.statistics.memoryArrayBuffers
+                cpu = json.statistics.cpuUsage
+                // operations = 0
+                requestTime = 0
+                // transfer = 0
+                const r = extract(json.metrics as Metrics, '🧲 session', 'client', 'process', 'find-all')
+                operations = (r?.operations ?? 0) - oldOperations
+                oldOperations = r?.operations ?? 0
+
+                requestTime = (r?.value ?? 0) / (((r?.operations as number) ?? 0) + 1)
+
+                const tr = extract(json.metrics as Metrics, '🧲 session', 'client', '#send-data')
+                transfer = (tr?.value ?? 0) - oldTransfer
+                oldTransfer = tr?.value ?? 0
+                p = undefined
+              })
+              .catch((err) => {
+                console.log(err)
+                p = undefined
+              })
           })
-            .then((res) => {
-              void res
-                .json()
-                .then((json) => {
-                  memUsed = json.statistics.memoryUsed
-                  memTotal = json.statistics.memoryTotal
-                  memRSS = json.statistics.memoryRSS
-                  memArrays = json.statistics.memoryArrayBuffers
-                  cpu = json.statistics.cpuUsage
-                  // operations = 0
-                  requestTime = 0
-                  // transfer = 0
-                  const r = extract(json.metrics as Metrics, '🧲 session', 'client', 'process', 'find-all')
-                  operations = (r?.operations ?? 0) - oldOperations
-                  oldOperations = r?.operations ?? 0
-
-                  requestTime = (r?.value ?? 0) / (((r?.operations as number) ?? 0) + 1)
-
-                  const tr = extract(json.metrics as Metrics, '🧲 session', 'client', '#send-data')
-                  transfer = (tr?.value ?? 0) - oldTransfer
-                  oldTransfer = tr?.value ?? 0
-                  p = undefined
-                })
-                .catch((err) => {
-                  console.log(err)
-                  p = undefined
-                })
-            })
-            .catch((err) => {
-              console.log(err)
-              p = undefined
-            })
-        }
+          .catch((err) => {
+            console.log(err)
+            p = undefined
+          })
       } catch (err) {
         console.log(err)
       }
@@ -300,7 +298,6 @@ export async function benchmark (
         })
       }
       elapsed++
-      // console.log('Sheduled', scheduled)
       csvWriter.add(
         {
           time: elapsed,
@@ -415,7 +412,6 @@ export function benchmarkWorker (): void {
 
         while (msg.options.smallRequests + msg.options.bigRequests > 0) {
           const variant = Math.random()
-          // console.log(`Thread ${msg.workId} ${msg.options.smallRequests} ${msg.options.bigRequests}`)
           if (msg.options.bigRequests > 0 && variant < 0.5 && bigRunning === 0) {
             await rateLimiter.add(async () => {
               bigRunning = 1
@@ -465,7 +461,6 @@ export function benchmarkWorker (): void {
           }
         }
 
-        // clearInterval(infoInterval)
         await rateLimiter.waitProcessing()
         const to1 = setTimeout(() => {
           parentPort?.postMessage({
@@ -475,8 +470,6 @@ export function benchmarkWorker (): void {
           })
         }, 5000)
         clearTimeout(to1)
-        //
-        // console.log(`${msg.idd} perform complete`)
       } else if (msg.options.mode === 'connect-only') {
         parentPort?.postMessage({
           type: 'operate',
@@ -510,35 +503,6 @@ export type StressBenchmarkMode = 'wrong' | 'connect-disconnect'
 export async function stressBenchmark (transactor: string, mode: StressBenchmarkMode): Promise<void> {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // if (mode === 'wrong') {
-  //   console.log('Stress with wrong workspace/email')
-  //   let counter = 0
-  //   const rate = new RateLimiter(1)
-  //   while (true) {
-  //     try {
-  //       counter++
-  //       console.log('Attempt', counter)
-  //       const token = generateToken(generateId(), generateId())
-  //       await rate.add(async () => {
-  //         try {
-  //           const ws = new WebSocket(concatLink(transactor, token))
-  //           await new Promise<void>((resolve) => {
-  //             ws.onopen = () => {
-  //               resolve()
-  //             }
-  //           })
-  //           // ws.close()
-  //           // await createClient(transactor, token, undefined, 50)
-  //           console.log('out')
-  //         } catch (err: any) {
-  //           console.error(err)
-  //         }
-  //       })
-  //     } catch (err: any) {
-  //       // Ignore
-  //     }
-  //   }
-  // }
 }
 
 export async function testFindAll (endpoint: string, workspace: WorkspaceUuid, account: PersonUuid): Promise<void> {

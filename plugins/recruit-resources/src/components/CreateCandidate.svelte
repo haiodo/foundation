@@ -15,31 +15,21 @@
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
   import attachment, { AttachmentsEvents } from '@hcengineering/attachment'
-  import contact, {
-    AvatarType,
-    Channel,
-    ChannelProvider,
-    combineName,
-    findContacts,
-    Person
-  } from '@hcengineering/contact'
+  import type { Channel, ChannelProvider, Person } from '@hcengineering/contact'
+  import contact, { AvatarType, combineName, findContacts } from '@hcengineering/contact'
   import { ChannelsDropdown, EditableAvatar, PersonPresenter } from '@hcengineering/contact-resources'
+  import type { AttachedData, Data, Doc, MixinData, Ref, WithLookup } from '@hcengineering/core'
   import core, {
     Account,
-    AttachedData,
-    Data,
-    Doc,
     fillDefaults,
     generateId,
-    MixinData,
-    Ref,
     toIdMap,
     TxProcessor,
-    WithLookup,
     type Blob,
     type PersonId
   } from '@hcengineering/core'
   import { getMetadata, getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
   import presentation, {
     Card,
     createQuery,
@@ -48,13 +38,14 @@
     FilePreviewPopup,
     getClient,
     InlineAttributeBar,
-    KeyedAttribute,
     MessageBox,
     MultipleDraftController
   } from '@hcengineering/presentation'
-  import { Candidate, CandidateDraft, RecruitEvents } from '@hcengineering/recruit'
+  import type { Candidate, CandidateDraft } from '@hcengineering/recruit'
+  import { RecruitEvents } from '@hcengineering/recruit'
   import { recognizeDocument } from '@hcengineering/rekoni'
-  import tags, { findTagCategory, TagElement, TagReference } from '@hcengineering/tags'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
+  import tags, { findTagCategory } from '@hcengineering/tags'
   import {
     Button,
     Component,
@@ -344,7 +335,7 @@
       }
 
       if (!object.avatar && doc.avatar !== undefined) {
-        // We had avatar, let's try to upload it.
+        // We had avatar, try to upload it.
         const data = atob(doc.avatar)
         let n = data.length
         const u8arr = new Uint8Array(n)
@@ -484,7 +475,7 @@
 
       await recognize(file)
     } catch (err: any) {
-      setPlatformStatus(unknownError(err))
+      void setPlatformStatus(unknownError(err))
     } finally {
       loading = false
     }
@@ -494,14 +485,14 @@
     dragover = false
     const droppedFile = event.dataTransfer?.files[0]
     if (droppedFile !== undefined) {
-      createAttachment(droppedFile)
+      void createAttachment(droppedFile)
     }
   }
 
   function fileSelected () {
     const file = inputFile.files?.[0]
     if (file !== undefined) {
-      createAttachment(file)
+      void createAttachment(file)
     }
     manager.setFocusPos(102)
   }
@@ -596,7 +587,7 @@
   on:changeContent
 >
   <svelte:fragment slot="header">
-    <Button icon={contact.icon.Person} label={contact.string.Person} size={'large'} disabled on:click={() => {}} />
+    <Button icon={contact.icon.Person} label={contact.string.Person} size="large" disabled on:click={() => {}} />
   </svelte:fragment>
   <div class="flex-between">
     <div class="flex-col">
@@ -604,17 +595,17 @@
         disabled={loading}
         placeholder={recruit.string.PersonFirstNamePlaceholder}
         bind:value={object.firstName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
-        maxWidth={'30rem'}
+        maxWidth="30rem"
         focusIndex={1}
       />
       <EditBox
         disabled={loading}
         placeholder={recruit.string.PersonLastNamePlaceholder}
         bind:value={object.lastName}
-        maxWidth={'30rem'}
-        kind={'large-style'}
+        maxWidth="30rem"
+        kind="large-style"
         focusIndex={2}
       />
       <div class="mt-1">
@@ -622,18 +613,18 @@
           disabled={loading}
           placeholder={recruit.string.Title}
           bind:value={object.title}
-          kind={'small-style'}
+          kind="small-style"
           focusIndex={3}
-          maxWidth={'30rem'}
+          maxWidth="30rem"
         />
       </div>
       <EditBox
         disabled={loading}
         placeholder={recruit.string.Location}
         bind:value={object.city}
-        kind={'small-style'}
+        kind="small-style"
         focusIndex={4}
-        maxWidth={'30rem'}
+        maxWidth="30rem"
       />
     </div>
     <div class="flex-col items-center flex-gap-2 ml-4">
@@ -644,13 +635,13 @@
         person={{
           avatarType: AvatarType.COLOR
         }}
-        size={'large'}
+        size="large"
         name={combineName(object?.firstName?.trim() ?? '', object?.lastName?.trim() ?? '')}
       />
       <ActionIcon
         icon={IconShuffle}
         label={recruit.string.SwapFirstAndLastNames}
-        size={'medium'}
+        size="medium"
         action={() => {
           const first = object.firstName
           object.firstName = object.lastName
@@ -665,8 +656,8 @@
       focusIndex={10}
       bind:value={object.channels}
       highlighted={matchedChannels.map((it) => it.provider)}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
     {#if onsite?.hidden !== true}
       <YesNo
@@ -675,8 +666,8 @@
         label={recruit.string.Onsite}
         tooltip={recruit.string.WorkLocationPreferences}
         bind:value={object.onsite}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/if}
     {#if remote?.hidden !== true}
@@ -686,8 +677,8 @@
         label={recruit.string.Remote}
         tooltip={recruit.string.WorkLocationPreferences}
         bind:value={object.remote}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     {/if}
     <Component
@@ -716,8 +707,8 @@
       <div class="antiComponent antiEmphasized w-full flex-grow mt-2">
         <Component
           is={tags.component.TagsEditor}
+          disabled={loading}
           props={{
-            disabled: loading,
             focusIndex: 102,
             items: object.skills,
             key,
@@ -812,12 +803,12 @@
     {#if matches.length > 0}
       <div class="flex-col-stretch flex-grow error-color">
         <div class="flex mb-1">
-          <IconInfo size={'medium'} />
+          <IconInfo size="medium" />
           <span class="text-sm overflow-label ml-2">
             <Label label={contact.string.PersonAlreadyExists} />
           </span>
         </div>
-        <PersonPresenter value={matches[0]} avatarSize={'tiny'} />
+        <PersonPresenter value={matches[0]} avatarSize="tiny" />
       </div>
     {/if}
   </svelte:fragment>

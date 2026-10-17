@@ -33,6 +33,7 @@ import {
   Ref,
   SocialId,
   toIdMap,
+  TxApplyResult,
   TxFactory,
   DocumentUpdate
 } from '@hcengineering/core'
@@ -247,7 +248,7 @@ export async function findContacts (
  */
 export async function findPerson (client: Client, name: string, channels: AttachedData<Channel>[]): Promise<Person[]> {
   const result = await findContacts(client, contact.class.Person, name, channels)
-  return result.contacts as Person[]
+  return result.contacts
 }
 
 const SEP = ','
@@ -415,15 +416,26 @@ export async function getAllUserAccounts (client: Client): Promise<AccountUuid[]
   return employees.map((it) => it.personUuid).filter(notEmpty)
 }
 
+export interface EnsureEmployeeOptions {
+  // When false, skip Employee mixin creation. Default: true.
+  createEmployee?: boolean
+  // Force a specific employee role instead of deriving from person.role.
+  roleOverride?: 'USER' | 'GUEST'
+}
+
 export async function ensureEmployee (
   ctx: MeasureContext,
   me: Account,
   client: Pick<Client, 'findOne' | 'findAll' | 'tx'>,
   socialIds: SocialId[],
-  getGlobalPerson: () => Promise<GlobalPerson | undefined>
+  getGlobalPerson: () => Promise<GlobalPerson | undefined>,
+  options?: EnsureEmployeeOptions
 ): Promise<Ref<Employee> | null> {
-  const globalPerson = await getGlobalPerson()
-  return await ensureEmployeeForPerson(ctx, me, me, client, socialIds, globalPerson)
+  return await ensureEmployeeForPerson(ctx, me, me, client, socialIds, getGlobalPerson, options)
+}
+
+function employeeMixin (person: Person): Pick<Employee, 'active' | 'role'> | undefined {
+  return Hierarchy.hasMixin(person, contact.mixin.Employee) ? (person as any)[contact.mixin.Employee] : undefined
 }
 
 export async function ensureEmployeeForPerson (
@@ -432,67 +444,92 @@ export async function ensureEmployeeForPerson (
   person: Account,
   client: Pick<Client, 'findOne' | 'findAll' | 'tx'>,
   socialIds: SocialId[],
-  globalPerson?: GlobalPerson
+  globalPersonOrGetter?: GlobalPerson | (() => Promise<GlobalPerson | undefined>),
+  options?: EnsureEmployeeOptions
 ): Promise<Ref<Employee> | null> {
-  let personRef: Ref<Person> | undefined
+  const createEmployee = options?.createEmployee ?? true
+  const maxRetries = 3
+  const socialIdRefs = person.socialIds as SocialIdentityRef[]
+
+  // Everything the common path needs, in one round trip.
+  const [globalPerson, personByUuid, existingIdentities] = await Promise.all([
+    typeof globalPersonOrGetter === 'function' ? globalPersonOrGetter() : globalPersonOrGetter,
+    client.findOne(contact.class.Person, { personUuid: person.uuid }),
+    client.findAll(contact.class.SocialIdentity, { _id: { $in: socialIdRefs } })
+  ])
+
+  // These social ids are confirmed globally, as socialIds holds only confirmed identities:
+  // a local person one of them is attached to is ours even without personUuid.
+  let personRef: Ref<Person> | undefined = personByUuid?._id ?? existingIdentities[0]?.attachedTo
+  const foundBySocialId = personByUuid === undefined && personRef !== undefined
+  let personDoc: Person | undefined = personByUuid
+
+  for (let attempt = 0; personRef === undefined && attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      // Small delay to allow the other concurrent operation to complete
+      await new Promise((resolve) => setTimeout(resolve, 10 * attempt))
+    }
+    const txFactory = new TxFactory(me.primarySocialId)
+
+    // Local person not found: neither by personUuid nor by a local social identity
+    // Creating a new local person using TxApplyIf to prevent race conditions
+    let shouldRetry = false
+    await ctx.with('create-person', {}, async () => {
+      if (globalPerson === undefined) {
+        console.error('Cannot get global person')
+        return null
+      }
+
+      const data = {
+        personUuid: person.uuid,
+        name: combineName(globalPerson.firstName, globalPerson.lastName),
+        city: '',
+        avatarType: AvatarType.COLOR
+      }
+      personRef = generateId()
+
+      const createPersonTx = txFactory.createTxCreateDoc(contact.class.Person, contact.space.Contacts, data, personRef)
+
+      // Use TxApplyIf with notMatch to atomically check that no Person with this personUuid exists
+      // This prevents duplicate Person creation under concurrent ensureEmployee calls
+      const applyTx = txFactory.createTxApplyIf(
+        contact.space.Contacts,
+        `ensure-person-${person.uuid}`,
+        [],
+        [{ _class: contact.class.Person, query: { personUuid: person.uuid } }],
+        [createPersonTx],
+        'ensureEmployee'
+      )
+      const txResult = await client.tx(applyTx)
+
+      // Re-check: if our TxApplyIf was rejected (another concurrent call won the race),
+      // find the Person that was created by the winner
+      const existingPerson = await client.findOne(contact.class.Person, { personUuid: person.uuid })
+      if (existingPerson !== undefined) {
+        personRef = existingPerson._id
+        personDoc = existingPerson
+      } else if (!(txResult as TxApplyResult).success) {
+        // TxApplyIf was rejected and we couldn't find the existing person yet
+        // Mark for retry - another concurrent call may have created it
+        shouldRetry = true
+        personRef = undefined
+      }
+    })
+
+    if (!shouldRetry) {
+      // TxApplyIf succeeded or person was found, break out of retry loop
+      break
+    }
+  }
+
+  if (personRef === undefined) {
+    console.error('Failed to find or create person after retries')
+    return null
+  }
+
   try {
     const txFactory = new TxFactory(me.primarySocialId)
-    const personByUuid = await client.findOne(contact.class.Person, { personUuid: person.uuid })
-    personRef = personByUuid?._id
-
-    if (personRef === undefined) {
-      const socialIdentity = await client.findOne(contact.class.SocialIdentity, {
-        _id: { $in: person.socialIds as SocialIdentityRef[] }
-      })
-
-      // This social id is confirmed globally as we only have ids of confirmed social identities in socialIds array
-      personRef = socialIdentity?.attachedTo
-    }
-
-    if (personRef === undefined) {
-      // Local person not found: neither by personUuid nor by a local social identity
-      // Creating a new local person using TxApplyIf to prevent race conditions
-      await ctx.with('create-person', {}, async () => {
-        if (globalPerson === undefined) {
-          console.error('Cannot get global person')
-          return null
-        }
-
-        const data = {
-          personUuid: person.uuid,
-          name: combineName(globalPerson.firstName, globalPerson.lastName),
-          city: '',
-          avatarType: AvatarType.COLOR
-        }
-        personRef = generateId()
-
-        const createPersonTx = txFactory.createTxCreateDoc(
-          contact.class.Person,
-          contact.space.Contacts,
-          data,
-          personRef
-        )
-
-        // Use TxApplyIf with notMatch to atomically check that no Person with this personUuid exists
-        // This prevents duplicate Person creation under concurrent ensureEmployee calls
-        const applyTx = txFactory.createTxApplyIf(
-          contact.space.Contacts,
-          `ensure-person-${person.uuid}`,
-          [],
-          [{ _class: contact.class.Person, query: { personUuid: person.uuid } }],
-          [createPersonTx],
-          'ensureEmployee'
-        )
-        await client.tx(applyTx)
-
-        // Re-check: if our TxApplyIf was rejected (another concurrent call won the race),
-        // find the Person that was created by the winner
-        const existingPerson = await client.findOne(contact.class.Person, { personUuid: person.uuid })
-        if (existingPerson !== undefined) {
-          personRef = existingPerson._id
-        }
-      })
-    } else if (personByUuid === undefined) {
+    if (foundBySocialId) {
       // Local person found only by social identity, need to set personUuid
       const updatePersonTx = txFactory.createTxUpdateDoc(contact.class.Person, contact.space.Contacts, personRef, {
         personUuid: person.uuid
@@ -500,9 +537,7 @@ export async function ensureEmployeeForPerson (
       await client.tx(updatePersonTx)
     }
 
-    const existingIdentifiers = toIdMap(
-      await client.findAll(contact.class.SocialIdentity, { _id: { $in: person.socialIds as SocialIdentityRef[] } })
-    )
+    const existingIdentifiers = toIdMap(existingIdentities)
 
     for (const socialId of socialIds) {
       const existing = existingIdentifiers.get(socialId._id as SocialIdentityRef)
@@ -536,7 +571,18 @@ export async function ensureEmployeeForPerson (
               socialId._id as SocialIdentityRef
             )
           )
-          await client.tx(createSocialIdTx)
+
+          // Use TxApplyIf with notMatch to atomically check that no SocialIdentity with this _id exists.
+          // This prevents duplicate SocialIdentity creation under concurrent ensureEmployee calls.
+          const applyTx = txFactory.createTxApplyIf(
+            contact.space.Contacts,
+            `ensure-social-identity-${socialId._id}`,
+            [],
+            [{ _class: contact.class.SocialIdentity, query: { _id: socialId._id as SocialIdentityRef } }],
+            [createSocialIdTx],
+            'ensureEmployee'
+          )
+          await client.tx(applyTx)
         })
       } else {
         // If not confirmed locally can be attached to a different person (persons merge scenario)
@@ -585,49 +631,78 @@ export async function ensureEmployeeForPerson (
       }
     }
 
+    // Phone is not a social id: it is never verified, so it lives on the global person as a hint.
+    const phoneHint = globalPerson?.phoneHint
+    if (phoneHint != null && phoneHint !== '') {
+      const existingChannel = await client.findOne(contact.class.Channel, {
+        attachedTo: personRef,
+        provider: contact.channelProvider.Phone,
+        value: phoneHint
+      })
+
+      if (existingChannel == null) {
+        const createChannelTx = txFactory.createTxCollectionCUD(
+          contact.class.Person,
+          personRef,
+          contact.space.Contacts,
+          'channels',
+          txFactory.createTxCreateDoc(contact.class.Channel, contact.space.Contacts, {
+            attachedTo: personRef,
+            attachedToClass: contact.class.Person,
+            collection: 'channels',
+            provider: contact.channelProvider.Phone,
+            value: phoneHint
+          })
+        )
+
+        await client.tx(createChannelTx)
+      }
+    }
+
     // NOTE: it is important to create Employee after Person and SocialIdentities are ensured so all the triggers applied
     // on Employee creation will be able to properly map things
-    const employeeRole =
-      person.role === AccountRole.Guest || person.role === AccountRole.ReadOnlyGuest ? 'GUEST' : 'USER'
-    const employee = await client.findOne(contact.mixin.Employee, { _id: personRef as Ref<Employee> })
+    if (createEmployee) {
+      const employeeRole =
+        options?.roleOverride ??
+        (person.role === AccountRole.Guest || person.role === AccountRole.ReadOnlyGuest ? 'GUEST' : 'USER')
+      // The person document already carries the mixin; only a person found through a social identity
+      // has not been read yet.
+      personDoc ??= await client.findOne(contact.class.Person, { _id: personRef })
+      const employee = personDoc !== undefined ? employeeMixin(personDoc) : undefined
 
-    if (
-      employee === undefined ||
-      !Hierarchy.hasMixin(employee, contact.mixin.Employee) ||
-      !employee.active ||
-      employee.role !== employeeRole
-    ) {
-      await ctx.with('create-employee', {}, async () => {
-        if (personRef === undefined) {
-          // something went wrong
-          console.error('Person not found')
-          return null
-        }
-
-        const createEmployeeTx = txFactory.createTxMixin(
-          personRef,
-          contact.class.Person,
-          contact.space.Contacts,
-          contact.mixin.Employee,
-          {
-            active: true,
-            role: employeeRole
+      if (employee === undefined || !employee.active || employee.role !== employeeRole) {
+        await ctx.with('create-employee', {}, async () => {
+          if (personRef === undefined) {
+            // something went wrong
+            console.error('Person not found')
+            return null
           }
-        )
 
-        // Use TxApplyIf to prevent duplicate Employee mixin creation under concurrent calls.
-        // Without this, two parallel ensureEmployee calls can both see no Employee and both
-        // send TxMixin, triggering OnEmployeeCreate twice and creating duplicate PersonSpaces.
-        const applyTx = txFactory.createTxApplyIf(
-          contact.space.Contacts,
-          `ensure-employee-${person.uuid}`,
-          [],
-          [{ _class: contact.mixin.Employee, query: { _id: personRef, active: true } }],
-          [createEmployeeTx],
-          'ensureEmployee'
-        )
-        await client.tx(applyTx)
-      })
+          const createEmployeeTx = txFactory.createTxMixin(
+            personRef,
+            contact.class.Person,
+            contact.space.Contacts,
+            contact.mixin.Employee,
+            {
+              active: true,
+              role: employeeRole
+            }
+          )
+
+          // Use TxApplyIf to prevent duplicate Employee mixin creation under concurrent calls.
+          // Without this, two parallel ensureEmployee calls can both see no Employee and both
+          // send TxMixin, triggering OnEmployeeCreate twice and creating duplicate PersonSpaces.
+          const applyTx = txFactory.createTxApplyIf(
+            contact.space.Contacts,
+            `ensure-employee-${person.uuid}`,
+            [],
+            [{ _class: contact.mixin.Employee, query: { _id: personRef, active: true } }],
+            [createEmployeeTx],
+            'ensureEmployee'
+          )
+          await client.tx(applyTx)
+        })
+      }
     }
 
     // TODO: check for merged persons with this one and do the merge
@@ -721,6 +796,23 @@ export async function loadCachesForPersonRefs (client: Client, personRefs: Array
 
     contactCache.fillCachesForPersonRef(personRef, person)
   }
+}
+
+export async function getSocialIdsByPersonRefsBase (
+  client: Client,
+  personRefs: Array<Ref<Person>>
+): Promise<Map<Ref<Person>, PersonId[]>> {
+  const missing = personRefs.filter((ref) => !contactCache.personIdsByPersonRef.has(ref))
+  if (missing.length > 0) {
+    await loadCachesForPersonRefs(client, missing)
+  }
+
+  const result = new Map<Ref<Person>, PersonId[]>()
+  for (const ref of personRefs) {
+    result.set(ref, Array.from(contactCache.personIdsByPersonRef.get(ref) ?? []))
+  }
+
+  return result
 }
 
 export async function getPersonRefByPersonId (client: Client, personId: PersonId): Promise<Ref<Person> | null> {

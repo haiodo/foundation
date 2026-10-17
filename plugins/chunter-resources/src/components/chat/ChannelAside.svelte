@@ -13,12 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { getCurrentAccount, Ref, notEmpty, AccountUuid } from '@hcengineering/core'
+  import type { Ref, AccountUuid } from '@hcengineering/core'
+  import core, { getCurrentAccount, notEmpty } from '@hcengineering/core'
   import presentation from '@hcengineering/presentation'
   import { Label, showPopup, tooltip } from '@hcengineering/ui'
 
-  import { Channel, ChunterSpace, ObjectChatPanel } from '@hcengineering/chunter'
-  import { Employee, Person } from '@hcengineering/contact'
+  import type { Channel, ChunterSpace, ObjectChatPanel } from '@hcengineering/chunter'
+  import type { Employee, Person } from '@hcengineering/contact'
   import {
     EmployeeBox,
     employeeRefByAccountUuidStore,
@@ -131,10 +132,10 @@
         <EmployeeBox
           value={creatorPersonRef}
           label={core.string.CreatedBy}
-          kind={'link'}
-          size={'medium'}
-          avatarSize={'card'}
-          width={'100%'}
+          kind="link"
+          size="medium"
+          avatarSize="card"
+          width="100%"
           showNavigate={false}
           readonly
         />

@@ -47,11 +47,11 @@
         {maxDigitsAfterPoint}
         select
         on:keypress={_onkeypress}
-        maxWidth={'12rem'}
+        maxWidth="12rem"
       />
     </div>
     <div class="ml-2">
-      <Button icon={IconCheck} size={'small'} on:click={() => dispatch('close', value)} />
+      <Button icon={IconCheck} size="small" on:click={() => dispatch('close', value)} />
     </div>
   </div>
 </div>

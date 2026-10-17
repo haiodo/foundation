@@ -15,12 +15,15 @@
 //
 -->
 <script lang="ts">
-  import { Card, cardId } from '@hcengineering/card'
-  import core, { Ref } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import { cardId } from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Button, DropdownLabels, DropdownTextItem, getCurrentLocation, navigate, showPopup } from '@hcengineering/ui'
+  import type { DropdownTextItem } from '@hcengineering/ui'
+  import { Button, DropdownLabels, getCurrentLocation, navigate, showPopup } from '@hcengineering/ui'
   import card from '../plugin'
-  import NewVersionPopup from './NewVersionPopup.svelte'
+  import { createNewVersion } from '../utils'
 
   export let value: Card
 
@@ -70,15 +73,17 @@
     }
   }
 
-  function newVersion (): void {
-    showPopup(NewVersionPopup, {
-      value
-    })
+  async function newVersion (): Promise<void> {
+    const _id = await createNewVersion(value)
+    const loc = getCurrentLocation()
+    loc.path[2] = cardId
+    loc.path[3] = _id
+    navigate(loc)
   }
 </script>
 
 {#if enabled}
-  <DropdownLabels kind={'link'} {items} on:selected={selectHandler} selected={value._id} />
+  <DropdownLabels kind="link" {items} on:selected={selectHandler} selected={value._id} />
   {#if value.isLatest}
     <Button label={card.string.NewVersion} on:click={newVersion} />
   {/if}

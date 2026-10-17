@@ -13,15 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Class, Doc, getCurrentAccount, reduceCalls, Ref, SortingOrder, WithLookup } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { createQuery, getClient, LiveQuery } from '@hcengineering/presentation'
-  import { Chat, DirectMessage } from '@hcengineering/chunter'
-  import { Employee } from '@hcengineering/contact'
-  import { onDestroy } from 'svelte'
+  import type { Class, Doc, Ref, SearchTarget, WithLookup } from '@hcengineering/core'
+  import core, { getCurrentAccount, reduceCalls, SortingOrder } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { LiveQuery } from '@hcengineering/presentation'
+  import { createQuery, getClient } from '@hcengineering/presentation'
+  import type { Chat, DirectMessage } from '@hcengineering/chunter'
+  import type { Employee } from '@hcengineering/contact'
+  import { createEventDispatcher, onDestroy, tick } from 'svelte'
 
   import chunter from '../../../plugin'
-  import { ChatNavGroupModel } from '../types'
+  import type { ChatNavGroupModel } from '../types'
   import ChatNavSection from './ChatNavSection.svelte'
   import {
     createFakeDirectFromEmployee,
@@ -36,6 +38,9 @@
   export let model: ChatNavGroupModel
   export let search: string = ''
   export let employees: Employee[] = []
+  export let active: boolean = true
+
+  const dispatch = createEventDispatcher<{ loaded: undefined }>()
 
   interface Section {
     id: string
@@ -65,8 +70,20 @@
   $: shouldPushObject = shouldPushObjectInNavigator(model, object, chat, Array.from(objectsByClass.keys()))
   $: pushObj = shouldPushObject && object != null ? { object, chat } : undefined
 
+  let loadedReported = false
+  const answeredClasses = new Set<Ref<Class<Doc>>>()
+
+  function reportLoaded (classes: Array<Ref<Class<Doc>>>): void {
+    if (loadedReported || !classes.every((it) => answeredClasses.has(it))) return
+    loadedReported = true
+    // A group without classes reports during its own initialisation, before the parent has
+    // attached its listener: the event goes out a tick later.
+    void tick().then(() => dispatch('loaded'))
+  }
+
   function loadObjects (model: ChatNavGroupModel, pinned: Chat[], search: string): void {
     const classes = getNavGroupClasses(model, pinned)
+    reportLoaded(classes)
 
     for (const _class of classes) {
       const { query, limit } = objectsQueryByClass.get(_class) ?? {
@@ -82,25 +99,28 @@
         search !== ''
           ? {
               $search: search !== '' ? `*${search}*` : undefined,
-              $searchStrict: true
+              $searchIn: ['title', 'identifier'] as SearchTarget[]
             }
           : {
               hidden: false
             }
+
+      const isSpace = hierarchy.isDerived(_class, core.class.Space)
       query.query(
         chunter.class.Chat,
         {
           ...model.query,
           account: me.uuid,
-          attachedToClass: _class,
+          attachedToClass: { $in: hierarchy.getDescendants(_class) },
           ...searchQuery,
+          ...(isSpace ? { '$lookup.attachedTo.archived': false } : {}),
           '$lookup.attachedTo._id': { $exists: true }
         },
         (res) => {
-          const docs: { doc: Doc, chat: Chat }[] = res
-            .filter((it) => it.$lookup?.attachedTo != null)
-            .map((it) => ({ doc: it.$lookup?.attachedTo as Doc, chat: it }))
+          const docs: { doc: Doc, chat: Chat }[] = res.map((it) => ({ doc: it.$lookup?.attachedTo as Doc, chat: it }))
           objectsByClass = objectsByClass.set(_class, { docs, total: res.total })
+          answeredClasses.add(_class)
+          reportLoaded(classes)
         },
         {
           total: true,
@@ -125,9 +145,30 @@
     objectsByClass = objectsByClass
   }
 
-  $: loadObjects(model, pinned, search)
+  const searchDebounceMs = 300
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+  let debouncedSearch = search
+
+  $: if (search === '' || search === debouncedSearch) {
+    // Empty search (e.g. cleared, or the initial value) and no-op changes apply immediately.
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = undefined
+    }
+    debouncedSearch = search
+  } else {
+    if (searchDebounceTimer != null) clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = undefined
+      debouncedSearch = search
+    }, searchDebounceMs)
+  }
+
+  $: if (active) loadObjects(model, pinned, debouncedSearch)
 
   onDestroy(() => {
+    if (searchDebounceTimer != null) clearTimeout(searchDebounceTimer)
+
     for (const { query } of objectsQueryByClass.values()) {
       query.unsubscribe()
     }
@@ -165,7 +206,7 @@
         const clazz = hierarchy.getClass(_class)
         const sectionObjects: { doc: Doc, chat?: Chat }[] = [...docs]
 
-        if (!isObjectPushed && pushObject !== undefined && _class === pushObject.object._class) {
+        if (!isObjectPushed && _class === pushObject?.object._class) {
           isObjectPushed = true
           sectionObjects.push({ doc: pushObject.object, chat: pushObject.chat })
         }
@@ -231,28 +272,28 @@
 </script>
 
 {#each sections as section (section.id)}
-  <ChatNavSection
-    id={section.id}
-    _class={section._class ?? core.class.Doc}
-    objects={section.objects}
-    objectId={object?._id}
-    header={section.label}
-    actions={model.actionsFn()}
-    createAction={model.createAction}
-    sortFn={model.sortFn}
-    showEmpty={model.showEmpty}
-    itemsCount={section.count}
-    {pinned}
-    sortByScore={search !== ''}
-    on:show-more={() => {
-      if (section._class !== undefined) {
-        const query = objectsQueryByClass.get(section._class)
-        if (query?.limit != null) {
-          query.limit += 50
-          loadObjects(model, pinned, search)
+  {#if section.objects.length > 0 || model.showEmpty}
+    <ChatNavSection
+      id={section.id}
+      _class={section._class ?? core.class.Doc}
+      objects={section.objects}
+      objectId={object?._id}
+      header={section.label}
+      actions={model.actionsFn()}
+      createAction={model.createAction}
+      sortFn={model.sortFn}
+      showEmpty={model.showEmpty}
+      itemsCount={section.count}
+      on:show-more={() => {
+        if (section._class !== undefined) {
+          const query = objectsQueryByClass.get(section._class)
+          if (query?.limit != null) {
+            query.limit += 50
+            loadObjects(model, pinned, search)
+          }
         }
-      }
-    }}
-    on:select
-  />
+      }}
+      on:select
+    />
+  {/if}
 {/each}

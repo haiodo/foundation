@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import type { Asset, IntlString } from '@hcengineering/platform'
-  import { ComponentType } from 'svelte'
+  import type { ComponentType } from 'svelte'
   import type { AnySvelteComponent, TooltipAlignment } from '../types'
 
   import { tooltip } from '../tooltips'
@@ -30,6 +30,7 @@
   export let invisible: boolean = false
   export let disabled: boolean = false
   export let keys: string[] | undefined = undefined
+  export let dataId: string | undefined = undefined
 </script>
 
 <button
@@ -39,6 +40,7 @@
   on:click|stopPropagation|preventDefault={action}
   on:contextmenu
   {disabled}
+  data-id={dataId}
 >
   <div class="icon {size}" class:invisible>
     <Icon {icon} {size} {iconProps} />

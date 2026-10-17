@@ -13,20 +13,30 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ExecutionError } from '@hcengineering/process'
-  import { ButtonIcon, IconError } from '@hcengineering/ui'
+  import { translateCB } from '@hcengineering/platform'
+  import process, { type ExecutionError } from '@hcengineering/process'
+  import { IconError, languageStore } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+
   import ErrorTooltip from './ErrorTooltip.svelte'
 
   export let value: ExecutionError[] | null | undefined
+
+  // The tooltip is a component, so the button is named separately.
+  let name = ''
+  $: translateCB(process.string.Error, {}, $languageStore === '' ? undefined : $languageStore, (text) => {
+    name = text
+  })
 </script>
 
 {#if value}
-  <ButtonIcon
+  <IconButton
     icon={IconError}
     size="small"
     iconSize="medium"
-    kind={'tertiary'}
+    kind="tertiary"
     tooltip={{ component: ErrorTooltip, props: { value } }}
+    aria-label={name}
     on:click
   />
 {/if}

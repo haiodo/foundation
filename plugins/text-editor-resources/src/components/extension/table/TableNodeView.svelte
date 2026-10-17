@@ -1,6 +1,7 @@
 <!--
 //
 // Copyright © 2023, 2024 Hardcore Engineering Inc.
+// Copyright © 2026 TraceX SAS.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -17,11 +18,11 @@
 <script lang="ts">
   import { IconAdd } from '@hcengineering/ui'
   import { onDestroy, onMount } from 'svelte'
-  import { NodeViewContent, NodeViewProps, NodeViewWrapper } from '../../node-view'
+  import type { NodeViewProps } from '../../node-view'
+  import { NodeViewContent, NodeViewWrapper } from '../../node-view'
   import { findTable, insertColumn, insertRow } from './utils'
   import { TableMap, updateColumnsOnResize } from '@tiptap/pm/tables'
   import { getToolbarCursor, setToolbarMeta } from '../toolbar/toolbar'
-  import { getTableCursor } from './table'
 
   export let node: NodeViewProps['node']
   export let getPos: NodeViewProps['getPos']
@@ -77,13 +78,54 @@
 
   let tableElement: HTMLTableElement
   let colgroupElement: HTMLTableColElement
+  let printTableContainer: HTMLDivElement
+  let printMediaQuery: MediaQueryList | undefined
+
+  function handleBeforePrint (): void {
+    const printTable = tableElement.cloneNode(true) as HTMLTableElement
+    const printBody = printTable.tBodies.item(0)
+    if (printBody !== null) {
+      const headerRows: HTMLTableRowElement[] = []
+      for (const row of Array.from(printBody.rows)) {
+        if (row.cells[0]?.tagName !== 'TH') break
+        headerRows.push(row)
+      }
+
+      if (headerRows.length > 0) {
+        const printHead = document.createElement('thead')
+        printHead.append(...headerRows)
+        printTable.insertBefore(printHead, printBody)
+      }
+    }
+
+    printTableContainer.replaceChildren(printTable)
+  }
+
+  function handleAfterPrint (): void {
+    printTableContainer.replaceChildren()
+  }
+
+  function handlePrintMediaChange (event: MediaQueryListEvent): void {
+    if (event.matches) {
+      handleBeforePrint()
+    } else {
+      handleAfterPrint()
+    }
+  }
 
   onMount(() => {
     updateColumns()
+    printMediaQuery = window.matchMedia('print')
+    window.addEventListener('beforeprint', handleBeforePrint)
+    window.addEventListener('afterprint', handleAfterPrint)
+    printMediaQuery.addEventListener('change', handlePrintMediaChange)
   })
 
   onDestroy(() => {
     editor.off('selectionUpdate', handleSelectionUpdate)
+    window.removeEventListener('beforeprint', handleBeforePrint)
+    window.removeEventListener('afterprint', handleAfterPrint)
+    printMediaQuery?.removeEventListener('change', handlePrintMediaChange)
   })
 
   function onScroll (event: Event): void {
@@ -108,6 +150,7 @@
 <!-- prettier-ignore -->
 <NodeViewWrapper class="table-node-wrapper" data-drag-handle>
   <div class="table-wrapper" class:table-selected={editable && focused}>
+    <div class="table-print" bind:this={printTableContainer}></div>
     <div class="table-scroller" on:scroll={(e) => { onScroll(e) }}>
       <table class={className} bind:this={tableElement}>
         <colgroup bind:this={colgroupElement} />
@@ -121,7 +164,7 @@
           <div class="w-full h-full flex showOnHover">
             <button class="table-button w-full h-full" on:click={handleAddColumn}>
               <div class="table-button__dot" />
-              <div class="table-button__icon"><IconAdd size={'small'} /></div>
+              <div class="table-button__icon"><IconAdd size="small" /></div>
             </button>
           </div>
         </div>
@@ -130,7 +173,7 @@
           <div class="w-full h-full flex showOnHover">
             <button class="table-button w-full h-full" on:click={handleAddRow}>
               <div class="table-button__dot" />
-              <div class="table-button__icon"><IconAdd size={'small'} /></div>
+              <div class="table-button__icon"><IconAdd size="small" /></div>
             </button>
           </div>
         </div>
@@ -211,6 +254,45 @@
         .table-button {
           height: 1.25rem;
         }
+      }
+    }
+
+    .table-print {
+      display: none;
+    }
+  }
+
+  @media print {
+    .table-wrapper {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+
+      .table-scroller {
+        display: none;
+      }
+
+      .table-print {
+        display: block;
+
+        :global(table) {
+          width: 100%;
+          border-collapse: collapse !important;
+          border-spacing: 0 !important;
+        }
+
+        :global(tr),
+        :global(td),
+        :global(th) {
+          break-inside: avoid;
+          page-break-inside: avoid;
+          border-right: 0.5px solid var(--text-editor-table-border-color) !important;
+          border-bottom: 0.5px solid var(--text-editor-table-border-color) !important;
+        }
+      }
+
+      .table-toolbar-components {
+        display: none;
       }
     }
   }

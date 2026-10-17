@@ -20,7 +20,6 @@ import core, {
   Class,
   Collaborator,
   Doc,
-  parseSocialIdString,
   PersonId,
   type Ref,
   SocialId,
@@ -30,8 +29,11 @@ import core, {
 } from '@hcengineering/core'
 
 export async function getCurrentPerson (control: TriggerControl): Promise<Person | undefined> {
-  const { type, value } = parseSocialIdString(control.txFactory.account)
-  const socialIdentity = (await control.findAll(control.ctx, contact.class.SocialIdentity, { type, value }))[0]
+  const socialIdentity = (
+    await control.findAll(control.ctx, contact.class.SocialIdentity, {
+      _id: control.ctx.contextData.account.primarySocialId as SocialIdentityRef
+    })
+  )[0]
 
   if (socialIdentity === undefined) {
     return undefined
@@ -67,9 +69,7 @@ export async function getSocialStringsByPersons (
   })
 
   return socialIdentities.reduce<Record<Ref<Person>, PersonId[]>>((acc, s) => {
-    if (acc[s.attachedTo] === undefined) {
-      acc[s.attachedTo] = []
-    }
+    acc[s.attachedTo] ??= []
 
     acc[s.attachedTo].push(s._id)
 
@@ -114,6 +114,65 @@ export async function getPerson (control: TriggerControl, personId: PersonId): P
   }
 
   return (await control.findAll(control.ctx, contact.class.Person, { _id: socialId.attachedTo }))[0]
+}
+
+/**
+ * Persons of many social ids in at most two queries, instead of getPerson per id. An id without a
+ * person (unknown social id, System) is missing from the result.
+ */
+export async function getPersonsBySocialIds (
+  control: TriggerControl,
+  personIds: PersonId[]
+): Promise<Map<PersonId, Ref<Person>>> {
+  const result = new Map<PersonId, Ref<Person>>()
+  const ids = [...new Set(personIds)].filter((it) => it !== core.account.System)
+  if (ids.length === 0) return result
+
+  const { contextData } = control.ctx
+  const accountByPersonId = new Map<PersonId, AccountUuid>()
+  const bySocialIdentity: PersonId[] = []
+  for (const id of ids) {
+    const account: AccountUuid | undefined = contextData.account.socialIds.includes(id)
+      ? contextData.account.uuid
+      : contextData.socialStringsToUsers.get(id)?.accountUuid
+    if (account !== undefined) {
+      accountByPersonId.set(id, account)
+    } else {
+      bySocialIdentity.push(id)
+    }
+  }
+
+  if (accountByPersonId.size > 0) {
+    const persons = await control.findAll(
+      control.ctx,
+      contact.class.Person,
+      { personUuid: { $in: [...new Set(accountByPersonId.values())] } },
+      { projection: { _id: 1, personUuid: 1 } }
+    )
+    const personByAccount = new Map(persons.map((it) => [it.personUuid, it._id]))
+    for (const [id, account] of accountByPersonId) {
+      const person = personByAccount.get(account)
+      if (person !== undefined) {
+        result.set(id, person)
+      } else {
+        bySocialIdentity.push(id)
+      }
+    }
+  }
+
+  if (bySocialIdentity.length > 0) {
+    const identities = await control.findAll(
+      control.ctx,
+      contact.class.SocialIdentity,
+      { _id: { $in: bySocialIdentity as SocialIdentityRef[] } },
+      { projection: { _id: 1, attachedTo: 1 } }
+    )
+    for (const identity of identities) {
+      result.set(identity._id as unknown as PersonId, identity.attachedTo)
+    }
+  }
+
+  return result
 }
 
 export async function getEmployee (
@@ -187,9 +246,7 @@ export async function getSocialIdsByAccounts (
     const employee = employeesMap.get(sid.attachedTo as Ref<Employee>)
     if (employee?.personUuid === undefined) return acc
 
-    if (acc[employee.personUuid] === undefined) {
-      acc[employee.personUuid] = []
-    }
+    acc[employee.personUuid] ??= []
 
     acc[employee.personUuid].push(sid._id)
     return acc
@@ -275,13 +332,15 @@ export function getAddCollaboratorsTxes (
 ): TxCreateDoc<Collaborator>[] {
   const res: TxCreateDoc<Collaborator>[] = []
   for (const collaborator of collaborators) {
-    const tx = control.txFactory.createTxCreateDoc(core.class.Collaborator, objectSpace, {
+    const createTx = control.txFactory.createTxCreateDoc(core.class.Collaborator, objectSpace, {
       attachedTo: objectId,
       attachedToClass: objectClass,
       collaborator,
       collection: 'collaborators'
     })
-    res.push(tx)
+
+    const tx = control.txFactory.createTxCollectionCUD(objectClass, objectId, objectSpace, 'collaborators', createTx)
+    res.push(tx as TxCreateDoc<Collaborator>)
   }
   return res
 }

@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -15,15 +16,156 @@
 
 import { type MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import {
-  QueueTopic,
   type ConsumerControl,
   type ConsumerHandle,
   type ConsumerMessage,
   type PlatformQueue,
-  type PlatformQueueProducer
+  type PlatformQueueProducer,
+  QueueTopic
 } from '@hcengineering/server-core'
-import { Kafka, Partitioners, type Consumer, type Producer, CompressionTypes, type Admin } from 'kafkajs'
+import { type Admin, CompressionTypes, type Consumer, Kafka, Partitioners, type Producer } from 'kafkajs'
 import type * as tls from 'tls'
+
+// Member is out of the group: heartbeat/commit keep failing until kafkajs rejoins, so bail.
+// Any other heartbeat error is transient and should be retried.
+const REBALANCE_ERROR_TYPES = new Set(['UNKNOWN_MEMBER_ID', 'REBALANCE_IN_PROGRESS', 'ILLEGAL_GENERATION'])
+function isRebalanceError (err: any): boolean {
+  if (err == null) return false
+  const type: string = typeof err.type === 'string' ? err.type : ''
+  const name: string = typeof err.name === 'string' ? err.name : ''
+  return (
+    REBALANCE_ERROR_TYPES.has(type) ||
+    name.includes('Rebalance') ||
+    name.includes('IllegalGeneration') ||
+    name.includes('UnknownMemberId')
+  )
+}
+
+// A brand new group starts at the latest offset resolved on its first fetch, so anything produced
+// before that fetch is never delivered. Resolve once the first fetch is done to close that window.
+function firstFetchDone (cc: Consumer): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const off = cc.on(cc.events.FETCH, () => {
+      off()
+      resolve()
+    })
+  })
+}
+
+// kafkajs restarts a crashed consumer only when the error is retriable. A plain Error - e.g.
+// 'Broker not connected' after a broker/DNS outage - stops the consumer for good and the pod goes
+// silent until restarted. Restart it ourselves in that case.
+const CRASH_RESTART_DELAY = 5000
+const MAX_CRASH_RESTART_DELAY = 60000
+
+export function installCrashRestart (
+  ctx: MeasureContext,
+  cc: Consumer,
+  restart: () => Promise<void>,
+  isClosed: () => boolean,
+  delayMs: number = CRASH_RESTART_DELAY
+): void {
+  // A caller-supplied 0/NaN would turn the loop into a tight spin
+  const baseDelay = Number.isFinite(delayMs) && delayMs > 0 ? delayMs : CRASH_RESTART_DELAY
+  let restarting = false
+  cc.on(cc.events.CRASH, (event: any) => {
+    if (event?.payload?.restart === true || restarting || isClosed()) return
+    restarting = true
+    ctx.warn('consumer crashed unrecoverably, restarting', { err: event?.payload?.error })
+    void (async () => {
+      let delay = baseDelay
+      while (!isClosed()) {
+        await new Promise((resolve) => {
+          // unref: a pending restart delay must not hold the process up during shutdown
+          setTimeout(resolve, delay).unref?.()
+        })
+        if (isClosed()) break
+        try {
+          await restart()
+          // close() may have run while restart was in flight - undo it, or the pod keeps consuming.
+          if (isClosed()) await cc.disconnect()
+          break
+        } catch (err: any) {
+          ctx.error('failed to restart consumer', { err })
+          delay = Math.min(delay * 2, MAX_CRASH_RESTART_DELAY)
+        }
+      }
+      restarting = false
+    })()
+  })
+}
+
+// Kafka unreachable for this long (including the very first connect) means the pod is useless:
+// exit and let the orchestrator restart it. 0 disables.
+const QUEUE_DEAD_TIMEOUT = 60000
+
+export function installDeadWatchdog (
+  ctx: MeasureContext,
+  cc: Consumer,
+  isClosed: () => boolean,
+  timeoutMs: number = intEnv('QUEUE_DEAD_TIMEOUT', QUEUE_DEAD_TIMEOUT),
+  onDead: () => void = () => process.exit(1)
+): void {
+  if (timeoutMs <= 0) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const arm = (): void => {
+    if (timer !== undefined) return
+    timer = setTimeout(() => {
+      timer = undefined
+      if (isClosed()) return
+      ctx.error('queue unreachable for too long, exiting to be restarted', { timeoutMs })
+      onDead()
+    }, timeoutMs)
+    timer.unref?.()
+  }
+  cc.on(cc.events.CONNECT, () => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = undefined
+  })
+  cc.on(cc.events.DISCONNECT, arm)
+  arm() // not connected yet: cover a broker that is down at startup
+}
+
+// Pump heartbeats every second while a handler runs so a slow message/batch never trips
+// sessionTimeout. kafkajs throttles internally, so frequent calls are safe.
+const HEARTBEAT_PUMP_INTERVAL = 1000
+
+export function startHeartbeatPump (
+  ctx: MeasureContext,
+  heartbeat: () => Promise<void>,
+  intervalMs: number = HEARTBEAT_PUMP_INTERVAL
+): () => Promise<void> {
+  let running = true
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let wake: (() => void) | undefined
+  const loop = (async () => {
+    while (running) {
+      await new Promise<void>((resolve) => {
+        wake = resolve
+        timer = setTimeout(resolve, intervalMs)
+      })
+      if (!running) break
+      try {
+        await heartbeat()
+      } catch (err: any) {
+        if (isRebalanceError(err)) {
+          // Member gone: stop pumping. The handler loop's own checks bail and kafkajs rejoins.
+          ctx.warn('heartbeat pump: member evicted, stopping', { err })
+          running = false
+        } else {
+          // Transient (network blip): keep pumping, next beat likely recovers.
+          ctx.warn('heartbeat pump: transient error, continuing', { err })
+        }
+      }
+    }
+  })()
+  return async () => {
+    running = false
+    if (timer !== undefined) clearTimeout(timer)
+    wake?.() // resolve the pending sleep immediately so shutdown does not wait a full interval
+    await loop
+  }
+}
 
 export interface QueueConfig {
   postfix: string // a topic prefix to be used do distinguish between staging and production topics in same broker
@@ -189,15 +331,19 @@ class PlatformQueueImpl implements PlatformQueue {
       await admin.connect()
       const topics = new Set(await admin.listTopics())
       await this.checkCreateTopic(admin, QueueTopic.Tx, topics, tx)
+      await this.checkCreateTopic(admin, QueueTopic.OnlineUserTx, topics, tx)
       await this.checkCreateTopic(admin, QueueTopic.Fulltext, topics, 5)
       await this.checkCreateTopic(admin, QueueTopic.Workspace, topics, 1)
       await this.checkCreateTopic(admin, QueueTopic.Users, topics, 1)
       await this.checkCreateTopic(admin, QueueTopic.Process, topics, 1)
       await this.checkCreateTopic(admin, QueueTopic.AIQueue, topics, 10)
       await this.checkCreateTopic(admin, QueueTopic.TranscriptionQueue, topics, 10)
+      await this.checkCreateTopic(admin, QueueTopic.UserNotifications, topics, 10)
+      await this.checkCreateTopic(admin, QueueTopic.HeldNotifications, topics, 10)
       await this.checkCreateTopic(admin, QueueTopic.NotificationQueue, topics, 2)
       await this.checkCreateTopic(admin, QueueTopic.LoveQueue, topics, 1)
       await this.checkCreateTopic(admin, QueueTopic.CrmQueue, topics, 1)
+      await this.checkCreateTopic(admin, QueueTopic.BillingUsage, topics, 1)
     } finally {
       await admin.disconnect()
     }
@@ -225,9 +371,11 @@ class PlatformQueueImpl implements PlatformQueue {
         }
       } else {
         await this.checkDeleteTopic(admin, QueueTopic.Tx, existing)
+        await this.checkDeleteTopic(admin, QueueTopic.OnlineUserTx, existing)
         await this.checkDeleteTopic(admin, QueueTopic.Fulltext, existing)
         await this.checkDeleteTopic(admin, QueueTopic.Workspace, existing)
         await this.checkDeleteTopic(admin, QueueTopic.Users, existing)
+        await this.checkDeleteTopic(admin, QueueTopic.UserNotifications, existing)
       }
     } finally {
       await admin.disconnect()
@@ -290,7 +438,9 @@ class PlatformQueueProducerImpl implements PlatformQueueProducer<any> {
 
 class PlatformQueueConsumerImpl implements ConsumerHandle {
   connected = false
+  private closed = false
   cc: Consumer
+  private readonly ready: Promise<void>
   constructor (
     readonly ctx: MeasureContext,
     readonly kafka: Kafka,
@@ -307,6 +457,10 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
       retryDelay?: number // Initial retry delay in milliseconds (default 1000)
       maxRetryDelay?: number // Maximum retry delay in seconds (default 10)
       sessionTimeout?: number // Optional session timeout in milliseconds
+      // internal/test-only knobs, prod tunes deadTimeout via QUEUE_DEAD_TIMEOUT
+      crashRestartDelay?: number
+      deadTimeout?: number
+      onDead?: () => void
     }
   ) {
     this.cc = this.kafka.consumer({
@@ -314,6 +468,8 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
       sessionTimeout: this.options?.sessionTimeout,
       allowAutoTopicCreation: true
     })
+    this.ready = firstFetchDone(this.cc)
+    this.installListeners(this.options?.crashRestartDelay, this.options?.deadTimeout, this.options?.onDead)
 
     void this.start().catch((err) => {
       ctx.error('failed to consume', { err })
@@ -325,6 +481,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
     await this.doSubscribe()
 
     await this.cc.run({
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- kafkajs passes these as closures
       eachMessage: async ({ message, pause, heartbeat }) => {
         const msgKey = message.key?.toString() ?? ''
         const msgData = JSON.parse(message.value?.toString() ?? '{}')
@@ -334,45 +491,67 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
         const retryDelay = this.options?.retryDelay ?? 1000
         const maxRetryDelay = this.options?.maxRetryDelay ?? 10
         let to = 1
-        while (true) {
-          try {
-            await this.ctx.with(
-              'handle-msg',
-              {},
-              (ctx) => this.onMessage(ctx, { workspace, value: msgData }, { heartbeat, pause }),
-              {},
-              {
-                meta
-              }
-            )
-            break
-          } catch (err: any) {
-            this.ctx.error('failed to process message', { err, msgKey, msgData, workspace })
+        // Keep group membership alive even if a single message handler runs long.
+        const stopPump = startHeartbeatPump(this.ctx, heartbeat)
+        try {
+          while (true) {
             try {
-              await heartbeat()
-            } catch (hbErr) {
-              // Ignore transient heartbeat errors during retry attempts to reduce flakiness.
-              this.ctx.warn('heartbeat failed during retry, ignoring transient error', { err: hbErr })
-            }
-            await new Promise((resolve) => setTimeout(resolve, to * retryDelay))
-            if (to < maxRetryDelay) {
-              to++
+              await this.ctx.with(
+                'handle-msg',
+                {},
+                (ctx) => this.onMessage(ctx, { workspace, value: msgData }, { heartbeat, pause }),
+                {},
+                {
+                  meta
+                }
+              )
+              break
+            } catch (err: any) {
+              this.ctx.error('failed to process message', { err, msgKey, msgData, workspace })
+              // Probe liveness: bail only on a rebalance (auto-commit fails there, so the message is
+              // redelivered, not lost). Transient heartbeat errors are ignored and we retry.
+              try {
+                await heartbeat()
+              } catch (hbErr) {
+                if (isRebalanceError(hbErr)) {
+                  this.ctx.warn('member evicted during message, bailing to rejoin', { err: hbErr })
+                  return
+                }
+                this.ctx.warn('heartbeat failed during retry, ignoring transient error', { err: hbErr })
+              }
+              await new Promise((resolve) => setTimeout(resolve, to * retryDelay))
+              if (to < maxRetryDelay) {
+                to++
+              }
             }
           }
+        } finally {
+          await stopPump()
         }
       }
     })
   }
 
-  async doConnect (): Promise<void> {
-    this.cc.on('consumer.connect', () => {
+  private installListeners (delayMs?: number, deadTimeout?: number, onDead?: () => void): void {
+    this.cc.on(this.cc.events.CONNECT, () => {
       this.connected = true
       this.ctx.info('consumer connected to queue')
     })
-    this.cc.on('consumer.disconnect', () => {
+    this.cc.on(this.cc.events.DISCONNECT, () => {
       this.connected = false
       this.ctx.warn('consumer disconnected from queue')
     })
+    installCrashRestart(
+      this.ctx,
+      this.cc,
+      () => this.start(),
+      () => this.closed,
+      delayMs
+    )
+    installDeadWatchdog(this.ctx, this.cc, () => this.closed, deadTimeout, onDead)
+  }
+
+  async doConnect (): Promise<void> {
     await this.cc.connect()
   }
 
@@ -387,19 +566,30 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
     return this.connected
   }
 
+  async waitReady (): Promise<void> {
+    await this.ready
+  }
+
   close (): Promise<void> {
+    this.closed = true
     return this.cc.disconnect()
   }
 }
 
 /**
  * Batch consumer implementation.
- * Accumulates messages per partition and sends them to the provided handler
- * as an ordered array. The entire batch is retried on error.
+ * Uses kafkajs eachBatch to receive native partition batches and slices them
+ * into chunks of `batchSize`. The entire chunk is retried on error.
+ *
+ * `batchTimeout` (ms) maps to kafkajs `maxWaitTimeInMs` — how long broker
+ * waits for `minBytes` before returning whatever is available. Lower = lower
+ * latency, higher = better throughput.
  */
 class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
   connected = false
+  private closed = false
   cc: Consumer
+  private readonly ready: Promise<void>
   constructor (
     readonly ctx: MeasureContext,
     readonly kafka: Kafka,
@@ -418,13 +608,23 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
       batchSize?: number
       batchTimeout?: number
       sessionTimeout?: number // Optional session timeout in milliseconds
+      // internal/test-only knobs, prod tunes deadTimeout via QUEUE_DEAD_TIMEOUT
+      crashRestartDelay?: number
+      deadTimeout?: number
+      onDead?: () => void
     }
   ) {
+    const rawMaxWait = this.options?.batchTimeout
+    const sanitizedMaxWait =
+      typeof rawMaxWait === 'number' && Number.isFinite(rawMaxWait) && rawMaxWait >= 0 ? rawMaxWait : undefined
     this.cc = this.kafka.consumer({
       groupId: `${getKafkaTopicId(this.topic, this.config)}-${groupId}`,
       sessionTimeout: this.options?.sessionTimeout,
+      maxWaitTimeInMs: sanitizedMaxWait,
       allowAutoTopicCreation: true
     })
+    this.ready = firstFetchDone(this.cc)
+    this.installListeners(this.options?.crashRestartDelay, this.options?.deadTimeout, this.options?.onDead)
 
     void this.start().catch((err) => {
       ctx.error('failed to consume', { err })
@@ -435,126 +635,119 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
     await this.doConnect()
     await this.doSubscribe()
 
-    // Per-partition state
-    const partitionStates = new Map<
-    number,
-    {
-      messages: Array<{ workspace: WorkspaceUuid, value: any, meta: any }>
-      timer?: ReturnType<typeof setTimeout>
-      processing?: boolean
-      waiters: Array<{ resolve: () => void, reject: (err: any) => void }>
-    }
-    >()
-
-    const batchSize = this.options?.batchSize ?? 1
-    const batchTimeout = this.options?.batchTimeout ?? 100
-
-    const flush = async (partitionNum: number, heartbeat: () => Promise<void>, pause: () => void): Promise<void> => {
-      const state = partitionStates.get(partitionNum)
-      // Be explicit about undefined checks to satisfy linters and avoid nullable boolean pitfalls
-      if (state === undefined || state.processing === true || state.messages.length === 0) return
-      state.processing = true
-      if (state.timer !== undefined) {
-        clearTimeout(state.timer)
-        state.timer = undefined
-      }
-      const batch = state.messages.splice(0, state.messages.length)
-      const batchWaiters = state.waiters.splice(0, batch.length)
-      const msgs = batch.map((m) => ({ workspace: m.workspace, value: m.value }))
-      const metas = batch.map((m) => m.meta)
-
-      const retryDelay = this.options?.retryDelay ?? 1000
-      const maxRetryDelay = this.options?.maxRetryDelay ?? 10
-      let to = 1
-      while (true) {
-        try {
-          // Pass simple metadata for batch processing (avoid passing raw array to meta field)
-          await this.ctx.with(
-            'handle-msg',
-            {},
-            (ctx) => this.onMessage(ctx, msgs, { heartbeat, pause }),
-            {},
-            { meta: { batchCount: metas.length } }
-          )
-          for (const w of batchWaiters) w.resolve()
-          state.processing = false
-          // If more messages arrived while processing, ensure they will be flushed
-          if (state.messages.length >= (this.options?.batchSize ?? 1)) {
-            void flush(partitionNum, heartbeat, pause)
-          } else if (state.messages.length > 0 && state.timer === undefined) {
-            state.timer = setTimeout(() => {
-              void flush(partitionNum, heartbeat, pause)
-            }, this.options?.batchTimeout ?? 100)
-          }
-          break
-        } catch (err: any) {
-          this.ctx.error('failed to process message batch', { err, partition: partitionNum, size: batch.length })
-          try {
-            await heartbeat()
-          } catch (hbErr) {
-            // Ignore transient heartbeat errors during batch retry attempts to reduce flakiness.
-            this.ctx.warn('heartbeat failed during batch retry, ignoring transient error', {
-              err: hbErr,
-              partition: partitionNum
-            })
-          }
-          await new Promise((resolve) => setTimeout(resolve, to * retryDelay))
-          if (to < maxRetryDelay) {
-            to++
-          }
-        }
-      }
-    }
+    // Clamp batchSize >= 1 to avoid zero/NaN producing an infinite chunk loop
+    const rawBatchSize = this.options?.batchSize
+    const batchSize =
+      typeof rawBatchSize === 'number' && Number.isFinite(rawBatchSize) && rawBatchSize >= 1
+        ? Math.floor(rawBatchSize)
+        : 1
+    const retryDelay = this.options?.retryDelay ?? 1000
+    const maxRetryDelay = this.options?.maxRetryDelay ?? 10
 
     await this.cc.run({
-      eachMessage: async ({ partition, message, pause, heartbeat }) => {
-        const msgKey = message.key?.toString() ?? ''
-        const msgData = JSON.parse(message.value?.toString() ?? '{}')
-        const meta = JSON.parse(message.headers?.meta?.toString() ?? '{}')
-        const workspace = (message.headers?.workspace?.toString() ?? msgKey) as WorkspaceUuid
-
-        const partitionNum = partition ?? 0
-        let state = partitionStates.get(partitionNum)
-        if (state === undefined) {
-          state = { messages: [], waiters: [] }
-          partitionStates.set(partitionNum, state)
-        }
-
-        state.messages.push({ workspace, value: msgData, meta })
-
-        // Schedule flush if not already scheduled
-        if (state.timer === undefined) {
-          state.timer = setTimeout(() => {
-            void flush(partitionNum, heartbeat, pause)
-          }, batchTimeout)
-        }
-
-        // Trigger flush immediately if we reached batch size
-        if (state.messages.length >= batchSize && state.processing !== true) {
-          if (state.timer !== undefined) {
-            clearTimeout(state.timer)
-            state.timer = undefined
+      eachBatchAutoResolve: false,
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- kafkajs passes these as closures
+      eachBatch: async ({ batch, resolveOffset, heartbeat, pause, isRunning, isStale }) => {
+        const partitionNum = batch.partition
+        // Parse all messages upfront so a parse error inside a chunk doesn't desync offsets
+        const parsed: Array<{ offset: string, workspace: WorkspaceUuid, value: any, meta: any }> = []
+        for (const message of batch.messages) {
+          const msgKey = message.key?.toString() ?? ''
+          let msgData: any
+          let meta: any
+          try {
+            msgData = JSON.parse(message.value?.toString() ?? '{}')
+            meta = JSON.parse(message.headers?.meta?.toString() ?? '{}')
+          } catch (err: any) {
+            this.ctx.error('failed to parse message, skipping', {
+              err,
+              partition: partitionNum,
+              offset: message.offset
+            })
+            resolveOffset(message.offset)
+            continue
           }
-          void flush(partitionNum, heartbeat, pause)
+          const workspace = (message.headers?.workspace?.toString() ?? msgKey) as WorkspaceUuid
+          parsed.push({ offset: message.offset, workspace, value: msgData, meta })
         }
 
-        // Wait until this message is processed as part of a batch
-        await new Promise<void>((resolve, reject) => {
-          state.waiters.push({ resolve, reject })
-        })
+        // Keep group membership alive for the whole batch, even if a single onMessage runs long.
+        const stopPump = startHeartbeatPump(this.ctx, heartbeat)
+        try {
+          // Process in chunks of batchSize, retry whole chunk on error
+          for (let i = 0; i < parsed.length; i += batchSize) {
+            if (!isRunning() || isStale()) return
+            const chunk = parsed.slice(i, i + batchSize)
+            const msgs = chunk.map((m) => ({ workspace: m.workspace, value: m.value }))
+
+            let to = 1
+            while (true) {
+              try {
+                await this.ctx.with(
+                  'handle-msg',
+                  {},
+                  (ctx) => this.onMessage(ctx, msgs, { heartbeat, pause }),
+                  {},
+                  { meta: { batchCount: chunk.length } }
+                )
+              } catch (err: any) {
+                this.ctx.error('failed to process message batch', {
+                  err,
+                  partition: partitionNum,
+                  size: chunk.length
+                })
+                // Bail if we were evicted/stopped - retrying with a dead member never commits and
+                // reprocesses forever. Otherwise back off and retry (the pump keeps us alive).
+                if (isStale() || !isRunning()) return
+                await new Promise((resolve) => setTimeout(resolve, to * retryDelay))
+                if (to < maxRetryDelay) to++
+                if (!isRunning() || isStale()) return
+                continue
+              }
+              // Commit offsets. A heartbeat throw here is a post-work eviction - bail to rejoin
+              // (offsets recommit on redelivery; handlers are idempotent), not a processing failure.
+              for (const m of chunk) resolveOffset(m.offset)
+              try {
+                await heartbeat()
+              } catch (hbErr) {
+                if (isRebalanceError(hbErr)) {
+                  this.ctx.warn('member evicted after batch chunk, rejoining', {
+                    err: hbErr,
+                    partition: partitionNum
+                  })
+                  return
+                }
+              }
+              break
+            }
+          }
+        } finally {
+          await stopPump()
+        }
       }
     })
   }
 
-  async doConnect (): Promise<void> {
-    this.cc.on('consumer.connect', () => {
+  private installListeners (delayMs?: number, deadTimeout?: number, onDead?: () => void): void {
+    this.cc.on(this.cc.events.CONNECT, () => {
       this.connected = true
       this.ctx.info('consumer connected to queue')
     })
-    this.cc.on('consumer.disconnect', () => {
+    this.cc.on(this.cc.events.DISCONNECT, () => {
       this.connected = false
       this.ctx.warn('consumer disconnected from queue')
     })
+    installCrashRestart(
+      this.ctx,
+      this.cc,
+      () => this.start(),
+      () => this.closed,
+      delayMs
+    )
+    installDeadWatchdog(this.ctx, this.cc, () => this.closed, deadTimeout, onDead)
+  }
+
+  async doConnect (): Promise<void> {
     await this.cc.connect()
   }
 
@@ -569,7 +762,12 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
     return this.connected
   }
 
+  async waitReady (): Promise<void> {
+    await this.ready
+  }
+
   close (): Promise<void> {
+    this.closed = true
     return this.cc.disconnect()
   }
 }
@@ -578,12 +776,23 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
  * Constructs a platform queue.
  */
 export function getPlatformQueue (serviceId: string, region?: string): PlatformQueue {
-  const queueConfig = process.env.QUEUE_CONFIG ?? 'huly.local:9092'
+  const queueConfig = process.env.QUEUE_CONFIG ?? 'localhost:9092'
   if (queueConfig === undefined) {
     throw new Error('Please provide queue config')
   }
-  const config = parseQueueConfig(queueConfig, serviceId, region ?? process.env.REGION ?? '')
+  const config = parseQueueConfig(
+    queueConfig,
+    serviceId,
+    region ?? process.env.QUEUE_REGION ?? process.env.REGION ?? ''
+  )
   return createPlatformQueue(config)
+}
+
+function intEnv (name: string, def: number): number {
+  const raw = process.env[name]
+  if (raw === undefined || raw === '') return def
+  const v = parseInt(raw, 10)
+  return Number.isFinite(v) ? v : def
 }
 
 export function createPlatformQueue (config: QueueConfig): PlatformQueue {
@@ -593,7 +802,17 @@ export function createPlatformQueue (config: QueueConfig): PlatformQueue {
     new Kafka({
       clientId: config.clientId,
       brokers: config.brokers,
-      ssl: config.ssl
+      ssl: config.ssl,
+      // Never give up on the broker by default: retries=5 gets exhausted during a redpanda
+      // restart/rebalance and kills producers/consumers. Overridable via env (e.g. bound retries
+      // in tests so a transient broker error fails fast instead of hanging).
+      retry: {
+        initialRetryTime: intEnv('QUEUE_INITIAL_RETRY_TIME', 300),
+        maxRetryTime: intEnv('QUEUE_MAX_RETRY_TIME', 30000),
+        factor: 0.2,
+        multiplier: 2,
+        retries: intEnv('QUEUE_RETRIES', Number.MAX_SAFE_INTEGER)
+      }
     }),
     config
   )

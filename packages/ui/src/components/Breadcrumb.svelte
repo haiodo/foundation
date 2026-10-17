@@ -14,8 +14,8 @@
 -->
 <script lang="ts">
   import type { Asset, IntlString } from '@hcengineering/platform'
-  import { AnySvelteComponent } from '../types'
-  import { ComponentType } from 'svelte'
+  import type { AnySvelteComponent } from '../types'
+  import type { ComponentType } from 'svelte'
   import Icon from './Icon.svelte'
   import Label from './Label.svelte'
 
@@ -38,7 +38,7 @@
       style:margin={iconMargin}
       class:withoutIconBackground
     >
-      <Icon {icon} size={'small'} {iconProps} />
+      <Icon {icon} size="small" {iconProps} />
     </div>
   {/if}
   <span

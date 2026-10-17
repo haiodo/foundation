@@ -22,6 +22,7 @@ import core, {
   DOMAIN_MODEL_TX,
   DOMAIN_TRANSIENT,
   DOMAIN_TX,
+  generateId,
   MeasureContext,
   PersonUuid,
   Ref,
@@ -44,10 +45,10 @@ import { createReadStream, createWriteStream, mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { PassThrough } from 'node:stream'
-import { createGzip } from 'node:zlib'
+import { promisify } from 'node:util'
+import { gzip, gunzip, createGzip, type ZlibOptions } from 'node:zlib'
 import { join } from 'path'
 import { Pack, pack } from 'tar-stream'
-import { gunzipSync, gzipSync } from 'zlib'
 import { BackupStorage } from './storage'
 import {
   BackupDocId,
@@ -69,6 +70,7 @@ import {
   rebuildSizeInfo,
   toAccountDomain,
   verifyDocsFromSnapshot,
+  watchStreamErrors,
   writeChanges
 } from './utils'
 export * from './storage'
@@ -77,6 +79,13 @@ const dataBlobSize = 250 * 1024 * 1024
 const batchSize = 5000
 
 const defaultLevel = 9
+
+// Sync gzip/gunzip blocks the event loop long enough to starve the lease-renewal timer
+// (service.ts); the index/size files go through these instead of gzipSync/gunzipSync.
+const gzipAsync = promisify(gzip)
+const gunzipAsync = promisify(gunzip)
+
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * @public
@@ -146,7 +155,8 @@ export async function backup (
 
   const tmpRoot = mkdtempSync('huly')
 
-  const forcedFullCheck = '4'
+  // Bumped to 5: force full recheck so account.person is re-collected after the BigInt-filter fix.
+  const forcedFullCheck = '5'
   const forcedCompact = '1'
 
   try {
@@ -176,33 +186,65 @@ export async function backup (
     const blobInfoFile = 'blob-info.json.gz'
 
     if (await storage.exists(infoFile)) {
-      backupInfo = JSON.parse(gunzipSync(new Uint8Array(await storage.loadFile(infoFile))).toString())
+      backupInfo = JSON.parse((await gunzipAsync(new Uint8Array(await storage.loadFile(infoFile)))).toString())
     }
     backupInfo.version = '0.6.2'
 
-    if (backupInfo.migrations == null) {
-      backupInfo.migrations = {}
+    // Two writers (this pod and workspace-service archiving) share the index; refuse to write
+    // if another writer moved it on since we last saw it, instead of last-writer-wins.
+    let lastRevision = backupInfo.revision
+
+    // Re-reads the index and checks lastRevision. Shared by writeBackupInfo and by callers
+    // of checkBackupIntegrity/compactBackup, which rewrite the index without this check.
+    const revisionIsOurs = async (): Promise<boolean> => {
+      let onDisk: BackupInfo | undefined
+      if (await storage.exists(infoFile)) {
+        onDisk = JSON.parse((await gunzipAsync(new Uint8Array(await storage.loadFile(infoFile)))).toString())
+      }
+      if (onDisk?.revision !== lastRevision) {
+        ctx.error('backup index was updated by another writer, aborting to avoid overwriting it', {
+          workspace: workspaceId
+        })
+        _canceled = true
+        result.result = false
+        return false
+      }
+      return true
     }
+
+    const writeBackupInfo = async (gzipOptions: ZlibOptions = { level: defaultLevel }): Promise<void> => {
+      if (canceled()) {
+        return
+      }
+      if (!(await revisionIsOurs())) {
+        return
+      }
+      lastRevision = generateId()
+      backupInfo.revision = lastRevision
+      await storage.writeFile(infoFile, await gzipAsync(JSON.stringify(backupInfo, undefined, 2), gzipOptions))
+    }
+
+    backupInfo.migrations ??= {}
 
     // Apply verification to backup, since we know it should have broken blobs
     if (backupInfo.migrations.zeroCheckSize == null) {
+      if (!(await revisionIsOurs())) {
+        return result
+      }
       await checkBackupIntegrity(ctx, storage)
       if (await storage.exists(infoFile)) {
-        backupInfo = JSON.parse(gunzipSync(new Uint8Array(await storage.loadFile(infoFile))).toString())
+        backupInfo = JSON.parse((await gunzipAsync(new Uint8Array(await storage.loadFile(infoFile)))).toString())
+        lastRevision = backupInfo.revision
       }
-      if (backupInfo.migrations == null) {
-        backupInfo.migrations = {}
-      }
+      backupInfo.migrations ??= {}
       backupInfo.migrations.zeroCheckSize = true
-      await storage.writeFile(infoFile, gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel }))
+      await writeBackupInfo()
     }
 
     backupInfo.workspace = workspaceId
 
-    if (backupInfo.domainHashes === undefined) {
-      // Migration
-      backupInfo.domainHashes = {}
-    }
+    // Migration
+    backupInfo.domainHashes ??= {}
 
     let fullCheck = options.fullVerify === true
     let forceCompact = options.forceCompact === true
@@ -218,13 +260,17 @@ export async function backup (
 
     if (backupInfo.snapshots.length > options.keepSnapshots || forceCompact) {
       // We need to perform compaction
+      if (!(await revisionIsOurs())) {
+        return result
+      }
       ctx.warn('Compacting backup')
       await compactBackup(ctx, storage, true, {
         blobLimit: options.blobDownloadLimit,
         skipContentTypes: options.skipBlobContentTypes,
         msg: { workspaceId, url: wsIds.url }
       })
-      backupInfo = JSON.parse(gunzipSync(new Uint8Array(await storage.loadFile(infoFile))).toString())
+      backupInfo = JSON.parse((await gunzipAsync(new Uint8Array(await storage.loadFile(infoFile)))).toString())
+      lastRevision = backupInfo.revision
 
       // Enable full check, just in case.
       fullCheck = true
@@ -397,34 +443,34 @@ export async function backup (
               st = Date.now()
             }
             const serverDocHash = doTrimHash(hash) as string
-            const currentHash = doTrimHash(digest.get(id as Ref<Doc>) ?? oldHash.get(id as Ref<Doc>))
+            const currentHash = doTrimHash(digest.get(id) ?? oldHash.get(id as Ref<Doc>))
             if (currentHash !== undefined) {
-              const oldD = digest.get(id as Ref<Doc>)
-              if (digest.delete(id as Ref<Doc>)) {
+              const oldD = digest.get(id)
+              if (digest.delete(id)) {
                 if (oldD !== undefined) {
                   same.set(id as Ref<Doc>, oldD)
                 }
                 oldHash.set(id as Ref<Doc>, currentHash)
               }
               if (currentHash !== serverDocHash) {
-                if (changes.updated.has(id as Ref<Doc>)) {
+                if (changes.updated.has(id)) {
                   removeFromNeedRetrieve(needRetrieve, id as Ref<Doc>)
                 }
-                changes.updated.set(id as Ref<Doc>, serverDocHash)
+                changes.updated.set(id, serverDocHash)
                 needRetrieve.set(id as Ref<Doc>, { size, contentType, hash })
                 changed++
-              } else if (changes.updated.has(id as Ref<Doc>)) {
+              } else if (changes.updated.has(id)) {
                 // We have same
-                changes.updated.delete(id as Ref<Doc>)
+                changes.updated.delete(id)
                 removeFromNeedRetrieve(needRetrieve, id as Ref<Doc>)
                 processed -= 1
               }
             } else {
-              if (domain === DOMAIN_BLOB && changes.added.has(id as Ref<Doc>)) {
+              if (domain === DOMAIN_BLOB && changes.added.has(id)) {
                 // We need to clean old need retrieve in case of duplicates.
                 removeFromNeedRetrieve(needRetrieve, id as Ref<Doc>)
               }
-              changes.added.set(id as Ref<Doc>, serverDocHash)
+              changes.added.set(id, serverDocHash)
               needRetrieve.set(id as Ref<Doc>, { size, contentType, hash })
               changed++
             }
@@ -516,6 +562,11 @@ export async function backup (
       let _packClose = async (): Promise<void> => {}
       let addedDocuments = (): number => 0
 
+      // Orphan blob records are common on long-lived workspaces; report a count per domain
+      // instead of two log lines per blob.
+      let missingBlobs = 0
+      let mismatchedBlobs = 0
+
       if (progress !== undefined) {
         await progress(0)
       }
@@ -552,9 +603,7 @@ export async function backup (
               for (const localDoc of docs) {
                 if (TxProcessor.isExtendsCUD(localDoc._class)) {
                   const tx = localDoc as TxCUD<Doc>
-                  if (tx.objectSpace == null) {
-                    tx.objectSpace = core.space.Workspace
-                  }
+                  tx.objectSpace ??= core.space.Workspace
                 }
                 const serverDoc = smap.get(localDoc._id)
                 if (serverDoc === undefined) {
@@ -716,10 +765,7 @@ export async function backup (
               processedChanges.removed = []
               processedChanges.updated.clear()
               domainChanges++
-              await storage.writeFile(
-                infoFile,
-                gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel, memLevel: 9 })
-              )
+              await writeBackupInfo({ level: defaultLevel, memLevel: 9 })
             }
           }
           if (_pack === undefined) {
@@ -729,7 +775,6 @@ export async function backup (
             domainInfo.storage = [...(domainInfo.storage ?? []), storageFile]
             const tmpFile = join(tmpRoot, basename(storageFile) + '.tmp')
             const tempFile = createWriteStream(tmpFile)
-            // const dataStream = await storage.write(storageFile)
 
             const sizePass = new PassThrough()
             let sz = 0
@@ -747,13 +792,19 @@ export async function backup (
             _pack.pipe(storageZip)
             storageZip.pipe(sizePass)
 
+            const packFailed = watchStreamErrors(_pack, storageZip, sizePass, tempFile)
+
             _packClose = async () => {
-              await new Promise<void>((resolve) => {
-                tempFile.on('close', () => {
-                  resolve()
-                })
-                _pack?.finalize()
-              })
+              _packClose = async () => {} // tempFile emits 'close' once, a second call would hang
+              await Promise.race([
+                new Promise<void>((resolve) => {
+                  tempFile.on('close', () => {
+                    resolve()
+                  })
+                  _pack?.finalize()
+                }),
+                packFailed
+              ])
 
               // We need to upload file to storage
               ctx.info('>>>> upload pack', { storageFile, size: sz, url: wsIds.url, workspace: workspaceId })
@@ -826,7 +877,7 @@ export async function backup (
             )
             try {
               const buffers: Buffer[] = []
-              await blobClient.writeTo(ctx, blob._id, blob.size, {
+              const found = await blobClient.writeTo(ctx, blob._id, blob.size, {
                 write (buffer, cb) {
                   buffers.push(buffer)
                   cb()
@@ -836,15 +887,11 @@ export async function backup (
                 }
               })
 
-              const finalBuffer = Buffer.concat(buffers as any)
-              if (finalBuffer.length !== blob.size) {
-                ctx.error('download blob size mismatch', {
-                  _id: blob._id,
-                  contentType: blob.contentType,
-                  size: blob.size,
-                  bufferSize: finalBuffer.length,
-                  provider: blob.provider
-                })
+              const finalBuffer = Buffer.concat(buffers)
+              if (!found) {
+                missingBlobs++
+              } else if (finalBuffer.length !== blob.size) {
+                mismatchedBlobs++
               }
               await new Promise<void>((resolve, reject) => {
                 _pack?.entry({ name: d._id + '.json' }, descrJson, (err) => {
@@ -924,7 +971,16 @@ export async function backup (
         await _packClose()
         domainChanges++
         // This will allow to retry in case of critical error.
-        await storage.writeFile(infoFile, gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel }))
+        await writeBackupInfo()
+      }
+
+      if (missingBlobs > 0 || mismatchedBlobs > 0) {
+        ctx.warn('blobs not backed up', {
+          domain,
+          missing: missingBlobs,
+          mismatched: mismatchedBlobs,
+          ...(options.msg ?? {})
+        })
       }
     }
 
@@ -945,15 +1001,30 @@ export async function backup (
         getObjKey = (obj: GlobalPerson) => obj.uuid
 
         if (fullCheck) {
+          const fullCheckStart = Date.now()
           let idx: number | undefined
-          while (true) {
-            const currentChunk = await ctx.with('loadChunk', {}, () => connection.loadChunk(ctx, DOMAIN_CONTACT, idx))
-            idx = currentChunk.idx
-            const chuckDocs = await connection.loadDocs(
-              ctx,
-              DOMAIN_CONTACT,
-              currentChunk.docs.map((it) => it.id) as Ref<Doc>[]
-            )
+          ctx.info('fullCheck: scanning DOMAIN_CONTACT for Person.personUuid')
+          // Collect ids first, close cursor, then loadDocs in batches.
+          // Reason: PG pool may be size=1; cursor held by loadChunk blocks loadDocs.
+          const allIds: Ref<Doc>[] = []
+          try {
+            while (true) {
+              const currentChunk = await ctx.with('loadChunk', {}, () => connection.loadChunk(ctx, DOMAIN_CONTACT, idx))
+              idx = currentChunk.idx
+              for (const d of currentChunk.docs) {
+                allIds.push(d.id as Ref<Doc>)
+              }
+              if (currentChunk.finished) break
+            }
+          } finally {
+            if (idx !== undefined) {
+              await ctx.with('closeChunk', {}, () => connection.closeChunk(ctx, idx as number))
+            }
+          }
+          let totalDocs = 0
+          for (const batch of chunkArray(allIds, 1000)) {
+            const chuckDocs = await connection.loadDocs(ctx, DOMAIN_CONTACT, batch)
+            totalDocs += chuckDocs.length
             for (const doc of chuckDocs) {
               if (doc._class === contact.class.Person) {
                 const person = doc as Person
@@ -962,10 +1033,61 @@ export async function backup (
                 }
               }
             }
-            if (currentChunk.finished) {
-              break
+          }
+          ctx.info('fullCheck: DOMAIN_CONTACT done', {
+            totalIds: allIds.length,
+            totalDocs,
+            affectedPersons: affectedPersons.size,
+            elapsedMs: Date.now() - fullCheckStart
+          })
+        }
+
+        // Seed affected socialIds from existing account.socialId digest only when
+        // DOMAIN_CHANNEL scan was skipped (fullCheck off or "no changes in domain").
+        // Reason: without this account.person snapshot never builds, breaking FK
+        // social_id.person_uuid on restore.
+        if (affectedSocialIds.size === 0) {
+          try {
+            const sidDomain = toAccountDomain('socialId')
+            const sidDigest = await loadDigest(ctx, storage, backupInfo.snapshots, sidDomain, undefined, options.msg)
+            for (const sidId of sidDigest.keys()) {
+              affectedSocialIds.add(sidId as SocialIdentityRef)
+            }
+            ctx.info('seeded affectedSocialIds from account.socialId digest', {
+              added: sidDigest.size,
+              total: affectedSocialIds.size
+            })
+          } catch (err: any) {
+            ctx.error('failed to seed affectedSocialIds from digest', { err })
+          }
+        }
+
+        // Always derive personUuids referenced by affected socialIds, regardless of fullCheck.
+        // This guarantees FK integrity: every social_id.person_uuid has matching person snapshot.
+        // Filter out legacy hex-ObjectId values (pre-migration SocialIdentity in DOMAIN_CHANNEL):
+        // account.social_id._id is BIGINT, hex strings fail PG parse.
+        if (affectedSocialIds.size > 0) {
+          const numericIds = Array.from(affectedSocialIds).filter((it) => {
+            try {
+              BigInt(it)
+              return true
+            } catch (err: any) {
+              return false
+            }
+          })
+          const sidChunks = chunkArray(numericIds, 1000)
+          for (const sidChunk of sidChunks) {
+            const sids = await accountDb.socialId.find({ _id: { $in: sidChunk } })
+            for (const sid of sids) {
+              if (sid.personUuid != null) {
+                affectedPersons.add(sid.personUuid)
+              }
             }
           }
+          ctx.info('derived affectedPersons from affectedSocialIds', {
+            affectedSocialIds: affectedSocialIds.size,
+            affectedPersons: affectedPersons.size
+          })
         }
         affectedObjects = affectedPersons
       } else {
@@ -974,25 +1096,42 @@ export async function backup (
         getObjKey = (obj: SocialId) => obj._id
 
         if (fullCheck) {
+          const fullCheckStart = Date.now()
           let idx: number | undefined
-          while (true) {
-            const currentChunk = await ctx.with('loadChunk', {}, () => connection.loadChunk(ctx, DOMAIN_CHANNEL, idx))
-            idx = currentChunk.idx
-            const chuckDocs = await connection.loadDocs(
-              ctx,
-              DOMAIN_CHANNEL,
-              currentChunk.docs.map((it) => it.id) as Ref<Doc>[]
-            )
+          ctx.info('fullCheck: scanning DOMAIN_CHANNEL for SocialIdentity')
+          // Collect ids first, close cursor, then loadDocs in batches (pool size=1 deadlock avoidance).
+          const allIds: Ref<Doc>[] = []
+          try {
+            while (true) {
+              const currentChunk = await ctx.with('loadChunk', {}, () => connection.loadChunk(ctx, DOMAIN_CHANNEL, idx))
+              idx = currentChunk.idx
+              for (const d of currentChunk.docs) {
+                allIds.push(d.id as Ref<Doc>)
+              }
+              if (currentChunk.finished) break
+            }
+          } finally {
+            if (idx !== undefined) {
+              await ctx.with('closeChunk', {}, () => connection.closeChunk(ctx, idx as number))
+            }
+          }
+          let totalDocs = 0
+          for (const batch of chunkArray(allIds, 1000)) {
+            const chuckDocs = await connection.loadDocs(ctx, DOMAIN_CHANNEL, batch)
+            totalDocs += chuckDocs.length
             for (const doc of chuckDocs) {
               if (doc._class === contact.class.SocialIdentity) {
                 const sid = doc as SocialIdentity
                 affectedSocialIds.add(sid._id)
               }
             }
-            if (currentChunk.finished) {
-              break
-            }
           }
+          ctx.info('fullCheck: DOMAIN_CHANNEL done', {
+            totalIds: allIds.length,
+            totalDocs,
+            affectedSocialIds: affectedSocialIds.size,
+            elapsedMs: Date.now() - fullCheckStart
+          })
         }
         affectedObjects = affectedSocialIds
       }
@@ -1030,16 +1169,24 @@ export async function backup (
       // 1. We need to include global records based on persons/socialIdentities info which are missing in digest
       // 2. We need to check updates for all records present in digest
       const batchSize = 1000
-      const toLoad = new Set(
-        [...digest.keys(), ...affectedObjects].filter((it) => {
-          try {
-            BigInt(it)
-            return true
-          } catch (err: any) {
-            return false
+      // account.person.uuid is UUID and account.social_id._id is BIGINT: legacy hex-ObjectId
+      // personUuid values (pre-migration DOMAIN_CONTACT) make PG reject the whole $in batch.
+      const keepKey = isPersonDomain
+        ? (it: string) => uuidRegex.test(it)
+        : (it: string) => {
+            try {
+              BigInt(it)
+              return true
+            } catch (err: any) {
+              return false
+            }
           }
-        })
-      ) as Set<PersonUuid>
+      const allKeys = [...digest.keys(), ...affectedObjects]
+      const keptKeys = allKeys.filter(keepKey)
+      if (keptKeys.length !== allKeys.length) {
+        ctx.warn('skipped malformed account keys', { domain, skipped: allKeys.length - keptKeys.length })
+      }
+      const toLoad = new Set(keptKeys) as Set<PersonUuid>
       if (toLoad.size === 0) {
         ctx.info('No records updates')
         return
@@ -1048,9 +1195,9 @@ export async function backup (
       const toLoadSorted = Array.from(toLoad).sort()
       const chunks = chunkArray(toLoadSorted, batchSize)
       for (const chunk of chunks) {
-        const objs = await accountDb[collection].find({
-          [key]: { $in: chunk, $gte: chunk[0], $lte: chunk[chunk.length - 1] }
-        })
+        // No $gte/$lte bounds: buildWhereClause only honors the first operator per
+        // field, so they were silently dropped anyway.
+        const objs = await accountDb[collection].find({ [key]: { $in: chunk } })
         for (const obj of objs) {
           // check if existing package need to be dumped
           if (addedDocuments() > dataBlobSize && _pack !== undefined) {
@@ -1076,10 +1223,7 @@ export async function backup (
             changed = false
             domainChanges++
 
-            await storage.writeFile(
-              infoFile,
-              gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel, memLevel: 9 })
-            )
+            await writeBackupInfo({ level: defaultLevel, memLevel: 9 })
           }
 
           // prepare new snapshot package if needed
@@ -1090,7 +1234,6 @@ export async function backup (
             domainInfo.storage = [...(domainInfo.storage ?? []), storageFile]
             const tmpFile = join(tmpRoot, basename(storageFile) + '.tmp')
             const tempFile = createWriteStream(tmpFile)
-            // const dataStream = await storage.write(storageFile)
 
             const sizePass = new PassThrough()
             let sz = 0
@@ -1108,13 +1251,19 @@ export async function backup (
             _pack.pipe(storageZip)
             storageZip.pipe(sizePass)
 
+            const packFailed = watchStreamErrors(_pack, storageZip, sizePass, tempFile)
+
             _packClose = async () => {
-              await new Promise<void>((resolve) => {
-                tempFile.on('close', () => {
-                  resolve()
-                })
-                _pack?.finalize()
-              })
+              _packClose = async () => {} // tempFile emits 'close' once, a second call would hang
+              await Promise.race([
+                new Promise<void>((resolve) => {
+                  tempFile.on('close', () => {
+                    resolve()
+                  })
+                  _pack?.finalize()
+                }),
+                packFailed
+              ])
 
               // We need to upload file to storage
               ctx.info('>>>> upload pack', { storageFile, size: sz, url: wsIds.url, workspace: workspaceId })
@@ -1182,7 +1331,7 @@ export async function backup (
         await _packClose()
         domainChanges++
         // This will allow to retry in case of critical error.
-        await storage.writeFile(infoFile, gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel }))
+        await writeBackupInfo()
       }
     }
 
@@ -1217,7 +1366,8 @@ export async function backup (
       await options.progress?.(Math.round((domainProgress / domains.length) * 10000) / 100)
     }
 
-    result.result = true
+    // A revision conflict marks canceled mid-loop; do not let this overwrite that with success.
+    result.result = !canceled()
 
     if (!canceled() && domainChanges > 0) {
       backupInfo.lastTxId = lastTx?._id ?? '0' // We could store last tx, since full backup is complete
@@ -1226,14 +1376,19 @@ export async function backup (
       backupInfo.dataSize = result.dataSize
       backupInfo.blobsSize = result.blobsSize
       backupInfo.backupSize = result.backupSize
-      await storage.writeFile(infoFile, gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel }))
+      await writeBackupInfo()
+      if (canceled()) {
+        // Foreign revision detected above; the index write was skipped, so stop here
+        // instead of overwriting the other writer's blob-info/size files.
+        return result
+      }
 
-      await storage.writeFile(blobInfoFile, gzipSync(JSON.stringify(blobInfo), { level: defaultLevel }))
+      await storage.writeFile(blobInfoFile, await gzipAsync(JSON.stringify(blobInfo), { level: defaultLevel }))
 
       await rebuildSizeInfo(storage, recheckSizes, ctx, result, backupInfo, infoFile, blobInfoFile)
 
       // Same one more time with recalculated sizes
-      await storage.writeFile(infoFile, gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel }))
+      await writeBackupInfo()
     }
 
     return result

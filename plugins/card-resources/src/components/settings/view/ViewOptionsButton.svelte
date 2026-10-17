@@ -14,10 +14,13 @@
 -->
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import { ButtonIcon, showPopup, closeTooltip, IconOptions } from '@hcengineering/ui'
-  import view, { OrderOption, ViewOptionsModel, Viewlet } from '@hcengineering/view'
+  import { showPopup, closeTooltip, IconOptions } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { OrderOption, ViewOptionsModel, Viewlet } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { ViewOptions as ViewOptionsEditor } from '@hcengineering/view-resources'
-  import core, { Class, Data, Ref, SortingOrder, Type } from '@hcengineering/core'
+  import type { Class, Data, Ref, Type } from '@hcengineering/core'
+  import core, { SortingOrder } from '@hcengineering/core'
 
   export let viewlet: Data<Viewlet> | undefined = undefined
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
@@ -103,15 +106,15 @@
   }
 </script>
 
-<ButtonIcon
+<IconButton
   icon={IconOptions}
   disabled={viewlet === undefined}
   {kind}
-  size={'small'}
+  size="small"
   hasMenu
   {pressed}
   tooltip={{ label: view.string.CustomizeView, direction: 'bottom' }}
-  dataId={'btn-viewOptions'}
+  data-id="btn-viewOptions"
   bind:element={btn}
   on:click={clickHandler}
 />

@@ -19,9 +19,7 @@ import { imageSize } from 'image-size'
 import oembedProviders from 'oembed-providers'
 import net from 'node:net'
 
-// ============================================================================
 // Types and Interfaces
-// ============================================================================
 
 export interface LinkPreviewDetails {
   title?: string
@@ -82,22 +80,22 @@ interface ImageDimensions {
   height: number
 }
 
-// ============================================================================
-// Constants
-// ============================================================================
-
 const DEFAULT_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
 const OEMBED_SERVICE_NAME = 'Huly Link Preview Service/1.0'
 
-// ============================================================================
 // Error Classes
-// ============================================================================
 
 export class LinkPreviewError extends Error {
   constructor (
     message: string,
-    public readonly code?: 'BLOCKED_URL' | 'INVALID_URL' | 'INVALID_PROTOCOL' | 'TIMEOUT' | 'FETCH_FAILED',
+    public readonly code?:
+      | 'BLOCKED_URL'
+      | 'INVALID_URL'
+      | 'INVALID_PROTOCOL'
+      | 'TIMEOUT'
+      | 'FETCH_FAILED'
+      | 'LOGIN_REDIRECT',
     public readonly cause?: unknown
   ) {
     super(message)
@@ -105,9 +103,7 @@ export class LinkPreviewError extends Error {
   }
 }
 
-// ============================================================================
 // URL Validation
-// ============================================================================
 
 function normalizeHostnameForChecks (hostname: string): string {
   // URL.hostname is already punycode-normalized by WHATWG URL for IDNs.
@@ -231,6 +227,38 @@ function isRedirectStatus (status: number): boolean {
   return status >= 300 && status < 400
 }
 
+const LOGIN_PATH_PATTERNS = [
+  /\/sign[_-]?in\b/i,
+  /\/log[_-]?in\b/i,
+  /\/auth(?:\/|$|\?)/i,
+  /\/oauth\b/i,
+  /\/sso\b/i,
+  /\/account\/login\b/i,
+  /\/users\/sign_in\b/i,
+  /\/saml\b/i
+]
+
+function isLoginUrl (urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr)
+    const pathAndQuery = u.pathname + u.search
+    return LOGIN_PATH_PATTERNS.some((re) => re.test(pathAndQuery))
+  } catch {
+    return false
+  }
+}
+
+function isLoginTitle (title: string | undefined): boolean {
+  if (title === undefined) return false
+  const t = title.toLowerCase().trim()
+  return (
+    /^sign[_ -]?in\b/.test(t) ||
+    /^log[_ -]?in\b/.test(t) ||
+    /^sign[_ -]?up\b/.test(t) ||
+    (t.includes('· gitlab') && /^sign[_ -]?in/.test(t))
+  )
+}
+
 async function fetchWithValidatedRedirects (
   url: string,
   options: RequestInit,
@@ -262,15 +290,16 @@ async function fetchWithValidatedRedirects (
     }
 
     const nextUrl = new URL(location, currentUrl).href
+    if (isLoginUrl(nextUrl) && !isLoginUrl(url)) {
+      throw new LinkPreviewError('Redirected to login page', 'LOGIN_REDIRECT')
+    }
     currentUrl = nextUrl
   }
 
   throw new LinkPreviewError('Too many redirects')
 }
 
-// ============================================================================
 // Fetch Utilities
-// ============================================================================
 
 async function fetchWithTimeout (url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
@@ -298,9 +327,7 @@ async function fetchWithTimeout (url: string, options: RequestInit, timeoutMs: n
   }
 }
 
-// ============================================================================
 // oEmbed Functions
-// ============================================================================
 
 function findOEmbedProviderUrl (targetUrl: string): string | null {
   for (const provider of oembedProviders as OEmbedProvider[]) {
@@ -373,7 +400,7 @@ async function fetchOEmbedData (
     }
 
     const contentType = response.headers.get('content-type')
-    if (contentType === null || !contentType.includes('json')) {
+    if (contentType?.includes('json') !== true) {
       ctx.warn('oEmbed response is not JSON', { contentType: contentType ?? 'null' })
       return null
     }
@@ -450,9 +477,7 @@ function convertOEmbedToPreview (
   }
 }
 
-// ============================================================================
 // Charset Parsing
-// ============================================================================
 
 function parseCharset (headers: Headers, $: ReturnType<typeof cheerio.load>): string {
   // Try Content-Type header first
@@ -495,9 +520,7 @@ function normalizeCharset (charset: string): string {
   return charset.toLowerCase().trim().replace(/^["']/, '').replace(/["']$/, '')
 }
 
-// ============================================================================
 // Description Parsing
-// ============================================================================
 
 function parseDescription ($: ReturnType<typeof cheerio.load>, config: Config): string | undefined {
   const paragraphs = $('p')
@@ -546,9 +569,7 @@ function extractSentences (text: string): string[] {
   return matches.map((s) => s.trim()).filter((s) => s.length > 0)
 }
 
-// ============================================================================
 // Image Size Loading
-// ============================================================================
 
 async function loadImageSize (ctx: MeasureContext, url: string, config: Config): Promise<ImageDimensions | undefined> {
   const timeoutMs = config.TimeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -581,7 +602,7 @@ async function loadImageSize (ctx: MeasureContext, url: string, config: Config):
 
     // Verify it's actually an image
     const contentType = response.headers.get('content-type')
-    if (contentType === null || !contentType.startsWith('image/')) {
+    if (contentType?.startsWith('image/') !== true) {
       ctx.warn('URL is not an image', { contentType: contentType ?? 'null', url })
       return undefined
     }
@@ -612,9 +633,7 @@ async function loadImageSize (ctx: MeasureContext, url: string, config: Config):
   }
 }
 
-// ============================================================================
 // Open Graph Parsing
-// ============================================================================
 
 function parseOpenGraphData (
   $: ReturnType<typeof cheerio.load>,
@@ -721,9 +740,7 @@ function isNonEmptyString (value: string | undefined | null): value is string {
   return value !== undefined && value !== null && value.length > 0
 }
 
-// ============================================================================
 // Main Export
-// ============================================================================
 
 export async function parseLinkPreviewDetails (
   ctx: MeasureContext,
@@ -787,6 +804,11 @@ export async function parseLinkPreviewDetails (
   // Fall back to Open Graph / meta tag parsing
   ctx.info('using Open Graph data', { url: finalUrl })
   const preview = parseOpenGraphData($, config, parsedUrl, finalUrl)
+
+  // Skip preview if final page looks like login/auth page (private content not accessible anonymously)
+  if (!isLoginUrl(query) && (isLoginUrl(finalUrl) || isLoginTitle(preview.title))) {
+    throw new LinkPreviewError('Resolved to login page', 'LOGIN_REDIRECT')
+  }
 
   // Get image dimensions if we have an image but no dimensions
   let imageWidth: number | undefined

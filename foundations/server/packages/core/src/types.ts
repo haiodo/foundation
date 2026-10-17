@@ -19,6 +19,7 @@ import {
   type AccountUuid,
   type Branding,
   type Class,
+  type ClientKind,
   type Doc,
   type DocumentQuery,
   type Domain,
@@ -136,12 +137,6 @@ export interface BroadcastOps {
   broadcastSessions: (measure: MeasureContext, sessionIds: Record<string, Tx[]>) => void
 }
 
-export interface CommunicationCallbacks {
-  registerAsyncRequest: (ctx: MeasureContext, promise: (ctx: MeasureContext) => Promise<void>) => void
-  broadcast: (ctx: MeasureContext, sessionIds: Record<string, any[]>) => void
-  enqueue: (ctx: MeasureContext, result: any[]) => void
-}
-
 /**
  * @public
  */
@@ -207,7 +202,7 @@ export interface PipelineContext {
   contextVars: Record<string, any>
 
   broadcastEvent?: (ctx: MeasureContext, tx: Tx[]) => Promise<void>
-  userStatusMap?: Map<Ref<UserStatus>, { online: boolean, user: AccountUuid }>
+  userStatusMap?: Map<Ref<UserStatus>, { online: boolean, away: boolean, user: AccountUuid }>
 }
 /**
  * @public
@@ -273,7 +268,7 @@ export interface TriggerControl {
   lowLevel: LowLevelStorage
   modelDb: ModelDb
   removedMap: Map<Ref<Doc>, Doc>
-  userStatusMap: Map<Ref<UserStatus>, { online: boolean, user: AccountUuid }>
+  userStatusMap: Map<Ref<UserStatus>, { online: boolean, away: boolean, user: AccountUuid }>
   domainRequest: (ctx: MeasureContext, domain: OperationDomain, params: DomainParams) => Promise<DomainResult>
 
   queue?: PlatformQueue
@@ -283,7 +278,7 @@ export interface TriggerControl {
   // Cache per root tx
   contextCache: Map<string, any>
 
-  // Since we don't have other storages let's consider adapter is MinioClient
+  // Since we don't have other storages consider adapter is MinioClient
   // Later can be replaced with generic one with bucket encapsulated inside.
   storageAdapter: StorageAdapter
   serviceAdaptersManager: ServiceAdaptersManager
@@ -300,6 +295,12 @@ export interface TriggerControl {
 
   // Current set of transactions to being processed for apply/bulks
   txes: Tx[]
+
+  // Per-workspace scoped lock. Serializes concurrent callers with the same scope
+  // within a single process. Useful for guarding non-atomic read-then-write sequences
+  // inside triggers (e.g. find-or-create patterns) since TxApplyIf is not honored
+  // for derived txes issued via control.apply.
+  withScope: <T>(scope: string, fn: () => Promise<T>) => Promise<T>
 }
 
 /**
@@ -349,7 +350,24 @@ export interface IndexedDoc {
   searchShortTitle?: string
   searchShortTitle_fields?: any[]
   searchIcon_fields?: any[]
+  /** Text of `SearchPresenter.contentField` */
   fulltextSummary?: string
+  /** Text of the other attributes, all text without `contentField` */
+  fulltextExtra?: string
+
+  /** Text of the attribute named by `SearchPresenter.highlightableField`, tuned for snippets. */
+  highlightableContent?: string
+  /** The collection this document hangs off its parent under, so a search can exclude whole ones. */
+  collection?: string
+  /** Whether the document carries attachments, so the filter needs no lookup of its own. */
+  hasAttachment?: boolean
+  /**
+   * The object the document ultimately belongs to. A thread reply hangs off its parent message,
+   * so this follows the chain up to the channel or issue the thread itself lives under.
+   */
+  rootObject?: Ref<Doc>
+  rootObjectClass?: Ref<Class<Doc>>
+
   baseId?: Ref<Doc>
   [key: string]: any
 }
@@ -360,6 +378,9 @@ export interface IndexedDoc {
 export interface SearchStringResult {
   docs: IndexedDoc[]
   total?: number
+  totalExact?: boolean
+  cursor?: string
+  failed?: boolean
 }
 
 export interface FulltextListener {
@@ -511,6 +532,10 @@ export interface SearchPresenter extends Class<Doc> {
   title: FieldTemplateComponent | FieldTemplate
   shortTitle?: FieldTemplateComponent | FieldTemplate
   scoring?: SearchScoring[]
+  highlightableField?: string
+  /** Main text attribute: goes to `fulltextSummary`, the rest to `fulltextExtra` */
+  contentField?: string
+  indexCollection?: boolean
 }
 
 export interface ServiceAdapter {
@@ -607,12 +632,14 @@ export interface Session {
 
   lastRequest: number
   lastPing: number
+  away: boolean
+  clientKind: ClientKind | undefined
 
   isUpgradeClient: () => boolean
 
   getMode: () => string
 
-  broadcast: (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[]) => void
+  broadcast: (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[], memo?: SendMemo) => void
 
   // Client methods
   ping: (ctx: ClientSessionCtx) => Promise<void>
@@ -676,11 +703,24 @@ export interface Session {
 /**
  * @public
  */
+/**
+ * A broadcast goes to many sockets with identical bytes. Sharing this across one fan-out lets the
+ * first socket pay for the pack and the compression and the rest reuse the result.
+ * @public
+ */
+export type SendMemo = Map<string, Promise<any>>
+
 export interface ConnectionSocket {
   id: string
   isClosed: boolean
   close: () => void
-  send: (ctx: MeasureContext, msg: Response<any>, binary: boolean, compression: boolean) => Promise<void>
+  send: (
+    ctx: MeasureContext,
+    msg: Response<any>,
+    binary: boolean,
+    compression: boolean,
+    memo?: SendMemo
+  ) => Promise<void>
 
   sendPong: () => void
   data: () => Record<string, any>
@@ -690,6 +730,17 @@ export interface ConnectionSocket {
   isBackpressure: () => boolean // In bytes
   backpressure: (ctx: MeasureContext) => Promise<void>
   checkState: () => boolean
+
+  // Returns true if outgoing buffer crossed the drop threshold (WS_DROP_THRESHOLD).
+  // Callers should skip sendResponse and accumulate classes via addDroppedClasses.
+  isOverloaded?: () => boolean
+  // Accumulate classes from broadcast tx that were skipped because the socket is overloaded.
+  // Server uses this to flush a single TxWorkspaceEvent.BulkUpdate once the buffer drains.
+  addDroppedClasses?: (classes: Ref<Class<Doc>>[]) => void
+  // If outgoing buffer is below WS_RESUME_THRESHOLD and there are accumulated classes,
+  // returns and clears them; otherwise returns null. Server prefixes the next broadcast
+  // with a refresh event so client query cache invalidates without a manual reconnect.
+  takePendingRefresh?: () => Ref<Class<Doc>>[] | null
 }
 
 /**

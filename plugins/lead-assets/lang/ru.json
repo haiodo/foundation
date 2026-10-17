@@ -3,6 +3,7 @@
     "CreateFunnel": "Создать воронку",
     "CreateLead": "Создать сделку",
     "Funnel": "Воронка",
+    "DefaultFunnel": "Воронка по умолчанию",
     "FunnelName": "Название воронки",
     "Funnels": "Воронки",
     "LeadApplication": "Сделки (бета)",
@@ -35,11 +36,13 @@
     "EditFunnel": "Редактировать воронку",
     "FunnelMembers": "Участники",
     "ForbidCreateFunnelPermission": "Запретить создание воронки",
-    "ForbidCreateFunnelPermissionDescription": "Запрещает пользователям создавать новые воронки"
+    "ForbidCreateFunnelPermissionDescription": "Запрещает пользователям создавать новые воронки",
+    "Website": "Сайт",
+    "Industry": "Отрасль"
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{sender} назначил(а) вам {doc}",
-    "AssigneeNotificationHtml": "<p>{sender} назначил(а) вам {doc}</p> <p>{link}</p>",
+    "AssigneeNotificationHtml": "<p><b>{sender}</b> назначил(а) вам {doc}</p> <p>{link}</p>",
     "AssigneeNotificationSubject": "Вам назначен(а) {doc}"
   }
 }

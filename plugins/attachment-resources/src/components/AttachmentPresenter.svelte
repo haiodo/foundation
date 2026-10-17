@@ -14,24 +14,33 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { PermissionsStore } from '@hcengineering/contact'
-  import type { Attachment } from '@hcengineering/attachment'
-  import core, { BlobType, type WithLookup } from '@hcengineering/core'
+  import type { PermissionsStore } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import attachment, { type Attachment } from '@hcengineering/attachment'
+  import type { BlobType } from '@hcengineering/core'
+  import core, { type WithLookup } from '@hcengineering/core'
   import presentation, {
     canPreviewFile,
     getBlobRef,
+    getClient,
     getFileUrl,
     previewTypes,
     getJsonOrEmpty,
     sizeToWidth
   } from '@hcengineering/presentation'
-  import { Label, Spinner } from '@hcengineering/ui'
+  import { Component, Label, Spinner } from '@hcengineering/ui'
   import WebIcon from './icons/Web.svelte'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import { createEventDispatcher, onMount } from 'svelte'
   import { getResource } from '@hcengineering/platform'
-  import { Readable } from 'svelte/store'
-  import { getType, isAttachment, openAttachmentInSidebar, showAttachmentPreviewPopup } from '../utils'
+  import type { Readable } from 'svelte/store'
+  import {
+    getCustomPresenter,
+    getType,
+    isAttachment,
+    openAttachmentInSidebar,
+    showAttachmentPreviewPopup
+  } from '../utils'
   import AttachmentName from './AttachmentName.svelte'
 
   export let value: WithLookup<Attachment> | BlobType | undefined
@@ -48,12 +57,17 @@
     permissionsStore = await getResource(contact.store.Permissions)
   })
 
-  const maxLength: number = 30
+  const maxLength: number = 25
 
   const trimFilename = (fname: string): string =>
     fname.length > maxLength ? fname.substr(0, (maxLength - 1) / 2) + '...' + fname.substr(-(maxLength - 1) / 2) : fname
 
   $: canRemove = isRemovable(removable, value, $permissionsStore)
+
+  // Subclasses can register a custom ObjectPresenter mixin (e.g. voice-note player) to render instead.
+  const hierarchy = getClient().getHierarchy()
+  $: customPresenter =
+    value !== undefined && isAttachment(value) ? getCustomPresenter(hierarchy, value._class) : undefined
 
   function isRemovable (
     removable: boolean,
@@ -95,7 +109,7 @@
   }
 
   async function clickHandler (e: MouseEvent): Promise<void> {
-    if (value === undefined || !canPreview) return
+    if (value === undefined || (!canPreview && !canShowImage)) return
 
     e.preventDefault()
     e.stopPropagation()
@@ -103,11 +117,18 @@
       window.open((e.target as HTMLAnchorElement).href, '_blank')
       return
     }
-    if (value.type.startsWith('image/') || value.type.startsWith('video/') || value.type.startsWith('audio/')) {
+    // Renderable inline types open in sidebar; everything else (incl. thumbnail-only
+    // files like pptx) opens in the preview popup which shows the thumbnail.
+    if (
+      canPreview &&
+      !value.type.startsWith('image/') &&
+      !value.type.startsWith('video/') &&
+      !value.type.startsWith('audio/')
+    ) {
+      await openAttachmentInSidebar(value)
+    } else {
       const popup = showAttachmentPreviewPopup(value)
       dispatch('open', popup.id)
-    } else {
-      await openAttachmentInSidebar(value)
     }
   }
 
@@ -129,7 +150,9 @@
   }
 </script>
 
-{#if preview}
+{#if customPresenter !== undefined && !preview}
+  <Component is={customPresenter} props={{ value, removable: canRemove, onRemove: () => dispatch('remove', value) }} />
+{:else if preview}
   <AttachmentName {value} />
 {:else}
   <div class="flex-row-center attachment-container">
@@ -260,9 +283,10 @@
   }
   .attachment-container {
     flex-shrink: 0;
-    width: auto;
+    width: 22.25rem;
     height: 3rem;
-    min-width: 17.25rem;
+    min-width: 22.25rem;
+    max-width: 22.25rem;
     border-radius: 0.25rem;
 
     .icon {

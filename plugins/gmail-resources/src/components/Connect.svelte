@@ -57,7 +57,7 @@
 
   let label = ''
 
-  $: translate(gmail.string.GooglePrivacy, {}, $themeStore.language).then((res) => {
+  $: void translate(gmail.string.GooglePrivacy, {}, $themeStore.language).then((res) => {
     label = res
   })
 </script>
@@ -73,7 +73,7 @@
         dispatch('close')
       }}
     >
-      <IconClose size={'small'} />
+      <IconClose size="small" />
     </div>
   </div>
   <div class="content">
@@ -84,13 +84,13 @@
 
     {#if error}
       <div class="flex-row-center gap-2 pt-2">
-        <IconError size={'medium'} />
+        <IconError size="medium" />
         <Label label={gmail.string.FailedToConnect} />
       </div>
     {/if}
 
     <div class="footer">
-      <Button label={gmail.string.Connect} kind={'primary'} disabled={connecting} on:click={sendRequest} />
+      <Button label={gmail.string.Connect} kind="primary" disabled={connecting} on:click={sendRequest} />
     </div>
   </div>
 </div>

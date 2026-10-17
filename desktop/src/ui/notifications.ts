@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,267 +14,118 @@
 // limitations under the License.
 //
 
-import { formatName, getPersonByPersonId } from '@hcengineering/contact'
-import { Doc, Ref, SortingOrder, TxOperations, WithLookup, Hierarchy } from '@hcengineering/core'
 import notification, {
+  AppPushNotification,
   notificationId,
-  ActivityInboxNotification,
-  CommonInboxNotification,
-  DocNotifyContext,
-  InboxNotification,
-  getNotificationMessageId,
-  getNotificationThreadId
+  translateNotification,
+  PUSH_NOTIFICATION_TITLE_SIZE,
+  PUSH_NOTIFICATION_BODY_SIZE,
+  truncate
 } from '@hcengineering/notification'
-import { addEventListener, getMetadata, IntlString, translate } from '@hcengineering/platform'
-import { createNotificationsQuery, getClient } from '@hcengineering/presentation'
-import { location } from '@hcengineering/ui'
+import { addEventListener, translate } from '@hcengineering/platform'
+import { getCurrentWorkspaceUuid } from '@hcengineering/presentation'
+import { location, languageStore } from '@hcengineering/ui'
+import { type WorkspacesNotification } from '@hcengineering/pulse'
 import workbench, { workbenchId } from '@hcengineering/workbench'
-import desktopPreferences, { defaultNotificationPreference } from '@hcengineering/desktop-preferences'
+import { defaultNotificationPreference, DesktopNotificationPreferenceData } from '@hcengineering/desktop-preferences'
+import { crossWorkspaceNotificationStore, workspacesStore } from '@hcengineering/workbench-resources'
+import { get } from 'svelte/store'
 import { activePreferences } from '@hcengineering/desktop-preferences-resources'
-import { getDisplayInboxData, InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
-import { inboxId } from '@hcengineering/inbox'
-import communication from '@hcengineering/communication'
-import activity from '@hcengineering/activity'
-import chunter, { ThreadMessage } from '@hcengineering/chunter'
+import {
+  NotificationClientImpl,
+  appPushStore,
+  removeAppPush,
+  desktopPushEnabled
+} from '@hcengineering/notification-resources'
 
 import { ipcMainExposed } from './typesUtils'
+import { IPCMainExposed } from './types'
 
-let client: TxOperations
-
-async function hydrateNotificationAsYouCan (lastNotification: InboxNotification): Promise<{ title: string, body: string } | undefined> {
-  // Let's try to do our best and figure out from who we have an notification
-
-  if (client === undefined) {
-    return undefined
-  }
-
-  if (lastNotification === undefined) {
-    return undefined
-  }
-
-  let intlTitle: IntlString | undefined
-  let titleParams
-
-  if (lastNotification._class === notification.class.CommonInboxNotification) {
-    intlTitle = (lastNotification as CommonInboxNotification).message
-    titleParams = (lastNotification as CommonInboxNotification).props
-  } else if (lastNotification._class === notification.class.ActivityInboxNotification) {
-    intlTitle = (lastNotification as ActivityInboxNotification).title
-    titleParams = (lastNotification as ActivityInboxNotification).intlParams
-  }
-
-  if (intlTitle !== undefined && lastNotification.body !== undefined) {
-    const intlParams = lastNotification.intlParams ?? {}
-
-    if (lastNotification.intlParamsNotLocalized !== undefined) {
-      for (const param in lastNotification.intlParamsNotLocalized) {
-        const value = lastNotification.intlParamsNotLocalized[param]
-        intlParams[param] = await translate(value, {})
-      }
-    }
-    const title = await translate(intlTitle, titleParams ?? {})
-    const body = await translate(lastNotification.body, lastNotification.intlParams ?? {})
-
-    // Do not show notification if there is no translate
-    if (title === intlTitle as string || body === lastNotification.body as string) {
-      return undefined
-    }
-
-    return { title, body }
-  }
-
-  const title = await translate(desktopPreferences.string.HaveGotANotification, {})
-
-  // Do not show notification if there is no translate
-  if (title === lastNotification.title as string) {
-    return undefined
-  }
-
-  const noPersonData = {
-    title,
-    body: ''
-  }
-
-  const person = await getPersonByPersonId(client, lastNotification.modifiedBy)
-  if (person == null) {
-    return noPersonData
-  }
-
-  return {
-    title,
-    body: formatName(person.name)
-  }
-}
-
-function getLasUnViewedNotification (
-  notifications: InboxNotification[],
-  notificationHistory: Map<string, number>
-): InboxNotification | undefined {
-  let lastNotification
-  let lastTime = 0
-
-  for (const n of notifications) {
-    if (notificationHistory.has(n._id as string)) {
-      continue
-    }
-
-    const createdOn = n.createdOn ?? n.modifiedOn
-
-    notificationHistory.set(n._id as string, createdOn)
-
-    if (createdOn > lastTime) {
-      lastTime = createdOn
-      lastNotification = n
-    }
-  }
-
-  return lastNotification
-}
-
-/**
- * @public
- */
 export function configureNotifications (): void {
   let preferences = defaultNotificationPreference
-  let prevUnViewdNotificationsCount = 0
+  let unreadCount = 0
+  let hasCrossWorkspaceNotifications = false
 
-  // For now we want to track all notifications which happends after the launch
-  // because we generate them on a client
-  let initTimestamp = 0
-  const notificationHistory = new Map<string, number>()
-  let newUnreadNotifications = 0
+  async function refreshBadge (): Promise<void> {
+    await updateBadge(ipcMainExposed(), preferences, unreadCount, hasCrossWorkspaceNotifications)
+  }
 
+  function onUnreadCount (count: number): void {
+    if (unreadCount === count) return
+    unreadCount = count
+    void refreshBadge().then(() => {
+      if (preferences.bounceAppIcon) {
+        ipcMainExposed().dockBounce()
+      }
+    })
+  }
+
+  function onCrossWorkspaceState (state: WorkspacesNotification | undefined): void {
+    if (state != null) {
+      const currentWorkspace = getCurrentWorkspaceUuid()
+      hasCrossWorkspaceNotifications = get(workspacesStore).some((it) => it.uuid !== currentWorkspace && state[it.uuid])
+    }
+    void refreshBadge()
+  }
+
+  function onPreferences (newPreferences: DesktopNotificationPreferenceData): void {
+    preferences = newPreferences
+    desktopPushEnabled.set(newPreferences.showNotifications)
+    void refreshBadge()
+  }
+
+  async function showPush (appPush: AppPushNotification): Promise<void> {
+    void removeAppPush(appPush)
+    if (!preferences.showNotifications) return
+
+    const { title, body } = await translateNotification(
+      {
+        titleIntl: appPush.titleIntl,
+        bodyIntl: appPush.bodyIntl,
+        intlParams: appPush.intlParams,
+        intlParamsNotLocalized: appPush.intlParamsNotLocalized
+      },
+      get(languageStore)
+    )
+    ipcMainExposed().sendNotification({
+      silent: !preferences.playSound && appPush.soundAlert,
+      application: notificationId,
+      title: truncate(title, PUSH_NOTIFICATION_TITLE_SIZE),
+      body: truncate(body, PUSH_NOTIFICATION_BODY_SIZE),
+      onClickLocation: appPush.onClickLocation
+    })
+  }
+
+  function onAppPushes (appPushes: AppPushNotification[] | null | undefined): void {
+    for (const appPush of appPushes ?? []) {
+      void showPush(appPush)
+    }
+  }
+
+  let storesSubscribed = false
+  function subscribeStores (): void {
+    if (storesSubscribed) return
+    storesSubscribed = true
+    crossWorkspaceNotificationStore.subscribe(onCrossWorkspaceState)
+    appPushStore.subscribe(onAppPushes)
+    activePreferences.subscribe(onPreferences)
+  }
+
+  // Workbench creates a new notification client per connection, so the unread counter is resubscribed
+  let unsubscribeUnreadCount: (() => void) | undefined
+  function subscribeUnreadCount (): void {
+    unsubscribeUnreadCount?.()
+    unsubscribeUnreadCount = NotificationClientImpl.getClient().totalUnreadCount.subscribe(onUnreadCount)
+  }
+
+  // Fires on every connect: workspace switch, reconnect
   addEventListener(workbench.event.NotifyConnection, async () => {
-    client = getClient()
-    const electronAPI = ipcMainExposed()
-
-    const inboxClient = InboxNotificationsClientImpl.getClient()
-    const notificationsQuery = createNotificationsQuery(true)
-    const notificationsCountQuery = createNotificationsQuery(true)
-
-    const isCommunicationEnabled = getMetadata(communication.metadata.Enabled) ?? false
-
-    if (isCommunicationEnabled) {
-      notificationsCountQuery.query({ read: false, limit: 1, strict: true, total: true }, res => {
-        newUnreadNotifications = res.getTotal()
-
-        if (preferences.showUnreadCounter) {
-          electronAPI.setBadge(prevUnViewdNotificationsCount + newUnreadNotifications)
-        }
-
-        if (preferences.bounceAppIcon) {
-          electronAPI.dockBounce()
-        }
-      })
-    }
-
-    function startNotificationQuery (): void {
-      if (!isCommunicationEnabled) return
-      notificationsQuery.query({
-        read: false,
-        limit: 1,
-        strict: true,
-        order: SortingOrder.Descending,
-        created: {
-          greaterOrEqual: new Date()
-        }
-      }, (res) => {
-        if (!preferences.showNotifications) return
-        const notification = res.getResult()[0]
-        if (notification !== undefined && !notificationHistory.has(notification.id)) {
-          notificationHistory.set(notification.id, notification.created.getTime())
-          electronAPI.sendNotification({
-            silent: !preferences.playSound,
-            application: inboxId,
-            title: notification.content.title,
-            body: `${notification.content.senderName}: ${notification.content.shortText}`,
-            cardId: notification.cardId,
-            objectId: notification.content.objectId,
-            objectClass: notification.content.objectClass
-          })
-        }
-      })
-    }
-
-    if (preferences.showNotifications) {
-      startNotificationQuery()
-    }
-
-    async function handleNotifications (notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>): Promise<void> {
-      const inboxData = getDisplayInboxData(notificationsByContext)
-
-      if (notificationHistory.size === 0) {
-        for (const [, notifications] of inboxData) {
-          for (const n of notifications) {
-            notificationHistory.set(n._id as string, n.createdOn ?? n.modifiedOn)
-          }
-        }
-      }
-
-      const unViewedNotifications: InboxNotification[] = Array.from(inboxData.values()).flat().filter(({ isViewed }) => !isViewed)
-      // const notificationsAfterLaunch = notifications.filter((p) => p.txes.some((p) => p.modifiedOn > initTimestamp))
-      // We need to get the most recent notifications
-
-      if (prevUnViewdNotificationsCount !== unViewedNotifications.length) {
-        if (preferences.showUnreadCounter) {
-          electronAPI.setBadge(unViewedNotifications.length + newUnreadNotifications)
-        }
-        if (preferences.bounceAppIcon) {
-          electronAPI.dockBounce()
-        }
-        prevUnViewdNotificationsCount = unViewedNotifications.length
-      }
-
-      const notification = getLasUnViewedNotification(unViewedNotifications, notificationHistory)
-
-      if (preferences.showNotifications && initTimestamp > 0 && notification !== undefined) {
-        // const notification = notificationsAfterLaunch[notificationsAfterLaunch.length - 1]
-        const notificationData = await hydrateNotificationAsYouCan(notification)
-        if (notificationData !== undefined) {
-          if (notificationData.body === '') {
-            notificationData.body = await translate(desktopPreferences.string.TotalNotificationsCount, {
-              count: prevUnViewdNotificationsCount
-            })
-          }
-
-          const object = getNotificationObjectIdentity(notification, client.getHierarchy())
-          electronAPI.sendNotification({
-            silent: !preferences.playSound,
-            application: notificationId,
-            objectId: object?._id ?? notification.objectId,
-            objectClass: object?._class ?? notification.objectClass,
-            messageId: getNotificationMessageId(notification, client.getHierarchy()),
-            threadId: getNotificationThreadId(notification, client.getHierarchy()),
-            ...notificationData
-          })
-        }
-      }
-
-      if (initTimestamp === 0) {
-        initTimestamp = Date.now()
-      }
-    }
-
-    inboxClient.inboxNotificationsByContext.subscribe(data => {
-      void handleNotifications(data)
-    })
-
-    activePreferences.subscribe((newPreferences) => {
-      if (preferences.showUnreadCounter && !newPreferences.showUnreadCounter) {
-        electronAPI.setBadge(0)
-      }
-      if (!preferences.showUnreadCounter && newPreferences.showUnreadCounter) {
-        electronAPI.setBadge(prevUnViewdNotificationsCount + newUnreadNotifications)
-      }
-
-      if (newPreferences.showNotifications && !preferences.showNotifications) {
-        startNotificationQuery()
-      }
-      preferences = newPreferences
-    })
+    subscribeUnreadCount()
+    subscribeStores()
+    onCrossWorkspaceState(get(crossWorkspaceNotificationStore))
   })
 
-  addEventListener(workbench.event.NotifyTitle, async (event, title: string) => {
+  addEventListener(workbench.event.NotifyTitle, async (_, title: string) => {
     ipcMainExposed().setTitle(title)
   })
 
@@ -285,26 +137,28 @@ export function configureNotifications (): void {
   })
 }
 
-function getNotificationObjectIdentity (
-  inboxNotification: WithLookup<InboxNotification>,
-  hierarchy: Hierarchy
-): Pick<Doc, '_id' | '_class'> {
-  if (!hierarchy.isDerived(inboxNotification._class, notification.class.ActivityInboxNotification)) {
-    return { _id: inboxNotification.objectId, _class: inboxNotification.objectClass }
+async function updateBadge (
+  electronAPI: IPCMainExposed,
+  preferences: DesktopNotificationPreferenceData,
+  count: number,
+  hasCrossWorkspaceNotifications: boolean
+): Promise<void> {
+  if (!preferences.showUnreadCounter) {
+    electronAPI.setBadge(0)
+    return
   }
 
-  const activityNotification = inboxNotification as WithLookup<ActivityInboxNotification>
-
-  if (
-    hierarchy.isDerived(activityNotification.attachedToClass, chunter.class.ThreadMessage) &&
-    hierarchy.isDerived(activityNotification.objectClass, activity.class.ActivityMessage)
-  ) {
-    const attachedTo = activityNotification.$lookup?.attachedTo as ThreadMessage | undefined
-
-    if (attachedTo != null) {
-      return { _id: attachedTo.objectId, _class: attachedTo.objectClass }
-    }
+  if (count > 0) {
+    const unreadCountTooltip = await translate(
+      notification.string.UnreadNotificationsCount,
+      { count },
+      get(languageStore)
+    )
+    electronAPI.setBadge(count, unreadCountTooltip)
+  } else if (hasCrossWorkspaceNotifications) {
+    const unreadTooltip = await translate(notification.string.HasNewNotifications, {}, get(languageStore))
+    electronAPI.setBadge('•', unreadTooltip)
+  } else {
+    electronAPI.setBadge(0)
   }
-
-  return { _id: activityNotification.objectId, _class: activityNotification.objectClass }
 }

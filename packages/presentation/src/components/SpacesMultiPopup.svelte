@@ -14,18 +14,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Class, Ref, Space } from '@hcengineering/core'
+  import type { Class, Ref, Space } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
-  import {
-    AnySvelteComponent,
-    CheckBox,
-    deviceOptionsStore,
-    resizeObserver,
-    tooltip,
-    EditWithIcon,
-    IconSearch
-  } from '@hcengineering/ui'
-  import { ComponentType, createEventDispatcher } from 'svelte'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { CheckBox, deviceOptionsStore, resizeObserver, tooltip, EditWithIcon, IconSearch } from '@hcengineering/ui'
+  import type { ComponentType } from 'svelte'
+  import { createEventDispatcher } from 'svelte'
   import presentation from '..'
   import { createQuery } from '../utils'
   import SpaceInfo from './SpaceInfo.svelte'
@@ -86,8 +81,8 @@
   <div class="header">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={searchQuery}
       {placeholder}
@@ -104,14 +99,14 @@
             checkSelected(space)
           }}
         >
-          <SpaceInfo size={'medium'} value={space} {iconWithEmoji} {defaultIcon} />
+          <SpaceInfo size="medium" value={space} {iconWithEmoji} {defaultIcon} />
           <div class="check ml-0 pointer-events-none">
             {#if titleDeselect}
               <div class="clear-mins" use:tooltip={{ label: titleDeselect ?? presentation.string.Deselect }}>
-                <CheckBox checked={isSelected(space)} kind={'primary'} />
+                <CheckBox checked={isSelected(space)} kind="primary" />
               </div>
             {:else}
-              <CheckBox checked={isSelected(space)} kind={'primary'} />
+              <CheckBox checked={isSelected(space)} kind="primary" />
             {/if}
           </div>
         </button>

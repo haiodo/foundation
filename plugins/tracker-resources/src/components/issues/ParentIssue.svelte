@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Issue } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
   import { Button, IconClose } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../plugin'
@@ -33,8 +33,8 @@
   <Button
     icon={IconClose}
     showTooltip={{ label: tracker.string.RemoveParent, direction: 'bottom' }}
-    kind={'ghost'}
-    size={'small'}
+    kind="ghost"
+    size="small"
     on:click={() => dispatch('close')}
   />
 </div>

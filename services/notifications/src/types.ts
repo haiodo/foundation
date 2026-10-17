@@ -14,32 +14,47 @@
 //
 
 import {
+  AccountUuid,
   Branding,
   type Class,
   type Doc,
   type DocumentQuery,
+  type DocumentUpdate,
   type FindOptions,
   FindResult,
   Hierarchy,
+  Markup,
   MeasureContext,
   ModelDb,
   Ref,
-  TxCUD,
+  Timestamp,
+  TxCreateDoc,
   TxFactory,
+  TxRemoveDoc,
+  TxUpdateDoc,
   type WithLookup,
   WorkspaceInfoWithStatus
 } from '@hcengineering/core'
 import {
+  AppPushNotification,
   DocNotifyContext,
-  MentionInboxNotification,
+  MentionNotification,
+  NotificationIntl,
   NotificationProvider,
   type NotificationProviderSetting,
   NotificationType,
-  type NotificationTypeSetting
+  type NotificationTypeSetting,
+  QueueNotificationMessage,
+  QueueNotifyMessage,
+  ReadState
 } from '@hcengineering/notification'
 import { Employee, SocialIdentity } from '@hcengineering/contact'
 import { StorageAdapter } from '@hcengineering/storage'
 import { Receiver } from '@hcengineering/server-notification'
+import { UserMentionInfo } from '@hcengineering/activity'
+import { IntlString } from '@hcengineering/platform'
+import type { QueueTopic } from '@hcengineering/server-core'
+import type { HeldPush, PendingPushHolder } from './pendingPush'
 
 export interface NotificationSettings {
   providersSettings: NotificationProviderSetting[]
@@ -48,10 +63,18 @@ export interface NotificationSettings {
   typesByProvider: Map<Ref<NotificationProvider>, NotificationTypeSetting[]>
 }
 
-export type EmployeeInfo = Pick<Employee, '_id' | 'personUuid' | 'role'>
+export type EmployeeInfo = Pick<Employee, '_id' | 'personUuid' | 'role' | 'active'>
 export type SocialIdentityInfo = Pick<SocialIdentity, '_id' | 'attachedTo'>
 
-export type NotifyResult = Record<Ref<NotificationProvider>, NotificationType[]>
+export type NotifyProviders = Record<Ref<NotificationProvider>, NotificationType[]>
+
+export interface TimeMachineMessage<T = unknown> {
+  type: 'schedule' | 'cancel'
+  id: string
+  targetDate?: Timestamp
+  topic?: QueueTopic
+  data?: T
+}
 
 export interface Client {
   ctx: MeasureContext
@@ -72,14 +95,66 @@ export interface Client {
     query: DocumentQuery<T>,
     options?: FindOptions<T>
   ) => Promise<WithLookup<T> | undefined>
+
+  bulkUpdate: <T extends Doc>(
+    _class: Ref<Class<T>>,
+    query: DocumentQuery<T>,
+    operations: DocumentUpdate<T>
+  ) => Promise<void>
+  bulkRemove: <T extends Doc>(_class: Ref<Class<T>>, query: DocumentQuery<T>) => Promise<void>
+
+  // Native pushes waiting for their receiver to read or leave; absent in tests that do not care.
+  pendingPush?: PendingPushHolder
 }
 
 export interface MentionResult {
-  txes: TxCUD<Doc>[]
-  data: {
-    data: Partial<MentionInboxNotification>
-    context: DocNotifyContext | undefined
-    receiver: Receiver
-    notifyResult: NotifyResult
-  }[]
+  notification: Omit<MentionNotification, 'id' | 'type' | 'createdOn' | 'createdBy'>
+  // Whole message for the email template; `notification.markup` is the excerpt kept in the context.
+  markup: Markup
+  intl: Partial<NotificationIntl>
+  context: DocNotifyContext | undefined
+  receiver: Receiver
+  notifyProviders: NotifyProviders
 }
+
+export interface Result {
+  updateContextTx: TxUpdateDoc<DocNotifyContext>[]
+  createContextTx: TxCreateDoc<DocNotifyContext>[]
+  createAppPushNotificationTx: TxCreateDoc<AppPushNotification>[]
+  // `latestMessageId/latestMessageTimestamp` of the document's ReadState.
+  updateReadStateTx: TxUpdateDoc<ReadState>[]
+
+  createUserMentionInfoTx: TxCreateDoc<UserMentionInfo>[]
+  updateUserMentionInfoTx: TxUpdateDoc<UserMentionInfo>[]
+  removeUserMentionInfoTx: TxRemoveDoc<UserMentionInfo>[]
+
+  queueMessages: QueueNotificationMessage[]
+  timeMachine: TimeMachineMessage[]
+  heldPushes: HeldPush[]
+
+  notified: Set<AccountUuid>
+}
+
+export interface TxCache {
+  titleByDoc: Map<Ref<Doc>, Partial<Record<AccountUuid | '', string>>>
+  urlByDoc: Map<Ref<Doc>, string>
+  labelByDoc: Map<Ref<Doc>, IntlString>
+  identifierByDoc: Map<Ref<Doc>, string>
+  iconByDoc: Map<Ref<Doc>, Partial<Record<AccountUuid | '', DocNotifyContext['objectIcon']>>>
+  templates: Map<string, QueueNotifyMessage['template']>
+}
+
+export type ObjectDisplayData = Pick<
+  DocNotifyContext,
+  | 'objectTitle'
+  | 'objectIdentifier'
+  | 'objectIcon'
+  | 'objectLabel'
+  | 'object'
+  | 'parentObjectId'
+  | 'parentObjectClass'
+  | 'parentObjectTitle'
+  | 'parentObjectIdentifier'
+  | 'parentObjectLabel'
+  | 'parentObjectIcon'
+>

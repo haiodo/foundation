@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import presentation, { Card } from '@hcengineering/presentation'
-  import { ProcessFunction } from '@hcengineering/process'
+  import type { ProcessFunction } from '@hcengineering/process'
   import { StringEditor } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import process from '../../plugin'
@@ -32,17 +32,17 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <Label label={process.string.Separator} />
     <StringEditor
       bind:value={separator}
-      size={'large'}
+      size="large"
       label={process.string.Separator}
       placeholder={process.string.Separator}
-      kind={'regular'}
-      justify={'left'}
-      width={'100%'}
+      kind="regular"
+      justify="left"
+      width="100%"
     />
   </div>
 </Card>

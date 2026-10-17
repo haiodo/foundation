@@ -64,7 +64,7 @@ import { createQuery, getClient, MessageBox } from '@hcengineering/presentation'
 import request, { type Request, RequestStatus } from '@hcengineering/request'
 import { isEmptyMarkup } from '@hcengineering/text'
 import { type Location, getUserTimezone, showPopup } from '@hcengineering/ui'
-import { type KeyFilter } from '@hcengineering/view'
+import { type KeyFilter, type ReferenceVersion } from '@hcengineering/view'
 
 import { makeRank } from '@hcengineering/rank'
 import { getProjectDocumentLink } from './navigation'
@@ -501,9 +501,7 @@ export async function rejectRequest (
   })
 }
 
-export type ControlledStatesTags = {
-  [K in ControlledDocumentState]: DocumentStateTagType
-}
+export type ControlledStatesTags = Record<ControlledDocumentState, DocumentStateTagType>
 
 export const controlledStatesTags: ControlledStatesTags = {
   [ControlledDocumentState.InReview]: 'inProgress',
@@ -514,9 +512,7 @@ export const controlledStatesTags: ControlledStatesTags = {
   [ControlledDocumentState.ToReview]: 'effective'
 }
 
-export type StatesTags = {
-  [K in DocumentState]: DocumentStateTagType
-}
+export type StatesTags = Record<DocumentState, DocumentStateTagType>
 
 export const statesTags: StatesTags = {
   [DocumentState.Draft]: 'draft',
@@ -800,9 +796,7 @@ export function getProjectDocsHierarchy (projectMeta: Array<WithLookup<ProjectMe
   for (const meta of projectMeta) {
     const parentId = meta.path[0] ?? documents.ids.NoParent
 
-    if (childrenByParent[parentId] === undefined) {
-      childrenByParent[parentId] = []
-    }
+    childrenByParent[parentId] ??= []
 
     childrenByParent[parentId].push(meta)
 
@@ -840,6 +834,29 @@ export async function getDocumentMetaTitle (
   const hint = await translate(documentsResources.string.LatestVersionHint, {})
 
   return object.title + ` (${hint})`
+}
+
+export async function documentMetaReferenceVersionsProvider (
+  client: Client,
+  ref: Ref<DocumentMeta>
+): Promise<ReferenceVersion[]> {
+  const versions = await client.findAll(
+    documents.class.ControlledDocument,
+    { attachedTo: ref },
+    {
+      sort: {
+        major: SortingOrder.Descending,
+        minor: SortingOrder.Descending
+      }
+    }
+  )
+
+  return versions.map((doc) => ({
+    id: doc._id,
+    objectclass: doc._class,
+    label: `${doc.title} (${getDocumentVersionString(doc)})`,
+    fixed: true
+  }))
 }
 
 export async function controlledDocumentReferenceObjectProvider (

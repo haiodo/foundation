@@ -1,6 +1,7 @@
 <!--
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2022, 2023, 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,31 +15,42 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref, SortingOrder, Status } from '@hcengineering/core'
-  import { Asset, getEmbeddedLabel, getResource } from '@hcengineering/platform'
-  import { AttributeEditor, MessageBox, createQuery, getClient } from '@hcengineering/presentation'
-  import { ClassAttributes, settingsStore } from '@hcengineering/setting-resources'
-  import task, { ProjectType, TaskType, calculateStatuses, findStatusAttr } from '@hcengineering/task'
+  import view from '@hcengineering/view'
+  import { onDestroy } from 'svelte'
+  import type { Ref, Status } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
+  import presentation, { MessageBox, createQuery, getClient } from '@hcengineering/presentation'
+  import { ClassAttributes, clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
+  import type { ProjectType, TaskType } from '@hcengineering/task'
+  import task, { calculateStatuses, findStatusAttr } from '@hcengineering/task'
   import {
-    ButtonIcon,
     Icon,
     IconAdd,
     IconDelete,
+    IconError,
     IconSquareExpand,
     Label,
-    ModernButton,
     Scroller,
+    ToggleWithLabel,
+    ModernEditbox,
     getCurrentLocation,
     navigate,
+    resolvePaletteColor,
     showPopup
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { IconPicker, deleteObjects, statusStore } from '@hcengineering/view-resources'
+  import workflow from '@hcengineering/workflow'
+
+  import TaskTypeTiedWorkflows from './TaskTypeTiedWorkflows.svelte'
+  import ExportTaskTypePopup from './ExportTaskTypePopup.svelte'
   import { taskTypeStore } from '../..'
   import plugin from '../../plugin'
   import StatesProjectEditor from '../state/StatesProjectEditor.svelte'
-  import TaskTypeKindEditor from '../taskTypes/TaskTypeKindEditor.svelte'
-  import TaskTypeRefEditor from '../taskTypes/TaskTypeRefEditor.svelte'
   import TaskTypeIcon from './TaskTypeIcon.svelte'
+  import TaskTypeHierarchySection from './TaskTypeHierarchySection.svelte'
 
   export let spaceType: ProjectType
   export let objectId: Ref<TaskType>
@@ -63,7 +75,7 @@
   $: taskType = taskTypes.find((tt) => tt._id === objectId)
   $: name = taskType?.name
   $: icon = taskType?.icon
-  $: color = taskType?.color !== undefined && typeof taskType?.color !== 'string' ? taskType?.color : undefined
+  $: color = resolvePaletteColor(taskType?.color)
   $: descriptor = client.getModel().findAllSync(task.class.TaskTypeDescriptor, { _id: taskType?.descriptor })
   $: states = (taskType?.statuses.map((p) => $statusStore.byId.get(p)).filter((p) => p !== undefined) as Status[]) ?? []
 
@@ -86,6 +98,38 @@
         }
       }
     )
+  }
+
+  let errorMessage: IntlString | undefined = undefined
+  let errorTaskTypeId: Ref<TaskType> | undefined = undefined
+
+  $: if (taskType !== undefined && errorTaskTypeId !== taskType._id) {
+    errorTaskTypeId = taskType._id
+    errorMessage = undefined
+  }
+
+  function commitName (value: string): void {
+    if (taskType === undefined || readonly) return
+
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      errorMessage = plugin.string.TaskTypeNameEmpty
+      return
+    }
+
+    const isDuplicate = taskTypes.some((tt) => tt._id !== taskType._id && isSameString(tt.name, trimmed))
+    if (isDuplicate) {
+      errorMessage = plugin.string.TaskTypeNameAlreadyExists
+      return
+    }
+    errorMessage = undefined
+    if (trimmed !== taskType.name) {
+      void client.diffUpdate(taskType, { name: trimmed })
+    }
+  }
+
+  function isSameString (a: string, b: string): boolean {
+    return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
   }
 
   function selectIcon (el: MouseEvent): void {
@@ -132,28 +176,39 @@
     }
   }
 
-  $: canDelete = !loading && tasksCounter === 0
+  let isDeleting = false
+
+  $: canDelete = !loading && !isDeleting && tasksCounter === 0 && taskTypes.length > 1
 
   async function handleDelete (): Promise<void> {
-    if (!canDelete || readonly || taskType == null) {
+    if (!canDelete || readonly || taskType == null || isDeleting) {
       return
     }
+    isDeleting = true
+    try {
+      const tiedWorkflows = await client.findAll(workflow.class.Workflow, { taskType: taskType._id })
 
-    showPopup(MessageBox, {
-      label: plugin.string.Delete,
-      message: plugin.string.Delete,
-      action: async () => {
-        if (taskType == null) {
-          return
+      showPopup(MessageBox, {
+        label: plugin.string.Delete,
+        message: plugin.string.Delete,
+        component: tiedWorkflows.length > 0 ? TaskTypeTiedWorkflows : undefined,
+        componentProps: { workflows: tiedWorkflows },
+        dangerous: true,
+        action: async () => {
+          if (taskType == null) {
+            return
+          }
+
+          await deleteObjects(client, [taskType])
+
+          const loc = getCurrentLocation()
+          loc.path.length -= 2
+          navigate(loc)
         }
-
-        await deleteObjects(client, [taskType])
-
-        const loc = getCurrentLocation()
-        loc.path.length -= 2
-        navigate(loc)
-      }
-    })
+      })
+    } finally {
+      isDeleting = false
+    }
   }
   async function showIssuesOfTaskType (): Promise<void> {
     if (taskType == null) return
@@ -166,57 +221,66 @@
       await f?.(taskType)
     }
   }
+
+  function handleExport (): void {
+    if (taskType == null) return
+    showPopup(ExportTaskTypePopup, { taskType, taskTypes }, 'center')
+  }
+
+  onDestroy(() => {
+    clearSettingsStore()
+  })
 </script>
 
 {#if taskType !== undefined}
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content gap">
           <div class="hulyComponent-content__column-group mt-4">
             <div class="hulyComponent-content__header mb-6">
               <div class="flex-row-center gap-1-5">
-                <TaskTypeKindEditor
-                  kind={taskType.kind}
-                  on:change={(evt) => {
-                    if (taskType === undefined) {
-                      return
-                    }
-                    void client.diffUpdate(taskType, { kind: evt.detail })
-                  }}
-                  {readonly}
-                />
                 {#if !readonly}
-                  <ButtonIcon
+                  <IconButton
                     icon={TaskTypeIcon}
                     iconProps={{ value: taskType, size: 'medium' }}
-                    size={'large'}
-                    kind={'secondary'}
-                    dataId={'btnSelectIcon'}
+                    size="large"
+                    kind="secondary"
+                    data-id="btnSelectIcon"
                     disabled={readonly}
+                    tooltip={{ label: view.string.Icon }}
                     on:click={selectIcon}
                   />
                 {/if}
               </div>
-              <div class="flex-row">
-                <ModernButton
+              <div class="flex-row gap-1">
+                <Button
                   icon={IconSquareExpand}
                   label={plugin.string.CountTasks}
                   labelParams={{ count: tasksCounter }}
                   disabled={tasksCounter === 0}
-                  kind={'tertiary'}
-                  size={'medium'}
+                  kind="tertiary"
+                  size="medium"
                   hasMenu
                   on:click={() => {
-                    showIssuesOfTaskType()
+                    void showIssuesOfTaskType()
                   }}
                 />
+                <IconButton
+                  icon={task.icon.Export}
+                  tooltip={{ label: plugin.string.Export }}
+                  kind="secondary"
+                  size="small"
+                  on:click={handleExport}
+                />
                 {#if canDelete}
-                  <ButtonIcon
+                  <IconButton
                     icon={IconDelete}
                     size="small"
                     kind="secondary"
-                    disabled={readonly}
+                    loading={isDeleting}
+                    disabled={readonly || isDeleting}
+                    tooltip={{ label: presentation.string.Delete }}
                     on:click={handleDelete}
                   />
                 {/if}
@@ -224,43 +288,58 @@
             </div>
 
             <div class="name" class:editable={!readonly}>
-              <AttributeEditor
-                _class={task.class.TaskType}
-                object={taskType}
-                key="name"
-                editKind={'modern-ghost-large'}
-                editable={!readonly}
+              <ModernEditbox
+                value={taskType?.name ?? ''}
+                label={plugin.string.TaskTypeName}
+                size="large"
+                kind="ghost"
+                width="100%"
+                disabled={readonly}
+                error={errorMessage !== undefined}
+                limit={32}
+                on:input={() => {
+                  if (errorMessage !== undefined) {
+                    errorMessage = undefined
+                  }
+                }}
+                on:blur={(evt) => {
+                  commitName(evt.detail ?? '')
+                }}
               />
-            </div>
-
-            <div class="flex-row-center mt-4 ml-4 mr-4 gap-4">
-              <div class="flex-no-shrink trans-title uppercase">
-                <Label label={getEmbeddedLabel('Parent type restrictions')} />
-              </div>
-              {#if taskType.kind === 'subtask' || taskType.kind === 'both'}
-                <TaskTypeRefEditor
-                  label={getEmbeddedLabel('Allowed parents')}
-                  value={taskType.allowedAsChildOf}
-                  types={taskTypes.filter((it) => it.kind === 'task' || it.kind === 'both')}
-                  onChange={(evt) => {
-                    if (taskType === undefined) {
-                      return
-                    }
-                    void client.diffUpdate(taskType, { allowedAsChildOf: evt })
-                  }}
-                />
+              {#if errorMessage !== undefined}
+                <div class="name-error">
+                  <Icon icon={IconError} size="small" />
+                  <span><Label label={errorMessage} /></span>
+                </div>
               {/if}
             </div>
           </div>
 
+          <TaskTypeHierarchySection {taskType} {taskTypes} {readonly} />
+
+          <div class="flex-row-center mt-4 ml-4 mr-4 gap-4">
+            <ToggleWithLabel
+              label={plugin.string.ShowParentTasks}
+              on={taskType.showParentTasks ?? false}
+              disabled={readonly}
+              on:change={(evt) => {
+                if (taskType === undefined) {
+                  return
+                }
+                void client.diffUpdate(taskType, { showParentTasks: evt.detail })
+              }}
+            />
+          </div>
+
           <div class="hulyTableAttr-container">
             <div class="hulyTableAttr-header font-medium-12">
-              <Icon icon={task.icon.ManageTemplates} size={'small'} />
+              <Icon icon={task.icon.ManageTemplates} size="small" />
               <span><Label label={plugin.string.ProcessStates} /></span>
-              <ButtonIcon
-                kind={'primary'}
+              <IconButton
+                kind="primary"
                 icon={IconAdd}
-                size={'small'}
+                size="small"
+                tooltip={{ label: presentation.string.Add }}
                 on:click={handleAddStatus}
                 disabled={readonly}
               />
@@ -317,7 +396,7 @@
             />
           </div>
 
-          <ClassAttributes _class={taskType.targetClass} showHierarchy disabled={readonly} />
+          <ClassAttributes _class={taskType.targetClass} showHierarchy showMixins disabled={readonly} />
         </div>
       </Scroller>
     </div>
@@ -330,11 +409,22 @@
     font-weight: 500;
     margin-left: 1rem;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     font-size: 1.5rem;
 
     &.editable {
       margin-left: 0;
+    }
+
+    .name-error {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      margin-top: 0.375rem;
+      font-size: 0.8125rem;
+      font-weight: 400;
+      color: var(--global-negative-TextColor, #ef4444);
     }
   }
 </style>

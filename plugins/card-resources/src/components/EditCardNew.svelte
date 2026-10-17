@@ -15,32 +15,24 @@
 //
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
-  import { NotificationContext } from '@hcengineering/communication-types'
-  import { Ref, WithLookup } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import type { Ref, WithLookup } from '@hcengineering/core'
   import presence from '@hcengineering/presence'
-  import {
-    ComponentExtensions,
-    createNotificationContextsQuery,
-    createQuery,
-    getClient
-  } from '@hcengineering/presentation'
+  import { ComponentExtensions, createQuery, getClient } from '@hcengineering/presentation'
+  import type { DropdownIntlItem, IPanelState } from '@hcengineering/ui'
   import {
     Button,
     Component,
     createFocusManager,
     deviceOptionsStore as deviceInfo,
-    DropdownIntlItem,
     DropdownLabelsPopupIntl,
     EditBox,
     eventToHTMLElement,
     FocusHandler,
     getCurrentLocation,
-    Icon,
     IconDetailsFilled,
     IconMaxWidth,
     IconMoreH,
-    IPanelState,
     navigate,
     Panel,
     showPopup
@@ -49,7 +41,7 @@
   import { canChangeDoc, showMenu } from '@hcengineering/view-resources'
 
   import { permissionsStore } from '@hcengineering/contact-resources'
-  import { afterUpdate, getContext, setContext } from 'svelte'
+  import { afterUpdate } from 'svelte'
   import card from '../plugin'
   import { openCardInSidebar, setViewMode, viewStore } from '../utils'
   import CardIcon from './CardIcon.svelte'
@@ -68,11 +60,8 @@
 
   const manager = createFocusManager()
   const query = createQuery()
-  const contextsQuery = createNotificationContextsQuery()
 
   let doc: WithLookup<Card> | undefined
-  let context: NotificationContext | undefined = undefined
-  let isContextLoaded = false
 
   let title: string = ''
   let isTitleEditing = false
@@ -80,8 +69,6 @@
 
   $: if (prevId !== _id) {
     prevId = _id
-    context = undefined
-    isContextLoaded = false
     isTitleEditing = false
   }
 
@@ -96,11 +83,6 @@
       loc.path.length = 3
       navigate(loc)
     }
-  })
-
-  $: contextsQuery.query({ cardId: _id, limit: 1 }, (res) => {
-    context = res.getResult()[0]
-    isContextLoaded = true
   })
 
   async function saveTitle (ev: Event): Promise<void> {
@@ -200,14 +182,14 @@
     isHeader={false}
     {embedded}
     {allowClose}
-    adaptive={'disabled'}
+    adaptive="disabled"
     overflowExtra
     on:resize={updateTitleGroup}
     on:open
     on:close
   >
     <div class="main-content clear-mins">
-      <EditCardNewContent {_id} {doc} readonly={_readonly} {context} {isContextLoaded} />
+      <EditCardNewContent {_id} {doc} readonly={_readonly} />
     </div>
 
     <svelte:fragment slot="beforeTitle">
@@ -215,7 +197,7 @@
     </svelte:fragment>
 
     <svelte:fragment slot="title">
-      <ParentNamesPresenter value={doc} maxWidth={'12rem'} compact={!expandedParents} />
+      <ParentNamesPresenter value={doc} maxWidth="12rem" compact={!expandedParents} />
       <div class="title flex-row-center">
         {#if !_readonly && !updatePermissionForbidden}
           <EditBox
@@ -278,7 +260,7 @@
         }}
       />
 
-      {#if !_readonly}
+      {#if !readonly}
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
@@ -297,7 +279,7 @@
           {#if $$slots.header}
             <slot name="header" />
           {/if}
-          <div class="buttons-group xsmall-gap ml-4" style:align-self={'flex-start'}>
+          <div class="buttons-group xsmall-gap ml-4" style:align-self="flex-start">
             <slot name="tools" />
           </div>
         </div>
@@ -315,7 +297,7 @@
           card: doc
         }}
       />
-      <TagsEditor {doc} {dropdownTags} readonly={_readonly} id={'cardHeader-tags'} />
+      <TagsEditor {doc} {dropdownTags} readonly={_readonly} id="cardHeader-tags" />
       <slot name="extra" />
     </svelte:fragment>
 

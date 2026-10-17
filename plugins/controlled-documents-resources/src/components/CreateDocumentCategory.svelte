@@ -16,12 +16,13 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
   import { AttachmentPresenter, AttachmentStyledBox } from '@hcengineering/attachment-resources'
-  import { generateId, Ref, Space } from '@hcengineering/core'
+  import type { Ref, Space } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
   import { Button, EditBox, IconAttachment, tooltip } from '@hcengineering/ui'
-  import { DocumentCategory } from '@hcengineering/controlled-documents'
+  import type { DocumentCategory } from '@hcengineering/controlled-documents'
 
   import IconWarning from './icons/IconWarning.svelte'
   import documents from '../plugin'
@@ -93,10 +94,10 @@
       <EditBox
         placeholder={documents.string.Title}
         bind:value={_title}
-        kind={'large-style'}
+        kind="large-style"
         required
         focusIndex={1}
-        maxWidth={'38rem'}
+        maxWidth="38rem"
         autoFocus
         on:input={() => {
           code = _title
@@ -120,10 +121,10 @@
       <EditBox
         placeholder={documents.string.Code}
         bind:value={code}
-        kind={'large-style'}
+        kind="large-style"
         required
         focusIndex={2}
-        maxWidth={'38rem'}
+        maxWidth="38rem"
         on:input={() => {
           code = code.trim()
         }}
@@ -154,7 +155,7 @@
       focusIndex={3}
       alwaysEdit
       showButtons={false}
-      kind={'normal'}
+      kind="normal"
       isScrollable={false}
       enableAttachments={false}
       on:attachments={(ev) => {
@@ -174,7 +175,7 @@
           showPreview
           removable
           on:remove={(result) => {
-            if (result.detail !== undefined) descriptionBox.removeAttachmentById(result.detail._id)
+            if (result.detail !== undefined) void descriptionBox.removeAttachmentById(result.detail._id)
           }}
         />
       {/each}
@@ -185,8 +186,8 @@
       focusIndex={10}
       icon={IconAttachment}
       iconProps={{ fill: 'var(--theme-dark-color)' }}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       on:click={() => {
         descriptionBox.handleAttach()
       }}

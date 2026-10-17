@@ -14,10 +14,12 @@
 -->
 <script lang="ts">
   import cardPlugin from '@hcengineering/card'
-  import core, { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { Card, getClient } from '@hcengineering/presentation'
-  import { DropdownIntlItem, DropdownLabelsIntl, EditBox, Label, NestedDropdown, Toggle } from '@hcengineering/ui'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { DropdownLabelsIntl, EditBox, Label, NestedDropdown, Toggle } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import setting from '../plugin'
@@ -128,7 +130,7 @@
     }
   ]
 
-  let mode: '1:1' | '1:N' | 'N:N' = 'N:N' as '1:1' | '1:N' | 'N:N'
+  let mode: '1:1' | '1:N' | 'N:N' = 'N:N'
 
   $: classA = getAClass(aClass)
 
@@ -156,7 +158,7 @@
     <div class="flex-col p-4 flex-gap-2">
       <div class="flex-col-center">A</div>
       <div>
-        <EditBox bind:value={nameA} placeholder={core.string.Name} kind={'default'} />
+        <EditBox bind:value={nameA} placeholder={core.string.Name} kind="default" />
       </div>
       <div>
         {#if classA !== undefined}
@@ -190,7 +192,7 @@
     <div class="flex-col p-4 flex-gap-2">
       <div class="flex-col-center">B</div>
       <div>
-        <EditBox bind:value={nameB} placeholder={core.string.Name} kind={'default'} />
+        <EditBox bind:value={nameB} placeholder={core.string.Name} kind="default" />
       </div>
       <div>
         <NestedDropdown

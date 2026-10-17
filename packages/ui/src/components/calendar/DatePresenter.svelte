@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,18 +15,19 @@
 -->
 <script lang="ts">
   import type { IntlString, Asset } from '@hcengineering/platform'
-  import { createEventDispatcher, ComponentType, afterUpdate } from 'svelte'
+  import type { ComponentType } from 'svelte'
+  import { createEventDispatcher, afterUpdate } from 'svelte'
 
   import { DateRangeMode } from '@hcengineering/core'
   import ui from '../../plugin'
   import { showPopup } from '../../popups'
-  import { ButtonKind, ButtonSize, AnySvelteComponent } from '../../types'
+  import type { ButtonKind, ButtonSize, AnySvelteComponent } from '../../types'
   import Icon from '../Icon.svelte'
   import Label from '../Label.svelte'
   import DatePopup from './DatePopup.svelte'
   import DPCalendar from './icons/DPCalendar.svelte'
   import DPCalendarOver from './icons/DPCalendarOver.svelte'
-  import { getMonthName } from './internal/DateUtils'
+  import { formatDate } from './internal/DateUtils'
   import { registerFocus } from '../../focus'
 
   export let value: number | null | undefined
@@ -120,18 +122,14 @@
     <div class="btn-icon {iconModifier}" class:buttonIconNoLabel={!shouldShowLabel}>
       <Icon
         icon={icon ?? (iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar)}
-        size={'full'}
+        size="full"
       />
     </div>
   {/if}
   {#if value !== null && value !== undefined}
     {#if shouldShowLabel}
       {#if mode !== DateRangeMode.TIMEONLY}
-        {new Date(value).getDate()}
-        {getMonthName(new Date(value), 'short')}
-        {#if new Date(value).getFullYear() !== today.getFullYear()}
-          {new Date(value).getFullYear()}
-        {/if}
+        {formatDate(new Date(value), new Date(value).getFullYear() !== today.getFullYear())}
       {/if}
       {#if withTime}
         {#if mode !== DateRangeMode.TIMEONLY}

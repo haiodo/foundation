@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Employee } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import { Avatar, EmployeePresenter, UsersPopup } from '@hcengineering/contact-resources'
-  import { Ref, WithLookup } from '@hcengineering/core'
-  import { Department, Staff } from '@hcengineering/hr'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import type { Department, Staff } from '@hcengineering/hr'
   import { getClient } from '@hcengineering/presentation'
   import { Button, IconAdd, Label, closeTooltip, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { openDoc, showMenu } from '@hcengineering/view-resources'
@@ -69,7 +70,7 @@
   }
 
   function edit (e: MouseEvent): void {
-    openDoc(client.getHierarchy(), value)
+    void openDoc(client.getHierarchy(), value)
   }
 
   export let dragPerson: WithLookup<Staff> | undefined
@@ -105,7 +106,7 @@
     }}
     on:drop|preventDefault={(itm) => {
       closeTooltip()
-      addMember(client, dragPerson, value).then(() => {
+      void addMember(client, dragPerson, value).then(() => {
         dragPerson = undefined
         dragOver = undefined
       })
@@ -113,9 +114,9 @@
   >
     <div class="flex-center">
       <div class="mr-2">
-        <Button icon={IconAdd} kind={'list'} on:click={createChild} />
+        <Button icon={IconAdd} kind="list" on:click={createChild} />
       </div>
-      <Avatar size={'medium'} person={value} icon={hr.icon.Department} name={value.name} />
+      <Avatar size="medium" person={value} icon={hr.icon.Department} name={value.name} />
       <div class="flex-row ml-2 mr-4">
         <div class="fs-title">
           {value.name}
@@ -128,7 +129,7 @@
       <div class="mr-2">
         <EmployeePresenter
           value={value.$lookup?.teamLead}
-          avatarSize={'small'}
+          avatarSize="small"
           shouldShowAvatar
           shouldShowPlaceholder
           shouldShowName={false}

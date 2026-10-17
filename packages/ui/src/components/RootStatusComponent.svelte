@@ -39,8 +39,8 @@
   {#if onCancel !== undefined}
     <Button
       icon={IconClose}
-      size={'small'}
-      kind={'ghost'}
+      size="small"
+      kind="ghost"
       on:click={() => {
         if (onCancel !== undefined) {
           onCancel?.(props)

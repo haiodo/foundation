@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
-  import { Doc, FindOptions, SortingOrder } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import type { Doc, FindOptions } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
   import { ObjectPopup, getClient } from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
   import card from '../plugin'
@@ -70,7 +71,7 @@
   {ignoreObjects}
   shadows={true}
   {width}
-  searchMode={'spotlight'}
+  searchMode="spotlight"
   on:update
   on:close={onClose}
 >

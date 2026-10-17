@@ -57,7 +57,7 @@
   let durationLabel: string = ''
   const updateDurationLabel = (dur: number | boolean): void => {
     if (typeof dur === 'number') {
-      formatDuration(dur, $themeStore.language).then((res) => {
+      void formatDuration(dur, $themeStore.language).then((res) => {
         durationLabel = res
       })
     } else durationLabel = ''
@@ -86,7 +86,7 @@
     >
       {#if size === 'large' && !disabled}
         <div class="hulyAccordionItem-header__chevron">
-          <Icon icon={IconChevronRight} size={'small'} />
+          <Icon icon={IconChevronRight} size="small" />
         </div>
       {/if}
       {#if size !== 'small' && icon !== undefined && !disabled}

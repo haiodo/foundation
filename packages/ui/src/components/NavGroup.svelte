@@ -14,14 +14,14 @@
 -->
 <script lang="ts">
   import type { Doc, Ref } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import type { AnyComponent, IconSize, AnySvelteComponent } from '..'
+  import type { AnyComponent, IconSize, AnySvelteComponent, Action } from '..'
   import {
     showPopup,
     Menu,
-    Action,
     Label,
     Component,
     IconDown,
@@ -32,6 +32,7 @@
     Icon,
     getTreeCollapsed,
     setTreeCollapsed,
+    getCollapsedKey,
     tooltip
   } from '..'
 
@@ -43,6 +44,7 @@
   export let title: string | undefined = undefined
   export let categoryName: string
   export let tools: AnyComponent | undefined = undefined
+  export let defaultOpen: boolean | undefined = undefined
   export let isOpen: boolean = true
   export let isFold: boolean = false
   export let empty: boolean = false
@@ -64,9 +66,13 @@
   export let testid: string | undefined = undefined
 
   const dispatch = createEventDispatcher()
+  const labelId = `nav-group-label-${generateId()}`
 
   $: id = `navGroup-${categoryName}`
   let pressed: boolean = false
+
+  $: isStored = _id ? localStorage.getItem(getCollapsedKey(_id, collapsedPrefix)) !== null : false
+  $: isOpen = isStored ? !getTreeCollapsed(_id, collapsedPrefix) : (defaultOpen ?? true)
 
   const handleClick = (e: MouseEvent): void => {
     if (type === 'selectable-header') dispatch('click')
@@ -81,6 +87,10 @@
     e.preventDefault()
     if (!empty) {
       isOpen = !isOpen
+      if (_id) {
+        const key = getCollapsedKey(_id, collapsedPrefix)
+        !isOpen ? localStorage.setItem(key, 'COLLAPSED') : localStorage.setItem(key, 'EXPANDED')
+      }
       dispatch('toggle', isOpen)
     }
   }
@@ -94,8 +104,7 @@
       pressed = false
     })
   }
-  $: isOpen = !getTreeCollapsed(_id, collapsedPrefix)
-  $: setTreeCollapsed(_id, !isOpen, collapsedPrefix)
+
   $: visibleIcon = folderIcon ? (isOpen && !empty ? IconFolderExpanded : IconFolderCollapsed) : icon
 
   function onHeaderClick (e: MouseEvent): void {
@@ -120,6 +129,7 @@
 >
   <button
     class="hulyNavGroup-header"
+    aria-labelledby={labelId}
     class:isOpen={(isOpen || visible) && !empty}
     class:highlighted
     class:selected
@@ -133,7 +143,7 @@
   >
     {#if isFold && !empty}
       <button class="hulyNavGroup-header__chevron" class:collapsed={!isOpen} on:click={toggle}>
-        <IconDown size={'small'} />
+        <IconDown size="small" />
       </button>
     {/if}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -146,15 +156,17 @@
       {/if}
       <span
         use:tooltip={shouldTooltip ? { label: label ?? getEmbeddedLabel(title ?? ''), direction: 'top' } : undefined}
+        id={labelId}
         class="overflow-label"
       >
         {#if label}<Label {label} />{/if}
         {#if title}{title}{/if}
       </span>
       {#if actions.length > 0}
-        <IconDownOutline size={'tiny'} />
+        <IconDownOutline size="tiny" />
       {/if}
     </div>
+    {#if $$slots.afterTitle}<slot name="afterTitle" />{/if}
     <div class="flex-grow" />
     {#if $$slots.extra}<slot name="extra" />{/if}
     {#if tools || $$slots.tools}
@@ -180,7 +192,7 @@
       <slot name="after" {isOpen} />
     {/if}
     {#if selected && type === 'nested-selectable'}
-      <div class="hulyNavGroup-header__arrow"><IconOpenedArrow size={'small'} /></div>
+      <div class="hulyNavGroup-header__arrow"><IconOpenedArrow size="small" /></div>
     {/if}
   </button>
   {#if !empty}

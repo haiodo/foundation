@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -34,11 +35,17 @@ import {
   type ModelLogger
 } from '@hcengineering/model'
 import tags, { type TagCategory } from '@hcengineering/model-tags'
-import task, { createSequence, DOMAIN_TASK, migrateDefaultStatusesBase } from '@hcengineering/model-task'
+import task, {
+  createSequence,
+  DOMAIN_TASK,
+  migrateDefaultStatusesBase,
+  migrateTaskTypesToClasses
+} from '@hcengineering/model-task'
+import { migrateMixinCustomAttributesPref } from '@hcengineering/model-view'
 import { recruitId, type Applicant } from '@hcengineering/recruit'
-
 import { DOMAIN_CALENDAR } from '@hcengineering/model-calendar'
 import { DOMAIN_SPACE } from '@hcengineering/model-core'
+
 import recruit from './plugin'
 import { defaultApplicantStatuses } from './spaceType'
 
@@ -78,6 +85,22 @@ export const recruitOperation: MigrateOperation = {
             DOMAIN_TASK,
             { _class: recruit.class.Applicant, isDone: { $nin: [false, true] } },
             { isDone: false }
+          )
+        }
+      },
+      {
+        state: 'migrateTaskTypesToClasses-v6',
+        mode: 'upgrade',
+        func: migrateApplicationTaskTypes
+      },
+      {
+        state: 'migrateTaskTypeMixinPrefs-v1',
+        mode: 'upgrade',
+        func: async (client) => {
+          await migrateMixinCustomAttributesPref(
+            client,
+            'recruit:mixin:ApplicantTypeData',
+            recruit.class.ApplicantTaskType
           )
         }
       }
@@ -148,7 +171,7 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
   const oldSpaceTypeMixin = `${recruit.template.DefaultVacancy}:type:mixin`
   const newSpaceTypeMixin = recruit.mixin.DefaultVacancyTypeData
   const oldTaskTypeMixin = `${recruit.taskTypes.Applicant}:type:mixin`
-  const newTaskTypeMixin = recruit.mixin.ApplicantTypeData
+  const newTaskTypeMixin = 'recruit:mixin:ApplicantTypeData' as any
 
   await client.update(
     DOMAIN_MODEL_TX,
@@ -185,6 +208,15 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
         [oldTaskTypeMixin]: newTaskTypeMixin
       }
     }
+  )
+}
+
+async function migrateApplicationTaskTypes (client: MigrationClient): Promise<void> {
+  await migrateTaskTypesToClasses(
+    client,
+    recruit.taskTypes.Applicant,
+    'recruit:mixin:ApplicantTypeData' as any,
+    recruit.class.ApplicantTaskType
   )
 }
 

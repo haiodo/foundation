@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { ExecutionContext, parseContext, Process, SelectedUserRequest, Transition } from '@hcengineering/process'
+  import type { ExecutionContext, Process, SelectedUserRequest, Transition } from '@hcengineering/process'
+  import { parseContext } from '@hcengineering/process'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
   import ProcessAttributeEditor from './ProcessAttributeEditor.svelte'
@@ -40,7 +41,7 @@
       for (const key in action.params) {
         const value = (action.params as any)[key]
         const request = parseContext(value)
-        if (request !== undefined && request.type === 'userRequest') {
+        if (request?.type === 'userRequest') {
           contexts.push(request)
         }
       }

@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref, SpaceType, WithLookup } from '@hcengineering/core'
+  import type { Ref, SpaceType, WithLookup } from '@hcengineering/core'
   import { Icon, Label, IconOpenedArrow } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import setting from '../../plugin'
@@ -57,7 +57,7 @@
     {/if}
     {#if type._id === selectedTypeId}
       <div class="hulyTaskNavLink-icon right">
-        <IconOpenedArrow size={'small'} />
+        <IconOpenedArrow size="small" />
       </div>
     {/if}
   </button>

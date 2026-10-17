@@ -14,21 +14,22 @@
 -->
 <script lang="ts">
   import {
-    ButtonBase,
-    ButtonIcon,
     IconDelete,
     themeStore,
     Hotkey,
     HotkeyGroup,
     Scroller,
     formatDuration,
-    Label
+    Label,
+    tooltip
   } from '@hcengineering/ui'
+  import presentation from '@hcengineering/presentation'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { EventTimeEditor } from '@hcengineering/calendar-resources'
-  import { WorkSlot } from '@hcengineering/time'
+  import type { WorkSlot } from '@hcengineering/time'
   import { createEventDispatcher } from 'svelte'
   import time from '../plugin'
-  import { calculateEventsDuration } from '../utils'
+  import { splitEventsDuration } from '../utils'
 
   export let slots: WorkSlot[] = []
   export let shortcuts: boolean = true
@@ -37,8 +38,13 @@
   const dispatch = createEventDispatcher()
 
   let duration: string
-  $: formatDuration(calculateEventsDuration(slots), $themeStore.language).then((res) => {
+  let plannedDuration: string
+  $: split = splitEventsDuration(slots)
+  $: void formatDuration(split.spent, $themeStore.language).then((res) => {
     duration = res
+  })
+  $: void formatDuration(split.planned, $themeStore.language).then((res) => {
+    plannedDuration = res
   })
 
   function handleKeyDown (event: KeyboardEvent): void {
@@ -61,7 +67,7 @@
 
 <svelte:window on:keydown={handleKeyDown} />
 
-<Scroller gap={'flex-gap-1'} horizontal>
+<Scroller gap="flex-gap-1" horizontal>
   {#each slots as slot, i}
     <div class="flex-between flex-no-shrink flex-gap-2 min-w-full w-max slot">
       <Hotkey key={(i + 1).toString()} />
@@ -74,11 +80,12 @@
         on:change={(e) => change(e, slot)}
         on:dueChange={(e) => dueChange(e, slot)}
       />
-      <ButtonIcon
+      <IconButton
         kind="tertiary"
         size="small"
         icon={IconDelete}
-        dataId={'btnDelete'}
+        data-id="btnDelete"
+        tooltip={{ label: presentation.string.Delete }}
         on:click={() => {
           dispatch('remove', { _id: slot._id })
         }}
@@ -87,22 +94,21 @@
   {/each}
 </Scroller>
 <div class="flex-row-center flex-gap-4">
-  <ButtonBase
-    kind="secondary"
-    type="type-button"
-    size="medium"
-    label={time.string.AddSlot}
-    on:click={() => dispatch('create')}
-  >
+  <Button kind="secondary" size="medium" label={time.string.AddSlot} on:click={() => dispatch('create')}>
     {#if shortcuts}
       <HotkeyGroup keys={['shift', 'Enter']} />
     {/if}
-  </ButtonBase>
-  {#if duration}
+  </Button>
+  {#if split.spent > 0 || split.planned > 0}
     <div class="font-regular-14">
       <Label label={time.string.SummaryDuration} />:
       <br />
-      <span class="duration">{duration}</span>
+      {#if split.spent > 0}
+        <span class="duration">{duration}</span>
+      {/if}
+      {#if split.planned > 0}
+        <span class="ml-2 content-dark-color" use:tooltip={{ label: time.string.PlannedTime }}>+{plannedDuration}</span>
+      {/if}
     </div>
   {/if}
 </div>

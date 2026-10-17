@@ -15,9 +15,10 @@
 <script lang="ts">
   import type { Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { recruitId, Vacancy } from '@hcengineering/recruit'
+  import type { Vacancy } from '@hcengineering/recruit'
+  import { recruitId } from '@hcengineering/recruit'
   import { Button, Icon, IconAdd, Label, Loading, Scroller, showPopup } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { NavLink, Table, ViewletsSettingButton } from '@hcengineering/view-resources'
   import recruit from '../plugin'
   import CreateApplication from './CreateApplication.svelte'
@@ -51,7 +52,7 @@
 <div class="antiSection max-h-125 clear-mins">
   <div class="antiSection-header">
     <div class="antiSection-header__icon">
-      <Icon icon={IconApplication} size={'small'} />
+      <Icon icon={IconApplication} size="small" />
     </div>
     <span class="antiSection-header__title">
       <NavLink app={recruitId} space={objectId}>
@@ -61,13 +62,13 @@
     <div class="flex-row-center gap-2 reverse">
       <ViewletsSettingButton
         viewletQuery={{ _id: recruit.viewlet.VacancyApplicationsShort }}
-        kind={'tertiary'}
+        kind="tertiary"
         bind:viewlet
         bind:preference
         bind:loading
       />
       {#if !readonly}
-        <Button id="appls.add" icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id="appls.add" icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </div>

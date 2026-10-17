@@ -15,25 +15,18 @@
 <script lang="ts">
   import { DateRangeMode, type MixinUpdate, Timestamp } from '@hcengineering/core'
   import { IntlString } from '@hcengineering/platform'
-  import {
-    DatePresenter,
-    DropdownLabels,
-    Label,
-    DropdownTextItem,
-    RadioButton,
-    Scroller,
-    Toggle
-  } from '@hcengineering/ui'
+  import type { DropdownTextItem } from '@hcengineering/ui'
+  import { DatePresenter, DropdownLabels, Label, RadioButton, Scroller, Toggle } from '@hcengineering/ui'
   import { getClient } from '@hcengineering/presentation'
   import { UserBoxItems } from '@hcengineering/contact-resources'
+  import type { ControlledDocument } from '@hcengineering/controlled-documents'
   import {
     type Document,
     ControlledDocumentState,
     DEFAULT_PERIODIC_REVIEW_INTERVAL,
     DocumentState,
     type DocumentTraining,
-    periodicReviewIntervals,
-    ControlledDocument
+    periodicReviewIntervals
   } from '@hcengineering/controlled-documents'
   import {
     NullablePositiveNumberEditor,
@@ -64,26 +57,6 @@
   //   }
 
   //   await client.update($controlledDocument, { plannedEffectiveDate })
-  // }
-
-  // let selectedDate: Timestamp =
-  //   $controlledDocument?.plannedEffectiveDate != null && $controlledDocument?.plannedEffectiveDate > 0
-  //     ? $controlledDocument.plannedEffectiveDate
-  //     : Date.now()
-
-  // let selected: IntlString | undefined = undefined
-  // if ($controlledDocument?.plannedEffectiveDate === 0) {
-  //   selected = documentsRes.string.EffectiveImmediately
-  // } else if ($controlledDocument?.plannedEffectiveDate != null) {
-  //   selected = documentsRes.string.EffectiveOn
-  // }
-
-  // async function changeSelectedDate (ev: CustomEvent) {
-  //   if (ev.detail !== undefined) {
-  //     selectedDate = ev.detail
-  //     await changePlannedEffectiveDate(ev.detail)
-  //     selected = documentsRes.string.EffectiveOn
-  //   }
   // }
 
   const reviewIntervals: DropdownTextItem[] = []
@@ -322,7 +295,7 @@
         />
       </header>
 
-      {#if $documentTraining !== null && $documentTraining.enabled}
+      {#if $documentTraining?.enabled}
         {@const trainingAttribute = hierarchy.getAttribute(documentTrainingClass._id, 'training')}
         <span class="fs-title text-normal">
           <Label label={trainingAttribute.label} />

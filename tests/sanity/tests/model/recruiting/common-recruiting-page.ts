@@ -2,6 +2,7 @@ import { expect, Locator, Page } from '@playwright/test'
 import path from 'path'
 import { CalendarPage } from '../calendar-page'
 import { SocialLink } from './types'
+import { retry } from '../../retry'
 
 export class CommonRecruitingPage extends CalendarPage {
   readonly page: Page
@@ -13,12 +14,17 @@ export class CommonRecruitingPage extends CalendarPage {
 
   readonly inputComment = (): Locator => this.page.locator('div.text-input div.tiptap')
   readonly buttonSendComment = (): Locator => this.page.locator('g#Send')
-  readonly textComment = (): Locator => this.page.locator('div.showMore-content p')
+  // Delivered only: a message shows while its create is still in flight, and a reload then loses it.
+  readonly textComment = (): Locator => this.page.locator('.activityMessage div[data-delivered] .text-markup-view p')
   readonly inputAddAttachment = (): Locator => this.page.locator('div.antiSection #file').first()
   readonly textAttachmentName = (): Locator => this.page.locator('div.attachment-container > a')
   readonly buttonCreateFirstReview = (): Locator => this.page.locator('span:has-text("Create review")')
   readonly buttonMoreActions = (): Locator =>
-    this.page.locator('.popupPanel > .hulyHeader-container > .hulyHeader-buttonsGroup.actions > button').first()
+    this.page
+      .locator(
+        '.popupPanel > .hulyHeader-container > .hulyHeader-buttonsGroup.actions > button[data-id="btnMoreActions"]'
+      )
+      .first()
 
   readonly buttonDelete = (): Locator => this.page.locator('button[class*="menuItem"] span', { hasText: 'Delete' })
   readonly buttonAddSocialLinks = (): Locator =>
@@ -34,8 +40,8 @@ export class CommonRecruitingPage extends CalendarPage {
   readonly buttonSocialCancel = (): Locator => this.page.locator('div.popup button[type="button"]:not([id])')
   readonly buttonSocialSave = (): Locator => this.page.locator('button#channel-ok')
   readonly textActivity = (): Locator => this.page.locator('div.content')
-  readonly buttonContactLinkedIn = (): Locator =>
-    this.page.locator('div[class^="popupPanel-body"] div.horizontal button[id="contact:string:LinkedIn"]')
+  readonly buttonContactHomepage = (): Locator =>
+    this.page.locator('div[class^="popupPanel-body"] div.horizontal button[id="contact:string:Homepage"]')
 
   readonly newTalentFirstName = (): Locator =>
     this.page.locator('div.popup form[id="recruit:string:CreateTalent"] input[placeholder="First name"]')
@@ -75,7 +81,15 @@ export class CommonRecruitingPage extends CalendarPage {
   }
 
   async clickAppleseedJohn (): Promise<void> {
-    await this.appleseedJohnButton().last().click()
+    // A sibling popup-header can briefly intercept pointer events right after the members popup
+    // opens.
+    const btn = this.appleseedJohnButton().last()
+    await btn.waitFor({ state: 'visible', timeout: 15000 })
+    try {
+      await btn.click({ timeout: 5000 })
+    } catch {
+      await btn.click({ force: true, timeout: 5000 })
+    }
   }
 
   async clickChenRosamund (): Promise<void> {
@@ -107,13 +121,21 @@ export class CommonRecruitingPage extends CalendarPage {
     await this.chenRosamundPopupButton().click()
   }
 
+  // A fill into a still-mounting editor is dropped and Send then posts nothing, so confirm the
+  // comment landed. The count check keeps a retry from posting it twice.
   async addComment (comment: string): Promise<void> {
-    await this.inputComment().fill(comment)
-    await this.buttonSendComment().click()
+    const posted = this.textComment().filter({ hasText: comment })
+    await retry(async () => {
+      if ((await posted.count()) > 0) return
+      await this.inputComment().fill(comment)
+      await expect(this.inputComment()).toContainText(comment, { timeout: 3000 })
+      await this.buttonSendComment().click()
+      await expect(posted.first()).toBeVisible({ timeout: 5000 })
+    })
   }
 
   async checkCommentExist (comment: string): Promise<void> {
-    await expect(this.textComment().filter({ hasText: comment })).toBeVisible()
+    await expect(this.textComment().filter({ hasText: comment }).first()).toBeVisible()
   }
 
   async addAttachments (filePath: string): Promise<void> {
@@ -168,9 +190,9 @@ export class CommonRecruitingPage extends CalendarPage {
         await expect(this.inputSocialValue()).toHaveValue(value)
         await this.buttonSocialSave().click()
         break
-      case 'LinkedIn':
-        await expect(this.buttonContactLinkedIn()).toBeVisible()
-        await this.buttonContactLinkedIn().click()
+      case 'Home page':
+        await expect(this.buttonContactHomepage()).toBeVisible()
+        await this.buttonContactHomepage().click()
         await expect(this.inputSocialValue()).toHaveValue(value)
         await this.buttonSocialSave().click()
         break

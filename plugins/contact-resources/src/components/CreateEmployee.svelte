@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,28 +14,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    AvatarType,
-    Channel,
-    combineName,
-    ContactEvents,
-    Employee,
-    Person,
-    SocialIdentityRef
-  } from '@hcengineering/contact'
-  import {
-    AccountRole,
-    AttachedData,
-    buildSocialIdString,
-    Data,
-    generateId,
-    Ref,
-    SocialIdType
-  } from '@hcengineering/core'
+  import type { Channel, Employee, Person, SocialIdentityRef } from '@hcengineering/contact'
+  import { AvatarType, combineName, ContactEvents } from '@hcengineering/contact'
+  import type { AttachedData, Data, Ref } from '@hcengineering/core'
+  import { AccountRole, buildSocialIdString, generateId, SocialIdType } from '@hcengineering/core'
   import login from '@hcengineering/login'
-  import { getResource } from '@hcengineering/platform'
+  import platform, { getResource, PlatformError } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import { createFocusManager, EditBox, FocusHandler, IconInfo, Label } from '@hcengineering/ui'
+  import { planLimits, checkWorkspaceLimits, seatCount, seatLimitReached } from '@hcengineering/billing-resources'
   import { createEventDispatcher } from 'svelte'
   import { ChannelsDropdown } from '..'
   import contact from '../plugin'
@@ -58,6 +46,7 @@
   }
 
   let saving: boolean = false
+  let inviteRejected = false
 
   const person: Data<Person> = {
     name: '',
@@ -72,6 +61,11 @@
   async function createEmployee (): Promise<void> {
     try {
       saving = true
+      // Guard against creating beyond users limit
+      const limit = $planLimits?.usersLimit ?? 0
+      if (limit > 0 && ($seatCount === undefined || $seatCount >= limit)) {
+        return
+      }
       changeEmail()
       const mail = email.trim()
       const socialString = buildSocialIdString({
@@ -125,7 +119,16 @@
       )
 
       const sendInvite = await getResource(login.function.SendInvite)
-      await sendInvite(mail, AccountRole.User)
+      // Server-side seat cap: the store-based guard above can be stale, so surface a refusal here.
+      try {
+        await sendInvite(mail, AccountRole.User)
+      } catch (err: any) {
+        if (err instanceof PlatformError && err.status.code === platform.status.PlanLimitExceeded) {
+          inviteRejected = true
+          return
+        }
+        throw err
+      }
 
       for (const channel of channels) {
         await client.addCollection(
@@ -159,6 +162,10 @@
 
   $: exists = $employeeBySocialKeyStore.get(emailSocialString) !== undefined
 
+  // Plan seat limit, from the billing store's server-computed seat count — counting Employee mixins
+  // here would include the AI bot and block the last seat. Trails the pod-billing refresh (~25s).
+  void checkWorkspaceLimits()
+
   const manager = createFocusManager()
 
   function changeEmail (): void {
@@ -180,7 +187,12 @@
 <Card
   label={contact.string.CreateEmployee}
   okAction={createEmployee}
-  canSave={firstName.trim().length > 0 && lastName.trim().length > 0 && email.trim().length > 0 && !exists && canSave}
+  canSave={firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    email.trim().length > 0 &&
+    !exists &&
+    !$seatLimitReached &&
+    canSave}
   on:close={() => {
     dispatch('close')
   }}
@@ -189,9 +201,23 @@
   <svelte:fragment slot="error">
     {#if exists && !saving}
       <div class="flex-row-center error-color">
-        <IconInfo size={'small'} />
+        <IconInfo size="small" />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
+        </span>
+      </div>
+    {:else if inviteRejected && !saving}
+      <div class="flex-row-center error-color" data-id="seatLimitError">
+        <IconInfo size="small" />
+        <span class="text-sm overflow-label ml-2">
+          <Label label={contact.string.SeatLimitReached} params={{ limit: $planLimits?.usersLimit ?? 0 }} />
+        </span>
+      </div>
+    {:else if $seatLimitReached && !saving}
+      <div class="flex-row-center error-color" data-id="seatLimitError">
+        <IconInfo size="small" />
+        <span class="text-sm overflow-label ml-2">
+          <Label label={contact.string.SeatLimitReached} params={{ limit: $planLimits?.usersLimit ?? 0 }} />
         </span>
       </div>
     {/if}
@@ -201,21 +227,21 @@
       <EditBox
         placeholder={contact.string.PersonFirstNamePlaceholder}
         bind:value={firstName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusIndex={1}
       />
       <EditBox
         placeholder={contact.string.PersonLastNamePlaceholder}
         bind:value={lastName}
-        kind={'large-style'}
+        kind="large-style"
         focusIndex={2}
       />
       <div class="mt-1">
         <EditBox
           placeholder={contact.string.Email}
           bind:value={email}
-          kind={'small-style'}
+          kind="small-style"
           focusIndex={3}
           on:blur={changeEmail}
         />
@@ -223,21 +249,15 @@
       <slot name="extraControls" />
     </div>
     <div class="ml-4">
-      <EditableAvatar
-        {person}
-        name={combineName(firstName, lastName)}
-        {email}
-        size={'large'}
-        bind:this={avatarEditor}
-      />
+      <EditableAvatar {person} name={combineName(firstName, lastName)} {email} size="large" bind:this={avatarEditor} />
     </div>
   </div>
   <svelte:fragment slot="pool">
     <ChannelsDropdown
       bind:value={channels}
       focusIndex={10}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       editable
       restricted={[contact.channelProvider.Email]}
     />

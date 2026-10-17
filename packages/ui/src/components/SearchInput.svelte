@@ -61,7 +61,7 @@
 
 <label class="searchInput-wrapper {kind}" class:collapsed class:filled={value && value !== ''} style:width>
   <div class="searchInput-icon">
-    <IconSearch size={'small'} />
+    <IconSearch size="small" />
   </div>
   <input
     bind:this={input}
@@ -95,7 +95,7 @@
       input.focus()
     }}
   >
-    <IconClose size={'small'} />
+    <IconClose size="small" />
   </button>
 </label>
 

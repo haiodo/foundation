@@ -1,3 +1,6 @@
+//
+// Copyright © 2026 Intabia Fusion.
+//
 import {
   closePanel,
   getCurrentLocation,
@@ -5,9 +8,10 @@ import {
   getLocation,
   type Location,
   navigate,
-  languageStore
+  languageStore,
+  deviceOptionsStore
 } from '@hcengineering/ui'
-import { type Ref, type Doc, type Class, generateId, concatLink } from '@hcengineering/core'
+import { type Ref, type Doc, type Class, concatLink, type SearchResultDoc } from '@hcengineering/core'
 import activity, { type ActivityMessage } from '@hcengineering/activity'
 import {
   type Channel,
@@ -20,16 +24,33 @@ import { notificationId } from '@hcengineering/notification'
 import workbench, { type Widget, workbenchId, type LocationData } from '@hcengineering/workbench'
 import { classIcon, getObjectLinkId, parseLinkId } from '@hcengineering/view-resources'
 import presentation, { getClient } from '@hcengineering/presentation'
-import view, { encodeObjectURI, decodeObjectURI } from '@hcengineering/view'
-import { createWidgetTab, isElementFromSidebar, sidebarStore } from '@hcengineering/workbench-resources'
+import view, { encodeObjectURI, type LinkIdProvider } from '@hcengineering/view'
+import {
+  closeWidgetTab,
+  createWidgetTab,
+  isElementFromSidebar,
+  isPreviewTab,
+  sidebarStore
+} from '@hcengineering/workbench-resources'
 import { type Asset, getMetadata, type IntlString, translate } from '@hcengineering/platform'
 import contact from '@hcengineering/contact'
 import { get } from 'svelte/store'
 
 import { chatSpecials } from './components/chat/utils'
 import { getChannelName, isThreadMessage } from './utils'
+import { decodeChatURI } from './linkId'
 import chunter from './plugin'
 import { threadMessagesStore } from './stores'
+
+// Channels and directs are addressed by their link id alone (`<name>-<id>`), other docs as `<id>|<class>`.
+export function encodeChatURI (id: string, _class: Ref<Class<Doc>>): string {
+  const hierarchy = getClient().getHierarchy()
+  // An unknown class (removed plugin, stale attachedToClass) keeps the old form instead of throwing.
+  const isSpace = hierarchy.hasClass(_class) && hierarchy.isDerived(_class, chunter.class.ChunterSpace)
+  return isSpace ? id : encodeObjectURI(id, _class)
+}
+
+export { decodeChatURI }
 
 export function openChannel (
   _id: string,
@@ -38,7 +59,7 @@ export function openChannel (
   forceApplication = false
 ): void {
   const loc = getCurrentLocation()
-  const id = encodeObjectURI(_id, _class)
+  const id = encodeChatURI(_id, _class)
 
   if (loc.path[3] === id) {
     return
@@ -49,7 +70,8 @@ export function openChannel (
   }
 
   loc.path[3] = id
-  loc.query = { ...loc.query, message: null }
+  loc.query = { ...loc.query }
+  delete loc.query.message
 
   if (thread !== undefined) {
     loc.path[4] = thread
@@ -60,6 +82,15 @@ export function openChannel (
   }
 
   navigate(loc)
+}
+
+export async function openChunterSpace (
+  _id: Ref<Doc>,
+  _class: Ref<Class<Doc>>,
+  forceApplication = false
+): Promise<void> {
+  const providers = getClient().getModel().findAllSync(view.mixin.LinkIdProvider, {})
+  openChannel(await getObjectLinkId(providers, _id, _class), _class, undefined, forceApplication)
 }
 
 export async function openMessageFromSpecial (message?: ActivityMessage): Promise<void> {
@@ -74,15 +105,44 @@ export async function openMessageFromSpecial (message?: ActivityMessage): Promis
   if (isThreadMessage(message)) {
     const id = await getObjectLinkId(providers, message.objectId, message.objectClass)
 
-    loc.path[3] = encodeObjectURI(id, message.objectClass)
+    loc.path[3] = encodeChatURI(id, message.objectClass)
     loc.path[4] = message.attachedTo
   } else {
     const id = await getObjectLinkId(providers, message.attachedTo, message.attachedToClass)
 
-    loc.path[3] = encodeObjectURI(id, message.attachedToClass)
+    loc.path[3] = encodeChatURI(id, message.attachedToClass)
   }
 
   loc.query = { ...loc.query, message: message._id }
+
+  navigate(loc)
+}
+
+export async function openSearchResult (doc: SearchResultDoc['doc']): Promise<void> {
+  const loc = getCurrentResolvedLocation()
+  const client = getClient()
+  const hierarchy = client.getHierarchy()
+  const providers = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
+
+  const objectId = doc.objectId
+  const objectClass = doc.objectClass
+  const isThread = hierarchy.isDerived(doc._class, chunter.class.ThreadMessage)
+
+  if (isThread && objectId !== undefined && objectClass !== undefined) {
+    const id = await getObjectLinkId(providers, objectId, objectClass)
+    loc.path[3] = encodeChatURI(id, objectClass)
+    loc.path[4] = doc.attachedTo as string
+    loc.path.length = 5
+  } else if (doc.attachedTo !== undefined && doc.attachedToClass !== undefined) {
+    const id = await getObjectLinkId(providers, doc.attachedTo, doc.attachedToClass)
+    loc.path[3] = encodeChatURI(id, doc.attachedToClass)
+    loc.path[4] = ''
+    loc.path.length = 4
+  } else {
+    return
+  }
+
+  loc.query = { ...loc.query, message: doc._id }
 
   navigate(loc)
 }
@@ -112,7 +172,7 @@ export async function getMessageLink (message: ActivityMessage): Promise<string>
     _class = message.attachedToClass
   }
 
-  const id = encodeURIComponent(encodeObjectURI(_id, _class))
+  const id = encodeURIComponent(encodeChatURI(_id, _class))
   const frontUrl = getMetadata(presentation.metadata.FrontUrl)
   const protocolAndHost = frontUrl ?? `${window.location.protocol}//${window.location.host}`
   const path = `${workbenchId}/${location.path[1]}/${chunterId}/${id}${threadParent}?message=${message._id}`
@@ -130,9 +190,21 @@ export async function chunterSpaceLinkFragmentProvider (doc: ChunterSpace): Prom
   loc.fragment = undefined
   loc.query = undefined
   loc.path[2] = chunterId
-  loc.path[3] = encodeObjectURI(id, doc._class)
+  loc.path[3] = encodeChatURI(id, doc._class)
 
   return loc
+}
+
+// The link id of a location goes stale: `<name>-<id>` keeps the old name after a rename, old links
+// carry `<id>|<class>`. Only the doc id it decodes to says which doc is open.
+async function isLocationObject (
+  providers: LinkIdProvider[],
+  value: string | undefined,
+  _id: Ref<Doc>
+): Promise<boolean> {
+  const [locId, locClass] = decodeChatURI(value)
+  if (locId === '' || !getClient().getHierarchy().hasClass(locClass)) return false
+  return (await parseLinkId(providers, locId, locClass)) === _id
 }
 
 export async function buildThreadLink (
@@ -147,8 +219,8 @@ export async function buildThreadLink (
   const id = await getObjectLinkId(providers, _id, _class, doc)
 
   const specials = chatSpecials.map(({ id }) => id)
-  const objectURI = encodeObjectURI(id, _class)
-  const isSameChannel = loc.path[3] === objectURI
+  const objectURI = encodeChatURI(id, _class)
+  const isSameChannel = await isLocationObject(providers, loc.path[3], _id)
 
   if (!isSameChannel) {
     loc.query = { message: threadParent }
@@ -183,6 +255,12 @@ export async function replyToThread (message: ActivityMessage, e: Event): Promis
 
   threadMessagesStore.set(message)
 
+  // No sidebar on a phone: navigate and let ChannelView render the thread in the main panel.
+  if (get(deviceOptionsStore).isMobile) {
+    navigate(await buildThreadLink(loc, message.attachedTo, message.attachedToClass, message._id))
+    return
+  }
+
   if (fromSidebar) {
     const widget = getClient().getModel().findAllSync(workbench.class.Widget, { _id: chunter.ids.ChatWidget })[0]
     const widgetState = get(sidebarStore).widgetsState.get(widget._id)
@@ -198,9 +276,10 @@ export async function replyToThread (message: ActivityMessage, e: Event): Promis
     return
   }
 
-  const newLoc = await buildThreadLink(loc, message.attachedTo, message.attachedToClass, message._id)
-
-  navigate(newLoc)
+  if (loc.path[2] === chunterId || loc.path[2] === notificationId) {
+    const newLoc = await buildThreadLink(loc, message.attachedTo, message.attachedToClass, message._id)
+    navigate(newLoc)
+  }
 }
 
 export async function getMessageLocation (doc: ActivityMessage): Promise<Location> {
@@ -209,7 +288,7 @@ export async function getMessageLocation (doc: ActivityMessage): Promise<Locatio
   return await buildThreadLink(loc, doc.attachedTo, doc.attachedToClass, doc._id)
 }
 
-export async function resetChunterLocIfEqual (_id: Ref<Doc>, _class: Ref<Class<Doc>>, doc?: Doc): Promise<void> {
+export async function resetChunterLocIfEqual (_id: Ref<Doc>): Promise<void> {
   const loc = getCurrentLocation()
 
   if (loc.path[2] !== chunterId) {
@@ -218,11 +297,7 @@ export async function resetChunterLocIfEqual (_id: Ref<Doc>, _class: Ref<Class<D
 
   const client = getClient()
   const providers = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
-  const id = await getObjectLinkId(providers, _id, _class, doc)
-
-  const [locId] = decodeObjectURI(loc.path[3])
-
-  if (locId !== id) {
+  if (!(await isLocationObject(providers, loc.path[3], _id))) {
     return
   }
 
@@ -250,7 +325,6 @@ export async function openChannelInSidebar (
   _class: Ref<Class<Doc>>,
   doc?: Doc,
   thread?: Ref<ActivityMessage>,
-  newTab = true,
   selectedMessageId?: Ref<ActivityMessage>
 ): Promise<void> {
   const client = getClient()
@@ -291,7 +365,7 @@ export async function openChannelInSidebar (
     }
   }
 
-  createWidgetTab(widget, tab, newTab)
+  createWidgetTab(widget, tab)
 }
 
 export async function openThreadInSidebarChannel (
@@ -310,18 +384,21 @@ export async function openThreadInSidebarChannel (
 }
 
 export async function closeThreadInSidebarChannel (widget: Widget, tab: ChatWidgetTab): Promise<void> {
-  const thread = tab.allowedPath !== undefined ? tab.data.thread : undefined
+  const thread = tab.data.thread
   const newTab: ChatWidgetTab = {
     ...tab,
     objectId: tab.data._id,
     objectClass: tab.data._class,
-    id: tab.id.startsWith('thread_') ? generateId() : tab.id,
+    id: tab.id.startsWith('thread_') ? `chunter_${tab.data._id}` : tab.id,
     name: tab.data.channelName,
-    allowedPath: undefined,
     data: { ...tab.data, thread: undefined, props: undefined }
   }
 
   createWidgetTab(widget, newTab)
+  // Channel tab id is deterministic, so it may already exist - then the thread tab is a leftover.
+  if (newTab.id !== tab.id) {
+    await closeWidgetTab(widget, tab.id)
+  }
   setTimeout(() => {
     removeThreadFromLoc(thread)
   }, 100)
@@ -335,6 +412,9 @@ export async function openThreadInSidebar (
   props?: Record<string, any>,
   force: boolean = true
 ): Promise<void> {
+  // The main panel shows the thread on a phone (ChannelView), so opening the sidebar is not wanted.
+  if (get(deviceOptionsStore).isMobile) return
+
   const sidebar = get(sidebarStore)
   if (!force && sidebar.widget != null && sidebar.widget !== chunter.ids.ChatWidget) {
     removeThreadFromLoc(_id)
@@ -344,7 +424,7 @@ export async function openThreadInSidebar (
   const currentTabs = sidebar.widgetsState.get(chunter.ids.ChatWidget)?.tabs ?? []
   const currentTab = state != null ? currentTabs.find((t) => t.id === state.tab) : undefined
 
-  if (!force && currentTab != null && (currentTab.isPinned === true || !currentTab.id.startsWith('thread_'))) {
+  if (!force && currentTab != null && (!isPreviewTab(currentTab) || !currentTab.id.startsWith('thread_'))) {
     removeThreadFromLoc(_id)
     return
   }
@@ -356,6 +436,7 @@ export async function openThreadInSidebar (
 
   const message = msg ?? (await client.findOne(activity.class.ActivityMessage, { _id }))
   if (message === undefined) return
+  threadMessagesStore.set(message)
 
   const object = doc ?? (await client.findOne(message.attachedToClass, { _id: message.attachedTo }))
   if (object === undefined) return
@@ -364,26 +445,6 @@ export async function openThreadInSidebar (
   const lang = get(languageStore)
   const name = (await getChannelName(object._id, object._class, object, lang)) ?? (await translate(titleIntl, {}, lang))
   const tabName = await translate(chunter.string.ThreadIn, { name })
-  const loc = getCurrentLocation()
-
-  if (loc.path[2] === chunterId || loc.path[2] === notificationId) {
-    loc.path[4] = message._id
-  }
-
-  const allowedPath = loc.path.join('/')
-
-  const tabsToClose = currentTabs.filter((t) => t.isPinned !== true && t.allowedPath === allowedPath).map((t) => t.id)
-
-  if (tabsToClose.length > 0) {
-    sidebarStore.update((s) => {
-      const widgetState = s.widgetsState.get(widget._id)
-      if (widgetState === undefined) return s
-
-      const tabs = widgetState.tabs.filter((it) => !tabsToClose.includes(it.id))
-      s.widgetsState.set(widget._id, { ...widgetState, tabs })
-      return { ...s }
-    })
-  }
 
   const tab: ChatWidgetTab = {
     id: 'thread_' + _id,
@@ -391,7 +452,6 @@ export async function openThreadInSidebar (
     icon: chunter.icon.Thread,
     objectId: message._id,
     objectClass: message._class,
-    allowedPath,
     data: {
       _id: object?._id,
       _class: object?._class,
@@ -401,7 +461,7 @@ export async function openThreadInSidebar (
       props
     }
   }
-  createWidgetTab(widget, tab, true)
+  createWidgetTab(widget, tab)
 }
 
 export function removeThreadFromLoc (thread?: Ref<ActivityMessage>): void {
@@ -418,9 +478,7 @@ export function removeThreadFromLoc (thread?: Ref<ActivityMessage>): void {
 }
 
 export function closeChatWidgetTab (tab?: ChatWidgetTab): void {
-  if (tab?.allowedPath !== undefined) {
-    removeThreadFromLoc(tab.data.thread)
-  }
+  removeThreadFromLoc(tab?.data?.thread)
 }
 
 export async function locationDataResolver (loc: Location): Promise<LocationData> {
@@ -431,11 +489,11 @@ export async function locationDataResolver (loc: Location): Promise<LocationData
   }
 
   const specialsData: Record<
-  string,
-  {
-    label: IntlString
-    icon: Asset
-  }
+    string,
+    {
+      label: IntlString
+      icon: Asset
+    }
   > = {
     threads: {
       label: chunter.string.Threads,
@@ -461,7 +519,7 @@ export async function locationDataResolver (loc: Location): Promise<LocationData
   const hierarchy = client.getHierarchy()
   const lang = get(languageStore)
 
-  const [id, _class] = decodeObjectURI(loc.path[3])
+  const [id, _class] = decodeChatURI(loc.path[3])
   const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
   const _id: Ref<Doc> | undefined = await parseLinkId(linkProviders, id, _class)
 
@@ -469,10 +527,10 @@ export async function locationDataResolver (loc: Location): Promise<LocationData
   if (object === undefined) return { name: await translate(chunter.string.Chat, {}, lang) }
 
   const titleIntl = client.getHierarchy().getClass(object._class).label
-  const iconMixin = hierarchy.classHierarchyMixin(_class, view.mixin.ObjectIcon)
-  const isDirect = hierarchy.isDerived(_class, chunter.class.DirectMessage)
-  const isChunterSpace = hierarchy.isDerived(_class, chunter.class.ChunterSpace)
-  const name = (await getChannelName(_id, _class, object, lang)) ?? (await translate(titleIntl, {}, lang))
+  const iconMixin = hierarchy.classHierarchyMixin(object._class, view.mixin.ObjectIcon)
+  const isDirect = hierarchy.isDerived(object._class, chunter.class.DirectMessage)
+  const isChunterSpace = hierarchy.isDerived(object._class, chunter.class.ChunterSpace)
+  const name = (await getChannelName(_id, object._class, object, lang)) ?? (await translate(titleIntl, {}, lang))
 
   return {
     objectId: object._id,

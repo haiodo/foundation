@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { BlobMetadata, type Blob, type Ref } from '@hcengineering/core'
+  import type { BlobMetadata } from '@hcengineering/core'
+  import type { Blob, Ref } from '@hcengineering/core'
   import {
     Button,
     Component,
@@ -27,8 +28,9 @@
 
   import { getFileUrl } from '../file'
   import { getPreviewType, previewTypes } from '../filetypes'
+  import { getPreviewThumbnail } from '../preview'
   import { imageSizeToRatio } from '../image'
-  import { FilePreviewExtension } from '../types'
+  import type { FilePreviewExtension } from '../types'
 
   export let file: Ref<Blob> | string
   export let name: string
@@ -50,6 +52,13 @@
     previewType = res
     loading = false
   })
+
+  // For types we cannot render inline (e.g. pptx) the preview service may still
+  // have generated a thumbnail image - show it in higher quality instead of just download.
+  $: thumbnail = metadata?.thumbnail
+  $: thumbnailFile = typeof file === 'string' && !file.includes('://') ? file : undefined
+  let hiResLoaded = false
+  $: if (thumbnailFile !== undefined) hiResLoaded = false
 
   const updateHeight = (
     pWidth: number,
@@ -110,13 +119,45 @@
       />
     {:else if loading}
       <Loading />
+    {:else if thumbnail !== undefined && thumbnailFile !== undefined}
+      <div class="flex-col items-center flex-gap-3">
+        <div
+          class="thumbnail-wrap"
+          style:aspect-ratio={`${thumbnail.width} / ${thumbnail.height}`}
+          style:width={`min(100%, ${thumbnail.width}px)`}
+        >
+          <!-- Hi-res defines the box; low-res is a blurred placeholder shown until it loads -->
+          {#if !hiResLoaded}
+            <img class="thumbnail low-res" src={getPreviewThumbnail(thumbnailFile, 64, 64, 1)} alt={name} />
+            <div class="thumbnail-loader"><Loading /></div>
+          {/if}
+          <img
+            class="thumbnail hi-res"
+            class:loaded={hiResLoaded}
+            src={getPreviewThumbnail(thumbnailFile, thumbnail.width, thumbnail.height, 1)}
+            srcset={`${getPreviewThumbnail(thumbnailFile, thumbnail.width, thumbnail.height, 2)} 2x, ${getPreviewThumbnail(thumbnailFile, thumbnail.width, thumbnail.height, 3)} 3x`}
+            alt={name}
+            on:load={() => (hiResLoaded = true)}
+          />
+        </div>
+        <a class="no-line" href={src} download={name} bind:this={download}>
+          <Button
+            label={presentation.string.Download}
+            kind="ghost"
+            on:click={() => {
+              download.click()
+            }}
+            showTooltip={{ label: presentation.string.Download }}
+          />
+        </a>
+      </div>
     {:else}
       <div class="flex-col items-center flex-gap-3">
         <Label label={presentation.string.ContentTypeNotSupported} />
         <a class="no-line" href={src} download={name} bind:this={download}>
           <Button
             label={presentation.string.Download}
-            kind={'primary'}
+            kind="primary"
             on:click={() => {
               download.click()
             }}
@@ -140,5 +181,46 @@
   .content-embedded {
     width: 100%;
     border: none;
+  }
+
+  .thumbnail-wrap {
+    position: relative;
+    display: flex;
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .thumbnail {
+    object-fit: contain;
+  }
+
+  .thumbnail.low-res {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    filter: blur(12px);
+  }
+
+  .thumbnail.hi-res {
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.2s ease-in;
+
+    &.loaded {
+      opacity: 1;
+    }
+  }
+
+  .thumbnail-loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
   }
 </style>

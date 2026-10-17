@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -36,7 +37,6 @@ import {
   type Obj,
   type Permission,
   type PluginConfiguration,
-  type Rank,
   type Ref,
   type Role,
   roleOrder,
@@ -87,6 +87,29 @@ export function generateId<T extends Doc> (join: string = ''): Ref<T> {
 export function generateUuid (): string {
   // Consider own implementation if it will be slow
   return crypto.randomUUID()
+}
+
+/**
+ * JSON with object keys sorted at every level: the model hash must not depend on key order,
+ * which differs between a live tx and the same tx read back from the database.
+ * @public
+ */
+export function canonicalJson (value: unknown): string {
+  return JSON.stringify(value, (_key, v) => {
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) return v
+    const sorted: Record<string, unknown> = {}
+    for (const k of Object.keys(v).sort()) sorted[k] = v[k]
+    return sorted
+  })
+}
+
+/**
+ * JSON a model tx hash is taken over. A tx read back from the database differs from the live one:
+ * an absent `createdBy` comes back as null, an absent `createdOn` as `modifiedOn`.
+ * @public
+ */
+export function modelTxHashJson (tx: Tx): string {
+  return canonicalJson({ ...tx, createdBy: tx.createdBy ?? undefined, createdOn: tx.createdOn ?? tx.modifiedOn })
 }
 
 /** @public */
@@ -177,7 +200,7 @@ export function isIndexedAttribute (attr: AnyAttribute): boolean {
 /**
  * @public
  */
-export interface IdMap<T extends Doc> extends Map<Ref<T>, T> {}
+export type IdMap<T extends Doc> = Map<Ref<T>, T>
 
 /**
  * @public
@@ -419,8 +442,7 @@ function mergeField (field1: any, field2: any): any | undefined {
 
     return Object.keys(result).length > 0 ? result : undefined
   } else if (isPredicate1 || isPredicate2) {
-    // when one field is a predicate and the other is a simple value
-    // we need to ensure that the value matches predicate
+    // match the simple value against the predicate.
     const predicate = isPredicate1 ? field1 : field2
     const value = isPredicate1 ? field2 : field1
 
@@ -602,7 +624,9 @@ async function hasPermission (
 
   const me = getCurrentAccount()
   const asMixin = client.getHierarchy().as(space, mixin)
-  const myRoles = type.$lookup?.roles?.filter((role) => ((asMixin as any)[role._id] ?? []).includes(me.uuid)) as Role[]
+  const myRoles = type.$lookup?.roles?.filter(
+    (role) => ((asMixin as any)[role._id] ?? []).includes(me.uuid) === true
+  ) as Role[]
 
   if (myRoles === undefined) {
     return false
@@ -858,6 +882,26 @@ export function pluginFilterTx (
             }
           }
 
+          if (c.objectIdFilter != null) {
+            const objectIdFilter = new Set(c.objectIdFilter ?? [])
+            const tx = stx.get(id as Ref<Tx>)
+            if (
+              tx?._class === core.class.TxCreateDoc ||
+              tx?._class === core.class.TxUpdateDoc ||
+              tx?._class === core.class.TxRemoveDoc
+            ) {
+              const cud = tx as TxCUD<Doc>
+              if (objectIdFilter.has(cud.objectId)) {
+                totalExcluded.add(id as Ref<Tx>)
+              }
+            } else if (tx?._class === core.class.TxMixin) {
+              const cud = tx as TxMixin<Doc, Doc>
+              if (objectIdFilter.has(cud.objectId) || objectIdFilter.has(cud.mixin)) {
+                totalExcluded.add(id as Ref<Tx>)
+              }
+            }
+          }
+
           if (c.classFilter !== undefined) {
             const filter = new Set(c.classFilter)
             const tx = stx.get(id as Ref<Tx>)
@@ -996,6 +1040,16 @@ export function pickPrimarySocialId (socialIds: SocialId[]): SocialId {
   return hulySocialIds[0] ?? activeSocialIds[0]
 }
 
+export function pickVerifiedEmail (socialIds: SocialId[]): string | undefined {
+  return socialIds.find(
+    (id) =>
+      (id.type === SocialIdType.EMAIL || id.type === SocialIdType.GOOGLE) &&
+      id.verifiedOn !== undefined &&
+      id.verifiedOn > 0 &&
+      id.isDeleted !== true
+  )?.value
+}
+
 export const loginSocialTypes = [SocialIdType.EMAIL, SocialIdType.GOOGLE, SocialIdType.GITHUB, SocialIdType.OIDC]
 
 export function notEmpty<T> (id: T | undefined | null): id is T {
@@ -1017,14 +1071,6 @@ export interface PermissionsGrant {
 }
 
 export type KeysByType<O extends object, T> = { [k in keyof O]-?: O[k] extends T ? k : never }[keyof O]
-
-export function toRank (str: string | undefined): Rank | undefined {
-  if (str === undefined) return
-  if (str.startsWith('0|')) {
-    return str
-  }
-  return '0|' + str.replaceAll(/[-:_]/g, '').toLowerCase()
-}
 
 /**
  * Hash a workspace name to a number for consistent endpoint selection.

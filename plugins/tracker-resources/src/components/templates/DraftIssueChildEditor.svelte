@@ -14,19 +14,16 @@
 -->
 <script lang="ts">
   import { AttachmentStyledBox } from '@hcengineering/attachment-resources'
-  import core, { Doc, generateId, type PersonId, Ref } from '@hcengineering/core'
-  import presentation, { DraftController, getClient, KeyedAttribute } from '@hcengineering/presentation'
-  import tags, { TagElement, TagReference } from '@hcengineering/tags'
-  import { TaskType } from '@hcengineering/task'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import core, { generateId, type PersonId } from '@hcengineering/core'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import presentation, { DraftController, getClient } from '@hcengineering/presentation'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
+  import tags from '@hcengineering/tags'
+  import type { TaskType } from '@hcengineering/task'
   import { TaskKindSelector } from '@hcengineering/task-resources'
-  import {
-    Component as ComponentType,
-    Issue,
-    IssueDraft,
-    IssuePriority,
-    Milestone,
-    Project
-  } from '@hcengineering/tracker'
+  import type { Component as ComponentType, Issue, IssueDraft, Milestone, Project } from '@hcengineering/tracker'
+  import { IssuePriority } from '@hcengineering/tracker'
   import { Button, Component, EditBox } from '@hcengineering/ui'
   import { createEventDispatcher, onDestroy } from 'svelte'
   import tracker from '../../plugin'
@@ -148,7 +145,7 @@
     object.labels = [...object.labels, tagAsRef(tag)]
   }
 
-  $: thisRef && thisRef.scrollIntoView({ behavior: 'smooth' })
+  $: thisRef?.scrollIntoView({ behavior: 'smooth' })
   $: canSave = getTitle(object.title ?? '').length > 0
 
   $: objectId = object._id
@@ -165,7 +162,7 @@
       <EditBox
         bind:value={object.title}
         bind:focusInput={focusIssueTitle}
-        kind={'large-style'}
+        kind="large-style"
         placeholder={tracker.string.SubIssueTitlePlaceholder}
         autoFocus
         fullSize
@@ -183,7 +180,7 @@
           showButtons={false}
           alwaysEdit
           shouldSaveDraft
-          maxHeight={'limited'}
+          maxHeight="limited"
           on:changeContent
         />
       {/key}
@@ -194,6 +191,7 @@
       <div id="sub-issue-status-editor">
         <StatusEditor
           value={object}
+          isCreate={true}
           kind="no-border"
           size="small"
           shouldShowLabel={true}
@@ -229,8 +227,8 @@
       </div>
       <div id="sub-issue-estimation-editor">
         <EstimationEditor
-          kind={'no-border'}
-          size={'small'}
+          kind="no-border"
+          size="small"
           bind:value={object}
           on:change={(evt) => {
             object.estimation = evt.detail

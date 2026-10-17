@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -34,7 +35,9 @@ import core, {
   type TxUpdateDoc,
   addOperation,
   toFindResult,
-  withContext
+  withContext,
+  type TxCreateDoc,
+  TxProcessor
 } from '@hcengineering/core'
 import { PlatformError, getResource, unknownError } from '@hcengineering/platform'
 import serverCore, {
@@ -53,6 +56,32 @@ import serverCore, {
 } from '@hcengineering/server-core'
 import { filterBroadcastOnly } from './utils'
 
+// Parallel trigger queries share one contextData: the flag stays set until the last of them ends.
+const triggerDepth = new WeakMap<SessionData, { depth: number, prev: boolean | undefined }>()
+
+function enterTriggerCtx (data: SessionData | undefined): void {
+  if (data === undefined) return
+  const state = triggerDepth.get(data)
+  if (state !== undefined) {
+    state.depth++
+  } else {
+    triggerDepth.set(data, { depth: 1, prev: data.isTriggerCtx })
+  }
+  data.isTriggerCtx = true
+}
+
+function leaveTriggerCtx (data: SessionData | undefined): void {
+  if (data === undefined) return
+  const state = triggerDepth.get(data)
+  if (state === undefined || --state.depth > 0) return
+  triggerDepth.delete(data)
+  if (state.prev === undefined) {
+    delete data.isTriggerCtx
+  } else {
+    data.isTriggerCtx = state.prev
+  }
+}
+
 /**
  * @public
  */
@@ -60,7 +89,30 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
   triggers: Triggers
   storageAdapter!: StorageAdapter
   cache = new Map<string, any>()
+  scopes = new Map<string, Promise<any>>()
   intervalId: NodeJS.Timeout
+
+  withScope = async <T>(scope: string, fn: () => Promise<T>): Promise<T> => {
+    const prev = this.scopes.get(scope)
+    if (prev != null) {
+      try {
+        await prev
+      } catch {}
+    }
+    let release: () => void = () => {}
+    const p = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    this.scopes.set(scope, p)
+    try {
+      return await fn()
+    } finally {
+      if (this.scopes.get(scope) === p) {
+        this.scopes.delete(scope)
+      }
+      release()
+    }
+  }
 
   constructor (context: PipelineContext, next: Middleware | undefined) {
     super(context, next)
@@ -110,18 +162,19 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
     const findAll: SessionFindAll = async (ctx, _class, query, options) => {
       const _ctx: MeasureContext = (options as ServerFindOptions<Doc>)?.ctx ?? ctx
       delete (options as ServerFindOptions<Doc>)?.ctx
-      if (_ctx.contextData !== undefined) {
-        _ctx.contextData.isTriggerCtx = true
+      enterTriggerCtx(_ctx.contextData)
+      try {
+        // Use live query
+        const results = await this.findAll(_ctx, _class, query, options)
+        return toFindResult(
+          results.map((v) => {
+            return this.context.hierarchy.updateLookupMixin(_class, v, options)
+          }),
+          results.total
+        )
+      } finally {
+        leaveTriggerCtx(_ctx.contextData)
       }
-
-      // Use live query
-      const results = await this.findAll(_ctx, _class, query, options)
-      return toFindResult(
-        results.map((v) => {
-          return this.context.hierarchy.updateLookupMixin(_class, v, options)
-        }),
-        results.total
-      )
     }
 
     const removed = await ctx.with('process-remove', {}, (ctx) => this.processRemove(ctx, txes, findAll))
@@ -141,6 +194,7 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
       modelDb: this.context.modelDb,
       hierarchy: this.context.hierarchy,
       cache: this.cache,
+      withScope: this.withScope,
       userStatusMap: this.context.userStatusMap ?? new Map(),
       domainRequest: async (ctx, domain, params) => {
         return (await this.context.head?.domainRequest(ctx, domain, params)) ?? { domain, value: undefined }
@@ -162,7 +216,7 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
             { domain, _class, query: query as any, options: pureOptions as any },
             () =>
               // We sure ctx is required to be passed
-              this.context.liveQuery?.queryFind(_class, query) ??
+              this.context.liveQuery?.queryFind(_class, query, pureOptions as any) ??
               this.provideFindAll(ctx, _class, query, { ...options })
           )
         })
@@ -265,8 +319,13 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
 
   private async processDerivedTxes (ctx: MeasureContext<SessionData>, derived: Tx[]): Promise<void> {
     if (derived.length > 0) {
-      derived.sort((a, b) => a.modifiedOn - b.modifiedOn)
-      await this.context.derived?.tx(ctx, derived)
+      enterTriggerCtx(ctx.contextData)
+      try {
+        derived.sort((a, b) => a.modifiedOn - b.modifiedOn)
+        await this.context.derived?.tx(ctx, derived)
+      } finally {
+        leaveTriggerCtx(ctx.contextData)
+      }
       // We need to perform broadcast here
     }
   }
@@ -295,6 +354,16 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
     }
   }
 
+  private markSilent (derivedTxes: Tx[], silent?: boolean): void {
+    if (silent === true) {
+      for (const t of derivedTxes) {
+        if (t.meta?.silent === undefined) {
+          t.meta = { ...(t.meta ?? {}), silent: true }
+        }
+      }
+    }
+  }
+
   private async processRemove (ctx: MeasureContext<SessionData>, txes: Tx[], findAll: SessionFindAll): Promise<Tx[]> {
     const result: Tx[] = []
 
@@ -307,16 +376,18 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
       if (object === undefined) {
         continue
       }
-      result.push(...(await this.deleteClassCollections(ctx, object._class, rtx.objectId, findAll)))
+      const res: Tx[] = await this.deleteClassCollections(ctx, object._class, rtx.objectId, findAll)
       const _class = this.context.hierarchy.findClass(object._class)
       if (_class !== undefined) {
         const mixins = this.getMixins(object._class, object)
         for (const mixin of mixins) {
-          result.push(...(await this.deleteClassCollections(ctx, mixin, rtx.objectId, findAll, object._class)))
+          res.push(...(await this.deleteClassCollections(ctx, mixin, rtx.objectId, findAll, object._class)))
         }
 
-        result.push(...(await this.deleteRelatedDocuments(ctx, object, findAll)))
+        res.push(...(await this.deleteRelatedDocuments(ctx, object, findAll)))
       }
+      this.markSilent(res, tx.meta?.silent)
+      result.push(...res)
     }
     return result
   }
@@ -417,16 +488,26 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
         const isCreateTx = colTx._class === core.class.TxCreateDoc
         const isDeleteTx = colTx._class === core.class.TxRemoveDoc
         const isUpdateTx = colTx._class === core.class.TxUpdateDoc
+        const res: Tx[] = []
         if (isUpdateTx) {
-          result.push(...(await this.updateCollection(ctx, colTx as TxUpdateDoc<AttachedDoc>, findAll)))
+          res.push(...(await this.updateCollection(ctx, colTx as TxUpdateDoc<AttachedDoc>, findAll)))
         }
 
         if ((isCreateTx || isDeleteTx) && !ctx.contextData.removedMap.has(_id)) {
           // TODO: Why we need attachedTo to be found? It uses attachedTo._class, attachedTo.space only inside
           // We found case for Todos, we could attach a collection with
-          const attachedTo = (await findAll(ctx, _class, { _id }, { limit: 1 }))[0]
+          let attachedTo: Doc | undefined = (await findAll(ctx, _class, { _id }, { limit: 1 }))[0]
+          if (attachedTo == null) {
+            // If the parent doc was created in the same batch, it isn't persisted yet.
+            // Fall back to pending broadcast txes so collection counter updates aren't lost.
+            const createTx = ctx.contextData.broadcast.txes.find(
+              (it) => it._class === core.class.TxCreateDoc && (it as TxCreateDoc<Doc>).objectId === _id
+            )
+            attachedTo = createTx != null ? TxProcessor.createDoc2Doc(createTx as TxCreateDoc<Doc>) : undefined
+          }
+
           if (attachedTo !== undefined) {
-            result.push(
+            res.push(
               this.getCollectionUpdateTx(
                 _id,
                 _class,
@@ -440,6 +521,8 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
             )
           }
         }
+        this.markSilent(res, tx.meta?.silent)
+        result.push(...res)
       }
     }
     return result
@@ -534,6 +617,7 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
         const allTx = allAttached.map(({ _class, space, _id }) =>
           factory.createTxUpdateDoc(_class, space, _id, { space: rtx.operations.space })
         )
+        this.markSilent(allTx, tx.meta?.silent)
         result.push(...allTx)
       }
     }

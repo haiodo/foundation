@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Enum } from '@hcengineering/core'
+  import type { Enum } from '@hcengineering/core'
   import presentation, { getClient, MessageBox } from '@hcengineering/presentation'
   import {
     ModernEditbox,
@@ -21,14 +21,14 @@
     IconAttachment,
     IconDelete,
     showPopup,
-    ModernButton,
     Label,
-    ButtonIcon,
     IconMoreV,
     IconMoreV2,
     ModernPopup,
     eventToHTMLElement
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import setting from '../plugin'
   import EnumValuesList from './EnumValuesList.svelte'
@@ -61,7 +61,7 @@
   }
   const handleKeydown = (evt: KeyboardEvent) => {
     if (evt.key === 'Enter') {
-      add()
+      void add()
     }
     if (evt.key === 'Escape') {
       newItem = false
@@ -73,7 +73,7 @@
 
   async function handleClipboard (): Promise<void> {
     const text = await navigator.clipboard.readText()
-    processText(text)
+    void processText(text)
   }
 
   async function processText (text: string): Promise<void> {
@@ -90,7 +90,7 @@
   let inputFile: HTMLInputElement
   async function processFile (file: File): Promise<void> {
     const text = await file.text()
-    processText(text)
+    void processText(text)
   }
 
   function fileSelected () {
@@ -99,30 +99,11 @@
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
       if (file !== null) {
-        processFile(file)
+        void processFile(file)
       }
     }
     inputFile.value = ''
   }
-  // function onDelete () {
-  //   showPopup(
-  //     MessageBox,
-  //     {
-  //       label: view.string.DeleteObject,
-  //       message: view.string.DeleteObjectConfirm,
-  //       params: { count: filtered.length }
-  //     },
-  //     undefined,
-  //     (result?: boolean) => {
-  //       if (result === true) {
-  //         client.update(value, {
-  //           $pull: { enumValues: { $in: filtered } }
-  //         })
-  //         newValue = ''
-  //       }
-  //     }
-  //   )
-  // }
 
   async function update (value: Enum): Promise<void> {
     await client.update(value, {
@@ -148,7 +129,7 @@
       icon: Report,
       label: setting.string.ImportEnumCopy,
       action: () => {
-        handleClipboard()
+        void handleClipboard()
       }
     }
   ]
@@ -168,17 +149,17 @@
   <ModernEditbox
     bind:value={value.name}
     label={setting.string.EnumTitle}
-    kind={'ghost'}
-    size={'large'}
+    kind="ghost"
+    size="large"
     on:change={() => update(value)}
   />
-  <ModernButton
+  <Button
     icon={IconCrossedArrows}
     label={setting.string.ProjectTypesCount}
     labelParams={{ count: 0 }}
     disabled
-    kind={'tertiary'}
-    size={'medium'}
+    kind="tertiary"
+    size="medium"
     hasMenu
   />
 </div>
@@ -195,13 +176,14 @@
 
 <div class="hulyTableAttr-container mt-6">
   <div class="hulyTableAttr-header font-medium-12">
-    <IconBulletList size={'small'} />
+    <IconBulletList size="small" />
     <span><Label label={setting.string.Options} /></span>
     <div class="buttons-group tertiary-textColor">
-      <ButtonIcon
-        kind={'tertiary'}
+      <IconButton
+        tooltip={{ label: view.string.MoreActions }}
+        kind="tertiary"
         icon={IconMoreV}
-        size={'small'}
+        size="small"
         pressed={opened}
         inheritColor
         hasMenu
@@ -209,10 +191,10 @@
           openPopup(ev)
         }}
       />
-      <ButtonIcon
-        kind={'primary'}
+      <IconButton
+        kind="primary"
         icon={IconAdd}
-        size={'small'}
+        size="small"
         tooltip={{ label: setting.string.Add }}
         on:click={() => {
           newItem = true
@@ -231,20 +213,20 @@
       {#if newItem}
         <div class="hulyTableAttr-content__row hovered">
           <div class="hulyTableAttr-content__row-dragMenu">
-            <IconMoreV2 size={'small'} />
+            <IconMoreV2 size="small" />
           </div>
           <div class="hulyTableAttr-content__row-label font-regular-14 accent grow">
             <ModernEditbox
-              kind={'ghost'}
-              size={'small'}
+              kind="ghost"
+              size="small"
               label={setting.string.EnterOptionTitle}
               on:keydown={handleKeydown}
               on:blur={() => {
-                add()
+                void add()
                 newItem = false
               }}
               bind:value={newValue}
-              width={'100%'}
+              width="100%"
               autoFocus
             />
           </div>
@@ -253,10 +235,11 @@
               <Label label={presentation.string.Match} />
             </div>
           {/if}
-          <ButtonIcon
-            kind={'tertiary'}
+          <IconButton
+            tooltip={{ label: setting.string.Delete }}
+            kind="tertiary"
             icon={IconDelete}
-            size={'small'}
+            size="small"
             on:click={() => {
               newValue = ''
               newItem = false

@@ -14,12 +14,13 @@
 -->
 <script lang="ts">
   import { AccountArrayEditor, employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
-  import core, { AccountUuid, Data, Ref, RolesAssignment, getCurrentAccount, notEmpty } from '@hcengineering/core'
+  import type { AccountUuid, Data, Ref, RolesAssignment } from '@hcengineering/core'
+  import core, { getCurrentAccount, notEmpty } from '@hcengineering/core'
   import presentation, { Card, getClient } from '@hcengineering/presentation'
   import { EditBox, Label, Toggle } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
 
-  import { CardSpace, MasterTag, Role } from '@hcengineering/card'
+  import type { CardSpace, MasterTag, Role } from '@hcengineering/card'
   import card from '../../plugin'
   import TypesSelector from './TypesSelector.svelte'
   import view from '@hcengineering/view'
@@ -53,7 +54,16 @@
   $: isNew = space === undefined
 
   let rolesAssignment = getRolesAssignment(roles)
-  $: rolesAssignment = getRolesAssignment(roles)
+  $: updateRolesAssignment(roles)
+
+  function updateRolesAssignment (roles: Role[]): void {
+    const storedRolesAssignment = getRolesAssignment(roles)
+    // Keep draft assignments separate from reactive role discovery and stored space data.
+    rolesAssignment = roles.reduce<RolesAssignment>((res, { _id }) => {
+      res[_id] = rolesAssignment[_id] ?? storedRolesAssignment[_id] ?? []
+      return res
+    }, {})
+  }
 
   function getRolesAssignment (roles: Role[]): RolesAssignment {
     if (space === undefined || roles === undefined) {
@@ -189,8 +199,8 @@
   okAction={handleSave}
   {canSave}
   accentHeader
-  width={'medium'}
-  gap={'gapV-6'}
+  width="medium"
+  gap="gapV-6"
   onCancel={close}
   on:changeContent
 >
@@ -200,7 +210,7 @@
         <Label label={core.string.Name} />
       </div>
       <div class="padding">
-        <EditBox id="teamspace-title" bind:value={name} placeholder={core.string.Name} kind={'large-style'} autoFocus />
+        <EditBox id="teamspace-title" bind:value={name} placeholder={core.string.Name} kind="large-style" autoFocus />
       </div>
     </div>
   </div>
@@ -218,7 +228,7 @@
         <Label label={presentation.string.MakePrivate} />
         <span><Label label={presentation.string.MakePrivateDescription} /></span>
       </div>
-      <Toggle id={'teamspace-private'} bind:on={isPrivate} disabled={!isPrivate && members.length === 0} />
+      <Toggle id="teamspace-private" bind:on={isPrivate} disabled={!isPrivate && members.length === 0} />
     </div>
 
     <div class="antiGrid-row">
@@ -229,8 +239,8 @@
         value={owners}
         label={core.string.Owners}
         onChange={handleOwnersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -243,8 +253,8 @@
         allowGuests
         label={core.string.Members}
         onChange={handleMembersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -253,7 +263,7 @@
         <Label label={core.string.AutoJoin} />
         <span><Label label={core.string.AutoJoinDescr} /></span>
       </div>
-      <Toggle id={'space-autoJoin'} bind:on={autoJoin} />
+      <Toggle id="space-autoJoin" bind:on={autoJoin} />
     </div>
 
     <div class="antiGrid-row">
@@ -261,7 +271,7 @@
         <Label label={core.string.RBAC} />
         <span><Label label={core.string.RBACDescr} /></span>
       </div>
-      <Toggle id={'space-restricted'} bind:on={restricted} />
+      <Toggle id="space-restricted" bind:on={restricted} />
     </div>
 
     {#each roles as role}
@@ -277,8 +287,8 @@
           onChange={(refs) => {
             handleRoleAssignmentChanged(role._id, refs)
           }}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       </div>
     {/each}

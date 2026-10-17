@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset } from '@hcengineering/platform'
+  import type { Asset } from '@hcengineering/platform'
   import { themeStore } from '@hcengineering/theme'
-  import { AnySvelteComponent, ColorDefinition, Icon, IconSize, resizeObserver } from '@hcengineering/ui'
+  import type { AnySvelteComponent, ColorDefinition, IconSize } from '@hcengineering/ui'
+  import { Icon, resizeObserver } from '@hcengineering/ui'
   import AvatarIcon from './icons/Avatar.svelte'
   import { createEventDispatcher } from 'svelte'
 
@@ -116,7 +117,7 @@
         class="hulyAvatarSize-{size} ava-image {disabled ? 'disabled' : ''} {style}"
         src={url}
         {srcset}
-        alt={''}
+        alt=""
         on:error={handleImgError}
       />
     {:else if displayName && displayName !== ''}
@@ -130,7 +131,7 @@
         <Icon
           icon={icon ?? AvatarIcon}
           fill={color ? 'var(--primary-button-color)' : 'var(--theme-caption-color)'}
-          size={'full'}
+          size="full"
         />
       </div>
     {/if}

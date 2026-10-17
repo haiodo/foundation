@@ -37,12 +37,12 @@
   let _value: string | undefined
 
   // Reactively translate when label/params/language changes.
-  $: if (label !== undefined) {
+  $: if (label != null && label !== '') {
     translateCB(label, params ?? {}, $themeStore.language, (r) => {
       _value = r
     })
   } else {
-    _value = label as string | undefined
+    _value = label
   }
 </script>
 

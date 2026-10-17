@@ -13,18 +13,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card, MasterTag } from '@hcengineering/card'
-  import { AnyAttribute, ArrOf, Class, Ref, RefTo, Type } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Card, MasterTag } from '@hcengineering/card'
+  import type { AnyAttribute, ArrOf, Class, Ref, RefTo, Type } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { IconWithEmoji, createQuery, getClient } from '@hcengineering/presentation'
-  import { Button, ButtonKind, ButtonSize, eventToHTMLElement, Label, showPopup } from '@hcengineering/ui'
+  import type { ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import { Button, eventToHTMLElement, Label, showPopup } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import card from '../plugin'
   import CardsPopup from './CardsPopup.svelte'
 
   export let _class: Ref<Class<Card>> | undefined = undefined
-  export let value: Ref<Card>[] | undefined
+  export let value: Ref<Card>[] | Ref<Card> | undefined
   export let readonly: boolean = false
   export let label: IntlString | undefined
   export let onChange: ((value: any) => void) | undefined
@@ -60,11 +61,21 @@
 
     showPopup(
       CardsPopup,
-      { selectedObjects: value, _class, multiSelect: true },
+      { selectedObjects: toArray(value), _class, multiSelect: true },
       eventToHTMLElement(event),
       undefined,
       change
     )
+  }
+
+  function toArray (value: Ref<Card>[] | Ref<Card> | undefined): Ref<Card>[] {
+    if (Array.isArray(value)) {
+      return value
+    }
+    if (value === undefined) {
+      return []
+    }
+    return [value]
   }
 
   const change = (value: Ref<Card>[]): void => {
@@ -75,7 +86,7 @@
   let docs: Card[] = []
 
   const query = createQuery()
-  $: query.query(card.class.Card, { _id: { $in: value ?? [] } }, (res) => {
+  $: query.query(card.class.Card, { _id: { $in: toArray(value) } }, (res) => {
     docs = res
   })
 

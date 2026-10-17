@@ -14,21 +14,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getMetadata, setMetadata } from '@hcengineering/platform'
+  import { getMetadata } from '@hcengineering/platform'
   import presentation from '@hcengineering/presentation'
+  import type { Location } from '@hcengineering/ui'
   import {
-    Location,
     deviceOptionsStore as deviceInfo,
     fetchMetadataLocalStorage,
     getCurrentLocation,
     location,
-    setMetadataLocalStorage,
+    navigate,
     desktopPlatform
   } from '@hcengineering/ui'
   import { onDestroy, onMount } from 'svelte'
   import Auth from './Auth.svelte'
   import Confirmation from './Confirmation.svelte'
   import ConfirmationSend from './ConfirmationSend.svelte'
+  import Registered from './Registered.svelte'
   import CreateWorkspaceForm from './CreateWorkspaceForm.svelte'
   import Join from './Join.svelte'
   import AutoJoin from './AutoJoin.svelte'
@@ -39,15 +40,15 @@
   import SelectWorkspace from './SelectWorkspace.svelte'
   import SignupForm from './SignupForm.svelte'
   import SelectDownloads from './SelectDownloads.svelte'
-  import { Pages, getAccount, pages } from '..'
-  import { goTo } from '../utils'
+  import type { Pages } from '..'
+  import { pages } from '..'
+  import { goTo, restoreSession } from '../utils'
   import login from '../plugin'
   import LoginAppBase from './LoginAppBase.svelte'
 
   // Resolve static asset URLs at runtime to avoid requiring image module declarations
   // (prevents TypeScript / diagnostics errors when module types are missing)
 
-  import AdminWorkspaces from './AdminWorkspaces.svelte'
   import ChangePassword from './ChangePassword.svelte'
 
   import BottomAction from './BottomAction.svelte'
@@ -62,6 +63,11 @@
   onDestroy(location.subscribe(updatePageLoc))
 
   function updatePageLoc (loc: Location): void {
+    // The admin panel moved to its own /admin route — redirect old /login/admin bookmarks.
+    if (loc.path[1] === 'admin') {
+      navigate({ path: ['admin'] }, true)
+      return
+    }
     const token = getMetadata(presentation.metadata.Token)
     page = (loc.path[1] as Pages) ?? (token != null ? 'selectWorkspace' : 'login')
     if (page === 'join' && loc.query?.autoJoin !== undefined) {
@@ -98,18 +104,15 @@
     }
 
     if (getMetadata(presentation.metadata.Token) == null) {
-      const lastAccount = fetchMetadataLocalStorage(login.metadata.LastAccount)
-      if (lastAccount != null) {
-        try {
-          const loginInfo = await getAccount(false)
-          if (loginInfo != null) {
-            setMetadata(presentation.metadata.Token, loginInfo.token)
-            setMetadataLocalStorage(login.metadata.LoginAccount, loginInfo.account)
-            updatePageLoc(getCurrentLocation())
-          }
-        } catch (err: any) {
-          // do nothing
+      try {
+        // Was gated on LastAccount, so a cookie-only session left `selectWorkspace`
+        // unroutable while the form already showed "Signed in as".
+        await restoreSession()
+        if (getMetadata(presentation.metadata.Token) != null) {
+          updatePageLoc(getCurrentLocation())
         }
+      } catch (err: any) {
+        // do nothing
       }
     }
   }
@@ -120,64 +123,62 @@
   })
 </script>
 
-{#if page === 'admin'}
-  <AdminWorkspaces />
-{:else}
-  <LoginAppBase>
-    <svelte:fragment slot="form-content">
-      {#if page === 'login'}
-        {#if localLoginHidden}
-          <ProvidersOnlyForm />
-        {:else}
-          <LoginForm {navigateUrl} {signUpDisabled} {useOTP} />
+<LoginAppBase>
+  <svelte:fragment slot="form-content">
+    {#if page === 'login'}
+      {#if localLoginHidden}
+        <ProvidersOnlyForm />
+      {:else}
+        <LoginForm {navigateUrl} {signUpDisabled} {useOTP} />
+      {/if}
+    {:else if page === 'signup'}
+      <SignupForm {navigateUrl} {signUpDisabled} {localLoginHidden} {useOTP} />
+    {:else if page === 'createWorkspace'}
+      <CreateWorkspaceForm />
+    {:else if page === 'password'}
+      <PasswordRequest {signUpDisabled} />
+    {:else if page === 'recovery'}
+      <PasswordRestore />
+    {:else if page === 'selectWorkspace'}
+      <SelectWorkspace {navigateUrl} />
+    {:else if page === 'downloads'}
+      <SelectDownloads />
+    {:else if page === 'join'}
+      <Join />
+    {:else if page === 'autoJoin'}
+      <AutoJoin />
+    {:else if page === 'confirm'}
+      <Confirmation />
+    {:else if page === 'confirmationSend'}
+      <ConfirmationSend />
+    {:else if page === 'registered'}
+      <Registered />
+    {:else if page === 'auth'}
+      <Auth />
+    {:else if page === 'changePassword'}
+      <ChangePassword />
+    {/if}
+  </svelte:fragment>
+  <svelte:fragment slot="extra-form-content">
+    {#if !desktopPlatform && page !== 'downloads' && page !== 'join'}
+      {@const desktopUrl = getMetadata(login.metadata.DesktopUpdatesUrl)}
+      <div class="mt-4 flex flex-row-reverse mr-4">
+        {#if !($deviceInfo.isMobile && $deviceInfo.minWidth) && desktopUrl != null && desktopUrl !== ''}
+          <BottomAction
+            action={{
+              // caption: login.string.Downloads,
+              i18n: login.string.Downloads,
+              page: 'downloads',
+              func: () => {
+                goTo('downloads')
+              }
+            }}
+          />
         {/if}
-      {:else if page === 'signup'}
-        <SignupForm {navigateUrl} {signUpDisabled} {localLoginHidden} {useOTP} />
-      {:else if page === 'createWorkspace'}
-        <CreateWorkspaceForm />
-      {:else if page === 'password'}
-        <PasswordRequest {signUpDisabled} />
-      {:else if page === 'recovery'}
-        <PasswordRestore />
-      {:else if page === 'selectWorkspace'}
-        <SelectWorkspace {navigateUrl} />
-      {:else if page === 'downloads'}
-        <SelectDownloads />
-      {:else if page === 'join'}
-        <Join />
-      {:else if page === 'autoJoin'}
-        <AutoJoin />
-      {:else if page === 'confirm'}
-        <Confirmation />
-      {:else if page === 'confirmationSend'}
-        <ConfirmationSend />
-      {:else if page === 'auth'}
-        <Auth />
-      {:else if page === 'changePassword'}
-        <ChangePassword />
-      {/if}
-    </svelte:fragment>
-    <svelte:fragment slot="extra-form-content">
-      {#if !desktopPlatform && page !== 'downloads' && page !== 'join'}
-        {@const desktopUrl = getMetadata(login.metadata.DesktopUpdatesUrl)}
-        <div class="mt-4 flex flex-row-reverse mr-4">
-          {#if !($deviceInfo.isMobile && $deviceInfo.minWidth) && desktopUrl != null && desktopUrl !== ''}
-            <BottomAction
-              action={{
-                // caption: login.string.Downloads,
-                i18n: login.string.Downloads,
-                page: 'downloads',
-                func: () => {
-                  goTo('downloads')
-                }
-              }}
-            />
-          {/if}
-        </div>
-      {/if}
-    </svelte:fragment>
-  </LoginAppBase>
-{/if}
+      </div>
+    {/if}
+  </svelte:fragment>
+</LoginAppBase>
 
 <style lang="scss">
   @use './themes/intabia.scss';

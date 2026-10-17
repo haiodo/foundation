@@ -3,11 +3,12 @@
 //
 -->
 <script lang="ts">
-  import core, { Ref, WithLookup, getCurrentAccount } from '@hcengineering/core'
-  import { GithubPullRequest, GithubReviewComment, GithubReviewThread } from '@hcengineering/github'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import core, { getCurrentAccount } from '@hcengineering/core'
+  import type { GithubPullRequest, GithubReviewComment, GithubReviewThread } from '@hcengineering/github'
 
   import { ActivityMessageHeader, ActivityMessageTemplate } from '@hcengineering/activity-resources'
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
   import { EmployeePresenter, getPersonByPersonId, getPersonByPersonIdCb } from '@hcengineering/contact-resources'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
@@ -24,6 +25,7 @@
   export let isSelected: boolean = false
   export let shouldScroll: boolean = false
   export let embedded: boolean = false
+  export let timeFormat: 'time' | 'full' = 'time'
   export let onClick: (() => void) | undefined = undefined
 
   $: personId = value?.createdBy ?? value?.modifiedBy
@@ -101,6 +103,7 @@
     {shouldScroll}
     {embedded}
     viewlet={undefined}
+    {timeFormat}
     {onClick}
   >
     <svelte:fragment slot="header">

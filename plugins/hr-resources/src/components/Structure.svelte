@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import contact from '@hcengineering/contact'
-  import { DocumentQuery, Ref, WithLookup } from '@hcengineering/core'
+  import type { DocumentQuery, Ref, WithLookup } from '@hcengineering/core'
   import type { Department, Staff } from '@hcengineering/hr'
   import { createQuery } from '@hcengineering/presentation'
   import { Button, IconAdd, Label, Scroller, SearchEdit, eventToHTMLElement, showPopup } from '@hcengineering/ui'
@@ -76,7 +76,7 @@
   </div>
 
   <div class="mb-1 clear-mins">
-    <Button icon={IconAdd} label={hr.string.CreateDepartmentLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={hr.string.CreateDepartmentLabel} kind="primary" on:click={showCreateDialog} />
   </div>
 </div>
 <div class="ac-header full divide search-start">
@@ -91,7 +91,7 @@
   </div>
 </div>
 
-<Scroller padding={'1rem 2.5rem'}>
+<Scroller padding="1rem 2.5rem">
   {#if head}
     <DepartmentCard value={head} {descendants} {allEmployees} dragOver={undefined} dragPerson={undefined} />
   {/if}

@@ -62,13 +62,13 @@ export const DOMAIN_DOCUMENT = 'document' as Domain
 export class TDocument extends TDoc implements Document, Todoable {
   @Prop(TypeString(), document.string.Name)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeCollaborativeDoc(), document.string.Document)
-    content!: MarkupBlobRef | null
+  content!: MarkupBlobRef | null
 
   @Prop(TypeRef(document.class.Document), document.string.ParentDocument)
-    parent!: Ref<Document>
+  parent!: Ref<Document>
 
   @Prop(TypeRef(core.class.Space), core.string.Space)
   @Index(IndexKind.Indexed)
@@ -77,41 +77,41 @@ export class TDocument extends TDoc implements Document, Todoable {
 
   @Prop(TypeAccountUuid(), document.string.LockedBy)
   @Hidden()
-    lockedBy?: AccountUuid
+  lockedBy?: AccountUuid
 
   @Prop(Collection(attachment.class.Embedding), attachment.string.Embeddings)
-    embeddings?: number
+  embeddings?: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
-    comments?: number
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
+  comments?: number
 
   @Prop(Collection(tags.class.TagReference), document.string.Labels)
-    labels?: number
+  labels?: number
 
   @Prop(Collection(activity.class.ActivityReference), document.string.Backlinks)
   @Hidden()
-    references!: number
+  references!: number
 
   @Prop(TypeString(), document.string.Icon)
   @Hidden()
   @Index(IndexKind.FullText)
-    icon?: Asset
+  icon?: Asset
 
   @Prop(TypeNumber(), document.string.Color)
   @Hidden()
   @Index(IndexKind.FullText)
-    color?: number
+  color?: number
 
   @Prop(Collection(time.class.ToDo), getEmbeddedLabel('Action Items'))
-    todos?: CollectionSize<ToDo>
+  todos?: CollectionSize<ToDo>
 
   @Prop(TypeRank(), core.string.Rank)
   @Index(IndexKind.Indexed)
   @Hidden()
-    rank!: Rank
+  rank!: Rank
 }
 
 @Model(document.class.DocumentSnapshot, core.class.Doc, DOMAIN_DOCUMENT)
@@ -124,14 +124,14 @@ export class TDocumentSnapshot extends TDoc implements DocumentSnapshot {
 
   @Prop(TypeString(), document.string.Name)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeCollaborativeDoc(), document.string.Document)
   @ReadOnly()
-    content!: MarkupBlobRef
+  content!: MarkupBlobRef
 
   @Prop(TypeRef(document.class.Document), document.string.ParentDocument)
-    parent!: Ref<Document>
+  parent!: Ref<Document>
 }
 
 @Model(document.class.Teamspace, core.class.TypedSpace)
@@ -316,6 +316,25 @@ function defineDocument (builder: Builder): void {
   })
 
   createAction(builder, {
+    action: view.actionImpl.CopyDocumentMarkdown,
+    actionProps: {
+      contentClass: document.class.Document,
+      contentField: 'content'
+    },
+    label: view.string.CopyDocumentMarkdown,
+    icon: view.icon.Print,
+    input: 'focus',
+    category: document.category.Document,
+    target: document.class.Document,
+    query: {},
+    context: {
+      mode: ['context', 'browser'],
+      application: document.app.Documents,
+      group: 'tools'
+    }
+  })
+
+  createAction(builder, {
     ...actionTemplates.move,
     action: view.actionImpl.ShowPopup,
     actionProps: {
@@ -387,6 +406,20 @@ function defineDocument (builder: Builder): void {
     },
     document.action.UnlockContent
   )
+
+  createAction(builder, {
+    action: view.actionImpl.OpenInSidebar,
+    label: view.string.OpenInSidebar,
+    icon: view.icon.DetailsFilled,
+    input: 'focus',
+    category: document.category.Document,
+    target: document.class.Document,
+    context: {
+      mode: ['context', 'browser'],
+      application: document.app.Documents,
+      group: 'create'
+    }
+  })
 
   // Notifications
 
@@ -513,7 +546,7 @@ function defineApplication (builder: Builder): void {
             addSpaceLabel: document.string.CreateTeamspace,
             createComponent: document.component.CreateTeamspace,
             icon: document.icon.Teamspace,
-            // intentionally left empty in order to make space presenter working
+            // empty placeholder for the space presenter
             specials: []
           }
         ]

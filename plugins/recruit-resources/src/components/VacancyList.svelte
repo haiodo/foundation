@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref } from '@hcengineering/core'
+  import type { Doc, Ref } from '@hcengineering/core'
   import presentation from '@hcengineering/presentation'
   import { Button, Icon, IconAdd, Label, Scroller, showPopup } from '@hcengineering/ui'
-  import view, { BuildModelKey } from '@hcengineering/view'
+  import type { BuildModelKey } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { Table } from '@hcengineering/view-resources'
   import recruit from '../plugin'
   import CreateVacancy from './CreateVacancy.svelte'
@@ -51,13 +52,13 @@
 <div class="antiSection">
   <div class="antiSection-header">
     <div class="antiSection-header__icon">
-      <Icon icon={recruit.icon.Vacancy} size={'small'} />
+      <Icon icon={recruit.icon.Vacancy} size="small" />
     </div>
     <span class="antiSection-header__title">
       <Label label={recruit.string.Vacancies} />
     </span>
     {#if !readonly}
-      <Button id="appls.add" icon={IconAdd} kind={'ghost'} on:click={createApp} />
+      <Button id="appls.add" icon={IconAdd} kind="ghost" on:click={createApp} />
     {/if}
   </div>
   {#if (vacancies ?? 0) > 0}

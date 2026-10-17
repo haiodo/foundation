@@ -13,12 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentQuery, Ref, SortingOrder } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel, translateCB } from '@hcengineering/platform'
+  import type { DocumentQuery, Ref } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel, translateCB } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import { Milestone } from '@hcengineering/tracker'
-  import type { ButtonKind, ButtonSize, LabelAndProps, PopupResult } from '@hcengineering/ui'
-  import { Button, ButtonShape, Label, eventToHTMLElement, showPopup, themeStore } from '@hcengineering/ui'
+  import type { Milestone } from '@hcengineering/tracker'
+  import type { ButtonKind, ButtonSize, LabelAndProps, PopupResult, ButtonShape } from '@hcengineering/ui'
+  import { Button, Label, eventToHTMLElement, showPopup, themeStore } from '@hcengineering/ui'
   import tracker from '../../plugin'
   import { milestoneStatusAssets } from '../../types'
   import MilestoneSelectorPopup from './MilestoneSelectorPopup.svelte'
@@ -59,7 +61,7 @@
     }
   )
 
-  $: handleSelectedMilestoneIdUpdated(value, rawMilestones)
+  $: void handleSelectedMilestoneIdUpdated(value, rawMilestones)
 
   $: translateCB(tracker.string.Milestone, {}, $themeStore.language, (result) => (defaultMilestoneLabel = result))
   const milestoneIcon = tracker.icon.Milestone
@@ -116,7 +118,9 @@
       },
       eventToHTMLElement(event),
       (evt) => {
-        onChange?.(evt)
+        if (evt !== undefined) {
+          onChange?.(evt)
+        }
         milestonePopup = undefined
       }
     )
@@ -131,7 +135,7 @@
     placeholder={popupPlaceholder}
     space={popupSpace}
     on:close={(evt) => {
-      if (onChange !== undefined) onChange(evt.detail)
+      if (evt.detail !== undefined && onChange !== undefined) onChange(evt.detail)
     }}
   />
 {:else if onlyIcon || milestoneText === undefined}

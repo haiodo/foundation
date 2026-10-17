@@ -1,19 +1,11 @@
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import { Process, State, Transition, Trigger } from '@hcengineering/process'
+  import type { Process, State, Transition, Trigger } from '@hcengineering/process'
   import { clearSettingsStore } from '@hcengineering/setting-resources'
-  import {
-    ButtonIcon,
-    Component,
-    Dropdown,
-    DropdownIntlItem,
-    DropdownLabelsIntl,
-    IconDelete,
-    Label,
-    ListItem,
-    Modal
-  } from '@hcengineering/ui'
+  import type { DropdownIntlItem, ListItem } from '@hcengineering/ui'
+  import { Component, Dropdown, DropdownLabelsIntl, IconDelete, Label, Modal } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import plugin from '../../plugin'
   import TransitionPresenter from './TransitionPresenter.svelte'
 
@@ -85,7 +77,7 @@
 
 <Modal
   label={plugin.string.Transition}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={true}
@@ -94,7 +86,13 @@
 >
   <svelte:fragment slot="actions">
     {#if !readonly}
-      <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} on:click={remove} />
+      <IconButton
+        icon={IconDelete}
+        size="small"
+        kind="tertiary"
+        tooltip={{ label: presentation.string.Delete }}
+        on:click={remove}
+      />
     {/if}
   </svelte:fragment>
   <div class="content clear-mins">
@@ -111,9 +109,9 @@
             items={statesItems}
             selected={fromState}
             placeholder={plugin.string.From}
-            justify={'left'}
-            width={'100%'}
-            kind={'no-border'}
+            justify="left"
+            width="100%"
+            kind="no-border"
             on:selected={updateFrom}
           />
         {:else}
@@ -124,9 +122,9 @@
           items={statesItems}
           selected={toState}
           placeholder={plugin.string.To}
-          justify={'left'}
-          width={'100%'}
-          kind={'no-border'}
+          justify="left"
+          width="100%"
+          kind="no-border"
           on:selected={updateTo}
         />
         <Label label={plugin.string.Trigger} />
@@ -137,9 +135,9 @@
           on:selected={() => {
             params = {}
           }}
-          justify={'left'}
-          width={'100%'}
-          kind={'no-border'}
+          justify="left"
+          width="100%"
+          kind="no-border"
         />
       </div>
       {#if trigger.editor !== undefined}

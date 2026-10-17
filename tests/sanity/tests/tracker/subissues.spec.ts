@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
+import { readIssueIdentifier } from '../API/TrackerApi'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import {
@@ -172,7 +173,14 @@ test.describe('Tracker sub-issues tests', () => {
 
     await issuesDetailsPage.moreActionOnIssue('Move to project')
     await issuesDetailsPage.fillMoveIssuesModal(secondProjectName)
-    await page.waitForTimeout(1500)
+    // The panel keeps rendering the issue under the old project until the move lands, and the
+    // sub-issue list is empty meanwhile - wait for the new identifier instead of a fixed pause.
+    await expect(issuesDetailsPage.textIdentifier())
+      .toHaveText(/SECON-\d+/)
+      .catch(async (err) => {
+        // Tells a move that never reached the server from a panel that missed its update (1/5, unresolved).
+        throw new Error(`${err.message}\nstored ${await readIssueIdentifier(newIssue.title)}\nurl ${page.url()}`)
+      })
     await issuesDetailsPage.openSubIssueByName(newSubIssue.title)
     await expect(issuesDetailsPage.textIdentifier()).toHaveText(/SECON-\d+/)
   })

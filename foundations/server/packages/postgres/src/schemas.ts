@@ -1,6 +1,6 @@
 import { DOMAIN_COLLABORATOR, DOMAIN_MODEL_TX, DOMAIN_RELATION, DOMAIN_SPACE, DOMAIN_TX } from '@hcengineering/core'
 
-export type DataType = 'bigint' | 'bool' | 'text' | 'text[]'
+export type DataType = 'bigint' | 'bool' | 'text' | 'text[]' | 'integer'
 
 export function getIndex (field: FieldSchema): string {
   if (field.indexType === undefined || field.indexType === 'btree') {
@@ -14,6 +14,7 @@ export interface FieldSchema {
   notNull: boolean
   index: boolean
   indexType?: 'btree' | 'gin' | 'gist' | 'brin' | 'hash'
+  check?: string
 }
 
 export type Schema = Record<string, FieldSchema>
@@ -256,6 +257,45 @@ const dncSchema: Schema = {
     notNull: true,
     index: false
   },
+  objectSpace: {
+    type: 'text',
+    notNull: true,
+    index: false
+  },
+  // customIndexes below; a single-column index on top of them would only cost writes.
+  parentObjectId: {
+    type: 'text',
+    notNull: false,
+    index: false
+  },
+  parentObjectClass: {
+    type: 'text',
+    notNull: false,
+    index: false
+  },
+  lastNotify: {
+    type: 'bigint',
+    notNull: true,
+    index: false
+  },
+  unreadCount: {
+    type: 'integer',
+    notNull: true,
+    index: false,
+    check: '"unreadCount" >= 0'
+  },
+  unreadMessagesCount: {
+    type: 'integer',
+    notNull: true,
+    index: false,
+    check: '"unreadMessagesCount" >= 0'
+  },
+  notifiedMessagesCount: {
+    type: 'integer',
+    notNull: true,
+    index: false,
+    check: '"notifiedMessagesCount" >= 0'
+  },
   user: {
     type: 'text',
     notNull: true,
@@ -383,12 +423,52 @@ const docReadStateSchema: Schema = {
     type: 'text',
     notNull: true,
     index: true
+  },
+  // Indexed together with workspaceId in customIndexes below.
+  latestMessageId: {
+    type: 'text',
+    notNull: false,
+    index: false
+  },
+  latestMessageTimestamp: {
+    type: 'bigint',
+    notNull: false,
+    index: false
+  }
+}
+
+const activitySchema: Schema = {
+  ...defaultSchema,
+  forwardedMessage: {
+    type: 'text',
+    notNull: false,
+    index: true
+  },
+  forwardFromId: {
+    type: 'text',
+    notNull: false,
+    index: true
+  },
+  forwardFromClass: {
+    type: 'text',
+    notNull: false,
+    index: true
+  },
+  replies: {
+    type: 'integer',
+    notNull: false,
+    index: false
+  },
+  lastReply: {
+    type: 'bigint',
+    notNull: false,
+    index: false
   }
 }
 
 type CustomIndexType = 'unique' | 'custom'
 
-export const customIndexes: Record<string, { [key in CustomIndexType]: string[] }[]> = {
+export const customIndexes: Record<string, Record<CustomIndexType, string[]>[]> = {
   [translateDomain('chunter_doc')]: [
     {
       unique: ['attachedTo', 'attachedToClass', 'account'],
@@ -398,7 +478,24 @@ export const customIndexes: Record<string, { [key in CustomIndexType]: string[] 
   [translateDomain('notification_read_state')]: [
     {
       unique: ['attachedTo', 'attachedToClass'],
-      custom: []
+      custom: [
+        'CREATE INDEX IF NOT EXISTS notification_read_state_workspaceId_latestMessageId__index ON notification_read_state ("workspaceId", "latestMessageId");',
+        'CREATE INDEX IF NOT EXISTS notification_read_state_workspaceId_latestMessageTimestamp__index ON notification_read_state ("workspaceId", "latestMessageTimestamp");'
+      ]
+    }
+  ],
+  [translateDomain('notification-dnc')]: [
+    {
+      unique: ['user', 'objectId', 'objectClass'],
+      custom: [
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_objectId__index ON notification_dnc ("workspaceId", "objectId");',
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_parentObjectId__index ON notification_dnc ("workspaceId", "parentObjectId");',
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_user_lastNotify_desc__index ON notification_dnc ("workspaceId", "user", "lastNotify" DESC);',
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_user_unread__index ON notification_dnc ("workspaceId", "user", "unreadCount") WHERE "unreadCount" > 0;',
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_user_objectClass__index ON notification_dnc ("workspaceId", "user", "objectClass");',
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_user_unreadMessages__index ON notification_dnc ("workspaceId", "user", "unreadMessagesCount") WHERE "unreadMessagesCount" > 0;',
+        'CREATE INDEX IF NOT EXISTS notification_dnc_workspaceId_user_notifiedMessages__index ON notification_dnc ("workspaceId", "user", "notifiedMessagesCount") WHERE "notifiedMessagesCount" > 0;'
+      ]
     }
   ],
   [DOMAIN_SPACE]: [
@@ -406,6 +503,16 @@ export const customIndexes: Record<string, { [key in CustomIndexType]: string[] 
       unique: [],
       custom: [
         'CREATE UNIQUE INDEX IF NOT EXISTS space_unique_workspaceId_referenceId__index ON space ("workspaceId", "referenceId") WHERE "referenceId" IS NOT NULL;'
+      ]
+    }
+  ],
+  [translateDomain('activity')]: [
+    {
+      unique: [],
+      custom: [
+        'CREATE INDEX IF NOT EXISTS activity_attachedTo_createdOn__index ON activity ("workspaceId", "attachedTo", "createdOn" DESC);',
+        'CREATE INDEX IF NOT EXISTS activity_workspaceId_lastReply_threads__index ON activity ("workspaceId", "lastReply" DESC) WHERE replies > 0;',
+        'CREATE INDEX IF NOT EXISTS activity_workspaceId_createdOn_threads__index ON activity ("workspaceId", "createdOn" DESC) WHERE replies > 0;'
       ]
     }
   ]
@@ -437,8 +544,14 @@ export const domainSchemas: Record<string, Schema> = {
   [translateDomain('chunter_doc')]: chatSchema,
   kanban: defaultSchema,
   [translateDomain('attachment')]: attachmentSchema,
-  [translateDomain('notification_read_state')]: docReadStateSchema
+  [translateDomain('notification_read_state')]: docReadStateSchema,
+  [translateDomain('activity')]: activitySchema
 }
+
+// Snapshot of the schemas declared above. `domainSchemas` is replaced per domain by what the
+// database actually has (see `getTableSchema` in utils.ts); this copy keeps the declared shape so
+// the loader can report columns a table is missing.
+export const declaredSchemas: Readonly<Record<string, Schema>> = { ...domainSchemas }
 
 export function getSchema (domain: string): Schema {
   return domainSchemas[translateDomain(domain)] ?? defaultSchema

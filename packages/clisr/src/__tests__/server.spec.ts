@@ -29,7 +29,7 @@ describe('ClisrServer and ClisrClient consistency', () => {
     return new MeasureMetricsContext('clisr-test', {})
   }
 
-  // Build a simple fake ConnectionSocket that captures sent messages and supports required interface.
+  // Fake ConnectionSocket that captures sent messages and implements the required interface.
   function createFakeCS (sent: any[] = []): ConnectionSocket {
     const cs: any = {
       id: 'cs-' + Math.random().toString(36).slice(2, 9),
@@ -865,7 +865,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       session,
       // Older than HangLogTimeout — triggers warn.
       startTime: Date.now() - (server.hangLogTimeout + 1000),
-      method: 'hangOp'
+      method: 'hangOp',
+      reject: jest.fn()
     } as any
 
     ;(server as any).requests.set('#hang', rr)
@@ -1020,6 +1021,7 @@ describe('ClisrServer and ClisrClient consistency', () => {
       const fakeRequest: any = {
         method: 'x',
         sendData: jest.fn(),
+        reject: jest.fn(),
         startTime: Date.now() - 6000, // older than the 5s threshold
         session
       }
@@ -1030,7 +1032,7 @@ describe('ClisrServer and ClisrClient consistency', () => {
       await server.handleTick()
 
       expect(fakeSocket.sendRaw).toHaveBeenCalled()
-      const buf = (fakeSocket.sendRaw as jest.Mock).mock.calls[0][1] // sendRaw(ctx, buf)
+      const buf = (fakeSocket.sendRaw as jest.Mock).mock.calls[0][1]
       expect(buf[0]).toBe(FRAME_OP_STATUS)
       const payload = JSON.parse(Buffer.from(buf.slice(1)).toString('utf8'))
       expect(payload.id).toBe('#r1')
@@ -1075,7 +1077,8 @@ describe('ClisrServer and ClisrClient consistency', () => {
       // Insert a fake request into the session's requests map with a mocked sendData
       const fakeRequest: any = {
         method: 'x',
-        sendData: jest.fn()
+        sendData: jest.fn(),
+        reject: jest.fn()
       }
       ;(server as any).requests.set('#r2', fakeRequest)
       session.requests.set('#r2', fakeRequest)

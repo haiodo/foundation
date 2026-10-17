@@ -21,26 +21,35 @@ import core, {
   Data,
   MeasureContext,
   Ref,
+  TxFactory,
   generateId,
   systemAccountUuid,
   type AccountUuid,
   type Blob,
+  type Doc,
+  type DocumentClassQuery,
+  type DocumentQuery,
   type PersonId,
+  type Timestamp,
+  type TxApplyResult,
   type WorkspaceUuid,
   DocumentUpdate,
   SocialIdType
 } from '@hcengineering/core'
-import drive, { createFile } from '@hcengineering/drive'
 import love, {
   MeetingMinutes,
   MeetingStatus,
+  Office,
   ParticipantInfo,
   ParticipantMetadata,
   PendingRecording,
   RecordingFormat,
   RecordingState,
+  RecordingStatus,
   Room,
+  SCHEDULED_MEETING_WINDOW_MS,
   TranscriptionState,
+  UserMeetingInvite,
   getFreeRoomPlace
 } from '@hcengineering/love'
 import { Asset, IntlString } from '@hcengineering/platform'
@@ -48,10 +57,16 @@ import { generateToken } from '@hcengineering/server-token'
 import { getClient } from './client'
 import { RecordingPreset } from './preset'
 
+// 2x poll interval: don't force-finish meetings younger than this (see checkUnfinishedMeetings)
+export const UNFINISHED_MEETING_GRACE_MS = 60_000
+
 export class WorkspaceClient {
   private client!: RestClient
 
-  // Static cache for workspace clients
+  // Serialises seat allocation per meeting: concurrent joins would read the same snapshot
+  // and pick one cell. Static, since meeting refs are globally unique.
+  private static readonly seatQueue = new Map<Ref<MeetingMinutes>, Promise<unknown>>()
+
   private static readonly workspaces = new Map<WorkspaceUuid, WorkspaceClient>()
   private static readonly connectingWorkspaces = new Map<WorkspaceUuid, Promise<void>>()
 
@@ -120,23 +135,7 @@ export class WorkspaceClient {
     meetingMinutes?: Ref<MeetingMinutes>
   ): Promise<void> {
     this.ctx.info('Save recording', { workspace: this.workspace, meetingMinutes })
-    const current = await this.client.findOne(drive.class.Drive, { _id: love.space.Drive })
-    if (current === undefined) {
-      await this.client.createDoc(
-        drive.class.Drive,
-        core.space.Space,
-        {
-          private: false,
-          archived: false,
-          members: [],
-          name: 'Records',
-          description: 'Office records',
-          type: drive.spaceType.DefaultDrive,
-          autoJoin: true
-        },
-        love.space.Drive
-      )
-    }
+    // Drive file creation disabled: shared Drive bypasses room privacy ACL. TODO: revisit with per-room ACL support.
     const data = {
       file: uuid as Ref<Blob>,
       size: blob.size,
@@ -149,7 +148,6 @@ export class WorkspaceClient {
         originalWidth: preset.width
       }
     }
-    await createFile(this.client, love.space.Drive, drive.ids.Root, { ...data, title: name })
     await this.attachToMeetingMinutes({ ...data, name }, meetingMinutes)
   }
 
@@ -167,7 +165,7 @@ export class WorkspaceClient {
 
     await this.client.addCollection(
       attachment.class.Attachment,
-      meeting.space,
+      meeting._id,
       meeting._id,
       meeting._class,
       'attachments',
@@ -175,11 +173,7 @@ export class WorkspaceClient {
     )
   }
 
-  /**
-   * Add an ActivityInfoMessage to a MeetingMinutes document.
-   * `message` may be a simple string (will be converted to { en: string }) or an Intl-like object.
-   * `modifiedBy` allows specifying the person who performed the action (for participant join/leave).
-   */
+  /** Add an ActivityInfoMessage to a MeetingMinutes document. */
   async addActivityToMeeting (
     message: IntlString,
     ref: Ref<MeetingMinutes>,
@@ -197,7 +191,7 @@ export class WorkspaceClient {
 
     await this.client.addCollection<MeetingMinutes, ActivityInfoMessage>(
       activity.class.ActivityInfoMessage,
-      meeting.space,
+      meeting._id,
       meeting._id,
       meeting._class,
       'activity',
@@ -213,10 +207,7 @@ export class WorkspaceClient {
     this.ctx.info('[WorkspaceClient.addActivityToMeeting] Added activity message', { meeting: meeting._id, message })
   }
 
-  /**
-   * Activate meeting (set status to Active).
-   * No activity message is added - status change is reflected in meeting document.
-   */
+  /** Activate meeting (set status to Active). */
   async activateMeeting (ref: Ref<MeetingMinutes>): Promise<void> {
     if (ref === undefined) return
 
@@ -226,15 +217,17 @@ export class WorkspaceClient {
       return
     }
 
+    // Never resurrect a finished meeting - a stale client reconnecting with an old meetingId must not flip it back Active.
+    if (meeting.status === MeetingStatus.Finished) {
+      this.ctx.warn('Refusing to re-activate finished meeting', { meeting: meeting._id })
+      return
+    }
+
     await this.client.update(meeting, { status: MeetingStatus.Active })
     this.ctx.info('Activated meeting', { meeting: meeting._id })
   }
 
-  /**
-   * Mark meeting as finished.
-   * No activity message is added - status change is reflected in meeting document.
-   * Also cleans up all ParticipantInfo entries for this meeting.
-   */
+  /** Mark meeting as finished and clean up all ParticipantInfo entries for it. */
   async finishMeeting (ref: Ref<MeetingMinutes>, meetingEnd?: number): Promise<void> {
     if (ref === undefined) return
 
@@ -244,19 +237,83 @@ export class WorkspaceClient {
       return
     }
 
+    // Re-arm to Scheduled instead of terminal Finished, both before the meeting and while it
+    // is still within its window - only past the window is an empty room really the end.
+    const scheduledAt = meeting.meetingScheduledDate
+    const rearm = scheduledAt != null && Date.now() < scheduledAt + SCHEDULED_MEETING_WINDOW_MS
+
     const endTs = meetingEnd ?? Date.now()
-    const upd: DocumentUpdate<MeetingMinutes> = { status: MeetingStatus.Finished, meetingEnd: endTs }
+    // Finished twice - room_finished webhook, then polling seeing the room gone: keep the first end.
+    const upd: DocumentUpdate<MeetingMinutes> = rearm
+      ? { status: MeetingStatus.Scheduled }
+      : meeting.status === MeetingStatus.Finished
+        ? {}
+        : { status: MeetingStatus.Finished, meetingEnd: endTs }
     if (meeting.transcriptionState === TranscriptionState.Transcribing) {
       upd.transcriptionState = TranscriptionState.Finished
     }
     if (meeting.recordingState === RecordingState.Recording) {
-      meeting.recordingState = RecordingState.Finished
+      upd.recordingState = RecordingState.Finished
     }
-    await this.client.update(meeting, upd)
-    this.ctx.info('Marked meeting as finished', { meeting: meeting._id, meetingEnd: endTs })
+    if (Object.keys(upd).length > 0) {
+      await this.client.update(meeting, upd)
+      if (rearm) {
+        this.ctx.info('Re-armed scheduled meeting instead of finishing', {
+          meeting: meeting._id,
+          meetingScheduledDate: meeting.meetingScheduledDate
+        })
+      } else {
+        this.ctx.info('Marked meeting as finished', { meeting: meeting._id, meetingEnd: endTs })
+      }
+    }
 
-    // Clean up all ParticipantInfo entries for this meeting
     await this.cleanupParticipantInfosForMeeting(ref)
+    // Drop pending knock invites for this meeting, else they linger until the 30s TransientTTL expires.
+    // A repeated finish must reuse the stored end, not `now`, or it would sweep the next meeting's knocks.
+    await this.cleanupInvitesForMeeting(ref, meeting.roomId, meeting.meetingEnd ?? endTs)
+  }
+
+  /** Remove pending UserMeetingInvite rows for a finished meeting (matched by room or by meeting ref). */
+  private async cleanupInvitesForMeeting (
+    meeting: Ref<MeetingMinutes>,
+    roomId: Ref<Room> | undefined,
+    endedAt: Timestamp
+  ): Promise<void> {
+    try {
+      const byMeeting = await this.client.findAll<UserMeetingInvite>(love.class.UserMeetingInvite, { meeting })
+      // A knock carries only a room, so the room alone cannot say which meeting it is about - but a
+      // knock made after this meeting ended cannot be about it. Asking whether another meeting is
+      // live instead is a read followed by a delete: one starting between the two lost its knocks.
+      const byRoom: UserMeetingInvite[] =
+        roomId !== undefined
+          ? (await this.client.findAll<UserMeetingInvite>(love.class.UserMeetingInvite, { room: roomId })).filter(
+              (it) => it.meeting === meeting || (it.meeting == null && (it.createdOn ?? it.modifiedOn) <= endedAt)
+            )
+          : []
+      const seen = new Set<Ref<UserMeetingInvite>>()
+      const all = [...byMeeting, ...byRoom].filter((it) => {
+        if (seen.has(it._id)) return false
+        seen.add(it._id)
+        return true
+      })
+      for (const inv of all) {
+        await this.client.remove(inv).catch((err: any) => {
+          this.ctx.warn('[WorkspaceClient.cleanupInvitesForMeeting] Failed to remove invite', {
+            id: inv._id,
+            error: err?.message ?? String(err)
+          })
+        })
+      }
+      this.ctx.info('[WorkspaceClient.cleanupInvitesForMeeting] Dropped invites for finished meeting', {
+        meeting,
+        count: all.length
+      })
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.cleanupInvitesForMeeting] Failed', {
+        error: err?.message ?? String(err),
+        meeting
+      })
+    }
   }
 
   /**
@@ -288,10 +345,11 @@ export class WorkspaceClient {
 
   async checkUnfinishedMeetings (meetingMinutes: Ref<MeetingMinutes>[]): Promise<void> {
     try {
-      // Find all active or pending meetings in this workspace
+      // Only Active/Pending are force-finished. Grace window avoids racing a Pending doc against a not-yet-visible LiveKit room.
       const meetings = await this.client.findAll(love.class.MeetingMinutes, {
         _id: { $nin: meetingMinutes },
-        status: { $ne: MeetingStatus.Finished }
+        status: { $in: [MeetingStatus.Active, MeetingStatus.Pending] },
+        modifiedOn: { $lt: Date.now() - UNFINISHED_MEETING_GRACE_MS }
       })
 
       for (const meeting of meetings) {
@@ -302,11 +360,7 @@ export class WorkspaceClient {
     }
   }
 
-  /**
-   * Clean up orphaned ParticipantInfo entries that reference finished meetings.
-   * This handles cases where ParticipantInfo was not cleaned up when a meeting finished
-   * (e.g., due to a bug or service restart before cleanup could complete).
-   */
+  /** Clean up orphaned ParticipantInfo entries that reference finished meetings. */
   async cleanupOrphanedParticipantInfos (): Promise<void> {
     try {
       // Find all ParticipantInfo entries first
@@ -357,6 +411,23 @@ export class WorkspaceClient {
    * Called from webhook when LiveKit reports a participant joined.
    * Ensures there is a ParticipantInfo for the given person and meeting.
    */
+  private async withSeatLock<T>(meeting: Ref<MeetingMinutes>, op: () => Promise<T>): Promise<T> {
+    const queue = WorkspaceClient.seatQueue
+    const prev = queue.get(meeting)
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    queue.set(meeting, gate)
+    if (prev !== undefined) await prev
+    try {
+      return await op()
+    } finally {
+      release()
+      if (queue.get(meeting) === gate) queue.delete(meeting)
+    }
+  }
+
   async upsertParticipantFromLiveKit (
     person: Ref<Person>,
     name: string | null,
@@ -380,7 +451,7 @@ export class WorkspaceClient {
         })
         return
       }
-      const attachedRoom: Ref<Room> | undefined = meetingDoc.attachedTo as Ref<Room>
+      const attachedRoom: Ref<Room> | undefined = meetingDoc.roomId
 
       const infos = await this.client.findAll(love.class.ParticipantInfo, {
         person,
@@ -431,43 +502,48 @@ export class WorkspaceClient {
           meeting
         })
       } else {
-        // Create new ParticipantInfo - place will be allocated atomically to avoid collisions
         this.ctx.info('[WorkspaceClient.upsertParticipantFromLivekit] Creating new ParticipantInfo', {
           person,
           meeting,
           attachedRoom
         })
-        const roomDoc =
-          attachedRoom !== null ? await this.client.findOne(love.class.Room, { _id: attachedRoom }) : undefined
+        // Read and create under one lock: unsynchronised, two joins read the same snapshot and
+        // land on the same cell. The lock is per replica; RoomPreview still spreads what slips through.
+        await this.withSeatLock(meeting, async () => {
+          const roomDoc =
+            attachedRoom != null ? await this.client.findOne(love.class.Room, { _id: attachedRoom }) : undefined
 
-        const participants = await this.client.findAll(love.class.ParticipantInfo, { meeting })
+          const participants = await this.client.findAll(love.class.ParticipantInfo, { meeting })
 
-        const place =
-          roomDoc !== undefined
-            ? getFreeRoomPlace(
-              roomDoc,
-              participants,
+          const place =
+            roomDoc !== undefined
+              ? getFreeRoomPlace(
+                  roomDoc,
+                  participants,
+                  person,
+                  meta.x !== undefined && meta.y !== undefined ? { x: meta.x, y: meta.y } : undefined
+                )
+              : { x: 0, y: 0 }
+          const oid = generateId<ParticipantInfo>()
+
+          await this.client.createDoc(
+            love.class.ParticipantInfo,
+            core.space.Workspace,
+            {
               person,
-              meta.x !== undefined && meta.y !== undefined ? { x: meta.x, y: meta.y } : undefined
-            )
-            : { x: 0, y: 0 }
-        const oid = generateId<ParticipantInfo>()
-
-        await this.client.createDoc(
-          love.class.ParticipantInfo,
-          core.space.Workspace,
-          {
-            person,
-            name: name ?? '',
-            meeting,
-            room: attachedRoom ?? null,
-            x: place.x,
-            y: place.y,
-            sessionId: sessionId ?? null,
-            account: account ?? null
-          } as any,
-          oid
-        )
+              name: name ?? '',
+              meeting,
+              room: attachedRoom,
+              x: place.x,
+              y: place.y,
+              sessionId: sessionId ?? null,
+              account: account ?? null,
+              // Both callers filter agents out before reaching here; ai-bot creates its own rows.
+              kind: 'user'
+            },
+            oid
+          )
+        })
       }
     } catch (err: any) {
       this.ctx.error('[WorkspaceClient.upsertParticipantFromLivekit] Failed', {
@@ -488,8 +564,9 @@ export class WorkspaceClient {
     sessionId: string
   ): Promise<void> {
     try {
-      const allInfos = await this.client.findAll(love.class.ParticipantInfo, { meeting, sessionId, person })
-      const infos = allInfos.filter((it) => it.person === person)
+      // Scope to the sid that left: a refresh rejoins before the old sid's participant_left
+      // lands. Rows whose event never arrives are swept by the stale-sid check in polling.ts.
+      const infos = await this.client.findAll(love.class.ParticipantInfo, { person, meeting, sessionId })
       for (const info of infos) {
         await this.client.remove(info)
       }
@@ -538,7 +615,7 @@ export class WorkspaceClient {
     try {
       const socialIds = await this.client.findAll(contact.class.SocialIdentity, { attachedTo: personRef }, { limit: 1 })
       if (socialIds.length > 0) {
-        return socialIds[0]._id as PersonId
+        return socialIds[0]._id
       }
     } catch (err: any) {
       this.ctx.error('[WorkspaceClient.getPersonIdByPersonRef] Failed', {
@@ -562,12 +639,55 @@ export class WorkspaceClient {
   }
 
   /**
+   * Returns the Person ref of the Office's owner if `roomRef` points to an
+   * Office, otherwise `undefined`.
+   */
+  async findOfficeOwner (roomRef: Ref<Room>): Promise<Ref<Person> | undefined> {
+    try {
+      const office = await this.client.findOne(love.class.Office, { _id: roomRef as Ref<Office> })
+      return office?.person ?? undefined
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.findOfficeOwner] Failed', { error: err?.message ?? String(err), roomRef })
+      return undefined
+    }
+  }
+
+  /**
    * Find all ParticipantInfo entries for a given meeting.
    */
   async findParticipantInfosByMeeting (meeting: Ref<MeetingMinutes>): Promise<ParticipantInfo[]> {
     try {
       return await this.client.findAll(love.class.ParticipantInfo, { meeting })
     } catch (err: any) {
+      return []
+    }
+  }
+
+  /** The Person behind an account, so an endpoint never has to trust a person ref sent by a client. */
+  async findPersonByAccount (account: AccountUuid): Promise<Ref<Person> | undefined> {
+    try {
+      const persons = await this.client.findAll(contact.class.Person, {
+        personUuid: account
+      })
+      return persons[0]?._id
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.findPersonByAccount] Failed', {
+        error: err?.message ?? String(err),
+        account
+      })
+      return undefined
+    }
+  }
+
+  /** Every seat this person holds - one row per meeting they are still counted in. */
+  async findParticipantInfosByPerson (person: Ref<Person>): Promise<ParticipantInfo[]> {
+    try {
+      return await this.client.findAll(love.class.ParticipantInfo, { person })
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.findParticipantInfosByPerson] Failed', {
+        error: err?.message ?? String(err),
+        person
+      })
       return []
     }
   }
@@ -589,60 +709,80 @@ export class WorkspaceClient {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // PendingRecording management
-  // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Create a PendingRecording document when recording starts (from /startRecord endpoint).
-   * This tracks in-progress recordings until they complete (egress_ended webhook).
-   * Uses addCollection to attach to MeetingMinutes.
+   * Reserves the meeting+format slot before the egress call. The running-recording check and the
+   * insert reach the transactor as one TxApplyIf under a per-slot scope, so two callers racing - two
+   * love replicas included - cannot both pass. `undefined` when the slot is taken or the write failed.
    */
   async createPendingRecording (params: {
     meeting: Ref<MeetingMinutes>
     format: RecordingFormat
     roomName: string
     name: string
-    egressId?: string
+    /** A reservation still waiting for its egress id holds the slot only if it is younger than this. */
+    reservedAfter: Timestamp
   }): Promise<Ref<PendingRecording> | undefined> {
-    try {
-      const meetingDoc = await this.client.findOne(love.class.MeetingMinutes, { _id: params.meeting })
-      if (meetingDoc === undefined) {
-        this.ctx.error('[WorkspaceClient.createPendingRecording] Meeting not found', { meeting: params.meeting })
-        return undefined
-      }
+    const meetingDoc = await this.client.findOne(love.class.MeetingMinutes, { _id: params.meeting })
+    if (meetingDoc === undefined) {
+      this.ctx.error('[WorkspaceClient.createPendingRecording] Meeting not found', { meeting: params.meeting })
+      return undefined
+    }
 
-      const docId = await this.client.addCollection(
-        love.class.PendingRecording,
-        meetingDoc.space,
-        meetingDoc._id,
-        meetingDoc._class,
-        'recordings',
-        {
-          format: params.format,
-          startedAt: Date.now(),
-          roomName: params.roomName,
-          name: params.name,
-          egressId: params.egressId,
-          status: 'active'
-        }
-      )
-      this.ctx.info('[WorkspaceClient.createPendingRecording] Created', {
-        docId,
-        meeting: params.meeting,
+    const factory = new TxFactory(core.account.System)
+    const create = factory.createTxCollectionCUD(
+      meetingDoc._class,
+      meetingDoc._id,
+      meetingDoc._id,
+      'recordings',
+      factory.createTxCreateDoc<PendingRecording>(love.class.PendingRecording, meetingDoc._id, {
         format: params.format,
+        startedAt: Date.now(),
         roomName: params.roomName,
-        name: params.name
-      })
-      return docId
-    } catch (err: any) {
-      this.ctx.error('[WorkspaceClient.createPendingRecording] Failed', {
-        error: err?.message ?? String(err),
+        name: params.name,
+        status: 'active'
+      } as unknown as Data<PendingRecording>)
+    )
+    // Same predicate as RecordingProcessor.findRunningRecording, one clause each: notMatch has no $or.
+    const holding = { attachedTo: meetingDoc._id, format: params.format }
+    const alive: Array<DocumentQuery<PendingRecording>> = [
+      { status: { $in: ['active', 'completed'] }, egressId: { $exists: true } },
+      { status: { $in: ['active', 'completed'] }, startedAt: { $gt: params.reservedAfter } },
+      // Rows written before `status` existed count as running too, exactly as findRunningRecording
+      // reads them - including the age check, or a stale one blocks the meeting forever.
+      { status: { $exists: false }, egressId: { $exists: true } },
+      { status: { $exists: false }, startedAt: { $gt: params.reservedAfter } }
+    ]
+    const applyIf = factory.createTxApplyIf(
+      core.space.Tx,
+      `love:recording:${meetingDoc._id}:${params.format}`,
+      [],
+      alive.map((query) => ({ _class: love.class.PendingRecording, query: { ...holding, ...query } })) as Array<
+        DocumentClassQuery<Doc>
+      >,
+      [create],
+      undefined
+    )
+    // A throw stays a throw: `undefined` means somebody else holds the slot, and a caller told that
+    // drops the recording for good.
+    const result = (await this.client.tx(applyIf)) as TxApplyResult
+    if (!result.success) {
+      this.ctx.info('[WorkspaceClient.createPendingRecording] Slot already held', {
         meeting: params.meeting,
-        name: params.name
+        format: params.format
       })
       return undefined
     }
+    const docId = create.objectId as Ref<PendingRecording>
+    this.ctx.info('[WorkspaceClient.createPendingRecording] Created', {
+      docId,
+      meeting: params.meeting,
+      format: params.format,
+      roomName: params.roomName,
+      name: params.name
+    })
+    return docId
   }
 
   /**
@@ -663,16 +803,9 @@ export class WorkspaceClient {
   /**
    * Find all PendingRecording entries for a given meeting.
    */
+  /** Throws on failure: every caller reads an empty list as "no recording is running". */
   async findPendingRecordingsByMeeting (meeting: Ref<MeetingMinutes>): Promise<PendingRecording[]> {
-    try {
-      return await this.client.findAll(love.class.PendingRecording, { attachedTo: meeting })
-    } catch (err: any) {
-      this.ctx.error('[WorkspaceClient.findPendingRecordingsByMeeting] Failed', {
-        error: err?.message ?? String(err),
-        meeting
-      })
-      return []
-    }
+    return await this.client.findAll(love.class.PendingRecording, { attachedTo: meeting })
   }
 
   /**
@@ -733,6 +866,21 @@ export class WorkspaceClient {
     }
   }
 
+  async updateMeetingTranscriptionState (meetingId: Ref<MeetingMinutes>, state: TranscriptionState): Promise<void> {
+    try {
+      const meetingDoc = await this.client.findOne(love.class.MeetingMinutes, { _id: meetingId })
+      if (meetingDoc === undefined || meetingDoc.transcriptionState === state) return
+      await this.client.update(meetingDoc, { transcriptionState: state })
+      this.ctx.info('[WorkspaceClient.updateMeetingTranscriptionState] Updated', { meeting: meetingId, state })
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.updateMeetingTranscriptionState] Failed', {
+        error: err?.message ?? String(err),
+        meeting: meetingId,
+        state
+      })
+    }
+  }
+
   /**
    * Update MeetingMinutes recording state.
    */
@@ -746,6 +894,27 @@ export class WorkspaceClient {
         meeting: meetingDoc._id,
         state
       })
+    }
+  }
+
+  // Returns the status the reservation had when the egress id landed: `cancelled` means
+  // stop was pressed while the egress was still coming up.
+  async setPendingRecordingEgressId (
+    pendingId: Ref<PendingRecording>,
+    egressId: string
+  ): Promise<RecordingStatus | undefined> {
+    try {
+      const pending = await this.client.findOne(love.class.PendingRecording, { _id: pendingId })
+      if (pending === undefined) return undefined
+      await this.client.update(pending, { egressId })
+      return pending.status
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.setPendingRecordingEgressId] Failed', {
+        error: err?.message ?? String(err),
+        pendingId,
+        egressId
+      })
+      return undefined
     }
   }
 
@@ -781,11 +950,7 @@ export class WorkspaceClient {
     }
   }
 
-  /**
-   * Clean up orphaned PendingRecording entries that reference finished meetings.
-   * This handles cases where PendingRecording was not cleaned up when a meeting finished
-   * (e.g., due to a missed egress_ended webhook or service restart before cleanup could complete).
-   */
+  /** Clean up orphaned PendingRecording entries that reference finished meetings. */
   async cleanupOrphanedPendingRecordings (): Promise<void> {
     try {
       // Find all PendingRecording entries first

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ColorDefinition, IconSize, getPlatformColorDef, themeStore } from '@hcengineering/ui'
+  import type { ColorDefinition, IconSize } from '@hcengineering/ui'
+  import { getPlatformColorDef, themeStore } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
 
   export let size: IconSize = 'small'
@@ -25,7 +26,7 @@
   class="svg-{size}"
   fill={color?.icon ?? 'currentColor'}
   style:flex-shrink={0}
-  style:transform={'rotate(-90deg)'}
+  style:transform="rotate(-90deg)"
   viewBox="0 0 16 16"
   xmlns="http://www.w3.org/2000/svg"
 >

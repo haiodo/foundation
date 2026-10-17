@@ -13,14 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { PermissionsStore } from '@hcengineering/contact'
-  import core, { AnyAttribute, Doc, Ref, TypedSpace } from '@hcengineering/core'
-  import { getEmbeddedLabel, getResource, IntlString, translate } from '@hcengineering/platform'
+  import type { PermissionsStore } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { AnyAttribute, Doc, Ref, TypedSpace } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel, getResource, translate } from '@hcengineering/platform'
   import { reduceCalls } from '@hcengineering/presentation'
-  import { AttributeModel } from '@hcengineering/view'
+  import type { AttributeModel } from '@hcengineering/view'
   import { themeStore, tooltip } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
-  import { Readable } from 'svelte/store'
+  import type { Readable } from 'svelte/store'
   import { canChangeAttribute, FixedColumn, restrictionStore } from '../..'
   import DividerPresenter from './DividerPresenter.svelte'
 
@@ -68,11 +71,27 @@
             isEditable: false
           }
         : {}
+
+    const widthParams: any = {}
+    if (attribute.displayProps?.minWidth != null) {
+      widthParams.minWidth = attribute.displayProps.minWidth
+    }
+    if (attribute.displayProps?.maxWidth != null) {
+      widthParams.maxWidth = attribute.displayProps.maxWidth
+    }
+
     const clearAttributeProps = attribute.props
     if (attribute.attribute?.type._class === core.class.EnumOf) {
       return { ...clearAttributeProps, type: attribute.attribute.type, ...props, ...readonlyParams }
     }
-    return { object, ...clearAttributeProps, space: object.space, ...props, ...readonlyParams }
+    return {
+      object,
+      ...clearAttributeProps,
+      space: object.space,
+      ...props,
+      ...readonlyParams,
+      ...widthParams
+    }
   }
   const translateSize = (e: CustomEvent): void => {
     if (e.detail === undefined) return
@@ -105,7 +124,7 @@
       this={attributeModel.presenter}
       {value}
       {onChange}
-      kind={'list'}
+      kind="list"
       {compactMode}
       label={attributeModel.label}
       attribute={attributeModel.attribute}
@@ -131,7 +150,7 @@
           this={attributeModel.presenter}
           {value}
           {onChange}
-          kind={'list'}
+          kind="list"
           label={attributeModel.label}
           {compactMode}
           oneLine={true}
@@ -154,7 +173,7 @@
     this={attributeModel.presenter}
     {value}
     {onChange}
-    kind={'list'}
+    kind="list"
     label={attributeModel.label}
     {compactMode}
     attribute={attributeModel.attribute}

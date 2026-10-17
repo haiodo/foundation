@@ -17,10 +17,10 @@ import { HocuspocusProvider, type HocuspocusProviderConfiguration } from '@hocus
 import { type Provider } from './types'
 
 export type HocuspocusCollabProviderConfiguration = HocuspocusProviderConfiguration &
-Required<Pick<HocuspocusProviderConfiguration, 'token'>> &
-Omit<HocuspocusProviderConfiguration, 'parameters'> & {
-  parameters: HocuspocusCollabProviderURLParameters
-}
+  Required<Pick<HocuspocusProviderConfiguration, 'token'>> &
+  Omit<HocuspocusProviderConfiguration, 'parameters'> & {
+    parameters: HocuspocusCollabProviderURLParameters
+  }
 
 export interface HocuspocusCollabProviderURLParameters {
   content: Ref<Blob> | null
@@ -50,6 +50,7 @@ export class HocuspocusCollabProvider extends HocuspocusProvider implements Prov
 
   destroy (): void {
     super.destroy()
-    this.configuration.websocketProvider.disconnect()
+    // disconnect() keeps the connectionChecker interval, which retains the socket and its providers
+    this.configuration.websocketProvider.destroy()
   }
 }

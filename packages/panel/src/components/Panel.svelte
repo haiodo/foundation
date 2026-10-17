@@ -14,20 +14,16 @@
     // limitations under the License.
 -->
 <script lang="ts">
-  import { afterUpdate, createEventDispatcher, SvelteComponent } from 'svelte'
-  import { Writable, writable } from 'svelte/store'
+  import type { SvelteComponent } from 'svelte'
+  import { afterUpdate, createEventDispatcher } from 'svelte'
+  import type { Writable } from 'svelte/store'
+  import { writable } from 'svelte/store'
 
   import activity from '@hcengineering/activity'
-  import { AccountRole, Doc, getCurrentAccount } from '@hcengineering/core'
-  import {
-    Component,
-    deviceOptionsStore as deviceInfo,
-    Panel,
-    Scroller,
-    resizeObserver,
-    HeaderAdaptive
-  } from '@hcengineering/ui'
-  import type { ButtonItem } from '@hcengineering/ui'
+  import type { Doc } from '@hcengineering/core'
+  import { AccountRole, getCurrentAccount } from '@hcengineering/core'
+  import { Component, deviceOptionsStore as deviceInfo, Panel, Scroller, resizeObserver } from '@hcengineering/ui'
+  import type { ButtonItem, HeaderAdaptive } from '@hcengineering/ui'
   import { getResource } from '@hcengineering/platform'
   import presence from '@hcengineering/presence'
 
@@ -193,7 +189,7 @@
     {#if $$slots.header}
       <div class="header-row between">
         {#if $$slots.header}<slot name="header" />{/if}
-        <div class="buttons-group xsmall-gap ml-4" style:align-self={'flex-start'}>
+        <div class="buttons-group xsmall-gap ml-4" style:align-self="flex-start">
           <slot name="tools" />
         </div>
       </div>

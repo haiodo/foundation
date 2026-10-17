@@ -35,8 +35,7 @@ import {
   registerDestroyFactory,
   registerServerPlugins,
   registerStringLoaders,
-  registerTxAdapterFactory,
-  setAdapterSecurity
+  registerTxAdapterFactory
 } from '@hcengineering/server-pipeline'
 import serverToken, { generateToken } from '@hcengineering/server-token'
 import { randomUUID } from 'crypto'
@@ -48,12 +47,16 @@ import {
   createPostgreeDestroyAdapter,
   createPostgresAdapter,
   createPostgresTxAdapter,
+  getDBClient,
   setDBExtraOptions
 } from '@hcengineering/postgres'
 import serverClientPlugin from '@hcengineering/server-client'
 import serverCore from '@hcengineering/server-core'
 
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { createElasticAdapter } from '@hcengineering/elastic'
+import { elasticUrl, kafkaBrokers, postgresUrl } from '@hcengineering/test-containers'
 import type { FulltextDBConfiguration } from '@hcengineering/server-indexer'
 import { genMinModel } from './minmodel'
 export const model = genMinModel()
@@ -103,9 +106,36 @@ export async function preparePipeline (
   return { pipeline, wsIds }
 }
 
-export const fullTextDbURL = 'http://localhost:9201'
-export const dbUrl = 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
+export let fullTextDbURL = ''
+export let dbUrl = ''
+export let kafkaBroker = ''
 export const elasticIndexName = 'testing'
+
+// Containers are started here rather than read from the environment, so a run needs no stand.
+// Call it before anything builds a pipeline or a queue - the addresses are empty until then.
+export async function startServices (): Promise<void> {
+  let serverUrl: string
+  ;[serverUrl, fullTextDbURL, kafkaBroker] = await Promise.all([postgresUrl(), elasticUrl(), kafkaBrokers()])
+  // The postgres server can be shared with other test processes; two migrators in one database
+  // collide on CREATE SCHEMA, so each process gets a database of its own.
+  const dbName = `fulltext_${randomUUID().replace(/-/g, '')}`
+  const admin = getDBClient(serverUrl)
+  try {
+    const client = await admin.getClient()
+    await client`CREATE DATABASE ${client(dbName)}`
+  } finally {
+    admin.close()
+  }
+  const url = new URL(serverUrl)
+  url.pathname = '/' + dbName
+  dbUrl = url.toString()
+  // The pipeline goes through the platform's postgres adapter, which waits for a schema version a
+  // fresh database does not have. The migrator is a CLI pod, so it runs as one; it is idempotent.
+  await promisify(execFile)(process.execPath, [require.resolve('@hcengineering/pod-db-migrator')], {
+    env: { ...process.env, DB_URL: dbUrl }
+  })
+  dbConfig.fulltextAdapter.url = fullTextDbURL
+}
 
 export function prepare (): void {
   setDBExtraOptions({
@@ -119,7 +149,6 @@ export function prepare (): void {
   registerTxAdapterFactory('postgresql', createPostgresTxAdapter, true)
   registerAdapterFactory('postgresql', createPostgresAdapter, true)
   registerDestroyFactory('postgresql', createPostgreeDestroyAdapter, true)
-  setAdapterSecurity('postgresql', true)
 
   registerServerPlugins()
   registerStringLoaders()
@@ -128,7 +157,7 @@ export function prepare (): void {
 export const dbConfig: FulltextDBConfiguration = {
   fulltextAdapter: {
     factory: createElasticAdapter,
-    url: fullTextDbURL
+    url: ''
   },
   contentAdapters: {
     Rekoni: {

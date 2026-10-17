@@ -15,7 +15,7 @@
 <script lang="ts">
   import contact from '@hcengineering/contact'
   import { AssigneeBox } from '@hcengineering/contact-resources'
-  import { Issue } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
   import { ListView, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { FixedColumn, ListSelectionProvider, showMenu } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
@@ -29,7 +29,7 @@
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<ListView count={issues.length} addClass={'step-tb-2-accent'}>
+<ListView count={issues.length} addClass="step-tb-2-accent">
   <svelte:fragment slot="item" let:item>
     {@const issue = issues[item]}
     <div
@@ -45,17 +45,17 @@
       }}
     >
       <div class="flex-row-center clear-mins gap-2 flex-grow mr-4" class:p-text={twoRows}>
-        <FixedColumn key={'estimation_issue'} justify={'left'} addClass={'fs-bold'}>
+        <FixedColumn key="estimation_issue" justify="left" addClass="fs-bold">
           {issue.identifier}
         </FixedColumn>
-        <FixedColumn key={'estimation'} justify={'left'}>
-          <EstimationEditor value={issue} kind={'list'} />
+        <FixedColumn key="estimation" justify="left">
+          <EstimationEditor value={issue} kind="list" />
         </FixedColumn>
         <div class="flex-row-center clear-mins gap-2 self-end flex-no-shrink" class:p-text={twoRows}>
-          <FixedColumn key={'estimation_issue_assignee'} justify={'right'}>
+          <FixedColumn key="estimation_issue_assignee" justify="right">
             <AssigneeBox
-              width={'100%'}
-              kind={'ghost'}
+              width="100%"
+              kind="ghost"
               label={tracker.string.Assignee}
               _class={contact.mixin.Employee}
               value={issue.assignee}

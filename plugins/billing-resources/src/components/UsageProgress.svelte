@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { Label, PaletteColorIndexes, Progress, humanReadableFileSize, humanReadableNumbers } from '@hcengineering/ui'
   import plugin from '../plugin'
+  import { formatMinutes } from '../billingFormat'
 
   export let label: IntlString
   export let value: number
@@ -23,17 +24,27 @@
 
   export let kind: 'bytes' | 'items' | 'minutes' = 'bytes'
 
-  $: color = value >= limit ? PaletteColorIndexes.Firework : undefined
+  function barColor (used: number, max: number): PaletteColorIndexes | undefined {
+    if (max <= 0) return undefined
+    const ratio = used / max
+    if (ratio >= 1) return PaletteColorIndexes.Firework
+    if (ratio >= 0.75) return PaletteColorIndexes.Sunshine
+    return PaletteColorIndexes.Grass
+  }
 
-  function formatMinutes (minutes: number): string {
-    const h = Math.floor(minutes / 60)
-    const m = Math.round(minutes % 60)
-    if (h > 0) return `${h}h ${m}m`
-    return `${m}m`
+  $: color = barColor(value, limit)
+
+  const GB = 1e9
+  const TB_THRESHOLD = 1e13 // 10 TB: above this, raw GB gets too long to read
+
+  // A 50 GB plan plus a 1000 GB package rounds to "1 TB" and hides the package.
+  function formatBytes (v: number): string {
+    if (v >= GB && v < TB_THRESHOLD) return `${Math.round(v / GB)} GB`
+    return humanReadableFileSize(v, 10, 0)
   }
 
   function formatValue (v: number): string {
-    if (kind === 'bytes') return humanReadableFileSize(v, 10, 0)
+    if (kind === 'bytes') return formatBytes(v)
     if (kind === 'minutes') return formatMinutes(v)
     return humanReadableNumbers(v, 10, 0)
   }
@@ -45,8 +56,12 @@
     <span class="flex-row-center flex-gap-1">
       {formatValue(value)}
       <Label label={plugin.string.Of} />
-      {formatValue(limit)}
+      {#if limit === 0}
+        <span>&infin;</span>
+      {:else}
+        <span>{formatValue(limit)}</span>
+      {/if}
     </span>
   </div>
-  <Progress {color} {value} max={limit} fallback={100} />
+  <Progress {color} {value} max={limit} fallback={0} />
 </div>

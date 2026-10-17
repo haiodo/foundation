@@ -4,7 +4,7 @@ This package contains the desktop application build configuration and distributi
 
 ### Automatic updates
 
-All builds are published to Docker registry and can be served via the `haiodo/desktop-distro` container.
+All builds are published to Docker registry and can be served via the `intabiafusion/desktop-distro` container.
 
 To check the latest auto-updatable distributions:
 
@@ -14,7 +14,7 @@ To check the latest auto-updatable distributions:
 
 ### Docker Container
 
-The `intabiahaiodofusion/desktop-distro` Docker image serves all desktop distribution files via HTTP, enabling:
+The `intabiafusion/desktop-distro` Docker image serves all desktop distribution files via HTTP, enabling:
 
 - Desktop app downloads for all platforms (macOS, Windows, Linux)
 - Auto-update functionality for Electron apps via `electron-updater`
@@ -22,7 +22,7 @@ The `intabiahaiodofusion/desktop-distro` Docker image serves all desktop distrib
 #### Running the container
 
 ```bash
-docker run -d -p 8080:8080 haiodo/desktop-distro:latest
+docker run -d -p 8080:8080 intabiafusion/desktop-distro:latest
 ```
 
 #### Environment Variables
@@ -194,7 +194,7 @@ In `package.json` build configuration:
 version: '3.8'
 services:
   desktop-distro:
-    image: haiodo/desktop-distro:latest
+    image: intabiafusion/desktop-distro:latest
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -208,15 +208,20 @@ services:
 
 ```bash
 # Install dependencies
-rush install
+pnpm install --frozen-lockfile
 
 # Build the distribution server
 cd desktop-package
-rushx bundle:server
+pnpm run bundle:server
 
 # Build desktop app
-rushx package
-rushx dist --linux --windows --macos
+pnpm run package
+# electron-builder 26 shells out to the package manager named in package.json
+# ("packageManager": "pnpm@..."), so pnpm must be on PATH.
+pnpm run dist --linux --windows --macos
+
+# Validate the update manifests the build produced
+node scripts/verify-manifests.js deploy latest
 
 # Build Docker image locally
 docker build -t desktop-distro .
@@ -227,6 +232,6 @@ docker build -t desktop-distro .
 The GitHub Actions workflow automatically:
 
 1. Builds desktop apps for all platforms in the `dist-build` job
-2. Creates and pushes the `haiodo/desktop-distro` Docker image in the `desktop-distro-build` job
+2. Creates and pushes the `intabiafusion/desktop-distro` Docker image in the `desktop-distro-build` job
 
 This happens automatically when a version tag (`v*` or `s*`) is pushed.

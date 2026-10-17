@@ -13,12 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { Person } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
+  import type { Person } from '@hcengineering/contact'
   import contact from '../plugin'
   import CombineAvatars from './CombineAvatars.svelte'
 
   export let value: Ref<Person>[]
 </script>
 
-<CombineAvatars _class={contact.mixin.Employee} items={value} limit={5} size={'x-small'} />
+<CombineAvatars _class={contact.class.Person} items={value} limit={5} size="x-small" />

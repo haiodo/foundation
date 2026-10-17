@@ -13,20 +13,30 @@
 // limitations under the License.
 //
 
-import {
+import core, {
   AccountRole,
   generateId,
   MeasureMetricsContext,
   systemAccountUuid,
   type AccountUuid,
   type MeasureContext,
+  type Tx,
+  type TxCUD,
+  type TxWorkspaceEvent,
+  WorkspaceEvent,
   type WorkspaceUuid
 } from '@hcengineering/core'
 import type { Token } from '@hcengineering/server-token'
+import { QueueTopic } from '@hcengineering/server-core'
+import { UNAUTHORIZED } from '@hcengineering/platform'
+import os from 'os'
 
 // Import the module under test after mocks are set up
 // eslint-disable-next-line import/first
 import { TSessionManager, type Timeouts } from '../sessionManager'
+import { sendResponse as sendResponseRaw } from '../utils'
+
+const sendResponseMock = sendResponseRaw as unknown as jest.Mock
 
 // Mock modules before importing the module under test
 jest.mock('@hcengineering/account-client', () => ({
@@ -136,8 +146,8 @@ describe('TSessionManager', () => {
 
     mockQueue = {
       getProducer: jest.fn((ctx: any, topic: string) => {
-        if (topic === 'workspace') return mockWorkspaceProducer
-        if (topic === 'users') return mockUsersProducer
+        if (topic === QueueTopic.Workspace) return mockWorkspaceProducer
+        if (topic === QueueTopic.Users) return mockUsersProducer
         return null
       }),
       createConsumer: jest.fn().mockReturnValue(mockWorkspaceConsumer)
@@ -176,9 +186,41 @@ describe('TSessionManager', () => {
       expect(sessionManager.timeouts).toEqual(defaultTimeouts)
     })
 
+    it('should set transactorId from  env variable or hostname', () => {
+      // 1. from TRANSACTOR_ID env var
+      process.env.TRANSACTOR_ID = 'env-id-123'
+      const sm2 = new TSessionManager(
+        mockContext,
+        defaultTimeouts,
+        {},
+        undefined,
+        'http://localhost:3000',
+        true,
+        false,
+        mockQueue,
+        mockPipelineFactory
+      )
+      expect(sm2.transactorId).toBe('env-id-123')
+
+      // 2. fallback to hostname
+      delete process.env.TRANSACTOR_ID
+      const sm3 = new TSessionManager(
+        mockContext,
+        defaultTimeouts,
+        {},
+        undefined,
+        'http://localhost:3000',
+        true,
+        false,
+        mockQueue,
+        mockPipelineFactory
+      )
+      expect(sm3.transactorId).toBe(os.hostname())
+    })
+
     it('should setup queue producers and consumers', () => {
       expect(mockQueue.getProducer).toHaveBeenCalledTimes(2)
-      expect(mockQueue.createConsumer).toHaveBeenCalledTimes(1)
+      expect(mockQueue.createConsumer).toHaveBeenCalledTimes(2)
       expect(sessionManager.workspaceProducer).toBeDefined()
       expect(sessionManager.usersProducer).toBeDefined()
     })
@@ -245,7 +287,7 @@ describe('TSessionManager', () => {
     it('should count regular users correctly', () => {
       const mockSession = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-uuid-123' as AccountUuid)
+          getUser: jest.fn().mockReturnValue('user-uuid-123')
         }
       }
 
@@ -280,17 +322,17 @@ describe('TSessionManager', () => {
         },
         {
           session: {
-            getUser: jest.fn().mockReturnValue('user-1' as AccountUuid)
+            getUser: jest.fn().mockReturnValue('user-1')
           }
         },
         {
           session: {
-            getUser: jest.fn().mockReturnValue('b6996120-416f-49cd-841e-e4a5d2e49c9b' as AccountUuid)
+            getUser: jest.fn().mockReturnValue('b6996120-416f-49cd-841e-e4a5d2e49c9b')
           }
         },
         {
           session: {
-            getUser: jest.fn().mockReturnValue('user-2' as AccountUuid)
+            getUser: jest.fn().mockReturnValue('user-2')
           }
         }
       ]
@@ -300,6 +342,43 @@ describe('TSessionManager', () => {
       expect(stats.sys).toBe(1)
       expect(stats.user).toBe(3)
       expect(stats.anonymous).toBe(1)
+    })
+  })
+
+  describe('online user tx', () => {
+    it('applies a separate copy of the tx in each workspace of the account', async () => {
+      const call = mockQueue.createConsumer.mock.calls.find((it: any[]) => it[1] === QueueTopic.OnlineUserTx)
+      const onMessage = call[3]
+      const applied: any[] = []
+      const fakeWorkspace = (uuid: string): any => ({
+        wsId: { uuid },
+        with: async (fn: (pipeline: any) => Promise<void>) => {
+          await fn({
+            context: { modelDb: {} },
+            // Like NotificationMiddleware: the space is rewritten to this workspace's PersonSpace.
+            tx: async (_ctx: unknown, txes: any[]) => {
+              txes[0].objectSpace = `person-space-${uuid}`
+              applied.push(txes[0])
+            },
+            handleBroadcast: async () => {}
+          })
+        }
+      })
+      for (const uuid of ['ws-1', 'ws-2']) {
+        sessionManager.workspaces.set(uuid as WorkspaceUuid, fakeWorkspace(uuid))
+        sessionManager.sessions.set(`socket-${uuid}`, {
+          session: { getUser: () => 'acc', workspace: { uuid } },
+          socket: {},
+          tickHash: 0
+        } as any)
+      }
+      const tx = { _id: 'tx-1', objectSpace: 'core:space:Workspace', attributes: { account: 'acc' } }
+
+      await onMessage(mockContext, { value: { tx, account: 'acc' } })
+
+      expect(applied.map((it) => it.objectSpace)).toEqual(['person-space-ws-1', 'person-space-ws-2'])
+      expect(applied[0]).not.toBe(applied[1])
+      expect(tx.objectSpace).toBe('core:space:Workspace')
     })
   })
 
@@ -323,7 +402,7 @@ describe('TSessionManager', () => {
           [
             'session-3',
             {
-              session: { getUser: jest.fn().mockReturnValue('other-user' as AccountUuid) }
+              session: { getUser: jest.fn().mockReturnValue('other-user') }
             }
           ]
         ])
@@ -340,7 +419,7 @@ describe('TSessionManager', () => {
           [
             'session-1',
             {
-              session: { getUser: jest.fn().mockReturnValue('other-user' as AccountUuid) }
+              session: { getUser: jest.fn().mockReturnValue('other-user') }
             }
           ]
         ])
@@ -369,7 +448,7 @@ describe('TSessionManager', () => {
       const now = Date.now()
       const mockSession = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           lastRequest: now,
           requests: new Map()
         },
@@ -399,7 +478,7 @@ describe('TSessionManager', () => {
 
       sessionManager.sessions.set('ws-healthy', {
         session: {
-          getUser: jest.fn().mockReturnValue('user-healthy' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-healthy'),
           lastRequest: now,
           requests: new Map()
         }
@@ -416,7 +495,7 @@ describe('TSessionManager', () => {
       // Add 1 hung session and 2 healthy sessions (33% hung, above 25% warn threshold)
       sessionManager.sessions.set('ws-hung', {
         session: {
-          getUser: jest.fn().mockReturnValue('user-hung' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-hung'),
           lastRequest: longTimeAgo,
           requests: new Map()
         }
@@ -424,7 +503,7 @@ describe('TSessionManager', () => {
 
       sessionManager.sessions.set('ws-healthy-1', {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           lastRequest: now,
           requests: new Map()
         }
@@ -432,7 +511,7 @@ describe('TSessionManager', () => {
 
       sessionManager.sessions.set('ws-healthy-2', {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           lastRequest: now,
           requests: new Map()
         }
@@ -468,7 +547,7 @@ describe('TSessionManager', () => {
 
       sessionManager.sessions.set('ws-1', {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           lastRequest: now,
           requests
         }
@@ -483,7 +562,7 @@ describe('TSessionManager', () => {
   describe('checkRate', () => {
     it('should check rate limit for regular user', () => {
       const mockSession = {
-        getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+        getUser: jest.fn().mockReturnValue('user-1'),
         token: { extra: {} },
         workspace: { uuid: 'ws-1' as WorkspaceUuid }
       } as any
@@ -521,7 +600,7 @@ describe('TSessionManager', () => {
             'session-1',
             {
               session: {
-                getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+                getUser: jest.fn().mockReturnValue('user-1'),
                 current: { find: 10, tx: 5 },
                 mins5: { find: 50, tx: 25 },
                 total: { find: 100, tx: 50 }
@@ -555,7 +634,7 @@ describe('TSessionManager', () => {
             'session-1',
             {
               session: {
-                getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+                getUser: jest.fn().mockReturnValue('user-1'),
                 current: { find: 0, tx: 0 },
                 mins5: { find: 0, tx: 0 },
                 total: { find: 0, tx: 0 }
@@ -570,7 +649,7 @@ describe('TSessionManager', () => {
             'session-2',
             {
               session: {
-                getUser: jest.fn().mockReturnValue('user-1' as AccountUuid), // Same user
+                getUser: jest.fn().mockReturnValue('user-1'), // Same user
                 current: { find: 0, tx: 0 },
                 mins5: { find: 0, tx: 0 },
                 total: { find: 0, tx: 0 }
@@ -585,7 +664,7 @@ describe('TSessionManager', () => {
             'session-3',
             {
               session: {
-                getUser: jest.fn().mockReturnValue('user-2' as AccountUuid), // Different user
+                getUser: jest.fn().mockReturnValue('user-2'), // Different user
                 current: { find: 0, tx: 0 },
                 mins5: { find: 0, tx: 0 },
                 total: { find: 0, tx: 0 }
@@ -605,6 +684,247 @@ describe('TSessionManager', () => {
 
       expect(stats[0].clientsTotal).toBe(2) // 2 unique users
       expect(stats[0].sessionsTotal).toBe(3) // 3 sessions
+    })
+  })
+
+  describe('doBroadcast slow-client protection', () => {
+    function createSocketStub (overloaded = false): any {
+      let pending: any[] = []
+      const sock: any = {
+        send: jest.fn().mockResolvedValue(undefined),
+        isClosed: false,
+        id: 'sock-' + generateId(),
+        isBackpressure: () => false,
+        backpressure: jest.fn().mockResolvedValue(undefined),
+        checkState: () => true,
+        sendPong: jest.fn(),
+        data: () => ({}),
+        readRequest: jest.fn(),
+        close: jest.fn(),
+        // slow-client api
+        isOverloaded: jest.fn(() => overloaded),
+        addDroppedClasses: (classes: any[]) => {
+          for (const c of classes) {
+            if (!pending.includes(c)) pending.push(c)
+          }
+        },
+        takePendingRefresh: jest.fn(() => {
+          if (overloaded) return null
+          if (pending.length === 0) return null
+          const r = [...pending]
+          pending = []
+          return r
+        }),
+        _setOverloaded: (v: boolean) => {
+          overloaded = v
+          ;(sock.isOverloaded as jest.Mock).mockImplementation(() => v)
+        },
+        _pending: () => pending
+      }
+      return sock
+    }
+
+    function createSession (uuid: string): any {
+      return {
+        getUser: jest.fn().mockReturnValue(uuid),
+        binaryMode: false,
+        useCompression: false
+      }
+    }
+
+    function makeCud (cls: string, attachedToClass?: string): TxCUD<any> {
+      const tx: any = {
+        _id: generateId(),
+        _class: core.class.TxCreateDoc,
+        space: core.space.Tx,
+        objectId: generateId(),
+        objectClass: cls,
+        objectSpace: core.space.Workspace,
+        modifiedBy: core.account.System,
+        modifiedOn: Date.now(),
+        attributes: {}
+      }
+      if (attachedToClass !== undefined) {
+        tx.attachedTo = generateId()
+        tx.attachedToClass = attachedToClass
+      }
+      return tx as TxCUD<any>
+    }
+
+    it('drops broadcast for overloaded socket and accumulates classes', async () => {
+      const sock = createSocketStub(true)
+      const session = createSession('user-1')
+      const ws: any = {
+        sessions: new Map([['s', { session, socket: sock }]]),
+        maintenance: false
+      }
+
+      const tx: Tx[] = [makeCud('test:class:A'), makeCud('test:class:B')]
+      sessionManager.doBroadcast(mockContext, ws, tx)
+      // Wait microtask.
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(sock.send).not.toHaveBeenCalled()
+      expect(sock._pending()).toEqual(['test:class:A', 'test:class:B'])
+    })
+
+    it('flushes a single BulkUpdate refresh when buffer drains', async () => {
+      sendResponseMock.mockClear()
+      const sendResponse = sendResponseMock
+
+      const sock = createSocketStub(true)
+      const session = createSession('user-1')
+      const ws: any = {
+        sessions: new Map([['s', { session, socket: sock }]]),
+        maintenance: false
+      }
+
+      // First broadcast: dropped.
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:A'), makeCud('test:class:B')])
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(sendResponse).not.toHaveBeenCalled()
+
+      // Buffer drained.
+      sock._setOverloaded(false)
+
+      // Second broadcast: must be prefixed with TxWorkspaceEvent.BulkUpdate carrying A and B.
+      const nextTx = [makeCud('test:class:C')]
+      sessionManager.doBroadcast(mockContext, ws, nextTx)
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(sendResponse).toHaveBeenCalledTimes(1)
+      const payload = sendResponse.mock.calls[0][3]
+      expect(payload.result.length).toBe(2)
+      const first = payload.result[0] as TxWorkspaceEvent
+      expect(first._class).toBe(core.class.TxWorkspaceEvent)
+      expect(first.event).toBe(WorkspaceEvent.BulkUpdate)
+      expect(first.params._class).toEqual(['test:class:A', 'test:class:B'])
+      expect(payload.result[1]).toBe(nextTx[0])
+    })
+
+    it('does not prefix refresh when there are no pending classes', async () => {
+      sendResponseMock.mockClear()
+      const sendResponse = sendResponseMock
+
+      const sock = createSocketStub(false)
+      const session = createSession('user-1')
+      const ws: any = {
+        sessions: new Map([['s', { session, socket: sock }]]),
+        maintenance: false
+      }
+
+      const tx = [makeCud('test:class:A')]
+      sessionManager.doBroadcast(mockContext, ws, tx)
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(sendResponse).toHaveBeenCalledTimes(1)
+      const payload = sendResponse.mock.calls[0][3]
+      expect(payload.result.length).toBe(1)
+      expect(payload.result[0]).toBe(tx[0])
+    })
+
+    it('accumulates many unique classes across multiple drops', async () => {
+      sendResponseMock.mockClear()
+      const sendResponse = sendResponseMock
+
+      const sock = createSocketStub(true)
+      const session = createSession('user-1')
+      const ws: any = {
+        sessions: new Map([['s', { session, socket: sock }]]),
+        maintenance: false
+      }
+      const big: Tx[] = []
+      for (let i = 0; i < 250; i++) big.push(makeCud('test:class:C' + i))
+      sessionManager.doBroadcast(mockContext, ws, big)
+      await new Promise((resolve) => setImmediate(resolve))
+
+      sock._setOverloaded(false)
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:Z')])
+      await new Promise((resolve) => setImmediate(resolve))
+
+      const payload = sendResponse.mock.calls[0][3]
+      const refresh = payload.result[0] as TxWorkspaceEvent
+      expect(refresh.event).toBe(WorkspaceEvent.BulkUpdate)
+      expect(refresh.params._class.length).toBe(250)
+      expect(refresh.params._class).toContain('test:class:C0')
+      expect(refresh.params._class).toContain('test:class:C249')
+    })
+
+    it('refresh includes attachedToClass alongside objectClass', async () => {
+      sendResponseMock.mockClear()
+      const sendResponse = sendResponseMock
+
+      const sock = createSocketStub(true)
+      const session = createSession('user-1')
+      const ws: any = {
+        sessions: new Map([['s', { session, socket: sock }]]),
+        maintenance: false
+      }
+
+      // Drop a broadcast carrying a CUD with both objectClass and attachedToClass.
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:Comment', 'test:class:Issue')])
+      await new Promise((resolve) => setImmediate(resolve))
+      sock._setOverloaded(false)
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:Other')])
+      await new Promise((resolve) => setImmediate(resolve))
+
+      const payload = sendResponse.mock.calls[0][3]
+      const refresh = payload.result[0] as TxWorkspaceEvent
+      expect(refresh.params._class.sort()).toEqual(['test:class:Comment', 'test:class:Issue'].sort())
+    })
+
+    it('per-session pending classes are isolated (no cross-talk)', async () => {
+      sendResponseMock.mockClear()
+      const sendResponse = sendResponseMock
+
+      // sockA overloaded, sockB normal.
+      const sockA = createSocketStub(true)
+      const sockB = createSocketStub(false)
+      const ws: any = {
+        sessions: new Map([
+          ['a', { session: createSession('user-A'), socket: sockA }],
+          ['b', { session: createSession('user-B'), socket: sockB }]
+        ]),
+        maintenance: false
+      }
+
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:A')])
+      await new Promise((resolve) => setImmediate(resolve))
+
+      // sockA dropped, sockB received normally without prefix.
+      expect(sockA._pending()).toEqual(['test:class:A'])
+      // sendResponse called only for sockB.
+      expect(sendResponse).toHaveBeenCalledTimes(1)
+      const bPayload = sendResponse.mock.calls[0][3]
+      expect(bPayload.result.length).toBe(1)
+      expect(bPayload.result[0]._class).not.toBe(core.class.TxWorkspaceEvent)
+    })
+
+    it('flushed refresh tx is independent across sessions', async () => {
+      sendResponseMock.mockClear()
+      const sendResponse = sendResponseMock
+
+      const sockA = createSocketStub(true)
+      const sockB = createSocketStub(true)
+      const ws: any = {
+        sessions: new Map([
+          ['a', { session: createSession('user-A'), socket: sockA }],
+          ['b', { session: createSession('user-B'), socket: sockB }]
+        ]),
+        maintenance: false
+      }
+
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:Foo')])
+      await new Promise((resolve) => setImmediate(resolve))
+
+      // Drain only sockA.
+      sockA._setOverloaded(false)
+      sessionManager.doBroadcast(mockContext, ws, [makeCud('test:class:Bar')])
+      await new Promise((resolve) => setImmediate(resolve))
+
+      // sockA flushed, sockB still dropped.
+      expect(sendResponse).toHaveBeenCalledTimes(1)
+      expect(sockB._pending()).toEqual(['test:class:Foo', 'test:class:Bar'])
     })
   })
 
@@ -763,6 +1083,29 @@ describe('TSessionManager', () => {
     })
   })
 
+  describe('addSession', () => {
+    it('removes the session from the maps when the login event is not sent', async () => {
+      const wsUuid = 'ws-1' as WorkspaceUuid
+      const user = 'user-1' as AccountUuid
+      const account: any = {
+        account: user,
+        socialIds: [{ _id: 'p1', type: 'email', value: 'a@b.c' }],
+        workspaces: { [wsUuid]: { role: AccountRole.User } }
+      }
+      const workspace: any = { sessions: new Map(), wsId: { uuid: wsUuid }, context: {} }
+      jest.spyOn(sessionManager, 'getLoginWithWorkspaceInfo').mockResolvedValue(account)
+      jest.spyOn(sessionManager, 'getWorkspace').mockResolvedValue({ workspace } as any)
+      mockUsersProducer.send.mockRejectedValue(new Error('queue down'))
+      const ws: any = { id: 'sock-1', send: jest.fn() }
+      const token = { account: user, workspace: wsUuid } as unknown as Token
+
+      await expect(sessionManager.addSession(mockContext, ws, token, 'raw', undefined)).rejects.toThrow('queue down')
+
+      expect(sessionManager.sessions.has('sock-1')).toBe(false)
+      expect(workspace.sessions.size).toBe(0)
+    })
+  })
+
   describe('createSession', () => {
     it('should create session for regular user', () => {
       const token = {
@@ -876,7 +1219,7 @@ describe('TSessionManager', () => {
             'session-1',
             {
               session: {
-                getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+                getUser: jest.fn().mockReturnValue('user-1'),
                 getUserSocialIds: jest.fn().mockReturnValue(['social-1', 'social-2']),
                 getRawAccount: jest.fn().mockReturnValue({ role: AccountRole.User })
               }
@@ -904,7 +1247,7 @@ describe('TSessionManager', () => {
       sessionManager.workspaces.set('ws-1' as WorkspaceUuid, mockWorkspace as any)
 
       const extraSession = {
-        getUser: jest.fn().mockReturnValue('user-extra' as AccountUuid),
+        getUser: jest.fn().mockReturnValue('user-extra'),
         getUserSocialIds: jest.fn().mockReturnValue(['social-extra']),
         getRawAccount: jest.fn().mockReturnValue({ role: AccountRole.User })
       } as any
@@ -948,7 +1291,7 @@ describe('TSessionManager', () => {
 
     it('should handle rate limiting edge cases', () => {
       const mockSession = {
-        getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+        getUser: jest.fn().mockReturnValue('user-1'),
         token: { extra: {} },
         workspace: { uuid: 'ws-1' as WorkspaceUuid }
       } as any
@@ -1063,7 +1406,6 @@ describe('TSessionManager', () => {
 
       sessionManager.workspaces.set(workspaceId, mockWorkspace as any)
 
-      // Schedule maintenance
       sessionManager.scheduleMaintenance(5, 'Scheduled maintenance')
 
       expect(sessionManager.timeMinutes).toBe(5)
@@ -1083,17 +1425,17 @@ describe('TSessionManager', () => {
         },
         {
           session: {
-            getUser: jest.fn().mockReturnValue('regular-user-1' as AccountUuid)
+            getUser: jest.fn().mockReturnValue('regular-user-1')
           }
         },
         {
           session: {
-            getUser: jest.fn().mockReturnValue('b6996120-416f-49cd-841e-e4a5d2e49c9b' as AccountUuid)
+            getUser: jest.fn().mockReturnValue('b6996120-416f-49cd-841e-e4a5d2e49c9b')
           }
         },
         {
           session: {
-            getUser: jest.fn().mockReturnValue('regular-user-2' as AccountUuid)
+            getUser: jest.fn().mockReturnValue('regular-user-2')
           }
         },
         {
@@ -1116,14 +1458,14 @@ describe('TSessionManager', () => {
       const workspaceId = 'ws-broadcast' as WorkspaceUuid
       const mockSession1 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           broadcast: jest.fn()
         },
         socket: { id: 'socket-1' }
       }
       const mockSession2 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           broadcast: jest.fn()
         },
         socket: { id: 'socket-2' }
@@ -1143,8 +1485,19 @@ describe('TSessionManager', () => {
       sessionManager.broadcast(mockContext, null, workspaceId, tx, undefined)
 
       // Verify both sessions received the broadcast
-      expect(mockSession1.session.broadcast).toHaveBeenCalledWith(expect.any(Object), mockSession1.socket, tx)
-      expect(mockSession2.session.broadcast).toHaveBeenCalledWith(expect.any(Object), mockSession2.socket, tx)
+      // The fourth argument is the SendMemo the fan-out shares so identical bytes are packed once.
+      expect(mockSession1.session.broadcast).toHaveBeenCalledWith(
+        expect.any(Object),
+        mockSession1.socket,
+        tx,
+        expect.any(Map)
+      )
+      expect(mockSession2.session.broadcast).toHaveBeenCalledWith(
+        expect.any(Object),
+        mockSession2.socket,
+        tx,
+        expect.any(Map)
+      )
     })
 
     it('should broadcast to specific target user', () => {
@@ -1159,7 +1512,7 @@ describe('TSessionManager', () => {
       }
       const mockSession2 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           broadcast: jest.fn()
         },
         socket: { id: 'socket-2' }
@@ -1195,7 +1548,7 @@ describe('TSessionManager', () => {
       }
       const mockSession2 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           broadcast: jest.fn()
         },
         socket: { id: 'socket-2' }
@@ -1223,7 +1576,7 @@ describe('TSessionManager', () => {
       const workspaceId = 'ws-broadcast' as WorkspaceUuid
       const mockSession = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           broadcast: jest.fn()
         },
         socket: { id: 'socket-1' }
@@ -1357,7 +1710,7 @@ describe('TSessionManager', () => {
     it('should broadcast to all sessions', () => {
       const mockSession1 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           binaryMode: false,
           useCompression: false
         },
@@ -1367,7 +1720,7 @@ describe('TSessionManager', () => {
       }
       const mockSession2 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           binaryMode: false,
           useCompression: false
         },
@@ -1405,7 +1758,7 @@ describe('TSessionManager', () => {
       }
       const mockSession2 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           binaryMode: false,
           useCompression: false
         },
@@ -1442,7 +1795,7 @@ describe('TSessionManager', () => {
       }
       const mockSession2 = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-2' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-2'),
           binaryMode: false,
           useCompression: false
         },
@@ -1468,7 +1821,7 @@ describe('TSessionManager', () => {
     it('should not broadcast if workspace in maintenance', () => {
       const mockSession = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-1'),
           binaryMode: false,
           useCompression: false
         },
@@ -1495,7 +1848,7 @@ describe('TSessionManager', () => {
       const requestId = 'req-123'
       const mockPipeline = {} as any
       const mockSession = {
-        getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+        getUser: jest.fn().mockReturnValue('user-1'),
         getRawAccount: jest.fn().mockReturnValue({ primarySocialId: 'social-1' as any }),
         workspace: { uuid: 'ws-1' as WorkspaceUuid },
         binaryMode: true,
@@ -1537,7 +1890,7 @@ describe('TSessionManager', () => {
         sendPong: jest.fn()
       } as any
       const mockSession = {
-        getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+        getUser: jest.fn().mockReturnValue('user-1'),
         getRawAccount: jest.fn().mockReturnValue({ primarySocialId: 'social-1' as any }),
         workspace: { uuid: 'ws-1' as WorkspaceUuid },
         requests: new Map()
@@ -1629,6 +1982,68 @@ describe('TSessionManager', () => {
     })
   })
 
+  describe('addSession - API-key without workspace membership', () => {
+    function createMockSocket (): any {
+      return {
+        id: 'sock-' + generateId(),
+        isClosed: false,
+        close: jest.fn(),
+        send: jest.fn().mockResolvedValue(undefined),
+        isBackpressure: () => false,
+        backpressure: jest.fn().mockResolvedValue(undefined),
+        sendPong: jest.fn(),
+        data: () => ({}),
+        readRequest: jest.fn(),
+        checkState: () => true
+      }
+    }
+
+    it('denies an apikey token when the key has no membership in the workspace (revoked)', async () => {
+      const { getClient } = await import('@hcengineering/account-client')
+      ;(getClient as jest.Mock).mockReturnValue({
+        getLoginWithWorkspaceInfo: jest.fn().mockResolvedValue({
+          account: 'key-account' as AccountUuid,
+          socialIds: [],
+          workspaces: {} // key was revoked - unassignWorkspace already ran
+        })
+      })
+
+      const token = {
+        account: 'key-account' as AccountUuid,
+        workspace: 'ws-1' as WorkspaceUuid,
+        extra: { apikey: 'key-1' }
+      } satisfies Token
+
+      const result = await sessionManager.addSession(mockContext, createMockSocket(), token, 'raw-token', undefined)
+
+      expect(result).toEqual({ error: UNAUTHORIZED, terminate: true })
+    })
+
+    it('does not deny a plain user token without workspace membership (falls through to guest/system handling)', async () => {
+      const { getClient } = await import('@hcengineering/account-client')
+      ;(getClient as jest.Mock).mockReturnValue({
+        getLoginWithWorkspaceInfo: jest.fn().mockResolvedValue({
+          account: 'some-account' as AccountUuid,
+          socialIds: [],
+          workspaces: {}
+        }),
+        getWorkspaceInfo: jest.fn().mockResolvedValue(undefined)
+      })
+
+      const token = {
+        account: 'some-account' as AccountUuid,
+        workspace: 'ws-1' as WorkspaceUuid,
+        extra: {}
+      } satisfies Token
+
+      const result = await sessionManager.addSession(mockContext, createMockSocket(), token, 'raw-token', undefined)
+
+      // Falls through past the apikey guard into the existing guest/system path, which here
+      // fails later (no workspace info available) - the point is it is NOT the apikey UNAUTHORIZED.
+      expect(result).not.toEqual({ error: UNAUTHORIZED, terminate: true })
+    })
+  })
+
   describe('workspace tick handling', () => {
     it('should handle workspace tick handlers', () => {
       const workspaceId = 'ws-tick' as WorkspaceUuid
@@ -1685,7 +2100,7 @@ describe('TSessionManager', () => {
             'session-1',
             {
               session: {
-                getUser: jest.fn().mockReturnValue('user-1' as AccountUuid),
+                getUser: jest.fn().mockReturnValue('user-1'),
                 current: { find: 5, tx: 3 },
                 mins5: { find: 50, tx: 30 }
               }
@@ -1721,7 +2136,7 @@ describe('TSessionManager', () => {
 
       const mockSession = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-hung' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-hung'),
           lastRequest: longTimeAgo,
           lastPing: longTimeAgo,
           requests: new Map(),
@@ -1752,7 +2167,7 @@ describe('TSessionManager', () => {
 
       const mockSession = {
         session: {
-          getUser: jest.fn().mockReturnValue('user-idle' as AccountUuid),
+          getUser: jest.fn().mockReturnValue('user-idle'),
           lastRequest: idleTime,
           lastPing: idleTime,
           requests: new Map(),
@@ -1769,6 +2184,94 @@ describe('TSessionManager', () => {
       sessionManager.handleTick()
 
       // Ping should have been sent or attempted
+    })
+  })
+
+  describe('presence (queueStatus)', () => {
+    const wsId = 'ws-1' as WorkspaceUuid
+
+    function session (user: string, away: boolean, clientKind: string | undefined = 'web'): any {
+      return {
+        away,
+        clientKind,
+        getUser: jest.fn().mockReturnValue(user),
+        getRawAccount: jest.fn().mockReturnValue({ role: AccountRole.User, primarySocialId: 'social-1' })
+      }
+    }
+
+    function pending (): any {
+      return (sessionManager as any).pendingStatus.get(wsId)?.get('user-1')
+    }
+
+    afterEach(() => {
+      const timer = (sessionManager as any).statusFlushTimers.get(wsId)
+      if (timer !== undefined) clearTimeout(timer)
+      ;(sessionManager as any).statusFlushTimers.delete(wsId)
+      ;(sessionManager as any).pendingStatus.delete(wsId)
+      sessionManager.workspaces.delete(wsId)
+    })
+
+    it('is not away while the session says the person is here', () => {
+      const s = session('user-1', false)
+      sessionManager.workspaces.set(wsId, { sessions: new Map([['s1', { session: s }]]) } as any)
+      ;(sessionManager as any).queueStatus(wsId, s, true)
+
+      expect(pending()).toEqual({ session: s, online: true, away: false })
+    })
+
+    it('is not away while another session of the same person is here', () => {
+      const gone = session('user-1', true)
+      const here = session('user-1', false)
+      sessionManager.workspaces.set(wsId, {
+        sessions: new Map([
+          ['s1', { session: gone }],
+          ['s2', { session: here }]
+        ])
+      } as any)
+      ;(sessionManager as any).queueStatus(wsId, gone, true)
+
+      expect(pending()).toEqual({ session: gone, online: true, away: false })
+    })
+
+    // A phone in hand is not a computer: the push for that phone must not wait for its own session.
+    it('is away when the only session here is a mobile one', () => {
+      const phone = session('user-1', false, 'mobile')
+      sessionManager.workspaces.set(wsId, { sessions: new Map([['s1', { session: phone }]]) } as any)
+      ;(sessionManager as any).queueStatus(wsId, phone, true)
+      expect(pending()).toEqual({ session: phone, online: true, away: true })
+
+      // A terminal left open counts no more than a phone: it reports no idleness.
+      const terminal = session('user-1', false, 'cli')
+      sessionManager.workspaces.set(wsId, { sessions: new Map([['s1', { session: terminal }]]) } as any)
+      ;(sessionManager as any).queueStatus(wsId, terminal, true)
+      expect(pending()).toEqual({ session: terminal, online: true, away: true })
+
+      const desk = session('user-1', false)
+      sessionManager.workspaces.set(wsId, {
+        sessions: new Map([
+          ['s1', { session: phone }],
+          ['s2', { session: desk }]
+        ])
+      } as any)
+      ;(sessionManager as any).queueStatus(wsId, phone, true)
+      expect(pending()).toEqual({ session: phone, online: true, away: false })
+    })
+
+    it('is away when every session of the person left, and never away offline', () => {
+      const gone = session('user-1', true)
+      const stranger = session('user-2', false)
+      sessionManager.workspaces.set(wsId, {
+        sessions: new Map([
+          ['s1', { session: gone }],
+          ['s2', { session: stranger }]
+        ])
+      } as any)
+      ;(sessionManager as any).queueStatus(wsId, gone, true)
+      expect(pending()).toEqual({ session: gone, online: true, away: true })
+
+      const left = session('user-1', true)
+      ;(sessionManager as any).queueStatus(wsId, left, false)
+      expect(pending()).toEqual({ session: left, online: false, away: false })
     })
   })
 

@@ -13,19 +13,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref } from '@hcengineering/core'
-  import { createQuery, getClient } from '@hcengineering/presentation'
-  import {
+  import type { Doc, Ref } from '@hcengineering/core'
+  import { ComponentExtensions, createQuery, getClient } from '@hcengineering/presentation'
+  import type { BreadcrumbItem } from '@hcengineering/ui'
+  import ui, {
     Breadcrumbs,
     location as locationStore,
     Header,
-    BreadcrumbItem,
     Loading,
-    languageStore
+    languageStore,
+    IconBack
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher, onDestroy } from 'svelte'
-  import activity, { ActivityMessage } from '@hcengineering/activity'
-  import { getMessageFromLoc, messageInFocus } from '@hcengineering/activity-resources'
+  import type { ActivityMessage } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
+  import { messageInFocus } from '@hcengineering/activity-resources'
   import contact from '@hcengineering/contact'
   import attachment from '@hcengineering/attachment'
 
@@ -33,6 +36,7 @@
   import { getObjectIcon, getChannelName } from '../../utils'
   import { threadMessagesStore } from '../../stores'
   import ThreadContent from './ThreadContent.svelte'
+  import FadeSwap from '../FadeSwap.svelte'
 
   export let _id: Ref<ActivityMessage>
   export let selectedMessageId: Ref<ActivityMessage> | undefined = undefined
@@ -41,6 +45,8 @@
   export let autofocus = true
   export let readonly: boolean = false
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
+  // Mobile opens the thread in the main panel, where breadcrumbs alone are not an obvious way back.
+  export let withBackButton: boolean = false
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
@@ -54,26 +60,7 @@
   let isLoading = true
   let channelName: string | undefined = undefined
 
-  const unsubscribe = messageInFocus.subscribe((id) => {
-    if (!syncLocation) return
-    if (id !== undefined && id !== selectedMessageId) {
-      selectedMessageId = id
-    }
-
-    messageInFocus.set(undefined)
-  })
-
-  const unsubscribeLocation = locationStore.subscribe((newLocation) => {
-    if (!syncLocation) return
-    const id = getMessageFromLoc(newLocation)
-    selectedMessageId = id
-    messageInFocus.set(id)
-  })
-
-  onDestroy(() => {
-    unsubscribe()
-    unsubscribeLocation()
-  })
+  $: selectedMessageId = $messageInFocus
 
   $: if (message && message._id !== _id) {
     message = $threadMessagesStore?._id === _id ? $threadMessagesStore : undefined
@@ -104,10 +91,16 @@
       channel = res[0]
     })
 
-  $: message &&
+  $: void (
+    message &&
     getChannelName(message.attachedTo, message.attachedToClass, channel, $languageStore).then((res) => {
       channelName = res
     })
+  )
+
+  // Kept while the next thread's message is on its way: dropping it would unmount the fade between them.
+  let shownMessage: ActivityMessage | undefined = message
+  $: if (message !== undefined) shownMessage = message
 
   let breadcrumbs: BreadcrumbItem[] = []
   $: breadcrumbs = showHeader ? getBreadcrumbsItems(channel, channelName) : []
@@ -146,15 +139,47 @@
 </script>
 
 {#if showHeader}
-  <Header type={'type-aside'} adaptive={'disabled'} closeOnEscape={false} on:close>
+  <!-- The back button replaces the aside's close cross, so the mobile header is a plain component one. -->
+  <Header type={withBackButton ? 'type-component' : 'type-aside'} adaptive="disabled" closeOnEscape={false} on:close>
+    <svelte:fragment slot="beforeTitle">
+      {#if withBackButton}
+        <IconButton
+          icon={IconBack}
+          kind="tertiary"
+          size="small"
+          tooltip={{ label: ui.string.Back }}
+          on:click={() => {
+            dispatch('close')
+          }}
+        />
+      {/if}
+    </svelte:fragment>
     <Breadcrumbs items={breadcrumbs} on:select={handleBreadcrumbSelect} selected={1} />
+    <svelte:fragment slot="actions">
+      {#if message !== undefined}
+        <ComponentExtensions
+          extension={chunter.extensions.ThreadHeaderExtension}
+          props={{ value: message, _id, readonly }}
+        />
+      {/if}
+    </svelte:fragment>
   </Header>
 {/if}
 
-{#if message}
-  {#key _id}
-    <ThreadContent bind:selectedMessageId {message} {autofocus} {readonly} {onReply} />
-  {/key}
+{#if shownMessage !== undefined}
+  <FadeSwap key={shownMessage._id} item={shownMessage} let:item let:current let:revealed let:onReady>
+    <!-- The outgoing thread neither follows the selection (it would jump to a message it lacks) nor reads. -->
+    <ThreadContent
+      selectedMessageId={current === true ? selectedMessageId : undefined}
+      message={item}
+      autofocus={autofocus && current}
+      {readonly}
+      {onReply}
+      fadeOverlay={revealed}
+      freeze={current !== true}
+      {onReady}
+    />
+  </FadeSwap>
 {:else if isLoading}
   <Loading />
 {/if}

@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import type { IssueTemplate } from '@hcengineering/tracker'
   import { Icon, showPanel, tooltip } from '@hcengineering/ui'
   import tracker from '../../plugin'
@@ -40,7 +40,7 @@
   <span class="issuePresenterRoot" class:noPointer={disabled} class:noUnderline on:click={handleIssueEditorOpened}>
     {#if !inline && shouldShowAvatar}
       <div class="mr-2" use:tooltip={{ label: tracker.string.IssueTemplate }}>
-        <Icon icon={tracker.icon.IssueTemplates} size={'small'} />
+        <Icon icon={tracker.icon.IssueTemplates} size="small" />
       </div>
     {/if}
     <span title={value?.title}>

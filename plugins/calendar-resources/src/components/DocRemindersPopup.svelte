@@ -13,9 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Event } from '@hcengineering/calendar'
+  import type { Event } from '@hcengineering/calendar'
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import { Button, deviceOptionsStore as deviceInfo, IconAdd, Label, Scroller, showPopup } from '@hcengineering/ui'
   import calendar from '../plugin'
@@ -52,8 +52,8 @@
     <span class="fs-title overflow-label"><Label label={calendar.string.Reminders} /></span>
     <Button
       icon={IconAdd}
-      size={'medium'}
-      kind={'ghost'}
+      size="medium"
+      kind="ghost"
       on:click={(e) => {
         click(e)
       }}

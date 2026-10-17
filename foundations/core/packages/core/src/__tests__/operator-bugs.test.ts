@@ -18,36 +18,22 @@ import type { Doc } from '../classes'
 
 describe('operator edge cases and potential bugs', () => {
   describe('$push operator edge cases', () => {
-    it('BUG: $push with $each on null field should handle gracefully', () => {
+    it('$push with $each on null field creates the array', () => {
       const doc: Doc = { _id: '1' as any, _class: 'test' as any, arr: null } as unknown as Doc
       const operator = _getOperator('$push')
 
-      // This exposes a bug: when arr is null and we use $each, nothing happens
       operator(doc, { arr: { $each: [1, 2, 3] } })
 
-      // Expected: should initialize array and add items
-      // Actual: arr remains null (bug!)
-      // Uncomment to see the bug:
-      // expect((doc as any).arr).toEqual([1, 2, 3])
-
-      // Current behavior (documents the bug):
-      expect((doc as any).arr).toBe(null)
+      expect((doc as any).arr).toEqual([1, 2, 3])
     })
 
-    it('BUG: $push with $each on non-array field should handle gracefully', () => {
+    it('$push with $each on non-array field reports error and replaces', () => {
       const doc: Doc = { _id: '1' as any, _class: 'test' as any, arr: 'string' } as unknown as Doc
       const operator = _getOperator('$push')
 
-      // This exposes a bug: when arr is a non-array and we use $each, nothing happens
       operator(doc, { arr: { $each: [1, 2, 3] } })
 
-      // Expected: should report error and replace with array
-      // Actual: arr remains a string (bug!)
-      // Uncomment to see the bug:
-      // expect((doc as any).arr).toEqual([1, 2, 3])
-
-      // Current behavior (documents the bug):
-      expect((doc as any).arr).toBe('string')
+      expect((doc as any).arr).toEqual([1, 2, 3])
     })
 
     it('$push without $each on null field works correctly', () => {
@@ -209,9 +195,8 @@ describe('operator edge cases and potential bugs', () => {
       // BUG: This creates a potential issue with chained renames in same operation
       operator(doc, { a: 'b', b: 'c' })
 
-      // The order of operations in the for loop determines outcome
-      // a -> b happens first (sets b to 1, deletes a)
-      // b -> c happens second (sets c to 1 [current value of b], deletes b)
+      // For-loop order determines outcome: a->b runs first (b=1, deletes a), then b->c (c=1,
+      // current b, deletes b).
       expect((doc as any).a).toBeUndefined()
       expect((doc as any).b).toBeUndefined()
       expect((doc as any).c).toBe(1) // Gets the value that was assigned to b from a
@@ -241,5 +226,15 @@ describe('operator edge cases and potential bugs', () => {
 
       expect((doc as any).arr).toBeUndefined()
     })
+  })
+})
+
+describe('$push object without $each on null field', () => {
+  it('creates the array', () => {
+    const doc: Doc = { _id: '1' as any, _class: 'test' as any, arr: null } as unknown as Doc
+
+    _getOperator('$push')(doc, { arr: { a: 1 } as any })
+
+    expect((doc as any).arr).toEqual([{ a: 1 }])
   })
 })

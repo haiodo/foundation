@@ -4,18 +4,21 @@
   "author": "Anticrm Platform Contributors",
   "license": "EPL-2.0",
   "scripts": {
-    "_phase:docker-build": "rushx docker:build",
+    "_phase:docker-build": "pnpm run docker:build",
     "docker:build": "sh bin/build.sh",
     "docker:push": "sh bin/push.sh",
     "format": "true"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-promise": "^6.1.1",
-    "eslint-plugin-n": "^15.4.0",
-    "eslint": "^8.54.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "eslint-config-standard-with-typescript": "^40.0.0"
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "typescript": "catalog:",
+    "eslint": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
   }
 }

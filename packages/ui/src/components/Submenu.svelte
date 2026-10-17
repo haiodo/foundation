@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, IntlString } from '@hcengineering/platform'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import { tooltip } from '../tooltips'
   import type { LabelAndProps, AnySvelteComponent, AnyComponent } from '../types'
   import Component from './Component.svelte'
@@ -63,7 +63,7 @@
     <slot name="item" />
   {:else}
     {#if icon}
-      <div class="icon"><Icon {icon} {iconProps} size={'small'} /></div>
+      <div class="icon"><Icon {icon} {iconProps} size="small" /></div>
     {/if}
     <span class="overflow-label pr-1">
       {#if label}<Label {label} params={labelProps} />

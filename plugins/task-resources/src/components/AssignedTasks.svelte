@@ -13,14 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, DocumentQuery, getCurrentAccount, Ref, Status, WithLookup } from '@hcengineering/core'
-  import { IntlString, Asset } from '@hcengineering/platform'
+  import type { Class, Doc, DocumentQuery, Ref, Status, WithLookup } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
+  import type { IntlString, Asset } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import { Task } from '@hcengineering/task'
+  import type { Task } from '@hcengineering/task'
   import { getCurrentEmployee } from '@hcengineering/contact'
+  import type { IModeSelector } from '@hcengineering/ui'
   import {
     Component,
-    IModeSelector,
     Breadcrumb,
     Loading,
     ModeSelector,
@@ -28,7 +29,7 @@
     SearchInput,
     Header
   } from '@hcengineering/ui'
-  import { Viewlet, ViewletDescriptor, ViewletPreference, ViewOptions } from '@hcengineering/view'
+  import type { Viewlet, ViewletDescriptor, ViewletPreference, ViewOptions } from '@hcengineering/view'
   import {
     FilterBar,
     FilterButton,
@@ -119,7 +120,7 @@
       : (viewlet?.viewOptions?.other ?? []).filter((it) => it.actionTarget !== 'query')
 </script>
 
-<Header adaptive={'freezeActions'} hideActions={modeSelectorProps === undefined}>
+<Header adaptive="freezeActions" hideActions={modeSelectorProps === undefined}>
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       bind:viewlet
@@ -134,7 +135,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet {viewOptionsConfig} />
   </svelte:fragment>
 
-  <Breadcrumb {icon} label={labelTasks} size={'large'} isCurrent />
+  <Breadcrumb {icon} label={labelTasks} size="large" isCurrent />
 
   <svelte:fragment slot="search" let:doubleRow>
     <SearchInput
@@ -148,13 +149,13 @@
   </svelte:fragment>
   <svelte:fragment slot="actions" let:doubleRow>
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>
 <FilterBar {_class} query={searchQuery} space={undefined} {viewOptions} on:change={(e) => (resultQuery = e.detail)} />
 
-{#if loading || !viewlet || !viewlet?.$lookup?.descriptor?.component}
+{#if loading || !viewlet?.$lookup?.descriptor?.component}
   <Loading />
 {:else}
   <Component

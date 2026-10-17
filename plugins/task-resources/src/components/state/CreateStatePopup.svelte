@@ -13,15 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Attribute, Class, Ref, Status, StatusCategory } from '@hcengineering/core'
-  import { Asset, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { Attribute, Class, Ref, Status, StatusCategory } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { IconWithEmoji, createQuery, getClient } from '@hcengineering/presentation'
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
-  import { ProjectType, TaskType, calculateStatuses, createState } from '@hcengineering/task'
+  import type { ProjectType, TaskType } from '@hcengineering/task'
+  import { calculateStatuses, createState } from '@hcengineering/task'
   import {
     Component,
-    ButtonIcon,
-    ButtonMenu,
     IconCopy,
     IconDelete,
     IconSettings,
@@ -30,14 +31,17 @@
     ModernEditbox,
     TextArea,
     closePopup,
+    type DropdownIntlItem,
     fromCodePoint,
     getPlatformColorDef,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
+  import { IconButton, MenuButton } from '@hcengineering/ui/kit'
   import { ColorsPopup, statusStore } from '@hcengineering/view-resources'
   import view from '@hcengineering/view-resources/src/plugin'
   import emojiPlugin from '@hcengineering/emoji'
+  import { get } from 'svelte/store'
   import { taskTypeStore, typeStore } from '../..'
   import task from '../../plugin'
   import ApproveStatusRenamePopup from './ApproveStatusRenamePopup.svelte'
@@ -60,6 +64,15 @@
   export let readonly: boolean = true
 
   value = status?.name ?? valuePattern ?? ''
+
+  // Same id StatesProjectEditor opens us with: a slow rename may finish after another status was
+  // opened, and must not close that one.
+  const openedId = status?._id ?? '#'
+  function closeIfStillOpen (): void {
+    if (get(settingsStore).id === openedId) {
+      clearSettingsStore()
+    }
+  }
 
   const client = getClient()
 
@@ -96,10 +109,7 @@
   }
 
   $: needUpdate =
-    (status === undefined ||
-      status.name.trim() !== value.trim() ||
-      description !== finalDescription ||
-      color !== finalColor) &&
+    (status?.name.trim() !== value.trim() || description !== finalDescription || color !== finalColor) &&
     value.trim() !== '' &&
     !selectableStates.some((it) => it.name === value)
 
@@ -170,7 +180,7 @@
       for (const status of _type.statuses) {
         if (status._id === _id) {
           status.color = color
-          status.icon = icon as any // Fix me
+          status.icon = icon // Fix me
           status.description = description
           found = true
         }
@@ -205,10 +215,11 @@
 
     canDelete = sameCategory.length > 1
     selectableStates = sameCategory.filter((it) => it._id !== status?._id)
+    closeIfStillOpen()
   }
 
-  let selected: number = icon === iconWithEmoji ? 1 : 0
-  const items = [
+  let selected: 'color' | 'emoji' = icon === iconWithEmoji ? 'emoji' : 'color'
+  const items: Array<DropdownIntlItem<'color' | 'emoji'>> = [
     {
       id: 'color',
       label: task.string.Color
@@ -280,23 +291,7 @@
           await renameStatuses(_type, _taskType, estatus._id, newStatus._id)
 
           closePopup()
-
-          $settingsStore = {
-            id: newStatus._id,
-            component: task.component.CreateStatePopup,
-            props: {
-              status: newStatus,
-              taskType: _taskType,
-              _class,
-              category,
-              type: _type,
-              ofAttribute,
-              icon,
-              color,
-              icons,
-              readonly
-            }
-          }
+          closeIfStillOpen()
         }
       },
       undefined
@@ -346,7 +341,7 @@
 
 <Modal
   label={task.string.StatusPopupTitle}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={status === undefined ? presentation.string.Create : presentation.string.Save}
   okAction={save}
   canSave={needUpdate && !readonly}
@@ -356,29 +351,31 @@
 >
   <svelte:fragment slot="actions">
     {#if !readonly}
-      <ButtonIcon
+      <IconButton
         icon={IconDelete}
-        size={'small'}
-        kind={'tertiary'}
+        size="small"
+        kind="tertiary"
         disabled={status === undefined || !canDelete || readonly}
+        tooltip={{ label: presentation.string.Delete }}
         on:click={onDelete}
       />
-      <ButtonIcon
+      <IconButton
         icon={IconCopy}
-        size={'small'}
-        kind={'tertiary'}
+        size="small"
+        kind="tertiary"
         disabled={status === undefined || readonly}
+        tooltip={{ label: presentation.string.Copy }}
         on:click={onDuplicate}
       />
     {/if}
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
-    <ModernEditbox bind:value label={task.string.StatusName} size={'large'} kind={'ghost'} disabled={readonly} />
+    <ModernEditbox bind:value label={task.string.StatusName} size="large" kind="ghost" disabled={readonly} />
     <TextArea
       placeholder={task.string.Description}
-      width={'100%'}
-      height={'4.5rem'}
-      margin={'var(--spacing-1) var(--spacing-2)'}
+      width="100%"
+      height="4.5rem"
+      margin="var(--spacing-1) var(--spacing-2)"
       noFocusBorder
       disabled={readonly}
       bind:value={description}
@@ -387,14 +384,14 @@
   <div class="hulyModal-content__settingsSet">
     <div class="hulyModal-content__settingsSet-line">
       <span class="label"><Label label={getEmbeddedLabel('Status Category')} /></span>
-      <ButtonMenu
+      <MenuButton
         items={categories}
         selected={category}
         disabled={!allowEditCategory || readonly}
         icon={categories.find((it) => it.id === category)?.icon}
         label={categories.find((it) => it.id === category)?.label}
-        kind={'secondary'}
-        size={'medium'}
+        kind="secondary"
+        size="medium"
         on:selected={(it) => {
           category = it.detail
         }}
@@ -404,34 +401,32 @@
   <div class="hulyModal-content__settingsSet table">
     <div class="hulyTableAttr-container">
       <div class="hulyTableAttr-header font-medium-12 withButton">
-        <ButtonMenu
+        <MenuButton
           {items}
           {selected}
           icon={IconSettings}
-          label={items[selected].label}
-          kind={'secondary'}
-          size={'small'}
+          label={items.find((it) => it.id === selected)?.label}
+          kind="secondary"
+          size="small"
           disabled={readonly}
           on:selected={(event) => {
-            if (event.detail) {
-              selected = items.findIndex((it) => it.id === event.detail)
-              if (selected === 1) {
-                icon = undefined
-              }
+            selected = event.detail
+            if (selected === 'emoji') {
+              icon = undefined
             }
           }}
         />
         {#if icon === iconWithEmoji}
-          <IconWithEmoji icon={color ?? 0} size={'medium'} />
+          <IconWithEmoji icon={color ?? 0} size="medium" />
         {/if}
       </div>
       <div class="hulyTableAttr-content">
-        {#if selected === 0}
+        {#if selected === 'color'}
           <ColorsPopup
             selected={getPlatformColorDef(color ?? 0, $themeStore.dark).name}
             embedded
             disabled={readonly}
-            columns={'auto'}
+            columns="auto"
             on:close={(evt) => {
               if (readonly) return
               color = evt.detail
@@ -441,9 +436,9 @@
         {:else}
           <Component
             is={emojiPlugin.component.EmojiPopup}
+            disabled={readonly}
             props={{
               selected: Array.isArray(color) ? fromCodePoint(...color) : color ? fromCodePoint(color) : undefined,
-              disabled: readonly,
               kind: 'default'
             }}
             on:close={(evt) => {

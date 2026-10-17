@@ -88,7 +88,7 @@ describe('markdown/escape', () => {
 
   describe('escapeMarkdownTableCellContent', () => {
     it('leaves http markdown link from formatValue/createMarkdownLink intact', () => {
-      const cell = '[Suite A](http://huly.local:8080/workbench/test/card/69d3cfb2a78c161c977dd6a0)'
+      const cell = '[Suite A](http://localhost:8080/workbench/test/card/69d3cfb2a78c161c977dd6a0)'
       expect(escapeMarkdownTableCellContent(cell)).toBe(cell)
     })
 
@@ -103,6 +103,27 @@ describe('markdown/escape', () => {
 
     it('escapes title text with pipes', () => {
       expect(escapeMarkdownTableCellContent('a|b')).toBe('a\\|b')
+    })
+
+    it('preserves markdown link and escapes pipes inside text and URL', () => {
+      expect(escapeMarkdownTableCellContent('[a|b](http://example.com/x|y)')).toBe('[a\\|b](http://example.com/x\\|y)')
+    })
+
+    it('escapes pipes even when value contains escaped characters', () => {
+      expect(escapeMarkdownTableCellContent('[a|b](http://example.com/x|y\\z)')).toBe(
+        '[a\\|b](http://example.com/x\\|y\\\\z)'
+      )
+    })
+
+    it('treats strings that do not end with `)` as plain text', () => {
+      expect(escapeMarkdownTableCellContent('[a|b](http://example.com/x|y')).toBe(
+        '\\[a\\|b\\](http://example.com/x\\|y'
+      )
+    })
+
+    it('returns empty string for null/undefined', () => {
+      expect(escapeMarkdownTableCellContent(null)).toBe('')
+      expect(escapeMarkdownTableCellContent(undefined)).toBe('')
     })
   })
 })

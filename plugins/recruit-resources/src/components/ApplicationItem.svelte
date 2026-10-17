@@ -14,7 +14,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { getName, Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import contact, { getName } from '@hcengineering/contact'
   import PersonPresenter from '@hcengineering/contact-resources/src/components/PersonPresenter.svelte'
   import { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
@@ -27,14 +28,14 @@
 
   let person: Person | undefined
 
-  $: client.findOne(contact.class.Person, { _id: value.attachedTo as Ref<Person> }).then((p) => {
+  $: void client.findOne(contact.class.Person, { _id: value.attachedTo }).then((p) => {
     person = p
   })
 </script>
 
 <div class="flex-row-center">
   <!-- <Icon icon={recruit.icon.Application} size={'medium'} /> -->
-  <PersonPresenter value={person} avatarSize={'smaller'} shouldShowName={false} />
+  <PersonPresenter value={person} avatarSize="smaller" shouldShowName={false} />
   <span class="ml-2">
     {#if shortLabel}{shortLabel}-{/if}{value.number}
   </span>

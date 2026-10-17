@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Action, Menu, ModernTab, showPopup } from '@hcengineering/ui'
-  import { Widget, WidgetTab } from '@hcengineering/workbench'
+  import type { Action } from '@hcengineering/ui'
+  import { Menu, ModernTab, showPopup } from '@hcengineering/ui'
+  import type { Widget, WidgetTab } from '@hcengineering/workbench'
   import { getResource } from '@hcengineering/platform'
 
   export let tab: WidgetTab
@@ -47,6 +48,7 @@
   highlighted={selected}
   orientation="vertical"
   kind={tab.isPinned ? 'secondary' : 'primary'}
+  italic={tab.isPinned !== true && tab.isKept !== true}
   readonly={tab.readonly}
   {icon}
   iconProps={tab.iconProps}

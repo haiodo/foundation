@@ -17,8 +17,8 @@
   import { fade } from 'svelte/transition'
   import { getResource, translate } from '@hcengineering/platform'
   import type { IntegrationType } from '@hcengineering/setting'
+  import type { AnyComponent } from '@hcengineering/ui'
   import {
-    AnyComponent,
     Button,
     Component,
     Label,
@@ -30,13 +30,9 @@
     themeStore
   } from '@hcengineering/ui'
   import { Analytics } from '@hcengineering/analytics'
-  import { type Integration } from '@hcengineering/account-client'
-  import {
-    IntegrationClient,
-    isDisabled,
-    onIntegrationEvent,
-    IntegrationUpdatedData
-  } from '@hcengineering/integration-client'
+  import type { Integration } from '@hcengineering/account-client'
+  import type { IntegrationClient, IntegrationUpdatedData } from '@hcengineering/integration-client'
+  import { isDisabled, onIntegrationEvent } from '@hcengineering/integration-client'
   import IntegrationErrorNotification from './IntegrationErrorNotification.svelte'
   import { getIntegrationClient } from '../../utils'
 
@@ -67,9 +63,8 @@
 
   function onUpdateIntegration (data: IntegrationUpdatedData): void {
     if (
-      integration !== undefined &&
-      data.integration?.socialId === integration.socialId &&
-      data.integration?.workspaceUuid === integration.workspaceUuid
+      data.integration?.socialId === integration?.socialId &&
+      data.integration?.workspaceUuid === integration?.workspaceUuid
     ) {
       integration = { ...integration, ...data.integration }
     }
@@ -186,33 +181,33 @@
   <div class="footer">
     {#if integration !== undefined && integration.workspaceUuid == null && integrationType.configureComponent !== undefined}
       <Button
-        minWidth={'5rem'}
+        minWidth="5rem"
         label={setting.string.Integrate}
-        kind={'primary'}
+        kind="primary"
         on:click={(ev) => handleConfigure(integrationType.configureComponent)}
       />
     {/if}
     {#if integrationType.createComponent !== undefined && integration === undefined}
       <Button
-        minWidth={'5rem'}
+        minWidth="5rem"
         label={setting.string.Connect}
-        kind={'primary'}
+        kind="primary"
         on:click={(ev) => handleConfigure(integrationType.createComponent)}
       />
     {:else if integration !== undefined}
       {#if isDisabled(integration) && integrationType.reconnectComponent !== undefined}
         <Button
           label={setting.string.Reconnect}
-          minWidth={'5rem'}
-          kind={'primary'}
+          minWidth="5rem"
+          kind="primary"
           disabled={isDisconnecting}
           on:click={handleReconnect}
         />
       {:else if integrationType.configureComponent !== undefined && integration.workspaceUuid != null}
         <Button
           label={setting.string.Configure}
-          minWidth={'5rem'}
-          kind={'primary'}
+          minWidth="5rem"
+          kind="primary"
           disabled={isDisconnecting}
           on:click={(ev) => handleConfigure(integrationType.configureComponent)}
         >
@@ -224,11 +219,11 @@
         </Button>
       {/if}
       {#if integrationType.onDisconnect && integration.workspaceUuid != null}
-        <Button label={setting.string.Disconnect} minWidth={'5rem'} loading={isDisconnecting} on:click={disconnect} />
+        <Button label={setting.string.Disconnect} minWidth="5rem" loading={isDisconnecting} on:click={disconnect} />
       {:else if integrationType.onDisconnectAll !== undefined && integration.workspaceUuid == null}
         <Button
           label={setting.string.DisconnectAll}
-          minWidth={'5rem'}
+          minWidth="5rem"
           loading={isDisconnecting}
           on:click={disconnectAll}
         />

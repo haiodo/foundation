@@ -71,52 +71,93 @@ var (
 
 // KeyMap defines keybindings
 type KeyMap struct {
-	Up          key.Binding
-	Down        key.Binding
-	Toggle      key.Binding
-	ToggleAll   key.Binding
-	CherryPick  key.Binding
-	Refresh     key.Binding
-	PageUp      key.Binding
-	PageDown    key.Binding
-	Tab         key.Binding
-	Quit        key.Binding
-	Help        key.Binding
-	Ignore      key.Binding
-	ShowIgnored key.Binding
-	Mode        key.Binding
-	Migrate     key.Binding
-	Left        key.Binding
-	Right       key.Binding
+	Up           key.Binding
+	Down         key.Binding
+	Toggle       key.Binding
+	ToggleAll    key.Binding
+	CherryPick   key.Binding
+	Refresh      key.Binding
+	PageUp       key.Binding
+	PageDown     key.Binding
+	Tab          key.Binding
+	Quit         key.Binding
+	Help         key.Binding
+	Ignore       key.Binding
+	ShowIgnored  key.Binding
+	Mode         key.Binding
+	Migrate      key.Binding
+	Left         key.Binding
+	Right        key.Binding
+	MarkApplied  key.Binding
+	ResetApplied key.Binding
 }
 
 // DefaultKeyMap returns default keybindings
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
-		Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Toggle:      key.NewBinding(key.WithKeys(" ", "enter"), key.WithHelp("space/enter", "toggle")),
-		ToggleAll:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "toggle all")),
-		CherryPick:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "cherry-pick")),
-		Refresh:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-		PageUp:      key.NewBinding(key.WithKeys("pgup", "K"), key.WithHelp("pgup/K", "page up")),
-		PageDown:    key.NewBinding(key.WithKeys("pgdown", "J"), key.WithHelp("pgdown/J", "page down")),
-		Quit:        key.NewBinding(key.WithKeys("q", "esc", "ctrl+c"), key.WithHelp("q/esc", "quit")),
-		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Tab:         key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch focus")),
-		Ignore:      key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "ignore commit")),
-		ShowIgnored: key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "toggle ignored view")),
-		Mode:        key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle incoming/outgoing")),
-		Migrate:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "migrate selected to new branch")),
-		Left:        key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "focus tree")),
-		Right:       key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "focus commits")),
+		Up:           key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:         key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Toggle:       key.NewBinding(key.WithKeys(" ", "enter"), key.WithHelp("space/enter", "toggle")),
+		ToggleAll:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "toggle all")),
+		CherryPick:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "cherry-pick")),
+		Refresh:      key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+		PageUp:       key.NewBinding(key.WithKeys("pgup", "K"), key.WithHelp("pgup/K", "page up")),
+		PageDown:     key.NewBinding(key.WithKeys("pgdown", "J"), key.WithHelp("pgdown/J", "page down")),
+		Quit:         key.NewBinding(key.WithKeys("q", "esc", "ctrl+c"), key.WithHelp("q/esc", "quit")),
+		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Tab:          key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch focus")),
+		Ignore:       key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "ignore commit")),
+		ShowIgnored:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "toggle ignored view")),
+		Mode:         key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle incoming/outgoing")),
+		Migrate:      key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "migrate selected to new branch")),
+		Left:         key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "focus tree")),
+		Right:        key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "focus commits")),
+		MarkApplied:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "mark applied (cache, incoming)")),
+		ResetApplied: key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reset applied cache")),
 	}
 }
 
 // commitItem wraps Commit for display
 type commitItem struct {
-	commit   Commit
-	selected bool
+	commit       Commit
+	selected     bool            // incoming mode: whole-commit checkbox
+	expanded     bool            // outgoing mode: file list expanded
+	selectedFile map[string]bool // outgoing mode: per-file selection
+}
+
+// fileSelected reports whether the file is checked in this commit item.
+func (c commitItem) fileSelected(f string) bool {
+	if c.selectedFile == nil {
+		return false
+	}
+	return c.selectedFile[f]
+}
+
+// toggleFile flips selection of a file in this commit item.
+func (c *commitItem) toggleFile(f string) {
+	if c.selectedFile == nil {
+		c.selectedFile = map[string]bool{}
+	}
+	if c.selectedFile[f] {
+		delete(c.selectedFile, f)
+	} else {
+		c.selectedFile[f] = true
+	}
+}
+
+// centerRowKind distinguishes the row kind in the central panel.
+type centerRowKind int
+
+const (
+	rowCommit centerRowKind = iota // incoming: commit row
+	rowFile                        // outgoing: single file row
+)
+
+// centerRow is one line in the central panel.
+type centerRow struct {
+	kind    centerRowKind
+	itemIdx int    // index into m.items (for commit rows)
+	file    string // filled for file rows
 }
 
 // focusArea tracks which panel captures navigation keys
@@ -164,6 +205,7 @@ type Model struct {
 	focus             focusArea
 	mode              AppMode
 	store             *IgnoreStore
+	applied           *AppliedCache
 	showIgnored       bool
 	pendingCursorHash string
 	promptActive      bool
@@ -174,12 +216,20 @@ type Model struct {
 	migrating         bool
 	migratingBranch   string
 	migratingCount    int
+	session           *Session
+	centerRows        []centerRow
+	centerCursor      int
+	centerScroll      int
+	currentDiff       string          // diff text for currently focused row
+	currentDiffKey    string          // "hash" or "hash|file" identifying loaded diff
+	outgoingPaths     []string        // outgoing: all changed file paths vs upstream
+	pickedFile        map[string]bool // outgoing: files marked for apply (Space)
 }
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		loadCommitsFor(m.mode, m.upstream),
+		loadCommitsFor(m.mode, m.upstream, m.applied),
 		tea.EnterAltScreen,
 	)
 }
@@ -196,6 +246,14 @@ func initialModelWithBranch(upstreamBranch string) Model {
 	if store == nil {
 		store = NewIgnoreStore()
 	}
+	session, _ := LoadSession()
+	if session == nil {
+		session = &Session{}
+	}
+	applied, _ := LoadAppliedCache()
+	if applied == nil {
+		applied = &AppliedCache{Applied: map[string]bool{}}
+	}
 	return Model{
 		keys:          DefaultKeyMap(),
 		upstream:      upstreamBranch,
@@ -205,8 +263,11 @@ func initialModelWithBranch(upstreamBranch string) Model {
 		items:         []commitItem{},
 		focus:         focusCommits,
 		store:         store,
+		applied:       applied,
 		mode:          ModeIncoming,
 		outgoingFiles: map[string][]string{},
 		treeExpanded:  map[string]bool{},
+		session:       session,
+		pickedFile:    map[string]bool{},
 	}
 }

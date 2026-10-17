@@ -17,7 +17,7 @@ import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import { ObjectDDParticipantFunc, SearchPresenterProvider, TriggerFunc } from '@hcengineering/server-core'
 import { TypeMatchFuncResource } from '@hcengineering/server-notification'
-import { Presenter } from '@hcengineering/server-activity'
+import { IconPresenterFn, IntlStringPresenterFn, StringPresenterFn } from '@hcengineering/server-activity'
 
 export const serverChunterId = 'server-chunter' as Plugin
 export { ChunterMiddleware } from './middleware'
@@ -28,13 +28,21 @@ export default plugin(serverChunterId, {
     OnUserStatus: '' as Resource<TriggerFunc>,
     OnCollaboratorAdded: '' as Resource<TriggerFunc>,
     OnCollaboratorRemoved: '' as Resource<TriggerFunc>,
-    OnPersonNameChanged: '' as Resource<TriggerFunc>
+    OnPersonNameChanged: '' as Resource<TriggerFunc>,
+    OnChannelJoin: '' as Resource<TriggerFunc>,
+    OnContentReport: '' as Resource<TriggerFunc>,
+    OnReportedMessageRemoved: '' as Resource<TriggerFunc>
   },
   function: {
     CommentRemove: '' as Resource<ObjectDDParticipantFunc>,
-    ChannelUrlPresenter: '' as Resource<Presenter>,
-    ChannelTitlePresenter: '' as Resource<Presenter>,
+    ChannelUrlPresenter: '' as Resource<StringPresenterFn>,
+    ChannelTitlePresenter: '' as Resource<StringPresenterFn>,
+    DirectTitlePresenter: '' as Resource<StringPresenterFn>,
+    DirectLabelPresenter: '' as Resource<IntlStringPresenterFn>,
     ChatSearchTitleProvider: '' as Resource<SearchPresenterProvider>,
+    ChannelIconPresenter: '' as Resource<IconPresenterFn>,
+    DirectIconPresenter: '' as Resource<IconPresenterFn>,
+    ChatMessageSearchTitleProvider: '' as Resource<SearchPresenterProvider>,
     JoinChannelTypeMatch: '' as TypeMatchFuncResource
   }
 })

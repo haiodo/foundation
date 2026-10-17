@@ -13,9 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref } from '@hcengineering/core'
+  import type { Doc, Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import tags, { TagElement, TagReference } from '@hcengineering/tags'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
+  import tags from '@hcengineering/tags'
+  import { getTagsTargetClass } from '../utils'
   import TagsPopup from './TagsPopup.svelte'
 
   export let value: Doc | Doc[]
@@ -66,9 +68,9 @@
   async function onUpdate (event: CustomEvent<{ action: string, tag: TagElement }>) {
     const result = event.detail
     if (result === undefined) return
-    if (result.action === 'add') addRef(result.tag)
-    else if (result.action === 'remove') removeTag(result.tag)
+    if (result.action === 'add') void addRef(result.tag)
+    else if (result.action === 'remove') void removeTag(result.tag)
   }
 </script>
 
-<TagsPopup targetClass={objects[0]._class} {selected} on:update={onUpdate} />
+<TagsPopup targetClass={getTagsTargetClass(objects[0]._class)} {selected} on:update={onUpdate} />

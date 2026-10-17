@@ -14,19 +14,11 @@
 -->
 <script lang="ts">
   import type { Asset, IntlString } from '@hcengineering/platform'
-  import { createEventDispatcher, SvelteComponent } from 'svelte'
+  import type { SvelteComponent } from 'svelte'
+  import { createEventDispatcher } from 'svelte'
   import ui from '../plugin'
-  import {
-    AnySvelteComponent,
-    DialogStep,
-    Panel,
-    Icon,
-    deviceOptionsStore as deviceInfo,
-    Scroller,
-    Label,
-    Button,
-    Component
-  } from '..'
+  import type { AnySvelteComponent, DialogStep } from '..'
+  import { Panel, Icon, deviceOptionsStore as deviceInfo, Scroller, Label, Button, Component } from '..'
 
   export let steps: readonly DialogStep[]
   export let stepIndex = 0
@@ -93,7 +85,7 @@
   <svelte:fragment slot="title">
     {@const additionalStepInfo = currentStepModel?.additionalInfo}
 
-    <div class="popupPanel-title__content-container antiTitle" style:min-height={'2.5rem'}>
+    <div class="popupPanel-title__content-container antiTitle" style:min-height="2.5rem">
       <div class="icon-wrapper">
         {#if icon}<div class="wrapped-icon"><Icon {icon} size="medium" /></div>{/if}
         <div class="title-wrapper">

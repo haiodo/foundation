@@ -16,7 +16,8 @@
   import InlineCommentPresenter from './InlineCommentPresenter.svelte'
   import textEditor from '@hcengineering/text-editor'
   import { ReferenceInput } from '@hcengineering/text-editor-resources'
-  import { Action, Scroller, IconCheck, AnySvelteComponent } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { Scroller, IconCheck, AnySvelteComponent } from '@hcengineering/ui'
   import chunter from '../../plugin'
 
   export let thread: any
@@ -35,7 +36,7 @@
       ? [
           {
             label: chunter.string.ResolveThread,
-            icon: IconCheck as AnySvelteComponent,
+            icon: IconCheck,
             group: 'inline-comment',
             inline: true,
             action: async () => {

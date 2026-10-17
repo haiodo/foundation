@@ -14,15 +14,18 @@
 -->
 
 <script lang="ts">
-  import { ActivityMessage, ActivityMessagePreviewType } from '@hcengineering/activity'
+  import type { ActivityMessageLite, ActivityMessagePreviewType } from '@hcengineering/activity'
   import { getClient } from '@hcengineering/presentation'
-  import { Action, Component } from '@hcengineering/ui'
-  import { Class, Doc, Ref, Space } from '@hcengineering/core'
+  import type { Action } from '@hcengineering/ui'
+  import { Component } from '@hcengineering/ui'
+  import type { BlobType, Doc, Ref, Space } from '@hcengineering/core'
+  import { Class } from '@hcengineering/core'
 
   import activity from '../../plugin'
 
-  export let doc: Doc | undefined
-  export let value: ActivityMessage
+  export let doc: Doc | undefined = undefined
+  export let value: ActivityMessageLite
+  export let attachments: BlobType[] = []
   export let readonly = false
   export let type: ActivityMessagePreviewType = 'full'
   export let actions: Action[] = []
@@ -31,10 +34,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  $: previewMixin = hierarchy.classHierarchyMixin(
-    value._class as Ref<Class<Doc>>,
-    activity.mixin.ActivityMessagePreview
-  )
+  $: previewMixin = hierarchy.classHierarchyMixin(value._class, activity.mixin.ActivityMessagePreview)
 </script>
 
 {#if previewMixin}
@@ -47,7 +47,8 @@
       readonly,
       actions,
       space,
-      doc
+      doc,
+      attachments
     }}
     on:click
   />

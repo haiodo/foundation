@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { Timestamp } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
-  import {
+  import type { Timestamp } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
+  import ui, {
     Label,
     areDatesEqual,
     ticker,
     Header,
-    ButtonIcon,
-    ButtonBase,
     IconChevronLeft,
     IconChevronRight,
     getFormattedDate
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import IconSun from './icons/Sun.svelte'
   import time from '../plugin'
 
@@ -27,12 +27,6 @@
   }
 
   function getTitle (day: Date, now: Timestamp): IntlString {
-    // const today = new Date(now)
-    // const tomorrow = new Date(new Date(now).setDate(new Date(now).getDate() + 1))
-    // const yesterday = new Date(new Date(now).setDate(new Date(now).getDate() - 1))
-    // if (areDatesEqual(day, today)) return time.string.Today
-    // if (areDatesEqual(day, yesterday)) return time.string.Yesterday
-    // if (areDatesEqual(day, tomorrow)) return time.string.Tomorrow
     const isCurrentYear = day.getFullYear() === new Date().getFullYear()
     return getEmbeddedLabel(
       day.toLocaleDateString('default', {
@@ -47,30 +41,31 @@
   $: isToday = areDatesEqual(currentDate, new Date($ticker))
 </script>
 
-<Header adaptive={'disabled'}>
+<Header adaptive="disabled">
   <div class="heading-medium-20 line-height-auto overflow-label pl-2">
     <Label label={getTitle(currentDate, $ticker)} />
   </div>
 
   <svelte:fragment slot="actions" let:doubleRow>
     <slot />
-    <ButtonIcon
+    <IconButton
       icon={IconChevronLeft}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnPrev'}
+      kind="secondary"
+      size="small"
+      data-id="btnPrev"
+      tooltip={{ label: ui.string.Back }}
       on:click={() => {
         inc(-1)
       }}
     />
-    <ButtonBase
+    <Button
       icon={IconSun}
-      label={!doubleRow ? time.string.TodayColon : undefined}
-      title={!doubleRow ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
-      type={!doubleRow ? 'type-button' : 'type-button-icon'}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnToday'}
+      label={!doubleRow ? ui.string.TodayDate : undefined}
+      labelParams={{ date: getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) }}
+      tooltip={doubleRow ? { label: time.string.Today } : undefined}
+      kind="secondary"
+      size="small"
+      data-id="btnToday"
       inheritFont
       hasMenu
       disabled={isToday}
@@ -78,11 +73,12 @@
         inc(0)
       }}
     />
-    <ButtonIcon
+    <IconButton
       icon={IconChevronRight}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnNext'}
+      kind="secondary"
+      size="small"
+      data-id="btnNext"
+      tooltip={{ label: ui.string.Next }}
       on:click={() => {
         inc(1)
       }}

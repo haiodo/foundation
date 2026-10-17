@@ -15,14 +15,19 @@
 
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import core, { Class, Ref, SpaceTypeDescriptor, generateId, SpaceType, Data } from '@hcengineering/core'
+  import type { Class, Ref, SpaceTypeDescriptor, SpaceType, Data } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
   import { Card, getClient, hasResource } from '@hcengineering/presentation'
-  import { AnySvelteComponent, EditBox } from '@hcengineering/ui'
-  import { Resource, getResource } from '@hcengineering/platform'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { EditBox, getCurrentResolvedLocation, navigate } from '@hcengineering/ui'
+  import type { Resource } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import { ObjectBox } from '@hcengineering/view-resources'
-  import setting, { SpaceTypeCreator, createSpaceType } from '@hcengineering/setting'
+  import type { SpaceTypeCreator } from '@hcengineering/setting'
+  import setting, { createSpaceType } from '@hcengineering/setting'
 
   import settingRes from '../../plugin'
+  import { clearSettingsStore } from '../../store'
 
   const dispatch = createEventDispatcher()
   const client = getClient()
@@ -30,15 +35,16 @@
 
   let name: string = ''
   let descriptor: SpaceTypeDescriptor | undefined = undefined
-  let handleTypeCreated: (() => Promise<void>) | undefined
+  let handleTypeCreated: (() => Promise<Ref<SpaceType> | undefined>) | undefined
 
   async function createType (): Promise<void> {
     if (descriptor === undefined) {
       return
     }
 
+    let typeId: Ref<SpaceType> | undefined
     if (handleTypeCreated !== undefined) {
-      await handleTypeCreated()
+      typeId = await handleTypeCreated()
     } else {
       const data: Omit<Data<SpaceType>, 'targetClass'> = {
         name,
@@ -46,10 +52,20 @@
         roles: 0
       }
 
-      await createSpaceType(client, data, generateId())
+      typeId = await createSpaceType(client, data, generateId())
     }
 
     dispatch('close')
+    if (typeId !== undefined) openType(typeId)
+  }
+
+  function openType (typeId: Ref<SpaceType>): void {
+    clearSettingsStore()
+    const loc = getCurrentResolvedLocation()
+    loc.path[3] = 'spaceTypes'
+    loc.path[4] = typeId
+    loc.path.length = 5
+    navigate(loc)
   }
 
   const descriptors = client
@@ -62,13 +78,13 @@
   $: typeCreator =
     descriptor !== undefined
       ? hierarchy.classHierarchyMixin<Class<SpaceTypeDescriptor>, SpaceTypeCreator>(
-        descriptor._class,
-        setting.mixin.SpaceTypeCreator
-      )
+          descriptor._class,
+          setting.mixin.SpaceTypeCreator
+        )
       : undefined
 
   let extraComponent: AnySvelteComponent | undefined
-  $: loadExtraComponent(typeCreator)
+  $: void loadExtraComponent(typeCreator)
 
   async function loadExtraComponent (tc: SpaceTypeCreator | undefined): Promise<void> {
     if (tc === undefined) {
@@ -108,9 +124,9 @@
       label={core.string.SpaceType}
       searchField="name"
       showNavigate={false}
-      groupBy={'baseClass'}
+      groupBy="baseClass"
       focusIndex={20000}
-      id={'selectSpaceType'}
+      id="selectSpaceType"
     />
   </svelte:fragment>
   <div class="flex-col flex-gap-2">

@@ -1,5 +1,6 @@
 //
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 
 // Load sass-quiet FIRST to install stderr filter
@@ -7,8 +8,8 @@ const sass = require('../common/scripts/sass-quiet.js')
 
 const Dotenv = require('dotenv-webpack')
 const path = require('path')
-const CompressionPlugin = require('compression-webpack-plugin')
 const DefinePlugin = require('webpack').DefinePlugin
+const ContextReplacementPlugin = require('webpack').ContextReplacementPlugin
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const CopyPlugin = require('copy-webpack-plugin')
 
@@ -17,7 +18,20 @@ const prod = mode === 'production'
 const dev = (process.env.CLIENT_TYPE ?? '') === 'dev' || mode === 'development'
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 console.log('mode', mode)
-const { EsbuildPlugin } = require('esbuild-loader')
+const MinimizerPlugin = require('minimizer-webpack-plugin')
+const { EscapeNonLatin1Plugin } = require('../common/scripts/escape-non-latin1.js')
+const minifiers = {
+  swc: { minify: MinimizerPlugin.swcMinify, minimizerOptions: { ecma: 2022 } },
+  // Same as the server bundles (common/scripts/esbuild.js): keep names, no syntax lowering.
+  esbuild: { minify: MinimizerPlugin.esbuildMinify, minimizerOptions: { target: 'esnext', keepNames: true, charset: 'ascii' } },
+  terser: { minify: MinimizerPlugin.terserMinify }
+}
+
+// MINIFIER=esbuild|swc|terser selects the JS minifier for production builds; esbuild by default.
+const minifier = minifiers[process.env.MINIFIER ?? 'esbuild']
+if (minifier === undefined) {
+  throw new Error(`Unknown MINIFIER=${process.env.MINIFIER}, expected one of: ${Object.keys(minifiers).join(', ')}`)
+}
 
 const doValidate = !prod || process.env.DO_VALIDATE === 'true'
 
@@ -38,7 +52,7 @@ module.exports = [
           use: {
             loader: 'esbuild-loader',
             options: {
-              target: 'es2021',
+              target: 'es2022',
               keepNames: true,
               minify: prod,
               sourcemap: true
@@ -98,7 +112,7 @@ module.exports = [
           use: {
             loader: 'esbuild-loader',
             options: {
-              target: 'es2021',
+              target: 'es2022',
               keepNames: true,
               minify: prod,
               sourcemap: true
@@ -115,7 +129,7 @@ module.exports = [
     },
     resolve: {
       extensions: ['.ts', '.js'],
-      conditionNames: ['svelte', 'browser', 'import'],
+      conditionNames: ['node', 'svelte', 'browser', 'import'],
       alias: {
         ws: path.resolve('node_modules', 'ws/index.js')
       }
@@ -155,12 +169,12 @@ module.exports = [
       filename: '[name].js',
       chunkFilename: '[name].js',
       publicPath: './',
-      chunkFormat: false,
       clean: true
     },
     optimization: prod
       ? {
-          minimize: true
+          minimize: true,
+          minimizer: [new MinimizerPlugin(minifier), new EscapeNonLatin1Plugin()]
         }
       : {
           minimize: false,
@@ -173,7 +187,7 @@ module.exports = [
           test: /\.ts?$/,
           loader: 'esbuild-loader',
           options: {
-            target: 'es2021',
+            target: 'es2022',
             keepNames: true,
             minify: prod,
             sourcemap: true
@@ -191,6 +205,8 @@ module.exports = [
               emitCss: true,
               hotReload: !prod,
               preprocess: require('svelte-preprocess')({
+                // Keeps imports that only the markup uses; see platform-rig/bin/compile.js.
+                typescript: { compilerOptions: { verbatimModuleSyntax: true } },
                 postcss: true,
                 sourceMap: true,
                 scss: {
@@ -340,7 +356,6 @@ module.exports = [
           isWindows: true
         }
       }),
-      ...(!dev ? [new CompressionPlugin()] : []),
       // new MiniCssExtractPlugin({
       //   filename: '[name].[id][contenthash].css'
       // }),
@@ -348,6 +363,7 @@ module.exports = [
       new DefinePlugin({
         'process.env.CLIENT_TYPE': JSON.stringify(process.env.CLIENT_TYPE)
       }),
+      new ContextReplacementPlugin(/emojibase-data/, /^\.\/(en|ru|de|es|es-mx|fr|it|ja|pt|zh)(\/.*)?\.json$/),
       ...(doValidate ? [new ForkTsCheckerWebpackPlugin()] : [])
     ],
     watchOptions: {

@@ -15,46 +15,26 @@ on:
       - v*
       - s*
     paths-ignore:
-      - 'docs/**'
+      - "docs/**"
   pull_request:
     branches: [develop, staging, staging-new, main]
     paths-ignore:
-      - 'docs/**'
+      - "docs/**"
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
       run-cockroach:
-        description: 'Run CockroachDB tests (with profiling)'
+        description: "Run CockroachDB tests (with profiling)"
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
 env:
-  CacheFolders: |
-    communication
-    common
-    desktop
-    desktop-package
-    foundations
-    dev
-    models
-    packages
-    plugins
-    pods
-    server
-    server-plugins
-    templates
-    services
-    workers
-    tests
-    rush.json
-    .prettierrc
-    tools
-    workers
-    ws-tests
   PublishTempFolder: publish_artifacts
-  INIT_SCRIPTS_BRANCH: 'main'
+  # Forks publish under their own Docker Hub account: set the DOCKER_NAMESPACE repo variable.
+  DOCKER_NAMESPACE: ${{ vars.DOCKER_NAMESPACE || 'intabiafusion' }}
+  INIT_SCRIPTS_BRANCH: "main"
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -68,40 +48,30 @@ jobs:
           fetch-depth: 0
           filter: tree:0
           submodules: recursive
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
       # - name: Cheking model is updated...
       #   run: node common/scripts/check_model_version.js
 
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
-      - name: Checking for mis-matching transitive dependencies...
-        run: node common/scripts/check-versions.js
+      - name: Checking layer boundaries...
+        run: node common/scripts/check-layers.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Model version from git tags
-        run: node common/scripts/install-run-rush.js model-version
+        run: pnpm model-version
 
-      - name: Bundle...
-        run: node common/scripts/install-run-rush.js fast-build:bundle
-
-      - name: Validate...
-        run: node common/scripts/install-run-rush.js fast-build:validate
+      - name: Building and bundling...
+        run: pnpm bundle
 
       - name: Build @intabia-fusion/api bundle
         run: |
@@ -113,22 +83,65 @@ jobs:
           npm pack
 
       - name: Upload @intabia-fusion/api bundle artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: intabia-fusion-api-bundle
           path: dev/api/bundle/intabia-fusion-api-*.tgz
           if-no-files-found: error
 
-      - name: Cache build results
-        uses: actions/cache@v5
+      # Server images from the bundles above (no web UI), the ws-tests stand with api-tests and
+      # backup-tests, then unit + integration under istanbul with the stand's V8 coverage folded in.
+      - name: Testing...
+        run: |
+          set -o pipefail
+          if [ -n "$DOCKER_ACCESS_TOKEN" ]; then
+            echo "$DOCKER_ACCESS_TOKEN" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+          fi
+          ./ci_test.sh | tee /tmp/coverage.log
         env:
-          cache-name: cache-build-results
+          DOCKER_ACCESS_TOKEN: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+          DOCKER_CLI_HINTS: false
+          DOCKER_BUILDKIT: 1
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage'
+            echo ''
+            grep -E '^\s+(TOTAL|STAND) ' /tmp/coverage.log || true
+            echo ''
+            echo '<details><summary>By package, worst first</summary>'
+            echo ''
+            echo '```'
+            sed -n '/=== Coverage by package/,/TOTAL/p' /tmp/coverage.log || true
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v6
         with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
+          name: coverage
+          path: |
+            coverage/lcov.info
+            coverage/cobertura-coverage.xml
+            coverage/html
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload API test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: api-tests
+          path: |
+            api-tests/logs/
+            api-tests/sanity/logs/
+          if-no-files-found: ignore
+
   svelte-check:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -138,23 +151,22 @@ jobs:
           filter: tree:0
           submodules: recursive
 
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
 
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
+
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
+      - name: Building...
+        run: pnpm build
 
       - name: Checking svelte sources...
-        run: node common/scripts/install-run-rush.js fast-build:svelte-check
+        run: pnpm svelte-check
   formatting:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -162,20 +174,21 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
+
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
+      - name: Building...
+        run: pnpm build
 
       - name: Formatting...
-        run: node common/scripts/install-run-rush.js fast-format --branch ${{ github.base_ref || 'develop' }}
+        run: pnpm format:branch --branch ${{
+          github.base_ref || 'develop' }}
       - name: Check files formatting
         run: |
           echo '================================================================'
@@ -184,57 +197,10 @@ jobs:
           git diff '*.js' '*.ts' '*.svelte' '*.json' '*.yaml' | cat
           [ -z "$(git diff --name-only '*.js' '*.ts' '*.svelte' '*.json' '*.yaml' | cat)" ]
           echo '================================================================'
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          filter: tree:0
-          submodules: recursive
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: '.nvmrc'
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-
-      - name: Prepare server (with rate limit retry)
-        run: |
-          set -o pipefail
-          cd ./tests
-          if ./prepare-tests.sh 2>&1 | tee /tmp/prepare-tests.log; then
-            echo "Prepare succeeded"
-          else
-            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/prepare-tests.log; then
-              echo "Rate limit hit, logging in to Docker Hub and retrying..."
-              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u haiodo --password-stdin
-              ./prepare-tests.sh
-            else
-              echo "Prepare failed (not a rate limit issue)"
-              cat /tmp/prepare-tests.log
-              exit 1
-            fi
-          fi
-      - name: Testing...
-        run: node common/scripts/install-run-rush.js fast-build:test --verbose
-        env:
-          DB_URL: 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
-          ELASTIC_URL: 'http://localhost:9201'
-          MONGO_URL: 'mongodb://localhost:27018'
-          POSTGRES_URL: 'postgresql://postgres:postgres@localhost:5433/postgres'
-
   uitest-cockroach:
     if: inputs.run-cockroach == true
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v6
         with:
@@ -243,41 +209,31 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
-              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u haiodo --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -287,22 +243,74 @@ jobs:
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1
-      - name: Configure /etc/hosts
-        run: |
-          sudo echo "127.0.0.1 huly.local" | sudo tee -a /etc/hosts
-
       # CockroachDB tests with profiling
       - name: Run UI tests (CockroachDB)
         uses: ./.github/actions/ui-test
         with:
           test-folder: tests
           prepare-script: ./prepare-cockroach.sh
-          build-package: '@hcengineering/tests-sanity'
+          build-package: "@hcengineering/tests-sanity"
           artifact-name-suffix: cockroach
-          enable-profiling: 'true'
+          enable-profiling: "true"
           docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
   uitest-pg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: tree:0
+          submodules: recursive
+      - name: Free space
+        uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
+      - name: Checking for mis-matching dependencies...
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
+
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
+      - name: Free space
+        uses: ./.github/actions/free-disk-space
+      - name: Docker Build (with rate limit retry)
+        run: |
+          set -o pipefail
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
+            echo "Docker build succeeded"
+          else
+            if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
+              echo "Rate limit hit, logging in to Docker Hub and retrying..."
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+              pnpm docker
+            else
+              echo "Docker build failed (not a rate limit issue)"
+              cat /tmp/docker-build.log
+              exit 1
+            fi
+          fi
+        env:
+          DOCKER_CLI_HINTS: false
+          DOCKER_BUILDKIT: 1
+      # PostgreSQL tests
+      - name: Run UI tests (PostgreSQL)
+        uses: ./.github/actions/ui-test
+        with:
+          test-folder: tests
+          prepare-script: ./prepare-pg.sh
+          build-package: "@hcengineering/tests-sanity"
+          artifact-name-suffix: pg
+          enable-profiling: "false"
+          docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+  uitest-qms:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -313,41 +321,31 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
-              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u haiodo --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -357,19 +355,16 @@ jobs:
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1
-      - name: Configure /etc/hosts
-        run: |
-          sudo echo "127.0.0.1 huly.local" | sudo tee -a /etc/hosts
-
-      # PostgreSQL tests
-      - name: Run UI tests (PostgreSQL)
+      # QMS tests (isolated qms-tests project)
+      - name: Run UI tests (QMS)
         uses: ./.github/actions/ui-test
         with:
-          test-folder: tests
-          prepare-script: ./prepare-pg.sh
-          build-package: '@hcengineering/tests-sanity'
-          artifact-name-suffix: pg
-          enable-profiling: 'true'
+          test-folder: qms-tests
+          prepare-script: ./prepare-qms.sh
+          build-package: "@hcengineering/qms-tests-sanity"
+          artifact-name-suffix: qms
+          container-prefix: "qms-"
+          enable-profiling: "false"
           docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
   uitest-workspaces:
@@ -383,41 +378,31 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
-              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u haiodo --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -427,23 +412,18 @@ jobs:
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1
-      - name: Configure /etc/hosts
-        run: |
-          sudo echo "127.0.0.1 huly.local" | sudo tee -a /etc/hosts
-
       # Workspace tests with API tests (first, fastest)
       - name: Run UI tests (Workspaces)
         uses: ./.github/actions/ui-test
         with:
           test-folder: ws-tests
           prepare-script: ./prepare.sh
-          build-package: '@hcengineering/tests-ws-sanity'
+          build-package: "@hcengineering/tests-ws-sanity"
           artifact-name-suffix: ws
-          run-api-tests: 'true'
           docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
   docker-build:
-    needs: [uitest-workspaces]
+    needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -453,12 +433,10 @@ jobs:
           fetch-depth: 0
           filter: tree:0
           submodules: recursive
-      - name: Free space
-        uses: ./.github/actions/free-disk-space
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Configure docker
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@v5
         with:
           daemon-config: |
             {
@@ -466,40 +444,30 @@ jobs:
                 "containerd-snapshotter": true
               }
             }
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Model version from git tags
-        run: node common/scripts/install-run-rush.js model-version
+        run: pnpm model-version
 
       - name: Docker build (with rate limit retry)
+        # --esbuild-emit: images need only JS (esbuild writes lib/ either way); types were already
+        # checked by the build job, and tsc here cost ~160s of declarations nobody reads.
         run: |
           set -o pipefail
           docker system prune -a -f
-          if node common/scripts/install-run-rush.js fast-build:docker-build -v  2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker:build -v --esbuild-emit 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
-              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u haiodo --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker-build -v
+              echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+              pnpm docker:build -v --esbuild-emit
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -509,19 +477,31 @@ jobs:
           docker builder prune -a -f
         env:
           DOCKER_CLI_HINTS: false
-          DOCKER_EXTRA: --platform=linux/amd64,linux/arm64
+          # arm64 is built under QEMU emulation and dominates this step. Only release tags are
+          # pushed, so non-tag runs validate amd64 only.
+          DOCKER_EXTRA: ${{ (startsWith(github.ref, 'refs/tags/v') ||
+            startsWith(github.ref, 'refs/tags/s')) &&
+            '--platform=linux/amd64,linux/arm64' || '--platform=linux/amd64' }}
           DOCKER_BUILDKIT: 1
           DOCKER_BUILD_CLEANUP: true
+          # .br on top of the default .gz, only for images that get pushed.
+          DO_COMPRESS: ${{ (startsWith(github.ref, 'refs/tags/v') ||
+            startsWith(github.ref, 'refs/tags/s')) && 'true' || 'gzip' }}
+          # Bakes the license public key into the release bundles (esbuild define). Absent -> edition
+          # 'dev'. Only this release job sets it; test/uitest jobs stay dev. See fusion-deployment/licensing.
+          LICENSE_PUBLIC_KEY: ${{ secrets.LICENSE_PUBLIC_KEY }}
       - name: Docker push tag
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref,
+          'refs/tags/s') }}
         run: |
           echo Pushing release of tag ${{ github.ref }}
-          echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u haiodo --password-stdin
-          node common/scripts/install-run-rush.js docker:push -v
+          echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u "$DOCKER_NAMESPACE" --password-stdin
+          pnpm docker:push
 
   dist-build:
     # if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref,
+      'refs/tags/s') }}
     needs: build
     runs-on: macos-latest
     timeout-minutes: 60
@@ -536,65 +516,72 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: node
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install --purge
+        run: pnpm install --frozen-lockfile
       - name: Model version from git tags
-        run: node common/scripts/install-run-rush.js model-version
+        run: pnpm model-version
       - name: Package
-        run: node common/scripts/install-run-rush.js fast-build:package --to desktop -v
+        run: pnpm package --to desktop -v --esbuild-emit
+      - name: Test desktop update system
+        run: |
+          cd desktop-package
+          pnpm run test
       - name: Bump package JSON version
         run: |
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js bump
+          pnpm run bump
           cat ./package.json
-      # - name: Install the Apple certificate and provisioning profile
-      #   env:
-      #     DEV_ID_P12_BASE64: ${{ secrets.DEV_ID_P12_BASE64 }}
-      #     DEV_ID_P12_PASSWORD: ${{ secrets.DEV_ID_P12_PASSWORD }}
-      #     KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-      #   run: |
-      #     # create variables
-      #     CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-      #     KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+      - name: Install the Apple certificate and provisioning profile
+        env:
+          DEV_ID_P12_BASE64: ${{ secrets.DEV_ID_P12_BASE64 }}
+          DEV_ID_P12_PASSWORD: ${{ secrets.DEV_ID_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-      #     # import certificate from secret
-      #     echo -n "$DEV_ID_P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          # import certificate from secret
+          echo -n "$DEV_ID_P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
 
-      #     # create temporary keychain
-      #     security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-      #     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-      #     security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          # create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-      #     # import certificate to keychain
-      #     security import $CERTIFICATE_PATH -P "$DEV_ID_P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-      #     security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-      #     security list-keychain -d user -s $KEYCHAIN_PATH
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$DEV_ID_P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
       - name: Build distribution's
-        # env:
-        #   APPLE_ID: ${{ secrets.APPLE_ID }}
-        #   APPLE_ID_APP_PASS: ${{ secrets.APPLE_ID_APP_PASS }}
-        #   TEAM_ID: ${{ secrets.TEAM_ID }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_APP_PASS: ${{ secrets.APPLE_ID_APP_PASS }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          # electron-builder 26 shells out to the package manager from
+          # desktop-package/package.json ("packageManager": "pnpm@..").
+          pnpm --version
+          cd desktop-package
+          pnpm run dist --linux --x64
+          pnpm run dist --windows --x64
+          pnpm run dist-signed --macos --x64 --arm64
+          # ./scripts/copy-publish-artifacts.sh ${{ env.PublishTempFolder}}
+      - name: Verify update manifests
         run: |
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js dist --linux --x64
-          node ../common/scripts/install-run-rushx.js dist --windows --x64
-          node ../common/scripts/install-run-rushx.js dist --macos --x64 --arm64
-          # ./scripts/copy-publish-artifacts.sh ${{ env.PublishTempFolder}}
+          node scripts/verify-manifests.js deploy latest
+      - name: Fetch blockmaps of previous releases
+        # Differential updates need the blockmap of the installed version; the image holds one build.
+        run: |
+          cd desktop-package
+          node scripts/fetch-previous-blockmaps.js deploy https://platform.intabia.ru/_dist --limit=5
       # - name: Publish distribution assets and version
       #   uses: ryand56/r2-upload-action@latest
       #   with:
@@ -605,43 +592,43 @@ jobs:
       #     source-dir: desktop-package/${{ env.PublishTempFolder}}
       #     destination-dir: ./
       - name: Upload MacOS
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-MacOS-x64
           path: ./desktop-package/deploy/Platform-macos-*-x64.dmg
       - name: Upload MacOS Zip
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-MacOS-zip
           path: ./desktop-package/deploy/Platform-macos*.zip
       - name: Upload MacOS arm64
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-MacOS-arm64
           path: ./desktop-package/deploy/Platform-macos-*-arm64.dmg
       - name: Upload Windows
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-Windows
           path: ./desktop-package/deploy/Platform-windows-*.exe
       - name: Upload Windows zip
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-Windows-zip
           path: ./desktop-package/deploy/Platform-windows-*.zip
       - name: Upload Linux
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-Linux-arm64
           path: ./desktop-package/deploy/Platform-linux-*-arm64.zip
       - name: Upload Linux
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-Linux-x64
           path: ./desktop-package/deploy/Platform-linux-*-x64.zip
 
       - name: Upload Linux App image
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: Platform-Linux-AppImage
           path: ./desktop-package/deploy/Platform-linux-*.AppImage
@@ -655,21 +642,22 @@ jobs:
       - name: Build server bundle (macOS only)
         run: |
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js bundle:server
+          pnpm run bundle:server
 
       - name: Upload server bundle
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: server-bundle
           path: ./desktop-package/bundle
       - name: Upload manifests (yml + blockmap)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-manifests
           path: |
             ./desktop-package/deploy/*.yml
             ./desktop-package/deploy/*.yaml
             ./desktop-package/deploy/*.blockmap
+            ./desktop-package/deploy/previous-blockmaps.json
 
       - name: Set release info
         id: release_info
@@ -687,9 +675,9 @@ jobs:
           filter: tree:0
           submodules: recursive
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Configure docker
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@v5
         with:
           daemon-config: |
             {
@@ -699,52 +687,52 @@ jobs:
             }
 
       - name: Download Platform-MacOS-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-MacOS-x64
           path: ./desktop-package/deploy
       - name: Download Platform-MacOS-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-MacOS-arm64
           path: ./desktop-package/deploy
       - name: Download Platform-MacOS-zip
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-MacOS-zip
           path: ./desktop-package/deploy
       - name: Download Platform-Windows
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-Windows
           path: ./desktop-package/deploy
       - name: Download Platform-Windows-zip
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-Windows-zip
           path: ./desktop-package/deploy
       # - name: Download Platform-Linux-arm64
-      #   uses: actions/download-artifact@v5
+      #   uses: actions/download-artifact@v7
       #   with:
       #     name: Platform-Linux-arm64
       #     path: ./desktop-package/deploy
       - name: Download Platform-Linux-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-Linux-x64
           path: ./desktop-package/deploy
       - name: Download Platform-Linux-AppImage
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: Platform-Linux-AppImage
           path: ./desktop-package/deploy
       - name: Download server-bundle
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: server-bundle
           path: ./desktop-package/bundle
       - name: Download desktop-manifests
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: desktop-manifests
           path: ./desktop-package/deploy
@@ -752,20 +740,20 @@ jobs:
       - name: List downloaded artifacts
         run: ls -R ./desktop-package/deploy || true
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
-          username: haiodo
+          username: ${{ env.DOCKER_NAMESPACE }}
           password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
       - name: Build and push Docker image (via package script)
         run: |
           set -euo pipefail
           cd desktop-package
-          ../common/scripts/docker_build.sh haiodo/desktop-distro
-          ../common/scripts/docker_tag.sh haiodo/desktop-distro
+          ../common/scripts/docker_build.sh desktop-distro
+          ../common/scripts/docker_tag.sh desktop-distro
         env:
           DOCKER_CLI_HINTS: false
           DOCKER_BUILDKIT: 1

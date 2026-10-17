@@ -15,12 +15,12 @@
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
   import { SelectPopup } from '@hcengineering/ui'
-  import view, { Filter, FilterMode } from '@hcengineering/view'
+  import type { Filter, FilterMode } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { FilterQuery } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import recruit from '../plugin'
 
-  // export let _class: Ref<Class<Doc>>
   export let filter: Filter
   export let onChange: (e: Filter) => void
 
@@ -35,7 +35,7 @@
 
   let modes: FilterMode[] = []
 
-  client.findAll(view.class.FilterMode, { _id: { $in: filter.modes } }).then((res) => {
+  void client.findAll(view.class.FilterMode, { _id: { $in: filter.modes } }).then((res) => {
     modes = res
   })
 </script>

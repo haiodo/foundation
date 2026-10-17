@@ -1,16 +1,13 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { type Event } from '@hcengineering/communication-sdk-types'
 import type {
   Class,
   Doc,
   Domain,
   MeasureContext,
   Ref,
-  Space,
   Tx,
   TxCreateDoc,
   TxCUD,
-  TxDomainEvent,
   Version,
   WorkspaceInfoWithStatus,
   WorkspaceUuid
@@ -27,23 +24,12 @@ import {
   type PlatformQueueProducer,
   type QueueWorkspaceMessage
 } from '@hcengineering/server-core'
+import { sharedSystemModel } from '@hcengineering/middleware'
 import { generateToken } from '@hcengineering/server-token'
 
 import { RatingCalculator } from './calculator'
 import { QueueRatingEvent, ratingEvents, type QueueCalculateMessage, type QueueRatingMessage } from './types'
-import { getIgnoreDomains } from './utils'
-
-// Inner presentation in message queue differs from sdk-types,
-// also date is always filled at the output queue
-export type QueueSourced<T extends Event> = Omit<T, 'date'> & { date: string }
-
-// type IndexableCommunicationEvent =
-//   | QueueSourced<CreateMessageEvent>
-//   | QueueSourced<UpdatePatchEvent>
-//   | QueueSourced<AttachmentPatchEvent>
-//   | QueueSourced<RemovePatchEvent>
-//   | QueueSourced<UpdateCardTypeEvent>
-//   | QueueSourced<RemoveCardEvent>
+import { fulltextModelFilter, getIgnoreDomains } from './utils'
 
 const ratingTopic = 'rating'
 
@@ -74,10 +60,16 @@ export class WorkspaceManager {
       accountsUrl: string
     }
   ) {
+    // The filter needs a complete hierarchy, so classes are applied before documents are dropped.
     for (const tx of model) {
       this.sysHierarchy.tx(tx)
     }
-    this.sysModel.addTxes(ctx, model, true)
+    // System model is the same for every workspace, so it is built (and filtered) once.
+    this.sysModel.addTxes(ctx, fulltextModelFilter(this.sysHierarchy, model), true)
+    if (sharedSystemModel) {
+      // Shared with every calculator: frozen, a stray direct write throws instead of corrupting neighbours.
+      this.sysModel.freeze()
+    }
 
     this.supportedVersion = TxProcessor.createDoc2Doc(
       model.find(
@@ -136,7 +128,7 @@ export class WorkspaceManager {
     )
 
     let txMessages: number = 0
-    this.txConsumer = this.opt.queue.createConsumer<TxCUD<Doc> | TxDomainEvent<QueueSourced<Event>>>(
+    this.txConsumer = this.opt.queue.createConsumer<TxCUD<Doc>>(
       this.ctx,
       QueueTopic.Tx,
       this.opt.queue.getClientId(),
@@ -154,10 +146,7 @@ export class WorkspaceManager {
     )
   }
 
-  private async processTxTransactions (
-    m: ConsumerMessage<TxCUD<Doc<Space>> | TxDomainEvent<QueueSourced<Event>>>,
-    control: ConsumerControl
-  ): Promise<void> {
+  private async processTxTransactions (m: ConsumerMessage<TxCUD<Doc>>, control: ConsumerControl): Promise<void> {
     try {
       const ws = m.workspace
 
@@ -165,12 +154,12 @@ export class WorkspaceManager {
         return
       }
       if (TxProcessor.isExtendsCUD(m.value._class)) {
-        const cud = m.value as TxCUD<Doc>
+        const cud = m.value
         const domain = this.sysHierarchy.findDomain(cud.objectClass)
 
         // If in ignore domains, skip
         const d = domain != null ? this.ignoreDomains.get(domain) : undefined
-        if (d != null && d.has(cud.objectClass)) {
+        if (d?.has(cud.objectClass) === true) {
           return
         }
 
@@ -297,6 +286,8 @@ export class WorkspaceManager {
       return await RatingCalculator.create(
         ctx,
         this.model,
+        sharedSystemModel ? this.sysHierarchy : undefined,
+        sharedSystemModel ? this.sysModel : undefined,
         {
           uuid: workspace,
           dataId: workspaceInfo.dataId,

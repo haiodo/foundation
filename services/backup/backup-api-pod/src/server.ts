@@ -98,7 +98,7 @@ async function traverseBackup (
     }
   }
 
-  // Let's calculate data size for backup
+  // calculate data size for backup
   for (const sn of backupInfo.snapshots) {
     for (const [, d] of Object.entries(sn.domains)) {
       snapshot(sn.date)
@@ -122,6 +122,7 @@ export async function createServer (ctx: MeasureContext, config: Config): Promis
   const storageAdapter = createStorageFromConfig(backupStorageConfig.storages[0])
 
   const app = express()
+  app.disable('x-powered-by')
   app.use(cors({}))
   app.use(express.json({ limit: '50mb' }))
   app.use(keepAlive({ timeout: KEEP_ALIVE_TIMEOUT, max: KEEP_ALIVE_MAX }))

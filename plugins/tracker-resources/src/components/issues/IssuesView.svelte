@@ -1,21 +1,46 @@
+<!--
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+-->
 <script lang="ts">
-  import { Doc, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
-  import { Asset, IntlString, translateCB } from '@hcengineering/platform'
+  import type { Doc, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
+  import { isOwnerOrMaintainer } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { translateCB } from '@hcengineering/platform'
   import { ComponentExtensions, getClient } from '@hcengineering/presentation'
-  import { Issue, TrackerEvents } from '@hcengineering/tracker'
-  import { IModeSelector, themeStore } from '@hcengineering/ui'
-  import { ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { Issue, Project } from '@hcengineering/tracker'
+  import { TrackerEvents } from '@hcengineering/tracker'
+  import type { IModeSelector } from '@hcengineering/ui'
+  import { BlankView, type DropdownIntlItem, IconMoreH, showPopup, themeStore } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
+  import type { ViewOptions, Viewlet } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import {
     FilterBar,
+    filterStore,
     selectionStore,
     setViewOptions,
     SpaceHeader,
     ViewletContentView,
     ViewletSettingButton
   } from '@hcengineering/view-resources'
+  import task, { type Project as TaskProject } from '@hcengineering/task'
+  import { ProjectTypeSettingsLink, TaskTypeDiagramPopup, taskTypeStore } from '@hcengineering/task-resources'
+  import type { ProjectWorkflow } from '@hcengineering/workflow'
+  import workflow from '@hcengineering/workflow'
+
   import tracker from '../../plugin'
   import CreateIssue from '../CreateIssue.svelte'
-  import { useShowDaysStore } from '../../utils'
+  import { activeProjects, exportIssuesToCSV } from '../../utils'
   import IssueStatistics from '../milestones/IssueStatistics.svelte'
 
   export let space: Ref<Space> | undefined = undefined
@@ -32,7 +57,8 @@
   let search = ''
   let searchQuery: DocumentQuery<Issue> = { ...query }
   function updateSearchQuery (search: string): void {
-    searchQuery = search === '' ? { ...query } : { ...query, $search: search }
+    searchQuery =
+      search === '' ? { ...query } : { ...query, $search: search, $searchIn: ['title', 'identifier', 'content'] }
   }
   $: if (query) updateSearchQuery(search)
   let resultQuery: DocumentQuery<Issue> = { ...searchQuery }
@@ -43,7 +69,95 @@
     })
   }
 
-  $: $useShowDaysStore = (viewOptions as any)?.shouldShowDays === true
+  const client = getClient()
+  const hierarchy = client.getHierarchy()
+  $: currentProject = space ? ($activeProjects.get(space as Ref<Project>) as ProjectWorkflow | undefined) : undefined
+  $: workflowsMap =
+    currentProject && hierarchy.hasMixin(currentProject, workflow.mixin.ProjectWorkflow)
+      ? hierarchy.as<TaskProject, ProjectWorkflow>(currentProject, workflow.mixin.ProjectWorkflow).workflows
+      : undefined
+  $: hasWorkflow = workflowsMap != null && Object.keys(workflowsMap).length > 0
+  $: currentTaskTypes = currentProject?.type
+    ? Array.from($taskTypeStore.values()).filter((t) => t.parent === currentProject.type)
+    : []
+  $: hasTaskTypes = currentTaskTypes.length > 0
+  $: noTaskTypes = currentProject !== undefined && $taskTypeStore.size > 0 && !hasTaskTypes
+
+  // Same check as the project type editor in settings
+  const canConfigureTypes = isOwnerOrMaintainer()
+
+  const WORKFLOW_ITEM_ID = 'workflow'
+  const TASK_TYPES_ITEM_ID = 'task-types'
+  const EXPORT_CSV_ITEM_ID = 'export-scv'
+
+  $: menuItems = [
+    ...(hasWorkflow
+      ? [
+          {
+            id: WORKFLOW_ITEM_ID,
+            label: workflow.string.WorkflowScheme,
+            icon: workflow.icon.Workflow
+          }
+        ]
+      : []),
+    ...(hasTaskTypes
+      ? [
+          {
+            id: TASK_TYPES_ITEM_ID,
+            label: task.string.TaskTypesDiagram,
+            icon: task.icon.TypeHierarchy
+          }
+        ]
+      : []),
+    ...[
+      {
+        id: EXPORT_CSV_ITEM_ID,
+        label: tracker.string.ExportToCSV,
+        icon: tracker.icon.Export
+      }
+    ]
+  ] satisfies DropdownIntlItem[]
+
+  function openWorkflowDiagram (): void {
+    if (workflowsMap == null) return
+    showPopup(
+      workflow.component.WorkflowDiagramPopup,
+      {
+        space,
+        workflowsMap,
+        fullSize: false
+      },
+      'centered'
+    )
+  }
+
+  function openTaskTypeDiagram (): void {
+    if (currentTaskTypes.length === 0) return
+    showPopup(
+      TaskTypeDiagramPopup,
+      {
+        taskTypes: currentTaskTypes,
+        fullSize: false
+      },
+      'centered'
+    )
+  }
+
+  function handleMenuSelected (event?: CustomEvent<string>): void {
+    const action = event?.detail
+    if (action === WORKFLOW_ITEM_ID) {
+      openWorkflowDiagram()
+    } else if (action === TASK_TYPES_ITEM_ID) {
+      openTaskTypeDiagram()
+    } else if (action === EXPORT_CSV_ITEM_ID) {
+      void exportIssuesToCSV(resultQuery)
+    }
+  }
+
+  $: isFiltered = search !== '' || $filterStore.length > 0
+  $: emptyState = isFiltered
+    ? { icon: tracker.icon.Issues, header: tracker.string.NoIssuesFound, label: tracker.string.NoIssuesFoundText }
+    : { icon: tracker.icon.Issues, header: tracker.string.NoIssuesYet, label: tracker.string.NoIssuesYetText }
 
   // Prevent groupBy and swimLaneBy from being the same field.
   $: if (viewlet != null && viewOptions != null) {
@@ -74,7 +188,7 @@
   bind:viewlet
   bind:search
   showLabelSelector={$$slots.label_selector}
-  viewletQuery={{ attachTo: tracker.class.Issue, variant: { $nin: ['subissue', 'component', 'milestone'] } }}
+  viewletQuery={{ attachTo: tracker.class.Issue, variant: { $exists: false } }}
   {viewlets}
   {label}
   {space}
@@ -94,6 +208,17 @@
   </svelte:fragment>
 
   <svelte:fragment slot="actions">
+    {#if menuItems.length > 0}
+      <MenuButton
+        icon={IconMoreH}
+        kind="secondary"
+        size="small"
+        noSelection
+        tooltip={{ label: view.string.MoreActions }}
+        items={menuItems}
+        on:selected={handleMenuSelected}
+      />
+    {/if}
     <ComponentExtensions
       extension={tracker.extensions.IssueListHeader}
       props={{ size: 'small', kind: 'tertiary', space }}
@@ -116,7 +241,25 @@
   on:change={(e) => (resultQuery = e.detail)}
 />
 <slot name="afterHeader" />
-{#if viewlet !== undefined && viewOptions !== undefined}
+{#if noTaskTypes && currentProject !== undefined}
+  <div class="flex-col-center flex-grow">
+    {#if canConfigureTypes}
+      <BlankView
+        icon={tracker.icon.Issues}
+        header={tracker.string.NoProjectTaskTypes}
+        label={tracker.string.NoProjectTaskTypesText}
+      >
+        <ProjectTypeSettingsLink projectType={currentProject.type} />
+      </BlankView>
+    {:else}
+      <BlankView
+        icon={tracker.icon.Issues}
+        header={tracker.string.NoProjectTaskTypes}
+        label={tracker.string.NoProjectTaskTypesAskOwner}
+      />
+    {/if}
+  </div>
+{:else if viewlet !== undefined && viewOptions !== undefined}
   <ViewletContentView
     _class={tracker.class.Issue}
     {viewlet}
@@ -127,5 +270,6 @@
     createItemLabel={tracker.string.AddIssueTooltip}
     createItemEvent={TrackerEvents.IssuePlusButtonClicked}
     createItemDialogProps={{ shouldSaveDraft: true }}
+    {emptyState}
   />
 {/if}

@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -42,6 +43,7 @@ import {
   getSchema,
   getSchemaAndFields,
   customIndexes,
+  declaredSchemas,
   type Schema,
   type SchemaAndFields,
   translateDomain
@@ -50,7 +52,9 @@ import { retryTxn, type DBClient } from '@hcengineering/postgres-base'
 
 const loadedDomains = new Set<string>()
 
-let loadedTables = new Set<string>()
+// Keyed by url: one process can talk to several databases (regions), and a table present in one is
+// not present in another.
+const loadedTables = new Map<string, Set<string>>()
 
 export const NumericTypes = [
   core.class.TypeNumber,
@@ -71,32 +75,35 @@ export async function createTables (
   }
   const mapped = filtered.map((p) => translateDomain(p))
   const t = platformNow()
-  loadedTables =
-    loadedTables.size === 0
-      ? new Set(
-        (
-          await ctx.with('load-table', {}, () =>
-            client.unsafe(`
-    SELECT table_name 
+  const cached = loadedTables.get(url)
+  const tables =
+    cached ??
+    new Set(
+      (
+        await ctx.with('load-table', {}, () =>
+          client.unsafe(`
+    SELECT table_name
     FROM information_schema.tables
-    WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+    WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'system')
     AND table_name NOT LIKE 'pg_%'
     AND table_name NOT LIKE 'cluster_%'
     AND table_name NOT LIKE 'kv_%'
     AND table_name NOT LIKE 'node_%'`)
-          )
-        ).map((it) => it.table_name)
-      )
-      : loadedTables
+        )
+      ).map((it) => it.table_name)
+    )
+  if (cached === undefined) {
+    loadedTables.set(url, tables)
+  }
   console.log('load-table', platformNowDiff(t))
 
-  const domainsToLoad = mapped.filter((it) => loadedTables.has(it))
+  const domainsToLoad = mapped.filter((it) => tables.has(it))
   if (domainsToLoad.length > 0) {
-    await ctx.with('load-schemas', {}, () => getTableSchema(client, domainsToLoad))
+    await ctx.with('load-schemas', {}, () => getTableSchema(ctx, client, domainsToLoad))
   }
   const domainsToCreate: string[] = []
   for (const domain of mapped) {
-    if (!loadedTables.has(domain)) {
+    if (!tables.has(domain)) {
       domainsToCreate.push(domain)
     } else {
       loadedDomains.add(url + domain)
@@ -104,19 +111,35 @@ export async function createTables (
   }
 
   if (domainsToCreate.length > 0) {
-    await retryTxn(client, async (client) => {
-      for (const domain of domainsToCreate) {
-        await ctx.with('create-table', {}, () => createTable(client, domain))
-        loadedDomains.add(url + domain)
+    // IF NOT EXISTS does not stop two creators racing on a fresh db (23505 on pg_type, 42P07):
+    // the loser's rerun finds the winner's tables committed.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await retryTxn(client, async (client) => {
+          for (const domain of domainsToCreate) {
+            await ctx.with('create-table', {}, () => createTable(client, domain))
+            tables.add(domain)
+            loadedDomains.add(url + domain)
+          }
+        })
+        break
+      } catch (err: any) {
+        if (attempt >= 2 || (err?.code !== '23505' && err?.code !== '42P07')) throw err
       }
-    })
+    }
   }
 }
 
-async function getTableSchema (client: postgres.Sql, domains: string[]): Promise<void> {
+// An existing table is described by its real columns: a declared column the table lacks lives in
+// jsonb `data` without an index. It is reported, as that usually means a migration did not land.
+async function getTableSchema (
+  ctx: MeasureContext,
+  client: postgres.Sql | postgres.TransactionSql,
+  domains: string[]
+): Promise<void> {
   const res = await client.unsafe(`SELECT column_name::name, data_type::text, is_nullable::text, table_name::name
             FROM information_schema.columns
-            WHERE table_name IN (${domains.map((it) => `'${it}'`).join(', ')}) and table_schema = 'public'::name  
+            WHERE table_name IN (${domains.map((it) => `'${it}'`).join(', ')}) and table_schema = 'public'::name
             ORDER BY table_name::name, ordinal_position::int ASC;`)
 
   const schemas: Record<string, Schema> = {}
@@ -135,6 +158,16 @@ async function getTableSchema (client: postgres.Sql, domains: string[]): Promise
     }
   }
   for (const [domain, schema] of Object.entries(schemas)) {
+    const declared = declaredSchemas[domain]
+    if (declared !== undefined) {
+      const missing = Object.keys(declared).filter((key) => schema[key] === undefined)
+      if (missing.length > 0) {
+        ctx.error('table is missing declared columns, their values are stored in data jsonb without indexes', {
+          domain,
+          missing
+        })
+      }
+    }
     addSchema(domain, schema)
   }
 }
@@ -145,6 +178,8 @@ function parseDataType (type: string): DataType {
       return 'text'
     case 'bigint':
       return 'bigint'
+    case 'integer':
+      return 'integer'
     case 'boolean':
       return 'bool'
     case 'ARRAY':
@@ -153,14 +188,16 @@ function parseDataType (type: string): DataType {
   return 'text'
 }
 
-async function createTable (client: postgres.Sql, domain: string): Promise<void> {
+async function createTable (client: postgres.Sql | postgres.TransactionSql, domain: string): Promise<void> {
   const schema = getSchema(domain)
   const indexes = customIndexes[domain]
 
   const fields: string[] = []
   for (const key in schema) {
     const val = schema[key]
-    fields.push(`"${key}" ${val.type} ${val.notNull ? 'NOT NULL' : ''}`)
+    fields.push(
+      `"${key}" ${val.type}${val.check != null ? ` CHECK (${val.check})` : ''} ${val.notNull ? 'NOT NULL' : ''}`
+    )
   }
   const colums = fields.join(', ')
   await client.unsafe(`CREATE TABLE IF NOT EXISTS ${domain} (
@@ -177,7 +214,9 @@ async function createTable (client: postgres.Sql, domain: string): Promise<void>
           CREATE INDEX IF NOT EXISTS ${domain}_${key}__index ON ${domain} ${getIndex(val)} ("${key}")
         `)
     }
-    fields.push(`"${key}" ${val.type} ${val.notNull ? 'NOT NULL' : ''}`)
+    fields.push(
+      `"${key}" ${val.type}${val.check != null ? ` CHECK (${val.check})` : ''} ${val.notNull ? 'NOT NULL' : ''}`
+    )
   }
 
   if (indexes !== undefined) {
@@ -238,6 +277,7 @@ export function convertDoc<T extends Doc> (
         // We missing required field, and we need to add a dummy value for it.
         // Null value is not allowed
         switch (_type.type) {
+          case 'integer':
           case 'bigint':
             extractedFields[key] = 0
             break
@@ -263,6 +303,20 @@ export function convertDoc<T extends Doc> (
   return res
 }
 
+// A number binds as numeric, which makes Postgres cast an integer or bigint column to numeric and
+// lose its btree index (`"unreadCount" > ?::numeric` skipped the partial unread index). Bind the
+// parameter in the column's own type instead.
+// Only whole numbers: parameters travel as text, and '1.5'::bigint is an error where
+// '1.5'::numeric compares fine. An integer column also rejects what does not fit int32.
+export function castForColumn (valType: string, columnType: DataType | undefined, value: unknown): string {
+  if (columnType !== 'bigint' && columnType !== 'integer') return valType
+  const fits = (it: unknown): boolean =>
+    typeof it === 'number' && Number.isSafeInteger(it) && (columnType === 'bigint' || Math.abs(it) <= 2147483647)
+  if (valType === '::numeric' && fits(value)) return '::' + columnType
+  if (valType === '::numeric[]' && Array.isArray(value) && value.every(fits)) return '::' + columnType + '[]'
+  return valType
+}
+
 export function inferType (val: any): string {
   if (typeof val === 'string') {
     return '::text'
@@ -275,6 +329,9 @@ export function inferType (val: any): string {
   }
   if (Array.isArray(val)) {
     const type = inferType(val[0] ?? val[1])
+    if (type === '::jsonb') {
+      return '::jsonb'
+    }
     if (type !== '') {
       return type + '[]'
     }
@@ -303,9 +360,9 @@ export function parseUpdate<T extends Doc> (
     if (key.startsWith('$')) {
       for (const k in val) {
         if (schemaFields.domainFields.has(k)) {
-          ;(extractedFields as any)[k] = val[key]
+          ;(extractedFields as any)[k] = val[k]
         } else {
-          ;(remainingData as any)[k] = val[key]
+          ;(remainingData as any)[k] = val[k]
         }
       }
     } else {
@@ -416,7 +473,7 @@ export function filterProjection<T extends Doc> (data: any, projection: Projecti
   // Determine if this is an inclusion or exclusion projection
   // Exclusion: has any field with value 0
   // Inclusion: has any field with value 1
-  const projectionValues = Object.values(projection as any)
+  const projectionValues = Object.values(projection)
   const hasExclusion = projectionValues.some((v) => v === 0)
   const hasInclusion = projectionValues.some((v) => v === 1 || typeof v === 'object')
 
@@ -460,86 +517,58 @@ export function filterProjection<T extends Doc> (data: any, projection: Projecti
   return data
 }
 
+// Hot path: called per row of every findAll. Column values go straight into a copy of the
+// jsonb payload, so a row costs one object instead of a rest-copy plus two spreads.
+function assignColumns (doc: DBDoc, target: Record<string, any>, schema: Schema): void {
+  for (const key in doc) {
+    if (key === 'workspaceId' || key === 'data' || key === '%hash%') continue
+    if (key.startsWith('lookup_') || key.startsWith('reverse_lookup_')) continue
+    let value = doc[key]
+    if (value === 'NULL' || value === null) {
+      if (key === 'attachedTo') continue
+      value = null
+    } else {
+      const field = schema[key]
+      if (field !== undefined) {
+        if (field.type === 'bigint' || field.type === 'integer') {
+          value = Number.parseInt(value)
+        } else if (field.type === 'text[]' && typeof value === 'string') {
+          value = decodeArray(value)
+        }
+      }
+    }
+    target[key] = value
+  }
+}
+
 export function parseDocWithProjection<T extends Doc> (
   doc: DBDoc,
   domain: string,
   projection?: Projection<T> | undefined
 ): T {
-  const { workspaceId, data, '%hash%': _hash, ...rest } = doc
-  const schema = getSchema(domain)
-  for (const key in rest) {
-    if (key.startsWith('lookup_') || key.startsWith('reverse_lookup_')) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete rest[key]
-      continue
-    }
-    if ((rest as any)[key] === 'NULL' || (rest as any)[key] === null) {
-      if (key === 'attachedTo') {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete rest[key]
-      } else {
-        ;(rest as any)[key] = null
-      }
-    } else if (schema[key] !== undefined && schema[key].type === 'bigint') {
-      ;(rest as any)[key] = Number.parseInt((rest as any)[key])
-    } else if (schema[key] !== undefined && schema[key].type === 'text[]' && typeof (rest as any)[key] === 'string') {
-      ;(rest as any)[key] = decodeArray((rest as any)[key])
-    }
-  }
-  let resultData = data
+  // A hash scan selects columns only - no jsonb payload to merge into.
+  const res = { ...doc.data }
   if (projection !== undefined) {
-    resultData = filterProjection(data, projection)
+    filterProjection(res, projection)
   }
-  const res = {
-    ...resultData,
-    ...rest
-  } as any as T
-
-  return res
+  assignColumns(doc, res, getSchema(domain))
+  return res as T
 }
 
 export function toWithLookup<T extends Doc> (doc: T): WithLookup<T> {
   const res = doc as WithLookup<T>
-  if (res.$associations === undefined) {
-    res.$associations = {}
-  }
-  if (res.$lookup === undefined) {
-    res.$lookup = {}
-  }
+  res.$associations ??= {}
+  res.$lookup ??= {}
   return res
 }
 
 export function parseDoc<T extends Doc> (doc: DBDoc, schema: Schema, keepHash: boolean = false): T {
-  const { workspaceId, data, '%hash%': _hash, ...rest } = doc
-  for (const key in rest) {
-    if (key.startsWith('lookup_') || key.startsWith('reverse_lookup_')) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete rest[key]
-      continue
-    }
-    if ((rest as any)[key] === 'NULL' || (rest as any)[key] === null) {
-      if (key === 'attachedTo') {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete rest[key]
-      } else {
-        ;(rest as any)[key] = null
-      }
-    } else if (schema[key] !== undefined && schema[key].type === 'bigint') {
-      ;(rest as any)[key] = Number.parseInt((rest as any)[key])
-    } else if (schema[key] !== undefined && schema[key].type === 'text[]' && typeof (rest as any)[key] === 'string') {
-      ;(rest as any)[key] = decodeArray((rest as any)[key])
-    }
+  const res = { ...doc.data }
+  assignColumns(doc, res, schema)
+  if (keepHash && doc['%hash%'] !== undefined) {
+    res['%hash%'] = doc['%hash%']
   }
-  const res = {
-    ...data,
-    ...rest
-  } as any as T
-
-  if (keepHash && _hash !== undefined) {
-    ;(res as any)['%hash%'] = _hash
-  }
-
-  return res
+  return res as any as T
 }
 
 export interface DBDoc extends Doc {

@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -16,7 +17,6 @@
 import {
   type ActivityMessage,
   type DocAttributeUpdates,
-  type DocUpdateAction,
   type DocUpdateMessage,
   type DocUpdateMessageHistory,
   type Reaction
@@ -52,20 +52,15 @@ import {
   getSocialIdFromOldAccount,
   getSocialKeyByOldAccount
 } from '@hcengineering/model-core'
-import notification, {
-  type ActivityInboxNotification,
-  type DocNotifyContext,
-  DOMAIN_DOC_NOTIFY,
-  DOMAIN_NOTIFICATION,
-  type MentionInboxNotification,
-  type ReactionInboxNotification
-} from '@hcengineering/notification'
+import notification, { type DocNotifyContext, DOMAIN_DOC_NOTIFY } from '@hcengineering/notification'
+import { removeOrphanPreferences } from '@hcengineering/model-preference'
 
 import { activityId, DOMAIN_ACTIVITY, DOMAIN_REACTION, DOMAIN_USER_MENTION } from './index'
 import activity from './plugin'
 
 const DOMAIN_CHUNTER = 'chunter' as Domain
 const DOMAIN_CONTACT = 'contact' as Domain
+const DOMAIN_NOTIFICATION = 'notification' as Domain
 
 async function migrateReactions (client: MigrationClient): Promise<void> {
   await client.update(
@@ -447,7 +442,7 @@ async function migrateCollaboratorsActivity (client: MigrationClient): Promise<v
           modifiedOn: doc.modifiedOn,
           attachedTo: doc.attachedTo,
           attachedToClass: doc.attachedToClass,
-          action: 'create' as DocUpdateAction,
+          action: 'create',
           updateCollection: 'collaborators',
           objectId: collaboratorId,
           objectClass: core.class.Collaborator,
@@ -472,7 +467,7 @@ async function migrateCollaboratorsActivity (client: MigrationClient): Promise<v
           modifiedOn: doc.modifiedOn,
           attachedTo: doc.attachedTo,
           attachedToClass: doc.attachedToClass,
-          action: 'remove' as DocUpdateAction,
+          action: 'remove',
           updateCollection: 'collaborators',
           objectId: generateId<Collaborator>(),
           objectClass: core.class.Collaborator,
@@ -490,12 +485,12 @@ async function migrateCollaboratorsActivity (client: MigrationClient): Promise<v
       _class: notification.class.DocNotifyContext,
       objectId: { $in: docs.map((it) => it._id) }
     })
-    await client.deleteMany<ActivityInboxNotification>(DOMAIN_NOTIFICATION, {
-      _class: notification.class.ActivityInboxNotification,
+    await client.deleteMany(DOMAIN_NOTIFICATION, {
+      _class: 'notification:class:ActivityInboxNotification' as any,
       attachedTo: { $in: docs.map((it) => it._id) }
     })
-    await client.deleteMany<ReactionInboxNotification>(DOMAIN_NOTIFICATION, {
-      _class: notification.class.ReactionInboxNotification,
+    await client.deleteMany(DOMAIN_NOTIFICATION, {
+      _class: 'notification:class:ReactionInboxNotification' as any,
       attachedTo: { $in: docs.map((it) => it._id) }
     })
     await client.deleteMany(DOMAIN_ACTIVITY, { _id: { $in: docs.map((it) => it._id) } })
@@ -813,16 +808,16 @@ async function migrateAggregateDocUpdateMessages (client: MigrationClient): Prom
         _class: notification.class.DocNotifyContext,
         objectId: { $in: arr }
       })
-      await client.deleteMany<ActivityInboxNotification>(DOMAIN_NOTIFICATION, {
-        _class: notification.class.ActivityInboxNotification,
+      await client.deleteMany<any>(DOMAIN_NOTIFICATION, {
+        _class: 'notification:class:ActivityInboxNotification' as any,
         attachedTo: { $in: arr }
       })
-      await client.deleteMany<ReactionInboxNotification>(DOMAIN_NOTIFICATION, {
-        _class: notification.class.ReactionInboxNotification,
+      await client.deleteMany<any>(DOMAIN_NOTIFICATION, {
+        _class: 'notification:class:ReactionInboxNotification' as any,
         attachedTo: { $in: arr }
       })
-      await client.deleteMany<MentionInboxNotification>(DOMAIN_NOTIFICATION, {
-        _class: notification.class.MentionInboxNotification,
+      await client.deleteMany<any>(DOMAIN_NOTIFICATION, {
+        _class: 'notification:class:MentionInboxNotification' as any,
         mentionedIn: { $in: arr }
       })
       await client.deleteMany(DOMAIN_ACTIVITY, { _id: { $in: arr } })
@@ -830,8 +825,8 @@ async function migrateAggregateDocUpdateMessages (client: MigrationClient): Prom
 
     if (toUpdate.size > 0) {
       const groupedUpdates = new Map<
-      string,
-      { filter: MigrationDocumentQuery<DocUpdateMessage>, update: MigrateUpdate<DocUpdateMessage> }[]
+        string,
+        { filter: MigrationDocumentQuery<DocUpdateMessage>, update: MigrateUpdate<DocUpdateMessage> }[]
       >()
 
       for (const [id, up] of toUpdate.entries()) {
@@ -954,6 +949,13 @@ export const activityOperation: MigrateOperation = {
         state: 'aggregate-doc-update-messages-v1',
         mode: 'upgrade',
         func: migrateAggregateDocUpdateMessages
+      },
+      {
+        state: 'remove-orphan-saved-messages-v1',
+        mode: 'upgrade',
+        func: async (client) => {
+          await removeOrphanPreferences(client, activity.class.SavedMessage, activity.class.ActivityMessage)
+        }
       }
     ])
   },

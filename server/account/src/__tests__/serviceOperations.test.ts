@@ -15,6 +15,7 @@
 
 import {
   type AccountUuid,
+  AccountRole,
   type IntegrationKind,
   type MeasureContext,
   type PersonId,
@@ -22,8 +23,9 @@ import {
   SocialIdType,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import platform, { PlatformError, Status, Severity } from '@hcengineering/platform'
+import platform, { PlatformError, Status, Severity, getMetadata } from '@hcengineering/platform'
 import { decodeTokenVerbose } from '@hcengineering/server-token'
+import { workspaceEvents, LimitCategory, LimitStatus, QueueWorkspaceEvent } from '@hcengineering/server-core'
 
 import {
   type AccountDB,
@@ -47,7 +49,14 @@ import {
   updateIntegration,
   updateIntegrationSecret,
   addIntegrationSecret,
-  upsertSubscription
+  upsertSubscription,
+  adminCreateSubscription,
+  adminUpdateSubscription,
+  getPersonInfo,
+  updateWorkspaceInfo,
+  updateBackupLease,
+  setNeedsReindex,
+  takeNeedsReindex
 } from '../serviceOperations'
 
 // Mock platform
@@ -63,6 +72,9 @@ jest.mock('@hcengineering/platform', () => {
 
 // Mock server-token
 jest.mock('@hcengineering/server-token', () => ({
+  isHumanAdmin: jest.requireActual('@hcengineering/server-token').isHumanAdmin,
+  hasAdminSession: jest.requireActual('@hcengineering/server-token').hasAdminSession,
+  ADMIN_SESSION_TTL_SEC: jest.requireActual('@hcengineering/server-token').ADMIN_SESSION_TTL_SEC,
   decodeTokenVerbose: jest.fn(),
   generateToken: jest.fn()
 }))
@@ -116,12 +128,10 @@ describe('addSocialIdToPerson', () => {
     )
   })
 
-  test('should allow admin to add social id', async () => {
+  test('should refuse an admin token: attaching an identity is a service action', async () => {
     ;(decodeTokenVerbose as jest.Mock).mockReturnValue({
       extra: { admin: 'true' }
     })
-    const newSocialId = 'new-social-id' as PersonId
-    addSocialIdSpy.mockResolvedValue(newSocialId)
 
     const params = {
       person: 'test-person' as PersonUuid,
@@ -131,17 +141,10 @@ describe('addSocialIdToPerson', () => {
       displayValue: 'test-display-value'
     }
 
-    const result = await addSocialIdToPerson(mockCtx, mockDb, mockBranding, mockToken, params)
-
-    expect(result).toBe(newSocialId)
-    expect(addSocialIdSpy).toHaveBeenCalledWith(
-      mockDb,
-      params.person,
-      params.type,
-      params.value,
-      params.confirmed,
-      params.displayValue
+    await expect(addSocialIdToPerson(mockCtx, mockDb, mockBranding, mockToken, params)).rejects.toThrow(
+      new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
     )
+    expect(addSocialIdSpy).not.toHaveBeenCalled()
   })
 
   test('should throw error for unauthorized service', async () => {
@@ -1411,7 +1414,8 @@ describe('integration methods', () => {
 describe('upsertSubscription', () => {
   const mockCtx = {
     error: jest.fn(),
-    info: jest.fn()
+    info: jest.fn(),
+    warn: jest.fn()
   } as unknown as MeasureContext
 
   const mockBranding = null
@@ -1426,6 +1430,7 @@ describe('upsertSubscription', () => {
     mockDb = {
       subscription: {
         findOne: jest.fn(),
+        find: jest.fn().mockResolvedValue([]),
         insertOne: jest.fn(),
         update: jest.fn()
       }
@@ -1601,5 +1606,898 @@ describe('upsertSubscription', () => {
         providerData: subscriptionData.providerData
       })
     )
+  })
+
+  // Invariant: at most one active tier subscription per workspace.
+  describe('one-active-tier invariant', () => {
+    const workspaceUuid = 'ws-1' as WorkspaceUuid
+    const accountUuid = 'acc-1' as AccountUuid
+
+    beforeEach(() => {
+      ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'payment' } })
+      getWorkspaceByIdSpy.mockResolvedValue({ uuid: workspaceUuid })
+      mockDb.subscription.findOne.mockResolvedValue(null)
+    })
+
+    function tier (over: Record<string, any> = {}): any {
+      return {
+        id: 'new-sub',
+        workspaceUuid,
+        accountUuid,
+        provider: 'mock',
+        providerSubscriptionId: 'mock-new',
+        type: SubscriptionType.Tier,
+        status: SubscriptionStatus.Active,
+        plan: 'team',
+        ...over
+      }
+    }
+
+    test('cancels other active tier when a new tier is activated', async () => {
+      mockDb.subscription.find.mockResolvedValue([
+        { id: 'old-business', provider: 'stripe', providerSubscriptionId: 'st-1', plan: 'business', providerData: {} }
+      ])
+
+      await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, tier())
+
+      expect(mockDb.subscription.find).toHaveBeenCalledWith({
+        workspaceUuid,
+        type: 'tier',
+        status: { $in: ['active', 'trialing'] }
+      })
+      expect(mockDb.subscription.update).toHaveBeenCalledWith(
+        { id: 'old-business' },
+        expect.objectContaining({
+          status: 'canceled',
+          providerData: expect.objectContaining({ status: 'REPLACED', pending: false })
+        })
+      )
+    })
+
+    test('does not cancel the same subscription being upserted', async () => {
+      mockDb.subscription.find.mockResolvedValue([
+        { id: 'same', provider: 'mock', providerSubscriptionId: 'mock-new', plan: 'team', providerData: {} }
+      ])
+
+      await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, tier())
+
+      expect(mockDb.subscription.update).not.toHaveBeenCalledWith(
+        { id: 'same' },
+        expect.objectContaining({ status: 'canceled' })
+      )
+    })
+
+    test('does not run invariant for non-active status', async () => {
+      await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, tier({ status: SubscriptionStatus.PastDue }))
+      expect(mockDb.subscription.find).not.toHaveBeenCalled()
+    })
+
+    test('does not run invariant for non-tier type', async () => {
+      await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, tier({ type: SubscriptionType.Package }))
+      expect(mockDb.subscription.find).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('upsertSubscription - AI package token grant', () => {
+  const mockCtx = {
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn()
+  } as unknown as MeasureContext
+
+  const mockBranding = null
+  const mockToken = 'test-token'
+  const workspaceUuid = 'ws-tokens' as WorkspaceUuid
+  const accountUuid = 'acc-tokens' as AccountUuid
+
+  let mockDb: any
+  let getWorkspaceByIdSpy: jest.SpyInstance
+  let mockProducer: { send: jest.Mock }
+
+  function pkg (over: Record<string, any> = {}): any {
+    return {
+      id: 'sub-pkg-1',
+      workspaceUuid,
+      accountUuid,
+      provider: 'polar',
+      providerSubscriptionId: 'polar-pkg-1',
+      type: SubscriptionType.Package,
+      status: SubscriptionStatus.Active,
+      plan: 'ai-500k',
+      periodStart: 1_000,
+      limits: { storageLimitGB: 0, trafficLimitGB: 0, meetingMinutesLimit: 0, tokenLimit: 500_000, usersLimit: 0 },
+      ...over
+    }
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+
+    mockDb = {
+      subscription: {
+        findOne: jest.fn().mockResolvedValue(null),
+        find: jest.fn().mockResolvedValue([]),
+        insertOne: jest.fn(),
+        update: jest.fn()
+      }
+    }
+
+    getWorkspaceByIdSpy = jest.spyOn(utils, 'getWorkspaceById').mockResolvedValue({ uuid: workspaceUuid } as any)
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'payment' } })
+
+    mockProducer = { send: jest.fn() }
+    ;(getMetadata as jest.Mock).mockReturnValue(mockProducer)
+  })
+
+  afterAll(() => {
+    getWorkspaceByIdSpy.mockRestore()
+  })
+
+  /** Token grants only: a package upsert also publishes limitsChanged, which these cases ignore. */
+  function grants (): any[] {
+    return mockProducer.send.mock.calls.flatMap((c: any[]) => c[2]).filter((e: any) => e.type === 'purchase-activated')
+  }
+
+  test('publishes token grant for active package with tokenLimit > 0', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg())
+
+    expect(mockProducer.send).toHaveBeenCalledWith(mockCtx, workspaceUuid, [
+      workspaceEvents.purchaseActivated('ai-500k', 'sub-pkg-1:1000', 'add-ai-tokens', 500_000)
+    ])
+  })
+
+  test('does not publish when tokenLimit is 0 (storage package)', async () => {
+    const storageLimits = {
+      storageLimitGB: 100,
+      trafficLimitGB: 0,
+      meetingMinutesLimit: 0,
+      tokenLimit: 0,
+      usersLimit: 0
+    }
+    await upsertSubscription(
+      mockCtx,
+      mockDb,
+      mockBranding,
+      mockToken,
+      pkg({ plan: 'storage-100gb', limits: storageLimits })
+    )
+
+    expect(grants()).toEqual([])
+  })
+
+  test('does not publish when limits are missing', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ limits: undefined }))
+
+    expect(grants()).toEqual([])
+  })
+
+  test('does not publish when status is not Active', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ status: SubscriptionStatus.PastDue }))
+
+    expect(grants()).toEqual([])
+  })
+
+  test('does not publish when periodStart is undefined', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ periodStart: undefined }))
+
+    expect(grants()).toEqual([])
+  })
+
+  test('grantId changes when periodStart changes (renewal grants again)', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ periodStart: 1_000 }))
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ periodStart: 2_000 }))
+
+    expect(grants()).toEqual([
+      workspaceEvents.purchaseActivated('ai-500k', 'sub-pkg-1:1000', 'add-ai-tokens', 500_000),
+      workspaceEvents.purchaseActivated('ai-500k', 'sub-pkg-1:2000', 'add-ai-tokens', 500_000)
+    ])
+  })
+
+  test('grantId is stable across a repeated upsert within the same period (idempotent on consumer side)', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ periodStart: 1_000 }))
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, pkg({ periodStart: 1_000 }))
+
+    const [first, second] = grants()
+    expect(first.purchaseId).toBe(second.purchaseId)
+    expect(first.purchaseId).toBe('sub-pkg-1:1000')
+  })
+
+  test('does not publish the token-grant event for a Tier subscription', async () => {
+    await upsertSubscription(
+      mockCtx,
+      mockDb,
+      mockBranding,
+      mockToken,
+      pkg({ type: SubscriptionType.Tier, plan: 'pro' })
+    )
+
+    // Tier upserts may still publish a plan limitsChanged event, but never purchaseActivated.
+    const purchaseCalls = mockProducer.send.mock.calls.filter(
+      ([, , events]) => events.some((e: any) => e.type === QueueWorkspaceEvent.PurchaseActivated) === true
+    )
+    expect(purchaseCalls).toHaveLength(0)
+  })
+})
+
+describe('upsertSubscription - tier plan changed event', () => {
+  const mockCtx = {
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn()
+  } as unknown as MeasureContext
+
+  const mockBranding = null
+  const mockToken = 'test-token'
+  const workspaceUuid = 'ws-plan' as WorkspaceUuid
+  const accountUuid = 'acc-plan' as AccountUuid
+
+  let mockDb: any
+  let getWorkspaceByIdSpy: jest.SpyInstance
+  let mockProducer: { send: jest.Mock }
+
+  const existingSubscription = {
+    id: 'sub-tier-1',
+    workspaceUuid,
+    provider: 'polar',
+    providerSubscriptionId: 'polar-tier-1',
+    type: SubscriptionType.Tier,
+    status: SubscriptionStatus.Active,
+    plan: 'basic',
+    limits: { storageLimitGB: 10, trafficLimitGB: 10, meetingMinutesLimit: 100, tokenLimit: 1_000, usersLimit: 5 }
+  }
+
+  function tier (over: Record<string, any> = {}): any {
+    return {
+      id: 'sub-tier-1',
+      workspaceUuid,
+      accountUuid,
+      provider: 'polar',
+      providerSubscriptionId: 'polar-tier-1',
+      type: SubscriptionType.Tier,
+      status: SubscriptionStatus.Active,
+      plan: 'basic',
+      limits: { storageLimitGB: 10, trafficLimitGB: 10, meetingMinutesLimit: 100, tokenLimit: 1_000, usersLimit: 5 },
+      ...over
+    }
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+
+    mockDb = {
+      subscription: {
+        findOne: jest.fn().mockResolvedValue(existingSubscription),
+        find: jest.fn().mockResolvedValue([]),
+        insertOne: jest.fn(),
+        update: jest.fn()
+      }
+    }
+
+    getWorkspaceByIdSpy = jest.spyOn(utils, 'getWorkspaceById').mockResolvedValue({ uuid: workspaceUuid } as any)
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'payment' } })
+
+    mockProducer = { send: jest.fn() }
+    ;(getMetadata as jest.Mock).mockReturnValue(mockProducer)
+  })
+
+  afterAll(() => {
+    getWorkspaceByIdSpy.mockRestore()
+  })
+
+  test('publishes limitsChanged(Plan, Ok) when the plan actually changed', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, tier({ plan: 'pro' }))
+
+    expect(mockProducer.send).toHaveBeenCalledWith(mockCtx, workspaceUuid, [
+      workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)
+    ])
+  })
+
+  test('does not publish limitsChanged when the upsert repeats the same plan/status/limits', async () => {
+    await upsertSubscription(mockCtx, mockDb, mockBranding, mockToken, tier())
+
+    expect(mockProducer.send).not.toHaveBeenCalled()
+  })
+
+  test('publishes limitsChanged for a package too: it raises the same effective limits', async () => {
+    await upsertSubscription(
+      mockCtx,
+      mockDb,
+      mockBranding,
+      mockToken,
+      tier({ id: 'sub-pkg-1', type: SubscriptionType.Package, plan: 'pkg-100mb' })
+    )
+
+    expect(mockProducer.send).toHaveBeenCalledWith(mockCtx, workspaceUuid, [
+      workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)
+    ])
+  })
+})
+
+describe('adminCreateSubscription', () => {
+  const mockCtx = {
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn()
+  } as unknown as MeasureContext
+  const mockBranding = null
+  const mockToken = 'admin-token'
+  const workspaceUuid = 'ws-1' as WorkspaceUuid
+
+  let mockDb: any
+  let getWorkspaceByIdSpy: jest.SpyInstance
+  let verifyOtpSpy: jest.SpyInstance
+  let logSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockDb = {
+      subscription: {
+        find: jest.fn().mockResolvedValue([]),
+        insertOne: jest.fn(),
+        update: jest.fn()
+      },
+      account: { findOne: jest.fn().mockResolvedValue({ uuid: 'admin-acc' }) },
+      getWorkspaceMembers: jest.fn().mockResolvedValue([]),
+      adminAction: { find: jest.fn().mockResolvedValue([]) },
+      otp: { deleteMany: jest.fn() }
+    }
+    getWorkspaceByIdSpy = jest.spyOn(utils, 'getWorkspaceById').mockResolvedValue({ uuid: workspaceUuid } as any)
+    verifyOtpSpy = jest.spyOn(utils, 'verifyOperationOtp').mockResolvedValue(undefined)
+    logSpy = jest.spyOn(utils, 'logAdminAction').mockResolvedValue(undefined)
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({
+      account: 'admin-acc',
+      extra: { admin: 'true', mfaAt: String(Math.floor(Date.now() / 1000)) }
+    })
+  })
+
+  afterAll(() => {
+    getWorkspaceByIdSpy.mockRestore()
+    verifyOtpSpy.mockRestore()
+    logSpy.mockRestore()
+  })
+
+  test('rejects non-admin token', async () => {
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ account: 'u', extra: {} })
+    await expect(
+      adminCreateSubscription(mockCtx, mockDb, mockBranding, mockToken, { workspaceUuid, plan: 'team', otpCode: '1' })
+    ).rejects.toThrow(new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {})))
+    expect(mockDb.subscription.insertOne).not.toHaveBeenCalled()
+  })
+
+  test('cancels ALL non-canceled tier subscriptions before inserting (active + past_due, not canceled)', async () => {
+    mockDb.subscription.find.mockResolvedValue([
+      { id: 'a', provider: 'mock', providerData: {}, status: SubscriptionStatus.Active },
+      { id: 'b', provider: 'stripe', providerData: {}, status: SubscriptionStatus.PastDue },
+      { id: 'c', provider: 'old', providerData: {}, status: SubscriptionStatus.Canceled }
+    ])
+
+    await adminCreateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      workspaceUuid,
+      plan: 'team',
+      otpCode: '1'
+    })
+
+    expect(mockDb.subscription.find).toHaveBeenCalledWith({ workspaceUuid, type: 'tier' })
+    // 'c' is already canceled -> skipped; 'a' and 'b' get canceled.
+    expect(mockDb.subscription.update).toHaveBeenCalledTimes(2)
+    expect(mockDb.subscription.update).toHaveBeenCalledWith(
+      { id: 'a' },
+      expect.objectContaining({
+        status: 'canceled',
+        providerData: expect.objectContaining({ status: 'ADMIN_REPLACED' })
+      })
+    )
+    expect(mockDb.subscription.update).toHaveBeenCalledWith(
+      { id: 'b' },
+      expect.objectContaining({ status: 'canceled' })
+    )
+    expect(mockDb.subscription.insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: 'team', type: 'tier', status: 'active', provider: 'manual' })
+    )
+  })
+
+  test('passes through custom status (past_due) for unpaid simulation', async () => {
+    await adminCreateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      workspaceUuid,
+      plan: 'team',
+      status: SubscriptionStatus.PastDue,
+      otpCode: '1'
+    })
+    expect(mockDb.subscription.insertOne).toHaveBeenCalledWith(expect.objectContaining({ status: 'past_due' }))
+  })
+
+  test('falls back to workspace owner when token account is not in account table', async () => {
+    mockDb.account.findOne.mockResolvedValue(null)
+    mockDb.getWorkspaceMembers.mockResolvedValue([
+      { person: 'member-1', role: AccountRole.User },
+      { person: 'owner-1', role: AccountRole.Owner }
+    ])
+
+    await adminCreateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      workspaceUuid,
+      plan: 'team',
+      otpCode: '1'
+    })
+
+    expect(mockDb.subscription.insertOne).toHaveBeenCalledWith(expect.objectContaining({ accountUuid: 'owner-1' }))
+  })
+
+  test('does not persist freeLimits; unpaid with free env is not payment-exhausted', async () => {
+    // Free fallback comes from FREE_PLAN_LIMITS env (account fills it on read), never persisted.
+    ;(getMetadata as jest.Mock).mockReturnValue({ usersLimit: 5, storageLimitGB: 10 })
+    await adminCreateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      workspaceUuid,
+      plan: 'team',
+      status: SubscriptionStatus.PastDue,
+      otpCode: '1'
+    })
+    const inserted = mockDb.subscription.insertOne.mock.calls[0][0]
+    expect(inserted.freeLimits).toBeUndefined()
+  })
+})
+
+describe('adminUpdateSubscription', () => {
+  const mockCtx = {
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn()
+  } as unknown as MeasureContext
+  const mockBranding = null
+  const mockToken = 'admin-token'
+  const otpCode = '123456'
+  const workspaceUuid = 'ws-1' as WorkspaceUuid
+
+  // A live tbank subscription with a bound card — the case the supersede pattern used to break.
+  const tbankSub = {
+    id: 'sub-1',
+    workspaceUuid,
+    accountUuid: 'acc-1' as AccountUuid,
+    provider: 'tbank',
+    providerSubscriptionId: 'tbank_8983976039',
+    providerCheckoutId: 'm8tvd8-1-msep7d72',
+    type: SubscriptionType.Tier,
+    status: SubscriptionStatus.Active,
+    plan: 'business',
+    amount: 149700,
+    limits: { storageLimitGB: 15, trafficLimitGB: 0, meetingMinutesLimit: 0, tokenLimit: 0, usersLimit: 3 },
+    periodStart: 1000,
+    periodEnd: 2000,
+    createdOn: 1000,
+    updatedOn: 1000,
+    providerData: { rebillId: '1785848580972', recurrent: true, quantity: 3, period: 'monthly', modifiedAt: 1000 }
+  }
+
+  let mockDb: any
+  let verifyOtpSpy: jest.SpyInstance
+  let logAdminActionSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockDb = {
+      subscription: {
+        findOne: jest.fn().mockResolvedValue({ ...tbankSub, providerData: { ...tbankSub.providerData } }),
+        insertOne: jest.fn(),
+        update: jest.fn()
+      },
+      logPaymentOperation: jest.fn(),
+      adminAction: { find: jest.fn().mockResolvedValue([]) },
+      otp: { deleteMany: jest.fn() }
+    }
+    verifyOtpSpy = jest.spyOn(utils, 'verifyOperationOtp').mockResolvedValue(undefined)
+    logAdminActionSpy = jest.spyOn(utils, 'logAdminAction').mockResolvedValue(undefined)
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({
+      account: 'admin-acc',
+      extra: { admin: 'true', mfaAt: String(Math.floor(Date.now() / 1000)) }
+    })
+    ;(getMetadata as jest.Mock).mockReturnValue(undefined)
+  })
+
+  afterAll(() => {
+    verifyOtpSpy.mockRestore()
+    logAdminActionSpy.mockRestore()
+  })
+
+  test('edits the row in place, never inserting a second one', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      seats: 5,
+      otpCode
+    })
+
+    expect(mockDb.subscription.insertOne).not.toHaveBeenCalled()
+    expect(mockDb.subscription.update).toHaveBeenCalledTimes(1)
+    expect(mockDb.subscription.update).toHaveBeenCalledWith({ id: 'sub-1' }, expect.anything())
+  })
+
+  test('keeps provider and providerSubscriptionId so the subscription stays in the tbank cycles', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      seats: 5,
+      otpCode
+    })
+
+    const patch = mockDb.subscription.update.mock.calls[0][1]
+    // The old supersede inserted a fresh row with provider 'manual' + a new providerSubscriptionId,
+    // dropping the subscription out of renewal, expiry mail and webhook lookup.
+    expect(patch.provider).toBeUndefined()
+    expect(patch.providerSubscriptionId).toBeUndefined()
+    expect(patch.status).toBeUndefined()
+    expect(patch.canceledAt).toBeUndefined()
+    expect(patch.providerData.rebillId).toBe('1785848580972')
+    expect(patch.providerData.reason).toBe('ADMIN_EDITED')
+  })
+
+  test('mirrors seats into providerData.quantity (renewal and ledger read it, not limits)', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      seats: 5,
+      otpCode
+    })
+
+    const patch = mockDb.subscription.update.mock.calls[0][1]
+    expect(patch.limits.usersLimit).toBe(5)
+    // 15GB / 3 seats = 5GB per seat
+    expect(patch.limits.storageLimitGB).toBe(25)
+    expect(patch.providerData.quantity).toBe(5)
+  })
+
+  test('applies a new amount and records both sides in the ledger', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      seats: 5,
+      amount: 249500,
+      otpCode
+    })
+
+    expect(mockDb.subscription.update.mock.calls[0][1].amount).toBe(249500)
+    expect(mockDb.logPaymentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'tbank',
+        operation: 'update',
+        status: 'ADMIN_EDITED',
+        actor: 'admin',
+        amount: 249500,
+        subscriptionId: 'sub-1',
+        raw: expect.objectContaining({ seatsBefore: 3, seatsAfter: 5, amountBefore: 149700, amountAfter: 249500 })
+      })
+    )
+  })
+
+  test('applies windowMonthLimit and keeps the seat changes from the same edit', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      seats: 5,
+      windowMonthLimit: 1500000,
+      otpCode
+    })
+
+    const patch = mockDb.subscription.update.mock.calls[0][1]
+    // The window branch runs after the seats branch: both must survive.
+    expect(patch.limits.windowMonthLimit).toBe(1500000)
+    expect(patch.limits.usersLimit).toBe(5)
+    expect(patch.limits.storageLimitGB).toBe(25)
+    expect(mockDb.logPaymentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ raw: expect.objectContaining({ windowAfter: 1500000 }) })
+    )
+  })
+
+  test('applies windowMonthLimit on its own, without a seat change', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      windowMonthLimit: 900000,
+      otpCode
+    })
+
+    const patch = mockDb.subscription.update.mock.calls[0][1]
+    expect(patch.limits.windowMonthLimit).toBe(900000)
+    // Untouched limits carry over from the existing row.
+    expect(patch.limits.usersLimit).toBe(3)
+    expect(patch.limits.storageLimitGB).toBe(15)
+  })
+
+  test('rejects a negative or fractional windowMonthLimit', async () => {
+    for (const windowMonthLimit of [-1, 100.5]) {
+      await expect(
+        adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+          subscriptionId: 'sub-1',
+          windowMonthLimit,
+          otpCode
+        })
+      ).rejects.toThrow()
+    }
+    expect(mockDb.subscription.update).not.toHaveBeenCalled()
+  })
+
+  test('leaves amount alone when the admin did not touch it', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      periodEndMs: 5000,
+      otpCode
+    })
+
+    const patch = mockDb.subscription.update.mock.calls[0][1]
+    expect(patch.amount).toBeUndefined()
+    expect(patch.periodEnd).toBe(5000)
+    expect(mockDb.logPaymentOperation).toHaveBeenCalledWith(expect.objectContaining({ amount: 149700 }))
+  })
+
+  test('mirrors periodEnd into trialEnd for a trial', async () => {
+    mockDb.subscription.findOne.mockResolvedValue({
+      ...tbankSub,
+      status: SubscriptionStatus.Trialing,
+      providerData: { ...tbankSub.providerData }
+    })
+
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+      subscriptionId: 'sub-1',
+      periodEndMs: 5000,
+      otpCode
+    })
+
+    const patch = mockDb.subscription.update.mock.calls[0][1]
+    expect(patch.periodEnd).toBe(5000)
+    expect(patch.trialEnd).toBe(5000)
+  })
+
+  test('rejects a negative or fractional amount (renewal charges it verbatim)', async () => {
+    for (const amount of [-1, 100.5]) {
+      await expect(
+        adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+          subscriptionId: 'sub-1',
+          amount,
+          otpCode
+        })
+      ).rejects.toThrow(PlatformError)
+    }
+    expect(mockDb.subscription.update).not.toHaveBeenCalled()
+  })
+
+  test('rejects editing a canceled subscription', async () => {
+    mockDb.subscription.findOne.mockResolvedValue({ ...tbankSub, status: SubscriptionStatus.Canceled })
+    await expect(
+      adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+        subscriptionId: 'sub-1',
+        seats: 5,
+        otpCode
+      })
+    ).rejects.toThrow(PlatformError)
+    expect(mockDb.subscription.update).not.toHaveBeenCalled()
+  })
+
+  test('no-ops when nothing changed', async () => {
+    await adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, { subscriptionId: 'sub-1', otpCode })
+    expect(mockDb.subscription.update).not.toHaveBeenCalled()
+    expect(mockDb.logPaymentOperation).not.toHaveBeenCalled()
+  })
+
+  test('a failing ledger write does not roll back the edit', async () => {
+    mockDb.logPaymentOperation.mockRejectedValue(new Error('ledger down'))
+    await expect(
+      adminUpdateSubscription(mockCtx, mockDb, mockBranding, mockToken, {
+        subscriptionId: 'sub-1',
+        seats: 5,
+        otpCode
+      })
+    ).resolves.toBeUndefined()
+    expect(mockDb.subscription.update).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('getPersonInfo', () => {
+  const mockCtx = {
+    error: jest.fn()
+  } as unknown as MeasureContext
+
+  const mockDb = {
+    person: {
+      findOne: jest.fn()
+    },
+    socialId: {
+      find: jest.fn()
+    }
+  } as unknown as AccountDB
+
+  const mockBranding = null
+  const mockToken = 'test-token'
+  const account = 'person-uuid' as PersonUuid
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { admin: 'true' } })
+    ;(mockDb.socialId.find as jest.Mock).mockResolvedValue([])
+  })
+
+  test('should expose the phone hint', async () => {
+    ;(mockDb.person.findOne as jest.Mock).mockResolvedValue({
+      uuid: account,
+      firstName: 'Test',
+      lastName: 'Person',
+      phoneHint: '+79000000011'
+    })
+
+    const result = await getPersonInfo(mockCtx, mockDb, mockBranding, mockToken, { account })
+
+    expect(result.phoneHint).toBe('+79000000011')
+  })
+
+  test('should leave the phone hint undefined when the person has none', async () => {
+    ;(mockDb.person.findOne as jest.Mock).mockResolvedValue({
+      uuid: account,
+      firstName: 'Test',
+      lastName: 'Person'
+    })
+
+    const result = await getPersonInfo(mockCtx, mockDb, mockBranding, mockToken, { account })
+
+    expect(result.phoneHint).toBeUndefined()
+  })
+})
+
+describe('updateWorkspaceInfo - delete events', () => {
+  const mockCtx = { error: jest.fn(), info: jest.fn(), warn: jest.fn() } as unknown as MeasureContext
+  const mockBranding = null
+  const mockToken = 'test-token'
+  const workspaceUuid = 'ws-1' as WorkspaceUuid
+  const version = { major: 0, minor: 7, patch: 0 }
+
+  let mockDb: any
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockDb = {
+      workspace: { exists: jest.fn().mockResolvedValue(true), update: jest.fn() },
+      workspaceStatus: { findOne: jest.fn().mockResolvedValue(null), update: jest.fn() }
+    }
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'workspace' } })
+  })
+
+  // The worker drops the DB and reports these; without their own cases the mode stayed
+  // 'pending-deletion' and every re-pick bumped processing_attempts until the retry cap.
+  it('moves the workspace to deleting and clears the attempts', async () => {
+    await updateWorkspaceInfo(mockCtx, mockDb, mockBranding, mockToken, {
+      workspaceUuid,
+      event: 'delete-started',
+      version,
+      progress: 0
+    })
+
+    expect(mockDb.workspaceStatus.update).toHaveBeenCalledWith(
+      { workspaceUuid },
+      expect.objectContaining({ mode: 'deleting', processingAttempts: 0 })
+    )
+  })
+
+  it('moves the workspace to deleted when the worker is done', async () => {
+    await updateWorkspaceInfo(mockCtx, mockDb, mockBranding, mockToken, {
+      workspaceUuid,
+      event: 'delete-done',
+      version,
+      progress: 100
+    })
+
+    expect(mockDb.workspaceStatus.update).toHaveBeenCalledWith(
+      { workspaceUuid },
+      expect.objectContaining({ mode: 'deleted', processingProgress: 100 })
+    )
+    expect(mockDb.workspace.update).toHaveBeenCalledWith({ uuid: workspaceUuid }, { url: workspaceUuid })
+  })
+})
+
+describe('updateBackupLease', () => {
+  const mockCtx = { error: jest.fn() } as unknown as MeasureContext
+  const mockBranding = null
+  const mockToken = 'test-token'
+  const workspaceUuid = 'ws-1' as WorkspaceUuid
+  const NOW = 1700000000000
+
+  let mockDb: any
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    jest.spyOn(Date, 'now').mockReturnValue(NOW)
+    mockDb = { updateBackupLease: jest.fn().mockResolvedValue(true) }
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'backup' }, workspace: workspaceUuid })
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('rejects a non-backup token', async () => {
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'workspace' }, workspace: workspaceUuid })
+
+    await expect(
+      updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, { owner: 'pod-1', action: 'acquire' })
+    ).rejects.toThrow(new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {})))
+    expect(mockDb.updateBackupLease).not.toHaveBeenCalled()
+  })
+
+  test('rejects an invalid action', async () => {
+    await expect(
+      updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, { owner: 'pod-1', action: 'bogus' as any })
+    ).rejects.toThrow(new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {})))
+    expect(mockDb.updateBackupLease).not.toHaveBeenCalled()
+  })
+
+  test('rejects an empty owner', async () => {
+    await expect(
+      updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, { owner: '', action: 'acquire' })
+    ).rejects.toThrow(new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {})))
+    expect(mockDb.updateBackupLease).not.toHaveBeenCalled()
+  })
+
+  test('defaults ttl to 150000ms', async () => {
+    await updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, { owner: 'pod-1', action: 'acquire' })
+
+    expect(mockDb.updateBackupLease).toHaveBeenCalledWith(workspaceUuid, 'pod-1', 'acquire', NOW, NOW + 150000)
+  })
+
+  test('clamps ttl below the 30000ms floor', async () => {
+    await updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, { owner: 'pod-1', action: 'renew', ttlMs: 1000 })
+
+    expect(mockDb.updateBackupLease).toHaveBeenCalledWith(workspaceUuid, 'pod-1', 'renew', NOW, NOW + 30000)
+  })
+
+  test('clamps ttl above the 600000ms ceiling', async () => {
+    await updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, {
+      owner: 'pod-1',
+      action: 'renew',
+      ttlMs: 999999999
+    })
+
+    expect(mockDb.updateBackupLease).toHaveBeenCalledWith(workspaceUuid, 'pod-1', 'renew', NOW, NOW + 600000)
+  })
+
+  test('passes through the db result', async () => {
+    mockDb.updateBackupLease.mockResolvedValue(false)
+
+    const result = await updateBackupLease(mockCtx, mockDb, mockBranding, mockToken, {
+      owner: 'pod-1',
+      action: 'release'
+    })
+
+    expect(result).toBe(false)
+  })
+})
+
+describe('needs reindex', () => {
+  const mockCtx = { error: jest.fn() } as unknown as MeasureContext
+  const mockBranding = null
+  const mockToken = 'test-token'
+  const workspaceUuid = 'ws-1' as WorkspaceUuid
+
+  let mockDb: any
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockDb = {
+      workspaceStatus: { update: jest.fn().mockResolvedValue(undefined) },
+      takeNeedsReindex: jest.fn().mockResolvedValue(true)
+    }
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service: 'fulltext' }, workspace: workspaceUuid })
+  })
+
+  test.each([['workspace'], ['backup'], [undefined]])('rejects a %s token', async (service) => {
+    ;(decodeTokenVerbose as jest.Mock).mockReturnValue({ extra: { service }, workspace: workspaceUuid })
+    const forbidden = new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+
+    await expect(setNeedsReindex(mockCtx, mockDb, mockBranding, mockToken)).rejects.toThrow(forbidden)
+    await expect(takeNeedsReindex(mockCtx, mockDb, mockBranding, mockToken)).rejects.toThrow(forbidden)
+    expect(mockDb.workspaceStatus.update).not.toHaveBeenCalled()
+    expect(mockDb.takeNeedsReindex).not.toHaveBeenCalled()
+  })
+
+  test('set raises the flag on the token workspace', async () => {
+    await setNeedsReindex(mockCtx, mockDb, mockBranding, mockToken)
+
+    expect(mockDb.workspaceStatus.update).toHaveBeenCalledWith({ workspaceUuid }, { needsReindex: true })
+  })
+
+  test('take passes through the db result for the token workspace', async () => {
+    mockDb.takeNeedsReindex.mockResolvedValue(false)
+
+    expect(await takeNeedsReindex(mockCtx, mockDb, mockBranding, mockToken)).toBe(false)
+    expect(mockDb.takeNeedsReindex).toHaveBeenCalledWith(workspaceUuid)
   })
 })

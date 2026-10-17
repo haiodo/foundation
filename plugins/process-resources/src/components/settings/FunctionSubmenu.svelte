@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AnyAttribute, Ref } from '@hcengineering/core'
+  import type { AnyAttribute, Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Context, Func, Process, ProcessFunction } from '@hcengineering/process'
-  import { ButtonIcon, eventToHTMLElement, IconSettings, Label, showPopup } from '@hcengineering/ui'
+  import type { Context, Func, Process, ProcessFunction } from '@hcengineering/process'
+  import { eventToHTMLElement, IconSettings, Label, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import plugin from '../../plugin'
 
   export let attribute: AnyAttribute
@@ -60,6 +61,12 @@
     <Label label={getFunction(func.func).label} />
   </span>
   {#if getFunction(func.func).editor}
-    <ButtonIcon icon={IconSettings} size="small" kind="tertiary" on:click={onConfigure} />
+    <IconButton
+      icon={IconSettings}
+      size="small"
+      kind="tertiary"
+      tooltip={{ label: plugin.string.Settings }}
+      on:click={onConfigure}
+    />
   {/if}
 </div>

@@ -14,7 +14,23 @@
 //
 
 import { config as dotenvConfig } from 'dotenv'
-import { globalShortcut, Event, BrowserWindow, CookiesSetDetails, Notification, app, desktopCapturer, dialog, ipcMain, nativeImage, session, shell, systemPreferences, nativeTheme } from 'electron'
+import {
+  globalShortcut,
+  Event,
+  BrowserWindow,
+  CookiesSetDetails,
+  Notification,
+  app,
+  desktopCapturer,
+  dialog,
+  ipcMain,
+  nativeImage,
+  session,
+  shell,
+  systemPreferences,
+  nativeTheme,
+  powerMonitor
+} from 'electron'
 import contextMenu from 'electron-context-menu'
 import log from 'electron-log'
 import Store from 'electron-store'
@@ -28,6 +44,7 @@ import { addMenus } from './standardMenu'
 import { dispatchMenuBarAction } from './customMenu'
 import { addPermissionHandlers } from './permissions'
 import autoUpdater from './updater'
+import { resolveUpdateFeed } from './updateChannel'
 import { generateId } from '@hcengineering/core'
 import { DownloadItem } from '@hcengineering/desktop-downloads'
 import { rebuildJumpList, setupWindowsSpecific } from './windowsSpecificSetup'
@@ -37,12 +54,21 @@ import { TrayController } from './tray'
 import { getFileInPublicBundledFolder } from './path'
 import { OsIntegration } from './osIntegration'
 import { IpcMessage } from '../ui/ipcMessages'
+import { createSafeWindow } from './winBadgeProxy'
 
 let isQuiting = false
 
 function quitApplication (): void {
   isQuiting = true
   app.quit()
+}
+
+// A dev run shares config, session and the single-instance lock with an installed build unless it
+// gets its own name: the lock lives inside userData, so without this `pnpm desktop` just focuses the
+// installed app instead of starting. Must happen before the lock is requested.
+if (process.env.DEV_INSTANCE === 'true') {
+  app.setName(`${app.getName()} Dev`)
+  app.setPath('userData', path.join(app.getPath('appData'), app.getName()))
 }
 
 const gotTheLock = app.requestSingleInstanceLock()
@@ -56,6 +82,7 @@ if (!gotTheLock) {
 function runTheApp (): void {
   let winBadge: any
   let mainWindow: BrowserWindow | undefined
+  const windows = new Map<number, BrowserWindow>()
 
   const isMac = process.platform === 'darwin'
   const isWindows = process.platform === 'win32'
@@ -121,6 +148,29 @@ function runTheApp (): void {
     }
   }
 
+  function setupWindowCleanup (window: BrowserWindow): void {
+    window.on('closed', () => {
+      windows.delete(window.id)
+
+      if (mainWindow === window) {
+        winBadge = undefined
+        const nextMain = Array.from(windows.values()).find((window) => !window.isDestroyed())
+
+        if (nextMain != null) {
+          mainWindow = nextMain
+
+          if (isWindows && mainWindow != null && !mainWindow.isDestroyed()) {
+            winBadge = new WinBadge(createSafeWindow(mainWindow), { font: '14px arial' })
+          }
+
+          setupWindowCleanup(mainWindow)
+        } else {
+          mainWindow = undefined
+        }
+      }
+    })
+  }
+
   function hookOpenWindow (window: BrowserWindow): void {
     window.webContents.on('will-navigate', (event, url) => {
       const isInternal = url.startsWith(FRONT_URL) || url.startsWith('file://')
@@ -173,6 +223,9 @@ function runTheApp (): void {
           }
           setupWindowTitleBar(windowOptions)
           const childWindow = new BrowserWindow(windowOptions)
+          windows.set(childWindow.id, childWindow)
+          setupWindowCleanup(childWindow)
+
           await childWindow.loadFile(containerPagePath)
           hookOpenWindow(childWindow)
         })()
@@ -183,16 +236,16 @@ function runTheApp (): void {
 
   function setupCookieHandler (config: Config): void {
     const normalizedAccountsUrl = config.ACCOUNTS_URL.endsWith('/') ? config.ACCOUNTS_URL : config.ACCOUNTS_URL + '/'
-    const urls = [
-      normalizedAccountsUrl,
-      normalizedAccountsUrl + '*'
-    ]
+    const urls = [normalizedAccountsUrl, normalizedAccountsUrl + '*']
 
     session.defaultSession.webRequest.onHeadersReceived({ urls }, handleSetCookie)
     session.fromPartition(sessionPartition).webRequest.onHeadersReceived({ urls }, handleSetCookie)
   }
 
-  function handleSetCookie (details: Electron.OnHeadersReceivedListenerDetails, callback: (headersReceivedResponse: Electron.HeadersReceivedResponse) => void): void {
+  function handleSetCookie (
+    details: Electron.OnHeadersReceivedListenerDetails,
+    callback: (headersReceivedResponse: Electron.HeadersReceivedResponse) => void
+  ): void {
     if (details.responseHeaders !== undefined) {
       for (const header in details.responseHeaders) {
         if (header.toLowerCase() === 'set-cookie') {
@@ -273,6 +326,8 @@ function runTheApp (): void {
     }
     setupWindowTitleBar(windowOptions)
     mainWindow = new BrowserWindow(windowOptions)
+    windows.set(mainWindow.id, mainWindow)
+    setupWindowCleanup(mainWindow)
     app.dock?.setIcon(nativeImage.createFromPath(iconKey))
     if (isDev) {
       mainWindow.webContents.openDevTools()
@@ -282,8 +337,7 @@ function runTheApp (): void {
     handleAuthRedirects(mainWindow)
     handleWillDownload(mainWindow)
 
-    // In this example, only windows with the `about:blank` url will be created.
-    // All other urls will be blocked.
+    // Example: only about:blank windows are created; all other urls are blocked.
     hookOpenWindow(mainWindow)
 
     function minimizeToTrayIsOn (): boolean {
@@ -352,10 +406,8 @@ function runTheApp (): void {
       }
     })
 
-    if (isWindows) {
-      winBadge = new WinBadge(mainWindow, {
-        font: '14px arial'
-      })
+    if (isWindows && mainWindow != null && !mainWindow.isDestroyed()) {
+      winBadge = new WinBadge(createSafeWindow(mainWindow), { font: '14px arial' })
     }
   }
 
@@ -392,14 +444,48 @@ function runTheApp (): void {
     showSelectAll: false
   })
 
-  ipcMain.on(IpcMessage.SetBadge, (_event: any, badge: number) => {
-    app.dock?.setBadge(badge > 0 ? `${badge}` : '')
-    app.badgeCount = badge
+  ipcMain.on(IpcMessage.SetBadge, (_event: any, badge: number | string, tooltip?: string) => {
+    if (typeof badge === 'string') {
+      if (app.dock != null) {
+        app.dock.setBadge(badge)
+      } else {
+        app.badgeCount = 0
+      }
 
-    if (isWindows && winBadge !== undefined) {
-      winBadge.update(badge)
+      if (isWindows && winBadge !== undefined) {
+        const winBadgeText = badge === '' ? 0 : badge
+        winBadge.update(winBadgeText)
+      }
+      osIntegration?.getTray().updateTrayBadge(badge, tooltip)
+    } else {
+      app.dock?.setBadge(badge > 0 ? `${badge}` : '')
+      app.badgeCount = badge > 0 ? badge : 0
+
+      if (isWindows && winBadge !== undefined) {
+        winBadge.update(badge)
+      }
+      osIntegration?.getTray().updateTrayBadge(badge, tooltip)
     }
-    osIntegration?.getTray().updateTrayBadge(badge)
+  })
+
+  // Presence for the renderer: a locked screen or a sleeping machine means nobody is here,
+  // whatever the window and the input say.
+  const sendSystemIdle = (idle: boolean): void => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(IpcMessage.SystemIdle, idle)
+    }
+  }
+  powerMonitor.on('lock-screen', () => {
+    sendSystemIdle(true)
+  })
+  powerMonitor.on('suspend', () => {
+    sendSystemIdle(true)
+  })
+  powerMonitor.on('unlock-screen', () => {
+    sendSystemIdle(false)
+  })
+  powerMonitor.on('resume', () => {
+    sendSystemIdle(false)
   })
 
   ipcMain.on(IpcMessage.DockBounce, (_event: any) => {
@@ -430,24 +516,10 @@ function runTheApp (): void {
 
     setupCookieHandler(config)
 
-    const updatesUrl = process.env.DESKTOP_UPDATES_URL ?? config.DESKTOP_UPDATES_URL ?? 'https://platform.intabia.ru/_dist'
-    // NOTE: env format is: default_value;key1:value1;key2:value2...
-    const updatesChannels = (process.env.DESKTOP_UPDATES_CHANNEL ?? config.DESKTOP_UPDATES_CHANNELS ?? config.DESKTOP_UPDATES_CHANNEL ?? 'platform').split(';').map(c => c.trim().split(':'))
-    const updateChannelsMap: Record<string, string> = {}
-    for (const channelInfo of updatesChannels) {
-      if (channelInfo.length === 1) {
-        updateChannelsMap.default = channelInfo[0]
-      } else if (channelInfo.length === 2) {
-        const [key, value] = channelInfo
-        updateChannelsMap[key] = value
-      }
-    }
+    const updatesChannelKey = packedConfig?.updatesChannelKey
+    const { url: updatesUrl, channel: updatesChannel } = resolveUpdateFeed(config, process.env, updatesChannelKey)
 
-    const updatesChannelKey = packedConfig?.updatesChannelKey ?? 'default'
-    const updatesChannel = updateChannelsMap[updatesChannelKey] ?? updateChannelsMap.default ?? 'platform'
-
-    log.info('updates channels', updatesChannels)
-    log.info('updates channel', updatesChannelKey, updatesChannel)
+    log.info('updates channel', updatesChannelKey ?? 'default', updatesChannel, updatesUrl)
 
     autoUpdater.setFeedURL({
       provider: 'generic',
@@ -501,8 +573,12 @@ function runTheApp (): void {
     }
   })
 
-  ipcMain.handle(IpcMessage.WindowClose, () => {
-    mainWindow?.close()
+  ipcMain.handle(IpcMessage.WindowClose, (event: Electron.IpcMainInvokeEvent) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    if (window != null && !window.isDestroyed()) {
+      window.close()
+    }
   })
 
   ipcMain.handle(IpcMessage.GetIsOsUsingDarkTheme, () => {
@@ -521,15 +597,17 @@ function runTheApp (): void {
 
   ipcMain.handle(IpcMessage.GetScreenAccess, () => systemPreferences.getMediaAccessStatus('screen') === 'granted')
   ipcMain.handle(IpcMessage.GetScreenSources, () => {
-    return desktopCapturer.getSources({ types: ['window', 'screen'], fetchWindowIcons: true, thumbnailSize: { width: 225, height: 135 } }).then(async sources => {
-      return sources.map((source: any) => {
-        return {
-          ...source,
-          appIconURL: source.appIcon?.toDataURL(),
-          thumbnailURL: source.thumbnail.toDataURL()
-        }
+    return desktopCapturer
+      .getSources({ types: ['window', 'screen'], fetchWindowIcons: true, thumbnailSize: { width: 225, height: 135 } })
+      .then(async (sources) => {
+        return sources.map((source: any) => {
+          return {
+            ...source,
+            appIconURL: source.appIcon?.toDataURL(),
+            thumbnailURL: source.thumbnail.toDataURL()
+          }
+        })
       })
-    })
   })
 
   ipcMain.handle('get-minimize-to-tray-enabled', () => {
@@ -598,9 +676,9 @@ function runTheApp (): void {
     void dialog
       .showMessageBox({
         type: 'info',
-        buttons: ['Update & Restart', 'Quit'],
+        buttons: ['Обновить и перезапустить', 'Выход'],
         defaultId: 0,
-        message: `A new version ${info.version} is available and it is required to continue. It will be downloaded and installed automatically.`
+        message: `Доступна новая версия продукта ${info.version}, необходимая для продолжения работы. Загрузка и установка произойдет автоматически.`
       })
       .then(({ response }: any) => {
         log.info(`Update dialog exit code: ${response}`) // eslint-disable-line no-console

@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
-  import { IntlString, translate } from '@hcengineering/platform'
-  import { IssueTemplate } from '@hcengineering/tracker'
+  import type { DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { translate } from '@hcengineering/platform'
+  import type { IssueTemplate } from '@hcengineering/tracker'
   import { Button, IconAdd, showPopup, themeStore } from '@hcengineering/ui'
-  import { ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { ViewOptions, Viewlet } from '@hcengineering/view'
   import { FilterBar, SpaceHeader, ViewletSettingButton } from '@hcengineering/view-resources'
   import tracker from '../../plugin'
   import CreateIssueTemplate from './CreateIssueTemplate.svelte'
@@ -28,7 +29,7 @@
   let resultQuery: DocumentQuery<IssueTemplate> = { ...searchQuery }
 
   $: if (!label && title) {
-    translate(title, {}, $themeStore.language).then((res) => {
+    void translate(title, {}, $themeStore.language).then((res) => {
       label = res
     })
   }
@@ -46,7 +47,7 @@
   bind:viewlet
   bind:search
   showLabelSelector={$$slots.label_selector}
-  adaptive={'default'}
+  adaptive="default"
 >
   <svelte:fragment slot="header-tools">
     <ViewletSettingButton bind:viewOptions bind:viewlet />
@@ -55,7 +56,7 @@
     <slot name="label_selector" />
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={tracker.string.IssueTemplate} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={tracker.string.IssueTemplate} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </SpaceHeader>
 <slot name="afterHeader" />

@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Employee } from '@hcengineering/contact'
-  import core, { Doc, FindResult, getObjectValue, Ref, SortingOrder, Space } from '@hcengineering/core'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { Doc, FindResult, Ref, Space } from '@hcengineering/core'
+  import core, { getObjectValue, SortingOrder } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
   import ui, {
@@ -28,7 +30,7 @@
     resizeObserver,
     themeStore
   } from '@hcengineering/ui'
-  import { Filter } from '@hcengineering/view'
+  import type { Filter } from '@hcengineering/view'
   import { FILTER_DEBOUNCE_MS, FilterRemovedNotification, sortFilterValues } from '@hcengineering/view-resources'
   import view from '@hcengineering/view-resources/src/plugin'
   import { createEventDispatcher } from 'svelte'
@@ -62,7 +64,7 @@
       projection: { [filter.key.key]: 1, space: 1 }
     })
     for (const object of baseObjects) {
-      const value = getObjectValue(filter.key.key, object) ?? undefined
+      const value = getObjectValue(filter.key.key, object) ?? null
       targets.add(value)
     }
     for (const object of filter.value) {
@@ -80,8 +82,8 @@
           }
     objectsPromise = client.findAll(contact.mixin.Employee, resultQuery, { sort: { name: SortingOrder.Ascending } })
     values = await objectsPromise
-    if (targets.has(undefined)) {
-      values.unshift(undefined)
+    if (targets.has(null)) {
+      values.unshift(null)
     }
     if (values.length !== targets.size) {
       const oldSize = filter.value.length
@@ -114,7 +116,7 @@
       if (value) {
         filter.value = [...filter.value, value._id]
       } else {
-        filter.value = [...filter.value, undefined]
+        filter.value = [...filter.value, null]
       }
     }
 
@@ -132,15 +134,15 @@
   let search: string = ''
 
   const dispatch = createEventDispatcher()
-  $: getValues(search)
+  $: void getValues(search)
 </script>
 
 <div class="selectPopup" use:resizeObserver={() => dispatch('changeContent')}>
   <div class="header">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       placeholder={presentation.string.Search}
@@ -169,7 +171,7 @@
             </div>
             <div class="check pointer-events-none">
               {#if isSelected(value, filter.value)}
-                <Icon icon={IconCheck} size={'small'} />
+                <Icon icon={IconCheck} size="small" />
               {/if}
             </div>
           </button>

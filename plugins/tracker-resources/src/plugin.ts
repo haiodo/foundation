@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -12,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import { type StatusCategory, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
+import { type Status, type StatusCategory, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
 import type { Asset, IntlString, Metadata, Resource } from '@hcengineering/platform'
 import { mergeIds } from '@hcengineering/platform'
 import type { ObjectSearchCategory, ObjectSearchFactory } from '@hcengineering/presentation/src/types'
@@ -20,6 +21,7 @@ import { type ProjectType, type TaskType } from '@hcengineering/task'
 import tracker, { trackerId, type IssueDraft, type Issue } from '@hcengineering/tracker'
 import { type AnyComponent, type ComponentExtensionId, type Location } from '@hcengineering/ui/src/types'
 import {
+  type AttributeApplierFn,
   type CreateAggregationManagerFunc,
   type GetAllValuesFunc,
   type GrouppingManagerResource,
@@ -34,6 +36,7 @@ import type { ValueFormatter } from '@hcengineering/converter'
 export default mergeIds(trackerId, tracker, {
   viewlet: {
     SubIssues: '' as Ref<Viewlet>,
+    ParentIssues: '' as Ref<Viewlet>,
     List: '' as Ref<ViewletDescriptor>,
     Kanban: '' as Ref<ViewletDescriptor>,
     MilestoneIssuesList: '' as Ref<Viewlet>,
@@ -46,6 +49,7 @@ export default mergeIds(trackerId, tracker, {
     IssueCategory: '' as Ref<ObjectSearchCategory>
   },
   string: {
+    ClassicProject: '' as IntlString,
     More: '' as IntlString,
     Delete: '' as IntlString,
     Open: '' as IntlString,
@@ -96,16 +100,12 @@ export default mergeIds(trackerId, tracker, {
     SelectIssue: '' as IntlString,
     SelectProject: '' as IntlString,
     SaveIssue: '' as IntlString,
+    CreateAndOpen: '' as IntlString,
+    CreateAndNew: '' as IntlString,
     Todo: '' as IntlString,
     Done: '' as IntlString,
     SetPriority: '' as IntlString,
     SetStatus: '' as IntlString,
-    Priority: '' as IntlString,
-    NoPriority: '' as IntlString,
-    Urgent: '' as IntlString,
-    High: '' as IntlString,
-    Medium: '' as IntlString,
-    Low: '' as IntlString,
     Title: '' as IntlString,
     UsedInIssueIDs: '' as IntlString,
     Identifier: '' as IntlString,
@@ -117,10 +117,19 @@ export default mergeIds(trackerId, tracker, {
     DefaultIssueStatus: '' as IntlString,
     IssueStatus: '' as IntlString,
     EditWorkflowStatuses: '' as IntlString,
+    NoProjectTaskTypes: '' as IntlString,
+    NoProjectTaskTypesText: '' as IntlString,
+    NoProjectTaskTypesAskOwner: '' as IntlString,
+    NoIssuesYet: '' as IntlString,
+    NoIssuesYetText: '' as IntlString,
+    NoIssuesFound: '' as IntlString,
+    NoIssuesFoundText: '' as IntlString,
+    Configured: '' as IntlString,
     EditProject: '' as IntlString,
     DeleteProject: '' as IntlString,
     DeleteIssue: '' as IntlString,
     DeleteIssueConfirm: '' as IntlString,
+    DeleteIssueWithSubIssuesConfirm: '' as IntlString,
     ArchiveProjectName: '' as IntlString,
     ArchiveProjectConfirm: '' as IntlString,
     DeleteProjectConfirm: '' as IntlString,
@@ -143,13 +152,21 @@ export default mergeIds(trackerId, tracker, {
     AssignTo: '' as IntlString,
     AssignedTo: '' as IntlString,
     SubIssues: '' as IntlString,
+    ParentIssuesList: '' as IntlString,
+    BlockedByIssuesList: '' as IntlString,
+    RelatedToIssuesList: '' as IntlString,
+    BlocksIssuesList: '' as IntlString,
     SubIssuesList: '' as IntlString,
     SetParent: '' as IntlString,
     ChangeParent: '' as IntlString,
     RemoveParent: '' as IntlString,
     OpenParent: '' as IntlString,
+    ParentNotApplicable: '' as IntlString,
+    NoParentIssuesExist: '' as IntlString,
     OpenSubIssues: '' as IntlString,
     AddSubIssues: '' as IntlString,
+    AddExistingSubIssue: '' as IntlString,
+    CreateSubIssue: '' as IntlString,
     BlockedBy: '' as IntlString,
     RelatedTo: '' as IntlString,
     Comments: '' as IntlString,
@@ -197,6 +214,10 @@ export default mergeIds(trackerId, tracker, {
     Duplicate: '' as IntlString,
     MoveIssues: '' as IntlString,
     MoveIssuesDescription: '' as IntlString,
+    ChangeTaskType: '' as IntlString,
+    NewTaskType: '' as IntlString,
+    SelectNewStatus: '' as IntlString,
+    LostAttributesHint: '' as IntlString,
     ManageAttributes: '' as IntlString,
     KeepOriginalAttributes: '' as IntlString,
     KeepOriginalAttributesTooltip: '' as IntlString,
@@ -272,6 +293,7 @@ export default mergeIds(trackerId, tracker, {
     Estimation: '' as IntlString,
     ReportedTime: '' as IntlString,
     RemainingTime: '' as IntlString,
+    PlannedTime: '' as IntlString,
     TimeSpendReport: '' as IntlString,
     TimeSpendReportAdd: '' as IntlString,
     TimeSpendReports: '' as IntlString,
@@ -279,7 +301,7 @@ export default mergeIds(trackerId, tracker, {
     TimeSpendReportValue: '' as IntlString,
     TimeSpendReportDescription: '' as IntlString,
     TimeSpendDays: '' as IntlString,
-    TimeSpendHours: '' as IntlString,
+    DurationParseError: '' as IntlString,
     TimeSpendMinutes: '' as IntlString,
     TimeRangeWeek: '' as IntlString,
     TimeRangeTwoWeeks: '' as IntlString,
@@ -321,7 +343,18 @@ export default mergeIds(trackerId, tracker, {
     UnsetParent: '' as IntlString,
     PreviousAssigned: '' as IntlString,
     EditRelatedTargets: '' as IntlString,
-    RelatedIssueTargetDescription: '' as IntlString
+    RelatedIssueTargetDescription: '' as IntlString,
+    ClassicIssue: '' as IntlString,
+    ClassicIssues: '' as IntlString,
+    Parent: '' as IntlString,
+    ExportToCSV: '' as IntlString,
+    ExportToCSVTooltip: '' as IntlString,
+    EstimationTask: '' as IntlString,
+    EstimationSubtask: '' as IntlString,
+    ReportedTaskTime: '' as IntlString,
+    ReportedSubtaskTime: '' as IntlString,
+    ReportedTotalTime: '' as IntlString,
+    EstimationTotalTime: '' as IntlString
   },
   component: {
     NopeComponent: '' as AnyComponent,
@@ -379,6 +412,7 @@ export default mergeIds(trackerId, tracker, {
     TimeSpendReport: '' as AnyComponent,
     TimeSpendReportList: '' as AnyComponent,
     EstimationEditor: '' as AnyComponent,
+    ReportedTimeListPresenter: '' as AnyComponent,
     TemplateEstimationEditor: '' as AnyComponent,
     DeleteComponentPresenter: '' as AnyComponent,
 
@@ -390,7 +424,9 @@ export default mergeIds(trackerId, tracker, {
     IconWithEmoji: '' as Asset,
     IssueStatusIcon: '' as AnyComponent,
     MilestoneStatusIcon: '' as AnyComponent,
-    ParentIssuePresenter: '' as AnyComponent
+    ParentIssuePresenter: '' as AnyComponent,
+    ParentIssueSelector: '' as AnyComponent,
+    RemoveRelationButton: '' as AnyComponent
   },
   extensions: {
     KanbanSwimLaneActions: '' as ComponentExtensionId
@@ -399,10 +435,12 @@ export default mergeIds(trackerId, tracker, {
     CreateIssueDraft: '' as Metadata<IssueDraft>
   },
   function: {
+    CanChangeTaskType: '' as Resource<(doc: Doc | Doc[] | undefined) => Promise<boolean>>,
     IssueTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
     IssueIdentifierProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
     ComponentTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
     MilestoneTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
+    TimeSpendReportTitlePresenter: '' as Resource<(doc: Doc, control: any) => Promise<string>>,
     GetIssueId: '' as Resource<(doc: Doc) => Promise<string>>,
     GetIssueLink: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<string>>,
     GetIssueLinkFragment: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
@@ -419,9 +457,11 @@ export default mergeIds(trackerId, tracker, {
     IsProjectJoined: '' as Resource<(space: Space) => Promise<boolean>>,
     IssueChatTitleProvider: '' as Resource<(object: Doc) => string>,
     GetIssueStatusCategories: '' as Resource<(project: ProjectType) => Array<Ref<StatusCategory>>>,
+    GetIssueDefaultStatuses: '' as Resource<(project: ProjectType) => Array<Ref<Status>>>,
     GetIssueIdByIdentifier: '' as Resource<(id: string) => Promise<Ref<Issue> | undefined>>,
     OpenIssuesOfTaskType: '' as Resource<(taskType: TaskType) => Promise<void>>,
-    FormatIssueMarkdownValue: '' as Resource<ValueFormatter>
+    FormatIssueMarkdownValue: '' as Resource<ValueFormatter>,
+    ReportedTimeApplier: '' as Resource<AttributeApplierFn>
   },
   aggregation: {
     CreateComponentAggregationManager: '' as CreateAggregationManagerFunc,

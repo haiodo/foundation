@@ -1,0 +1,45 @@
+# LiveKit Egress for sanity tests.
+# Connects to host LiveKit (run_livekit_test.sh) on port 7890.
+# Uses redis-test container for job queue.
+
+api_key: testkey
+api_secret: testsecret_for_sanity_tests_min32chars
+
+ws_url: ws://host.docker.internal:7890
+insecure: true
+
+redis:
+  address: redis-test:6379
+  db: 0
+
+logging:
+  json: false
+  level: debug
+
+template_port: 7896
+prometheus_port: 0
+health_port: 0
+debug_handler_port: 0
+
+storage:
+  s3:
+    endpoint: http://minio:9000
+    access_key: minioadmin
+    secret: minioadmin
+    bucket: livekit-recordings-test
+    region: us-east-1
+    forcePathStyle: true
+    max_retries: 3
+    min_retry_delay: 500ms
+    max_retry_delay: 5s
+
+# The CI runner has 4 vCPU and egress defaults reserve 3-4 of them for a Chrome-backed room
+# composite, so video recordings were never accepted while audio-only ones (cost 1) went through.
+cpu_cost:
+  room_composite_cpu_cost: 1
+  web_cpu_cost: 1
+
+session_limits:
+  file_output_max_duration: 1h
+  stream_output_max_duration: 30m
+  segment_output_max_duration: 1h

@@ -15,7 +15,8 @@
 <script lang="ts">
   import { getName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import hr, { Department, Staff } from '@hcengineering/hr'
+  import type { Department, Staff } from '@hcengineering/hr'
+  import hr from '@hcengineering/hr'
   import { getClient } from '@hcengineering/presentation'
   import { DocNavLink } from '@hcengineering/view-resources'
 
@@ -34,7 +35,7 @@
   <DocNavLink object={value}>
     <div class="flex-row-center">
       <div class="member-icon mr-2">
-        <Avatar size={'medium'} person={value} name={value.name} />
+        <Avatar size="medium" person={value} name={value.name} />
       </div>
       <div class="flex-col">
         <div class="member-title fs-title">

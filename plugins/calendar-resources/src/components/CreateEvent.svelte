@@ -13,17 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    AccessLevel,
-    Calendar,
-    Event,
-    ReccuringEvent,
-    RecurringRule,
-    Visibility,
-    generateEventId
-  } from '@hcengineering/calendar'
-  import { getCurrentEmployee, Person } from '@hcengineering/contact'
-  import core, { Class, Doc, Markup, Ref, Space, generateId, getCurrentAccount } from '@hcengineering/core'
+  import type { Calendar, Event, ReccuringEvent, RecurringRule, Visibility } from '@hcengineering/calendar'
+  import { AccessLevel, generateEventId } from '@hcengineering/calendar'
+  import type { Person } from '@hcengineering/contact'
+  import { getCurrentEmployee, getCurrentEmployeeSpace } from '@hcengineering/contact'
+  import type { Class, Doc, Markup, Ref, Space } from '@hcengineering/core'
+  import core, { generateId, getCurrentAccount } from '@hcengineering/core'
   import presentation, {
     createQuery,
     DocCreateExtComponent,
@@ -52,8 +47,11 @@
   import EventTimeEditor from './EventTimeEditor.svelte'
   import EventTimeExtraButton from './EventTimeExtraButton.svelte'
   import LocationEditor from './LocationEditor.svelte'
+  import ParticipantsBusy from './ParticipantsBusy.svelte'
   import ReccurancePopup from './ReccurancePopup.svelte'
   import VisibilityEditor from './VisibilityEditor.svelte'
+
+  let busyPersons = new Set<Ref<Person>>()
 
   const acc = getCurrentAccount()
   const currentUser = getCurrentEmployee()
@@ -88,7 +86,7 @@
 
   const spaceQ = createQuery()
   let space: Space | undefined = undefined
-  spaceQ.query(core.class.Space, { _id: calendar.space.Calendar }, (res) => {
+  spaceQ.query(core.class.Space, { _id: getCurrentEmployeeSpace() }, (res) => {
     space = res[0]
   })
 
@@ -99,8 +97,12 @@
   const dispatch = createEventDispatcher()
   const client = getClient()
 
+  // `_calendar` is resolved by two live queries inside CalendarSelector - until both land,
+  // saveEvent bails out silently, so the button must not be clickable yet.
+  $: canSave = title !== '' && _calendar !== undefined
+
   export function canClose (): boolean {
-    return title !== undefined && title.trim().length === 0 && participants.length === 0
+    return title?.trim().length === 0 && participants.length === 0
   }
 
   async function saveEvent () {
@@ -114,7 +116,7 @@
     if (rules.length > 0) {
       await client.addCollection(
         calendar.class.ReccuringEvent,
-        calendar.space.Calendar,
+        getCurrentEmployeeSpace(),
         attachedTo,
         attachedToClass,
         'events',
@@ -145,7 +147,7 @@
     } else {
       await client.addCollection(
         calendar.class.Event,
-        calendar.space.Calendar,
+        getCurrentEmployeeSpace(),
         attachedTo,
         attachedToClass,
         'events',
@@ -204,7 +206,7 @@
     <EditBox
       bind:value={title}
       placeholder={calendar.string.EventTitlePlaceholder}
-      kind={'ghost-large'}
+      kind="ghost-large"
       fullSize
       focusable
       autoFocus
@@ -215,8 +217,8 @@
         id="card-close"
         focusIndex={10003}
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -236,19 +238,20 @@
     </div>
     <div class="block rightCropPadding">
       <LocationEditor focusIndex={10010} bind:value={location} />
-      <EventParticipants focusIndex={10011} bind:participants bind:externalParticipants />
+      <EventParticipants focusIndex={10011} bind:participants bind:externalParticipants {busyPersons} />
+      <ParticipantsBusy {participants} date={startDate} {dueDate} bind:busyPersons />
     </div>
     <div class="block">
-      <DocCreateExtComponent manager={docCreateManager} kind={'body'} />
+      <DocCreateExtComponent manager={docCreateManager} kind="body" />
     </div>
     <div class="block description">
       <div class="top-icon">
-        <Icon icon={calendar.icon.Description} size={'small'} />
+        <Icon icon={calendar.icon.Description} size="small" />
       </div>
       <StyledTextBox
         alwaysEdit={true}
         isScrollable={false}
-        kind={'indented'}
+        kind="indented"
         showButtons={false}
         focusIndex={10100}
         placeholder={calendar.string.Description}
@@ -258,7 +261,7 @@
     <div class="block rightCropPadding">
       <CalendarSelector bind:value={_calendar} focusIndex={10101} />
       <div class="flex-row-center flex-gap-1">
-        <Icon icon={calendar.icon.Hidden} size={'small'} />
+        <Icon icon={calendar.icon.Hidden} size="small" />
         <VisibilityEditor bind:value={visibility} kind="inline" size="medium" focusIndex={10102} withoutIcon />
       </div>
       <EventReminders bind:reminders focusIndex={10103} />
@@ -272,7 +275,7 @@
       label={presentation.string.Create}
       focusIndex={10104}
       on:click={saveEvent}
-      disabled={title === ''}
+      disabled={!canSave}
     />
   </div>
 </div>

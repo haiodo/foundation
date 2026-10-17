@@ -16,15 +16,16 @@
   import { AttachmentsPresenter } from '@hcengineering/attachment-resources'
   import contact, { getName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import { WithLookup } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { getClient } from '@hcengineering/presentation'
-  import recruit, { Applicant, Candidate } from '@hcengineering/recruit'
+  import type { Applicant, Candidate } from '@hcengineering/recruit'
+  import recruit from '@hcengineering/recruit'
   import task from '@hcengineering/task'
   import { AssigneePresenter, StateRefPresenter } from '@hcengineering/task-resources'
   import tracker from '@hcengineering/tracker'
   import { Component, DueDatePresenter } from '@hcengineering/ui'
-  import { BuildModelKey } from '@hcengineering/view'
+  import type { BuildModelKey } from '@hcengineering/view'
   import { DocNavLink, ObjectPresenter, enabledConfig, statusStore } from '@hcengineering/view-resources'
   import { ChatMessagesPresenter } from '@hcengineering/chunter-resources'
 
@@ -65,7 +66,7 @@
     {/if}
     <div class="flex-between mb-1">
       <div class="flex-row-center">
-        <Avatar person={object.$lookup?.attachedTo} size={'medium'} name={object.$lookup?.attachedTo?.name} />
+        <Avatar person={object.$lookup?.attachedTo} size="medium" name={object.$lookup?.attachedTo?.name} />
         <div class="flex-grow flex-col min-w-0 ml-2">
           <div class="fs-title over-underline lines-limit-2">
             {object.$lookup?.attachedTo ? getName(getClient().getHierarchy(), object.$lookup.attachedTo) : ''}
@@ -99,21 +100,21 @@
     <div class="card-labels mb-2">
       {#if groupByKey !== 'status' && enabledConfig(config, 'status')}
         <StateRefPresenter
-          size={'small'}
-          kind={'link-bordered'}
+          size="small"
+          kind="link-bordered"
           space={object.space}
           shrink={1}
           value={object.status}
           onChange={(status) => {
-            getClient().update(object, { status })
+            void getClient().update(object, { status })
           }}
         />
       {/if}
       <Component showLoading={false} is={tracker.component.RelatedIssueSelector} props={{ object, size: 'small' }} />
       {#if enabledConfig(config, 'dueDate')}
         <DueDatePresenter
-          size={'small'}
-          kind={'link-bordered'}
+          size="small"
+          kind="link-bordered"
           value={object.dueDate}
           shouldRender={object.dueDate !== null && object.dueDate !== undefined}
           shouldIgnoreOverdue={isDone}

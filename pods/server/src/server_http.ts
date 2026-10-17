@@ -1,5 +1,6 @@
 //
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,15 +21,18 @@ import {
 } from '@hcengineering/account-client'
 import { Analytics } from '@hcengineering/analytics'
 import {
+  type Class,
+  type Doc,
   generateId,
   platformNow,
+  type Ref,
   systemAccountUuid,
   type MeasureContext,
   type Tx,
   type WorkspaceIds,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import { Status, UNAUTHORIZED, unknownStatus } from '@hcengineering/platform'
+import platform, { PlatformError, Status, UNAUTHORIZED, unknownStatus } from '@hcengineering/platform'
 import { RPCHandler, type Response } from '@hcengineering/rpc'
 import {
   doSessionOp,
@@ -48,7 +52,7 @@ import {
   type SessionManager,
   type StorageAdapter
 } from '@hcengineering/server-core'
-import { decodeToken, type Token } from '@hcengineering/server-token'
+import { decodeToken, hasAdminSession, isHumanAdmin, type Token } from '@hcengineering/server-token'
 import 'bufferutil'
 import cors from 'cors'
 import express, { type Response as ExpressResponse, type NextFunction, type Request } from 'express'
@@ -56,6 +60,7 @@ import http, { type IncomingMessage } from 'http'
 import morgan from 'morgan'
 import os from 'os'
 import { compress } from 'snappy'
+import { Transform } from 'stream'
 import { setImmediate } from 'timers/promises'
 import 'utf-8-validate'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
@@ -83,10 +88,33 @@ const catchError = (fn: RequestHandler) => (req: Request, res: ExpressResponse, 
   })()
 }
 
+// Management endpoints take the token from the Authorization header only: a token in the query
+// string leaks into proxy access logs and browser history. The system account covers unattended
+// tooling; a human operator needs a fresh `/admin` second factor.
+const bearerToken = (req: { headers: Record<string, any> }): string => (req.headers.authorization ?? '').split(' ')[1]
+const isOperator = (payload: Token): boolean =>
+  payload.account === systemAccountUuid || (isHumanAdmin(payload) && hasAdminSession(payload))
+
 let profiling = false
 const rpcHandler = new RPCHandler()
 
 const backpressureSize = 100 * 1024
+
+// Slow-client protection: when the outgoing buffer crosses WS_DROP_THRESHOLD,
+// broadcasts to that client are dropped and the affected classes are accumulated.
+// Once the buffer drains below WS_RESUME_THRESHOLD the next broadcast is preceded
+// by a TxWorkspaceEvent.BulkUpdate so the client refreshes the relevant queries.
+// Set WS_SLOW_CLIENT_DROP=0 to disable the drop path entirely (legacy behaviour:
+// every broadcast is awaited via backpressure).
+const slowClientDropEnabled = (process.env.WS_SLOW_CLIENT_DROP ?? '1') !== '0'
+function parsePositiveInt (raw: string | undefined, fallback: number): number {
+  const n = parseInt(raw ?? '')
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+const dropThreshold = parsePositiveInt(process.env.WS_DROP_THRESHOLD, 2.5 * 1024 * 1024)
+const resumeRaw = parsePositiveInt(process.env.WS_RESUME_THRESHOLD, backpressureSize)
+// Resume must be strictly below drop, otherwise the socket would never enter the resume window.
+const resumeThreshold = resumeRaw < dropThreshold ? resumeRaw : Math.max(1, Math.floor(dropThreshold / 2))
 /**
  * @public
  * @param port -
@@ -126,6 +154,7 @@ export function startHttpServer (
   }
 
   const app = express()
+  app.disable('x-powered-by')
   app.use(cors())
 
   const childLogger = ctx.logger.childLogger?.('requests', {
@@ -141,7 +170,15 @@ export function startHttpServer (
 
   const myStream = new MyStream()
 
-  app.use(morgan('short', { stream: myStream }))
+  // One line per REST call buries everything else. Log the ones that failed;
+  // ACCESS_LOG=all brings the rest back when needed.
+  const accessLogAll = process.env.ACCESS_LOG === 'all'
+  app.use(
+    morgan('short', {
+      stream: myStream,
+      skip: (_req, res) => !accessLogAll && res.statusCode < 400
+    })
+  )
 
   const getUsers = (): any => Array.from(sessions.sessions.entries()).map(([k, v]) => v.session.getUser())
 
@@ -173,9 +210,8 @@ export function startHttpServer (
 
   app.get('/api/v1/statistics', (req, res) => {
     try {
-      const token = (req.query.token as string) ?? (req.headers.authorization ?? '').split(' ')[1]
-      const payload = decodeToken(token)
-      const admin = payload.extra?.admin === 'true'
+      const payload = decodeToken(bearerToken(req))
+      const admin = isOperator(payload)
       const jsonData = {
         ...getStatistics(ctx, sessions, admin),
         users: getUsers(),
@@ -199,8 +235,12 @@ export function startHttpServer (
 
   app.get('/api/v1/profiling', (req, res) => {
     try {
-      const token = (req.query.token as string) ?? (req.headers.authorization ?? '').split(' ')[1]
-      decodeToken(token)
+      const payload = decodeToken(bearerToken(req))
+      if (!isOperator(payload)) {
+        res.writeHead(404, {})
+        res.end()
+        return
+      }
       const jsonData = {
         profiling
       }
@@ -216,10 +256,9 @@ export function startHttpServer (
   })
   app.put('/api/v1/manage', (req, res) => {
     try {
-      const token = (req.query.token as string) ?? (req.headers.authorization ?? '').split(' ')[1]
-      const payload = decodeToken(token)
+      const payload = decodeToken(bearerToken(req))
 
-      if (payload.extra?.admin !== 'true' && payload.account !== systemAccountUuid) {
+      if (!isOperator(payload)) {
         console.warn('Non admin attempt to maintenance action', { payload })
         res.writeHead(404, {})
         res.end()
@@ -230,13 +269,19 @@ export function startHttpServer (
 
       switch (operation) {
         case 'maintenance': {
-          void retrieveJson(req).then((message) => {
-            const timeMinutes = parseInt((req.query.timeout as string) ?? '5')
-            sessions.scheduleMaintenance(timeMinutes, message)
+          void retrieveJson(req)
+            .then((message) => {
+              const timeMinutes = parseInt((req.query.timeout as string) ?? '5')
+              sessions.scheduleMaintenance(timeMinutes, message)
 
-            res.writeHead(200)
-            res.end()
-          })
+              res.writeHead(200)
+              res.end()
+            })
+            .catch((err) => {
+              ctx.error('JSON parse error', { err })
+              res.writeHead(400, {})
+              res.end()
+            })
           return
         }
         case 'wipe-statistics': {
@@ -300,9 +345,6 @@ export function startHttpServer (
           res.end()
           return
         }
-        case 'reboot': {
-          process.exit(0)
-        }
       }
 
       res.writeHead(404, {})
@@ -318,6 +360,7 @@ export function startHttpServer (
   app.put(
     '/api/v1/blob',
     catchError(async (req, res) => {
+      let received = 0
       try {
         const authHeader = req.headers.authorization
         if (authHeader === undefined) {
@@ -352,6 +395,14 @@ export function startHttpServer (
           res.end()
           return
         }
+        // The declared size is not trusted: count what is actually read.
+        const body = new Transform({
+          transform (chunk: Buffer, encoding, callback) {
+            received += chunk.length
+            callback(received > MAX_FILE_SIZE ? new Error('File too large') : null, chunk)
+          }
+        })
+        req.on('error', (err) => body.destroy(err))
         await ctx.with(
           'storage upload',
           {},
@@ -360,7 +411,7 @@ export function startHttpServer (
               ctx,
               wsIds,
               name,
-              size === 0 ? '' : req,
+              size === 0 ? '' : req.pipe(body),
               contentType,
               size !== -1 ? size : undefined
             )
@@ -373,6 +424,12 @@ export function startHttpServer (
           { contentType, workspace: wsIds.uuid }
         )
       } catch (err: any) {
+        if (received > MAX_FILE_SIZE) {
+          // The rest of the body is left unread, so the connection cannot be reused.
+          res.writeHead(413, { 'Content-Type': 'application/json', Connection: 'close' })
+          res.end(JSON.stringify({ error: 'File too large' }))
+          return
+        }
         Analytics.handleError(err)
         ctx.error('/api/v1/blob put error', { err })
         res.writeHead(200, {
@@ -399,6 +456,7 @@ export function startHttpServer (
 
         if (wsIds.uuid == null) {
           res.status(403).send({ error: 'No workspace found' })
+          return
         }
 
         const name = req.query.name as string
@@ -426,16 +484,26 @@ export function startHttpServer (
       } catch (err: any) {
         Analytics.handleError(err)
         ctx.error('/api/v1/blob get error', { err })
+        // An unreachable account service says nothing about the token; 401 would send the client to log in again.
+        if (err instanceof PlatformError && err.status.code === platform.status.ServiceUnavailable) {
+          res.status(503).send({ error: 'Service unavailable' })
+          return
+        }
+        res.status(401).send({ error: 'Unauthorized' })
       }
     })
   )
 
-  registerRPC(app, sessions, ctx, accountsUrl)
+  registerRPC(app, sessions, ctx, accountsUrl, externalStorage)
 
   app.put('/api/v1/broadcast', (req, res) => {
     try {
       const token = (req.query.token as string) ?? (req.headers.authorization ?? '').split(' ')[1]
-      decodeToken(token)
+      if (decodeToken(token).account !== systemAccountUuid) {
+        res.writeHead(404, {})
+        res.end()
+        return
+      }
 
       const ws = req.query.workspace as WorkspaceUuid
 
@@ -445,7 +513,7 @@ export function startHttpServer (
           if (Array.isArray(data)) {
             sessions.broadcastAll(ctx, ws, data as Tx[])
           } else {
-            sessions.broadcastAll(ctx, ws, [data as unknown as Tx])
+            sessions.broadcastAll(ctx, ws, [data])
           }
           res.end()
         })
@@ -484,7 +552,8 @@ export function startHttpServer (
       language: request.headers['accept-language'] ?? '',
       account: token.account,
       mode: token.extra?.mode,
-      model: token.extra?.model
+      model: token.extra?.model,
+      service: token.extra?.service
     }
     const cs: ConnectionSocket = createWebsocketClientSocket(ws, data)
 
@@ -534,7 +603,7 @@ export function startHttpServer (
         if (msg instanceof Buffer) {
           buff = msg
         } else if (Array.isArray(msg)) {
-          buff = Buffer.concat(msg as any)
+          buff = Buffer.concat(msg)
         }
         if (buff !== undefined) {
           doSessionOp(
@@ -651,8 +720,10 @@ function createWebsocketClientSocket (
     account: string
     mode: any
     model: any
+    service?: string
   }
 ): ConnectionSocket {
+  const pendingClasses = new Set<Ref<Class<Doc>>>()
   const cs: ConnectionSocket = {
     id: generateId(),
     isClosed: false,
@@ -671,6 +742,21 @@ function createWebsocketClientSocket (
           await setImmediate()
         }
       })
+    },
+    isOverloaded: () => slowClientDropEnabled && ws.bufferedAmount > dropThreshold,
+    addDroppedClasses: (classes: Ref<Class<Doc>>[]) => {
+      if (!slowClientDropEnabled) return
+      for (const c of classes) {
+        if (c != null) pendingClasses.add(c)
+      }
+    },
+    takePendingRefresh: () => {
+      if (!slowClientDropEnabled) return null
+      if (ws.bufferedAmount > resumeThreshold) return null
+      if (pendingClasses.size === 0) return null
+      const result = Array.from(pendingClasses)
+      pendingClasses.clear()
+      return result
     },
     checkState: () => {
       if (ws.readyState === ws.CLOSED || ws.readyState === ws.CLOSING) {
@@ -692,21 +778,42 @@ function createWebsocketClientSocket (
       }
       ws.send(pongConst)
     },
-    send: async (ctx: MeasureContext, msg, binary, _compression): Promise<void> => {
-      const smsg = rpcHandler.serialize(msg, binary)
+    send: async (ctx: MeasureContext, msg, binary, _compression, memo): Promise<void> => {
+      // A broadcast hands every socket the same bytes, so the first one packs and compresses and
+      // the rest reuse it. A direct response has nobody to share with, so it stays on the plain
+      // path - the memo bookkeeping would be three allocations per send for nothing.
+      let sendMsg: any
+      if (memo !== undefined) {
+        const key = `${binary ? 1 : 0}-${_compression ? 1 : 0}`
+        let pending = memo.get(key)
+        if (pending === undefined) {
+          pending = (async () => {
+            const packed = rpcHandler.serialize(msg, binary)
+            return _compression ? await compress(packed) : packed
+          })()
+          // A closed socket returns before awaiting, so keep the rejection handled.
+          void pending.catch(() => {})
+          memo.set(key, pending)
+        }
+        sendMsg = await pending
+      } else {
+        sendMsg = rpcHandler.serialize(msg, binary)
+      }
       if (ws.readyState !== ws.OPEN || cs.isClosed) {
         return
       }
 
-      // We need to be sure all data is send before we will send more.
+      // We need to be sure all data is send before we send more.
       if (cs.isBackpressure()) {
         await cs.backpressure(ctx)
       }
 
-      let sendMsg = smsg
-      if (_compression) {
-        sendMsg = await compress(smsg)
+      if (memo === undefined && _compression) {
+        sendMsg = await compress(sendMsg)
       }
+      // Real bytes on the wire, after packing and compression - replaces the old estimate,
+      // which walked the whole result graph just to feed a counter.
+      ctx.measure('clientSendBytes', typeof sendMsg === 'string' ? Buffer.byteLength(sendMsg) : sendMsg.length)
       const st = platformNow()
       await new Promise<void>((resolve) => {
         const handleErr = (err?: Error): void => {

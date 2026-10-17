@@ -1,9 +1,10 @@
 <script lang="ts">
   import chunter from '@hcengineering/chunter'
-  import { Class, Doc, Ref, RelatedDocument, WithLookup } from '@hcengineering/core'
-  import { IntlString, getResource } from '@hcengineering/platform'
+  import type { Class, Doc, Ref, RelatedDocument, WithLookup } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Issue } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
   import { Component, Icon, IconClose, navigate } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import activity from '@hcengineering/activity'
@@ -84,7 +85,7 @@
   {#if isIssue}
     {@const issue = asIssue(doc)}
     <div class="tag-container">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
       <div class="flex-grow">
         <button {disabled} on:click|stopPropagation={() => handleRedirect(issue)}>
           <span class="overflow-label ml-1-5 content-color">{issue.identifier}</span>
@@ -92,7 +93,7 @@
       </div>
       {#if !readonly}
         <button class="btn-close" on:click|stopPropagation={() => handleClick(issue)}>
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </button>
       {/if}
     </div>
@@ -104,7 +105,7 @@
       />
       {#if !readonly}
         <button class="btn-close" on:click|stopPropagation={() => handleClick(doc)}>
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </button>
       {/if}
     </div>
@@ -123,7 +124,6 @@
     min-height: 0;
     font-size: 0.8125rem;
     border-radius: 0.25rem;
-    // width: fit-content;
     border: 1px solid transparent;
 
     &.between {

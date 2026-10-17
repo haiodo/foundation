@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import type { Asset, IntlString } from '@hcengineering/platform'
-  import { ComponentType, onMount } from 'svelte'
+  import type { ComponentType } from 'svelte'
+  import { onMount } from 'svelte'
   import { checkAdaptiveMatching, deviceOptionsStore as deviceInfo } from '..'
   import { registerFocus } from '../focus'
   import { tooltip } from '../tooltips'
@@ -173,7 +174,7 @@
   {/if}
   {#if loading}
     <div
-      class="btn-icon pointer-events-none spinner pl-2"
+      class="btn-icon pointer-events-none spinner"
       class:resetIconSize={resetIconSize === 'icon'}
       style:color={primary ? 'var(--primary-button-color)' : 'var(--theme-caption-color)'}
     >
@@ -181,7 +182,7 @@
     </div>
   {/if}
   {#if label && !adaptive}
-    <span class="overflow-label label disabled pointer-events-none" class:ml-2={loading}>
+    <span class="overflow-label label disabled pointer-events-none">
       <Label {label} params={labelParams} />
     </span>
   {/if}

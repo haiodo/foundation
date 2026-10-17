@@ -245,17 +245,17 @@
   <div bind:this={parent} class="cover" class:active={!videoMuted} class:mirror={mirror && !videoMuted} />
   <div class="ava">
     <!-- Avatar uses only name (no person lookup) -->
-    <Avatar size={'full'} name={userName} showStatus={false} />
+    <Avatar size="full" name={userName} showStatus={false} />
   </div>
   <div class="label" class:withIcon={microphoneMuted || isBadConnection || participant === undefined}>
     {#if participant === undefined}
-      <Loading size={'small'} shrink />
+      <Loading size="small" shrink />
     {/if}
     {#if isBadConnection}
-      <BadConnection fill={'var(--bg-negative-default)'} size={'small'} />
+      <BadConnection fill="var(--bg-negative-default)" size="small" />
     {/if}
     {#if microphoneMuted}
-      <MicDisabled fill={'var(--bg-negative-default)'} size={'small'} />
+      <MicDisabled fill="var(--bg-negative-default)" size="small" />
     {/if}
     <span class="overflow-label">{formatName(userName)}</span>
   </div>

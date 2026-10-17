@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Type } from '@hcengineering/core'
-  import { Process } from '@hcengineering/process'
-  import { DropdownIntlItem, DropdownLabelsIntl, Label } from '@hcengineering/ui'
+  import type { Type } from '@hcengineering/core'
+  import type { Process } from '@hcengineering/process'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { DropdownLabelsIntl, Label } from '@hcengineering/ui'
   import plugin from '../../plugin'
   import ResultFieldTypeEditor from './ResultFieldTypeEditor.svelte'
   import ResultTypeEditor from './ResultTypeEditor.svelte'
@@ -46,7 +47,7 @@
 <span class="label">
   <Label label={plugin.string.For} />
 </span>
-<DropdownLabelsIntl label={plugin.string.For} {items} size={'large'} width={'100%'} bind:selected />
+<DropdownLabelsIntl label={plugin.string.For} {items} size="large" width="100%" bind:selected />
 {#if selected === Modes.Attribute}
   <ResultFieldTypeEditor {process} bind:key bind:type on:change />
 {:else}

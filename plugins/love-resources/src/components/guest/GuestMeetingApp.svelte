@@ -25,15 +25,18 @@
   import { lkSessionConnected } from '../../liveKitClient'
   import { isFullScreen, liveKitClient } from '../../utils'
   import { onDestroy, onMount } from 'svelte'
-  import ui, { location, navigate, Location, Button, ticker, formatDuration, themeStore } from '@hcengineering/ui'
-  import { getMetadata, getResource, IntlString } from '@hcengineering/platform'
+  import type { Location } from '@hcengineering/ui'
+  import ui, { location, navigate, Button, ticker, formatDuration, themeStore } from '@hcengineering/ui'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getMetadata, getResource } from '@hcengineering/platform'
   import login from '@hcengineering/login'
 
   import love from '../../plugin'
-  import { MeetingMinutes, MeetingStatus } from '@hcengineering/love'
+  import type { MeetingMinutes } from '@hcengineering/love'
+  import { MeetingStatus } from '@hcengineering/love'
   import { workbenchId } from '@hcengineering/workbench'
   import GuestControlBar from './GuestControlBar.svelte'
-  import { Ref, Timestamp, WorkspaceUuid } from '@hcengineering/core'
+  import type { Ref, Timestamp, WorkspaceUuid } from '@hcengineering/core'
 
   import { LoginAppBase, loginTheme, Label } from '@hcengineering/login-resources'
   import loginResources from '@hcengineering/login-resources/src/plugin'
@@ -304,7 +307,7 @@
   $: void fetchGuestInfo($ticker)
 
   onMount(() => {
-    roomEl && roomEl.addEventListener('fullscreenchange', handleFullScreen)
+    roomEl?.addEventListener('fullscreenchange', handleFullScreen)
 
     // Subscribe to LiveKit events for guest-only detection
     if (lk) {
@@ -438,7 +441,7 @@
           </div>
         </div>
       </div>
-    {:else if guestInfo != null && guestInfo.meetingStatus === MeetingStatus.Scheduled}
+    {:else if guestInfo?.meetingStatus === MeetingStatus.Scheduled}
       <div class="center">
         <div class="message flex flex-col items-center">
           <div class="flex flex-col flex-row-center">
@@ -471,7 +474,7 @@
           <div class="message flex justify-center">{love.string.CheckingLink}</div>
         </div>
       {:else if $lkSessionConnected}
-        <div bind:this={roomEl} class="flex-col-center w-full h-full">
+        <div bind:this={roomEl} data-id="guest-connected" class="flex-col-center w-full h-full">
           <div class="room-container" class:sharing={withScreenSharing}>
             <div class="screenContainer">
               <ScreenSharingView bind:hasActiveTrack={withScreenSharing} />

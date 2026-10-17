@@ -13,18 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    Doc,
-    DocumentQuery,
-    FindResult,
-    getObjectValue,
-    IndexKind,
-    Ref,
-    RefTo,
-    SortingOrder,
-    Space,
-    type WithLookup
-  } from '@hcengineering/core'
+  import type { Doc, DocumentQuery, FindResult, Ref, RefTo, Space } from '@hcengineering/core'
+  import { getObjectValue, IndexKind, SortingOrder, type WithLookup } from '@hcengineering/core'
   import { getResourceC, translate } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
   import ui, {
@@ -39,7 +29,7 @@
     resizeObserver,
     themeStore
   } from '@hcengineering/ui'
-  import { Filter, GrouppingManager } from '@hcengineering/view'
+  import type { Filter, GrouppingManager } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import { FILTER_DEBOUNCE_MS, sortFilterValues } from '../../filter'
   import view from '../../plugin'
@@ -94,7 +84,7 @@
       }
     )
     if (baseObjects.length === 1000) {
-      // We have more so let's fetch all
+      // We have more so fetch all
       const ninTarget = Array.from(new Set(baseObjects.map((it) => getObjectValue(filter.key.key, it) ?? undefined)))
       const extraObjects = await client.findAll(
         filter.key._class,
@@ -112,7 +102,7 @@
     }
 
     for (const object of baseObjects) {
-      const value = getObjectValue(filter.key.key, object) ?? undefined
+      const value = getObjectValue(filter.key.key, object) ?? null
       targets.add(value)
     }
     for (const object of filter.value) {
@@ -141,7 +131,7 @@
         } else {
           return {
             $search: search,
-            $searchStrict: true,
+            $searchIn: ['title', 'identifier'],
             _id: { $in: _ids }
           }
         }
@@ -162,8 +152,8 @@
     if (grouppingManager !== undefined) {
       values = grouppingManager.groupValues(values as Doc[], targets)
     }
-    if (targets.has(undefined)) {
-      values.unshift(undefined)
+    if (targets.has(null)) {
+      values.unshift(null)
     }
     if (values.length !== targets.size) {
       const oldSize = filter.value.length
@@ -199,7 +189,7 @@
       if (value) {
         filter.value = [...filter.value, value._id]
       } else {
-        filter.value = [...filter.value, undefined]
+        filter.value = [...filter.value, null]
       }
     }
 
@@ -217,7 +207,7 @@
   let search: string = ''
 
   const dispatch = createEventDispatcher()
-  $: if (targetClass !== undefined) getValues(search)
+  $: if (targetClass !== undefined) void getValues(search)
 </script>
 
 <div class="selectPopup" use:resizeObserver={() => dispatch('changeContent')}>
@@ -225,8 +215,8 @@
     <div class="header">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         placeholder={presentation.string.Search}
@@ -260,7 +250,7 @@
                 </div>
                 <div class="pointer-events-none">
                   {#if isSelected(value, filter.value)}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </div>

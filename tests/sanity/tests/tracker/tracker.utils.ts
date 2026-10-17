@@ -1,5 +1,6 @@
 import { expect, Page } from '@playwright/test'
 import { generateId, PlatformURI } from '../utils'
+import { retry } from '../retry'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 
 export interface IssueProps {
@@ -33,11 +34,29 @@ export const DEFAULT_STATUSES_ID = new Map([
   ['Canceled', 'task:statusCategory:Lost']
 ])
 
+export const TEST_ESTIMATIONS = [
+  '0h',
+  '30m',
+  '1h',
+  '1h 15m',
+  '1h 30m',
+  '2h',
+  '7h 45m',
+  '8h',
+  '1d',
+  '1d 1h',
+  '1d 1h 30m',
+  '1w',
+  '1w 2d 3h 15m'
+]
+
 export async function navigate (page: Page): Promise<void> {
   await (await page.goto(`${PlatformURI}/workbench/sanity-ws`))?.finished()
 }
 
 export async function setViewGroup (page: Page, groupName: string): Promise<void> {
+  // The viewlet button's tooltip covers btn-viewOptions while the pointer rests on it.
+  await page.mouse.move(0, 0)
   await page.click('button[data-id="btn-viewOptions"]')
   await page.click('.antiCard >> .grouping >> button >> nth=0')
   await page.click(`.menu-item:has-text("${groupName}")`)
@@ -78,8 +97,21 @@ export async function fillIssueForm (page: Page, props: IssueProps): Promise<voi
     })
   }
   if (status !== undefined) {
-    await page.click(af + '#status-editor')
-    await page.click(`.menu-item:has-text("${status}")`)
+    const statusItem = page.locator(`.menu-item:has-text("${status}")`).first()
+    // SelectPopup snapshots the status list (StatusEditor.svelte:96); a just-renamed state is
+    // absent until reopened - outside clicks could land after it re-closes, so keep it in one.
+    await retry(async () => {
+      await page.click(af + '#status-editor')
+      try {
+        await expect(statusItem).toBeVisible({ timeout: 3000 })
+        await statusItem.click()
+      } catch (err) {
+        if (await page.locator('.selectPopup').isVisible()) {
+          await page.keyboard.press('Escape')
+        }
+        throw err
+      }
+    })
   }
   if (priority !== undefined) {
     await page.click(af + 'button:has-text("No priority")')
@@ -220,7 +252,16 @@ export async function checkIssueDraft (page: Page, props: IssueProps): Promise<v
 
 export async function checkIssueFromList (page: Page, issueName: string): Promise<void> {
   await page.click(ViewletSelectors.Board)
-  await expect(page.locator(`.panel-container:has-text("${issueName}")`)).toContainText(issueName)
+  // The board renders a limited number of cards per column, so the issue stays out of the DOM
+  // until every truncated column is expanded.
+  const card = page.locator(`.panel-container:has-text("${issueName}")`)
+  for (let i = 0; i < 50; i++) {
+    if ((await card.count()) > 0) break
+    const showMore = page.locator('button[data-id="btn-kanban-show-more"]').first()
+    if ((await showMore.count()) === 0) break
+    await showMore.click().catch(() => {})
+  }
+  await expect(card).toContainText(issueName)
 }
 
 export async function openIssue (page: Page, name: string): Promise<void> {
@@ -269,14 +310,48 @@ export async function performPanelTest (page: Page, statuses: string[], panel: s
     await expect(locator).not.toContainText(excluded)
   }
   for (const status of statuses) {
-    await expect(
-      page.locator('.panel-container', {
-        has: page.locator(`.header:has-text("${status}")`)
-      })
-    ).toContainText(getIssueName(status), { timeout: 15000 })
+    const column = page.locator('.panel-container', { has: page.locator(`.header:has-text("${status}")`) })
+    // A column renders only its first ten cards; other specs leave hundreds of issues here, so
+    // a just-created one may not be in the DOM - reads like missing. Expand until it shows up.
+    await retry(async () => {
+      if ((await column.getByText(getIssueName(status)).count()) === 0) {
+        await column
+          .locator('button[data-id="btn-kanban-show-more"]')
+          .first()
+          .click({ timeout: 2000 })
+          .catch(() => {})
+      }
+      await expect(column).toContainText(getIssueName(status), { timeout: 2000 })
+    })
   }
 }
 
+const UNIT_HOURS: Record<string, number> = { m: 1 / 60, h: 1, d: 8, w: 40 }
+
+export function parseEstimationInput (input: string): number {
+  const trimmed = input.trim()
+  if (/^\d+(?:[.,]\d+)?$/.test(trimmed)) return parseFloat(trimmed.replace(',', '.'))
+
+  const regex = /(\d+)\s*(w|d|h|m)/g
+  let total = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(trimmed)) !== null) {
+    total += parseInt(match[1], 10) * UNIT_HOURS[match[2]]
+  }
+  return total
+}
+
 export function convertEstimation (estimation: number | string): string {
-  return `${floorFractionDigits(estimation, 3)}h`
+  const hours = typeof estimation === 'number' ? estimation : parseEstimationInput(estimation)
+  if (hours === 0 || Number.isNaN(hours)) return '0h'
+
+  const totalMin = Math.round(hours * 60)
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+
+  const parts: string[] = []
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0) parts.push(`${m}m`)
+
+  return parts.length > 0 ? parts.join(' ') : '0h'
 }

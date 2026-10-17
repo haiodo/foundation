@@ -13,14 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import { generateId } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel } from '@hcengineering/platform'
+  import type { AnySvelteComponent, IconSize } from '..'
   import {
     Icon,
     Label,
     IconDown,
-    AnySvelteComponent,
-    IconSize,
     getTreeCollapsed,
     setTreeCollapsed,
     tooltip,
@@ -34,6 +34,7 @@
   export let iconSize: IconSize = 'small'
   export let label: IntlString | undefined = undefined
   export let title: string | undefined = undefined
+  export let subTitle: string | undefined = undefined
   export let description: string | undefined = undefined
   export let type: 'type-link' | 'type-tag' | 'type-anchor-link' | 'type-object' = 'type-link'
   export let color: string | null = null
@@ -58,6 +59,8 @@
   export let draggable: boolean = false
 
   let labelEl: HTMLSpanElement
+  const labelId = `nav-item-label-${generateId()}`
+  const countId = `nav-item-count-${generateId()}`
   let labelWidth: number
   let levelReset: boolean = false
   let hovered: boolean = false
@@ -89,6 +92,7 @@
   class:pressed
   {draggable}
   class:noActions={$$slots.actions === undefined}
+  aria-labelledby={count !== null ? `${labelId} ${countId}` : labelId}
   on:dragstart
   on:dragover
   on:dragend
@@ -114,7 +118,7 @@
         if (!empty) isOpen = !isOpen
       }}
     >
-      {#if !empty}<IconDown size={'x-small'} />{/if}
+      {#if !empty}<IconDown size="x-small" />{/if}
     </button>
   {/if}
   {#if visibleIcon || (type === 'type-tag' && color)}
@@ -130,6 +134,7 @@
   {/if}
   <span
     bind:this={labelEl}
+    id={labelId}
     use:tooltip={shouldTooltip ? { label: label ?? getEmbeddedLabel(title ?? ''), direction: 'top' } : undefined}
     class="{description ? 'hulyNavItem-wideLabel' : 'hulyNavItem-label'} overflow-label"
     class:flex-grow={!(type === 'type-anchor-link')}
@@ -139,12 +144,14 @@
       <span class="hulyNavItem-label font-medium-12 line-height-auto mr-0-5">
         {#if label}<Label {label} />{/if}
         {#if title}{title}{/if}
+        {#if subTitle}<span class="subtitle lower">{subTitle}</span>{/if}
         <slot />
       </span>
       {description}
     {:else}
       {#if label}<Label {label} />{/if}
       {#if title}{title}{/if}
+      {#if subTitle}<span class="subtitle lower">{subTitle}</span>{/if}
       <slot />
     {/if}
     {#if $$slots.afterTitle}<slot name="afterTitle" />{/if}
@@ -156,7 +163,7 @@
     </div>
   {/if}
   {#if count !== null}
-    <span class="hulyNavItem-count font-bold-12">
+    <span id={countId} class="hulyNavItem-count font-bold-12">
       {count}
     </span>
   {/if}
@@ -357,5 +364,11 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+
+  .subtitle {
+    color: var(--global-tertiary-TextColor);
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
   }
 </style>

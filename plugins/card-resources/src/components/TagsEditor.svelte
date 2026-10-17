@@ -15,14 +15,14 @@
 //
 -->
 <script lang="ts">
-  import { Card, Tag } from '@hcengineering/card'
-  import { Class, Doc, Mixin, Permission, Ref, TypedSpace } from '@hcengineering/core'
+  import type { Card, Tag } from '@hcengineering/card'
+  import type { Class, Doc, Mixin, Permission, Ref, TypedSpace } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { CircleButton, eventToHTMLElement, IconAdd, IconDownOutline, SelectPopup, showPopup } from '@hcengineering/ui'
 
   import MasterTagSelector from './MasterTagSelector.svelte'
   import CardTagColored from './CardTagColored.svelte'
-  import { PermissionsStore } from '@hcengineering/contact'
+  import type { PermissionsStore } from '@hcengineering/contact'
   import { checkMyPermission, permissionsStore } from '@hcengineering/contact-resources'
   import card from '../plugin'
 
@@ -123,11 +123,11 @@
   {#if activeTags.length > 0 || dropdownItems.length > 0}
     <div class="divider" />
     <div class="tags p-1 gap-1">
-      {#if dropdownTags && activeTags.length > 0}
+      {#if !readonly && dropdownTags && activeTags.length > 0}
         <CircleButton
           id={id ? `${id}-dropdown` : undefined}
           icon={IconDownOutline}
-          size={'small'}
+          size="small"
           on:click={handleDrop}
         />
       {:else}
@@ -142,7 +142,7 @@
           />
         {/each}
         {#if !readonly && dropdownItems.length > 0 && !checkAddPermission($permissionsStore)}
-          <CircleButton id={id ? `${id}-add` : undefined} icon={IconAdd} size={'small'} ghost on:click={add} />
+          <CircleButton id={id ? `${id}-add` : undefined} icon={IconAdd} size="small" ghost on:click={add} />
         {/if}
       {/if}
     </div>

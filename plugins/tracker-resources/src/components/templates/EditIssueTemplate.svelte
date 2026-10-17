@@ -14,21 +14,21 @@
 -->
 <script lang="ts">
   import { AttachmentStyleBoxEditor } from '@hcengineering/attachment-resources'
-  import { Class, Doc, Ref, WithLookup } from '@hcengineering/core'
+  import type { Class, Doc, Ref, WithLookup } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { Panel } from '@hcengineering/panel'
   import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import setting, { settingId } from '@hcengineering/setting'
   import tags, { type TagElement, type TagReference } from '@hcengineering/tags'
-  import { IssueTemplate, IssueTemplateChild, Project } from '@hcengineering/tracker'
+  import type { IssueTemplate, IssueTemplateChild, Project } from '@hcengineering/tracker'
   import { Button, EditBox, IconMoreH, Label, getCurrentResolvedLocation, navigate } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { showMenu } from '@hcengineering/view-resources'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
   import tracker from '../../plugin'
 
-  import SubIssueTemplates from './IssueTemplateChilds.svelte'
+  import SubIssueTemplates from '../subtasks/SubtaskSection.svelte'
   import TemplateControlPanel from './TemplateControlPanel.svelte'
 
   export let _id: Ref<IssueTemplate>
@@ -47,7 +47,7 @@
 
   let descriptionBox: AttachmentStyleBoxEditor
 
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   $: read(_id)
   function read (_id: Ref<Doc>): void {
@@ -194,8 +194,8 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
-        dataId={'btnMoreActions'}
+        kind="icon"
+        dataId="btnMoreActions"
         on:click={showContextMenu}
       />
     </svelte:fragment>

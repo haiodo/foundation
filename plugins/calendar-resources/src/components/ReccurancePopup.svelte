@@ -13,13 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { RecurringRule, getWeekday } from '@hcengineering/calendar'
-  import { Timestamp } from '@hcengineering/core'
+  import type { RecurringRule } from '@hcengineering/calendar'
+  import { getWeekday } from '@hcengineering/calendar'
+  import type { Timestamp } from '@hcengineering/core'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
   import ui, {
     Button,
     CheckBox,
     CircleButton,
-    DropdownIntlItem,
     DropdownLabelsIntl,
     Grid,
     Label,
@@ -29,7 +30,7 @@
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import calendar from '../plugin'
-  import { SetPosRules } from '../types'
+  import type { SetPosRules } from '../types'
   import ByDateSelector from './ByDateSelector.svelte'
   import DateEditor from './DateEditor.svelte'
   import SetPosSelector from './SetPosSelector.svelte'
@@ -145,7 +146,7 @@
   <div class="content flex-col flex-gap-2">
     <div class="flex-row-center gap-1-5">
       <span class="min-w-12"><Label label={calendar.string.Every} /></span>
-      <NumberInput bind:value={interval} maxWidth={'4rem'} maxDigitsAfterPoint={0} minValue={1} />
+      <NumberInput bind:value={interval} maxWidth="4rem" maxDigitsAfterPoint={0} minValue={1} />
       <DropdownLabelsIntl bind:selected={periodType} items={ddItems} size="medium" params={{ count: interval }} />
     </div>
     {#if periodType === 'WEEKLY'}
@@ -154,7 +155,7 @@
         <div class="flex-row-center gap-1-5 ml-1-5">
           {#each weekdays as day}
             <CircleButton
-              size={'medium'}
+              size="medium"
               primary={isActive(day.id, selectedWeekdays)}
               on:click={() => {
                 weekdayClick(day.id)
@@ -205,7 +206,7 @@
       <Row>
         <RadioButton
           labelIntl={calendar.string.Never}
-          value={'never'}
+          value="never"
           group={selected}
           action={() => {
             selected = 'never'
@@ -214,7 +215,7 @@
       </Row>
       <RadioButton
         labelIntl={calendar.string.OnUntil}
-        value={'on'}
+        value="on"
         group={selected}
         action={() => {
           selected = 'on'
@@ -225,7 +226,7 @@
       </div>
       <RadioButton
         labelIntl={calendar.string.After}
-        value={'after'}
+        value="after"
         group={selected}
         action={() => {
           selected = 'after'
@@ -234,7 +235,7 @@
       <div class="flex-row-center">
         <NumberInput
           bind:value={count}
-          maxWidth={'3rem'}
+          maxWidth="3rem"
           maxDigitsAfterPoint={0}
           minValue={1}
           disabled={selected !== 'after'}

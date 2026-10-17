@@ -54,8 +54,6 @@ interface InlineState {
   marks: MarkupMark[]
 }
 
-// *************************************************************
-
 function backticksFor (side: boolean): string {
   return side ? '`' : '`'
 }
@@ -86,8 +84,6 @@ const formatTodoItem: FirstDelim = (i, attrs, parentAttrs?: Record<string, any>)
   return `${bullet} [${attrs?.checked === true ? 'x' : ' '}] ${meta}`
 }
 
-// *************************************************************
-
 export const storeNodes: Record<string, NodeProcessor> = {
   blockquote: (state, node) => {
     state.wrapBlock('> ', null, node, () => {
@@ -98,7 +94,6 @@ export const storeNodes: Record<string, NodeProcessor> = {
     state.write('```' + `${nodeAttrs(node).language ?? ''}` + '\n')
     // TODO: Check for node.textContent
     state.renderInline(node)
-    // state.text(node.text ?? '', false)
     state.ensureNewLine()
     state.write('```')
     state.closeBlock(node)
@@ -183,9 +178,9 @@ export const storeNodes: Record<string, NodeProcessor> = {
           (state.imageUrl +
             `${attrs['file-id']}` +
             `?file=${attrs['file-id']}` +
-            (attrs.width != null ? '&width=' + state.esc(`${attrs.width}`) : '') +
-            (attrs.height != null ? '&height=' + state.esc(`${attrs.height}`) : '') +
-            (attrs.token != null ? '&token=' + state.esc(`${attrs.token}`) : '')) +
+            (attrs.width != null ? '&width=' + encodeURIComponent(String(attrs.width)) : '') +
+            (attrs.height != null ? '&height=' + encodeURIComponent(String(attrs.height)) : '') +
+            (attrs.token != null ? '&token=' + encodeURIComponent(String(attrs.token)) : '')) +
           (attrs.title != null ? ' ' + state.quote(`${attrs.title}`) : '') +
           ')'
       )
@@ -197,8 +192,8 @@ export const storeNodes: Record<string, NodeProcessor> = {
           '](' +
           (state.imageUrl +
             `${attrs['file-id']}` +
-            (attrs.width != null ? '&width=' + state.esc(`${attrs.width}`) : '') +
-            (attrs.height != null ? '&height=' + state.esc(`${attrs.height}`) : '')) +
+            (attrs.width != null ? '&width=' + encodeURIComponent(String(attrs.width)) : '') +
+            (attrs.height != null ? '&height=' + encodeURIComponent(String(attrs.height)) : '')) +
           (attrs.title != null ? ' ' + state.quote(`${attrs.title}`) : '') +
           ')'
       )
@@ -206,11 +201,14 @@ export const storeNodes: Record<string, NodeProcessor> = {
       if (attrs.width != null || attrs.height != null) {
         state.write(
           '<img' +
-            (attrs.width != null ? ` width="${state.esc(`${attrs.width}`)}"` : '') +
-            (attrs.height != null ? ` height="${state.esc(`${attrs.height}`)}"` : '') +
-            ` src="${state.esc(`${attrs.src}`)}"` +
-            (attrs.alt != null ? ` alt="${state.esc(`${attrs.alt}`)}"` : '') +
-            (attrs.title != null ? '>' + state.quote(`${attrs.title}`) + '</img>' : '>')
+            (attrs.width != null ? ' width="' + state.htmlEsc(String(attrs.width)) + '"' : '') +
+            (attrs.height != null ? ' height="' + state.htmlEsc(String(attrs.height)) + '"' : '') +
+            ' src="' +
+            state.htmlEsc(String(attrs.src ?? '')) +
+            '"' +
+            (attrs.alt != null ? ' alt="' + state.htmlEsc(String(attrs.alt)) + '"' : '') +
+            (attrs.title != null ? ' title="' + state.htmlEsc(String(attrs.title)) + '"' : '') +
+            '>'
         )
       } else {
         state.write(
@@ -258,7 +256,7 @@ export const storeNodes: Record<string, NodeProcessor> = {
     const content = nodeContent(parent)
     for (let i = index + 1; i < content.length; i++) {
       if (content[i].type !== node.type) {
-        state.write('\\\n')
+        state.write('  \n')
         return
       }
     }
@@ -732,7 +730,7 @@ export class MarkdownState implements IState {
   }
 
   private updateHardBreakMarks (state: InlineState, index: number): void {
-    if (state.node !== undefined && state.node.type === MarkupNodeType.hard_break) {
+    if (state.node?.type === MarkupNodeType.hard_break) {
       state.marks = this.filterHardBreakMarks(state.marks, index, state)
     }
   }
@@ -753,7 +751,7 @@ export class MarkdownState implements IState {
   }
 
   private isText (node?: MarkupNode): boolean {
-    return node !== undefined && node.type === MarkupNodeType.text && node.text !== undefined
+    return node?.type === MarkupNodeType.text && node.text !== undefined
   }
 
   // :: (Node)

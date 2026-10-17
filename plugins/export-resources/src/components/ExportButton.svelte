@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import { Button, showPopup } from '@hcengineering/ui'
   import { getMetadata } from '@hcengineering/platform'
   import presentation, { MessageBox } from '@hcengineering/presentation'
-  import { type TransformConfig } from '@hcengineering/export'
+  import type { TransformConfig } from '@hcengineering/export'
   import plugin from '../plugin'
 
   export let _class: Ref<Class<Doc>>
@@ -86,8 +86,8 @@
   <Button
     icon={plugin.icon.Export}
     label={plugin.string.Export}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     showTooltip={{ label: plugin.string.Export }}
     on:click={handleExport}
   />

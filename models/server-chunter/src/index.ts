@@ -31,8 +31,31 @@ export function createModel (builder: Builder): void {
     presenter: serverChunter.function.ChannelUrlPresenter
   })
 
-  builder.mixin(chunter.class.ChunterSpace, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverChunter.function.ChannelTitlePresenter
+  builder.mixin(chunter.class.Channel, core.class.Class, serverActivity.mixin.TitlePresenter, {
+    presenter: serverChunter.function.ChannelTitlePresenter,
+    triggerFields: ['name']
+  })
+
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, serverActivity.mixin.TitlePresenter, {
+    presenter: serverChunter.function.DirectTitlePresenter,
+    triggerFields: ['name', 'members'],
+    personalized: true
+  })
+
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, serverActivity.mixin.LabelPresenter, {
+    presenter: serverChunter.function.DirectLabelPresenter,
+    triggerFields: ['type']
+  })
+
+  builder.mixin(chunter.class.Channel, core.class.Class, serverActivity.mixin.IconPresenter, {
+    presenter: serverChunter.function.ChannelIconPresenter,
+    triggerFields: ['private', 'emoji', 'icon']
+  })
+
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, serverActivity.mixin.IconPresenter, {
+    presenter: serverChunter.function.DirectIconPresenter,
+    triggerFields: ['members'],
+    personalized: true
   })
 
   builder.mixin<Class<Doc>, ObjectDDParticipant>(
@@ -46,6 +69,24 @@ export function createModel (builder: Builder): void {
 
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverChunter.trigger.ChunterTrigger
+  })
+
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverChunter.trigger.OnContentReport,
+    txMatch: {
+      _class: core.class.TxCreateDoc,
+      objectClass: chunter.class.ContentReportAction
+    },
+    isAsync: true
+  })
+
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverChunter.trigger.OnReportedMessageRemoved,
+    txMatch: {
+      _class: core.class.TxRemoveDoc,
+      objectClass: { $in: [chunter.class.ChatMessage, chunter.class.ThreadMessage] }
+    },
+    isAsync: true
   })
 
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
@@ -84,6 +125,15 @@ export function createModel (builder: Builder): void {
     isAsync: true
   })
 
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverChunter.trigger.OnChannelJoin,
+    txMatch: {
+      objectClass: chunter.class.Channel,
+      _class: core.class.TxUpdateDoc
+    },
+    isAsync: false
+  })
+
   builder.mixin<NotificationType, TypeMatch>(
     chunter.ids.JoinChannelNotification,
     notification.class.MessageNotificationType,
@@ -99,6 +149,16 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(chunter.class.Channel, core.class.Class, serverCore.mixin.SearchPresenter, {
-    title: [['name']]
+    searchIcon: chunter.icon.Hashtag,
+    title: [['name']],
+    contentField: 'description'
+  })
+
+  builder.mixin(chunter.class.ChatMessage, core.class.Class, serverCore.mixin.SearchPresenter, {
+    title: [['func', serverChunter.function.ChatMessageSearchTitleProvider, 'title']],
+    shortTitle: [['func', serverChunter.function.ChatMessageSearchTitleProvider, 'short']],
+    highlightableField: 'message',
+    contentField: 'message',
+    indexCollection: true
   })
 }

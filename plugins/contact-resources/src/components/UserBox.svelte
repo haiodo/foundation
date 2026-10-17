@@ -14,20 +14,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Contact, getName } from '@hcengineering/contact'
-  import { Class, Doc, DocumentQuery, FindOptions, Ref } from '@hcengineering/core'
-  import { Asset, IntlString, getEmbeddedLabel } from '@hcengineering/platform'
-  import presentation, { ObjectCreate, getClient } from '@hcengineering/presentation'
+  import type { Contact } from '@hcengineering/contact'
+  import contact, { getName } from '@hcengineering/contact'
+  import type { Class, Doc, DocumentQuery, FindOptions, Ref } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
+  import type { ObjectCreate } from '@hcengineering/presentation'
+  import presentation, { getClient } from '@hcengineering/presentation'
+  import type { AnySvelteComponent, ButtonKind, ButtonSize, IconSize, LabelAndProps } from '@hcengineering/ui'
   import {
     ActionIcon,
-    AnySvelteComponent,
     Button,
-    ButtonKind,
-    ButtonSize,
     Icon,
-    IconSize,
     Label,
-    LabelAndProps,
     getEventPositionElement,
     getFocusManager,
     showPopup,
@@ -182,10 +181,10 @@
           <div class="min-w-2" />
           <ActionIcon
             icon={view.icon.Open}
-            size={'small'}
+            size="small"
             action={() => {
               if (selected) {
-                openDoc(client.getHierarchy(), selected)
+                void openDoc(client.getHierarchy(), selected)
               }
             }}
           />

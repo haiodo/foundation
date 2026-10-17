@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -22,6 +23,7 @@ import { Analytics } from '@hcengineering/analytics'
 import core, {
   AccountRole,
   type AccountUuid,
+  type UserStatus,
   type Branding,
   type BrandingMap,
   cutObjectArray,
@@ -36,12 +38,20 @@ import core, {
   pickPrimarySocialId,
   platformNow,
   platformNowDiff,
+  RateLimiter,
   readOnlyGuestAccountUuid,
   SocialIdType,
+  systemAccount,
   systemAccountUuid,
+  type Class,
+  type Doc,
+  type Ref,
   type Tx,
+  type TxCUD,
   TxFactory,
+  TxProcessor,
   type TxWorkspaceEvent,
+  type BulkUpdateEvent,
   type Version,
   versionToString,
   withContext,
@@ -51,7 +61,7 @@ import core, {
   type WorkspaceInfoWithStatus,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import platform, { Severity, Status, UNAUTHORIZED, unknownError } from '@hcengineering/platform'
+import platform, { PlatformError, Severity, Status, UNAUTHORIZED, unknownError } from '@hcengineering/platform'
 import {
   type HelloRequest,
   type HelloResponse,
@@ -73,11 +83,15 @@ import {
   type PipelineFactory,
   type PlatformQueue,
   type PlatformQueueProducer,
+  type QueueOnlineUserTx,
   QueueTopic,
   type QueueUserMessage,
   QueueWorkspaceEvent,
   type QueueWorkspaceMessage,
+  type QueueWorkspaceMaintenanceMessage,
+  type SendMemo,
   type Session,
+  SessionDataImpl,
   type SessionHealth,
   type SessionManager,
   userEvents,
@@ -86,6 +100,7 @@ import {
   type WorkspaceStatistics
 } from '@hcengineering/server-core'
 import { generateToken, type Token } from '@hcengineering/server-token'
+import os from 'os'
 import { ClientSession } from './client'
 import { sendResponse } from './utils'
 import { Workspace } from './workspace'
@@ -98,6 +113,10 @@ const guestAccount = 'b6996120-416f-49cd-841e-e4a5d2e49c9b'
 const hangRequestTimeoutSeconds = 30
 const hangSessionTimeoutSeconds = 60
 
+// Clamp to >=1: RateLimiter(0) deadlocks (its `size >= rate` gate never opens), NaN uncaps it.
+const parsedColdBuildConcurrency = parseInt(process.env.COLD_BUILD_CONCURRENCY ?? '8', 10)
+const coldBuildConcurrency = Number.isNaN(parsedColdBuildConcurrency) ? 8 : Math.max(1, parsedColdBuildConcurrency)
+
 /**
  * @public
  */
@@ -107,8 +126,26 @@ export interface Timeouts {
   reconnectTimeout: number // Default 3 seconds
 }
 
+type PendingStatuses = Map<AccountUuid, { session: Session, online: boolean, away: boolean }>
+
+// Whether a session keeps its person "at the computer": a phone never does, and neither does a
+// terminal (TUI, CLI, MCP): it reports no idleness, and a terminal left open must not delay pushes.
+const NEVER_PRESENT: ReadonlyArray<Session['clientKind']> = ['mobile', 'cli']
+
+function sessionAway (session: Session): boolean {
+  return NEVER_PRESENT.includes(session.clientKind) || session.away
+}
+
 export class TSessionManager implements SessionManager {
-  private readonly statusPromises = new Map<string, Promise<void>>()
+  readonly transactorId: string
+  // Presence batching: accumulate per-workspace online/offline changes and flush once per
+  // second as a single pipeline tx -> one broadcast fan-out (M sends instead of M^2 in a
+  // reconnect storm). Last write wins within the window, so connect/disconnect flapping
+  // collapses. See docs/stress-test-plan.md.
+  private readonly pendingStatus = new Map<WorkspaceUuid, PendingStatuses>()
+  private readonly statusFlushTimers = new Map<WorkspaceUuid, any>()
+  private readonly statusFlushing = new Set<WorkspaceUuid>()
+  private readonly statusFlushDelay = parseInt(process.env.STATUS_FLUSH_MS ?? '1000')
   readonly workspaces = new Map<WorkspaceUuid, Workspace>()
   checkInterval: any
 
@@ -125,6 +162,7 @@ export class TSessionManager implements SessionManager {
   workspaceProducer: PlatformQueueProducer<QueueWorkspaceMessage>
   usersProducer: PlatformQueueProducer<QueueUserMessage>
   workspaceConsumer: ConsumerHandle
+  onlineUserTxConsumer: ConsumerHandle
 
   ticksContext: MeasureContext
 
@@ -133,22 +171,27 @@ export class TSessionManager implements SessionManager {
   hungRequestsFailPercent = parseInt(process.env.HUNG_REQUESTS_PERCENT ?? '50')
   counters = new OneSecondCountersImpl()
 
+  // Cap concurrent cold pipeline builds so a reconnect storm (1000 tenants after a
+  // transactor restart) doesn't saturate the event loop at once.
+  coldBuildLimiter = new RateLimiter(coldBuildConcurrency)
+
   constructor (
     readonly ctx: MeasureContext,
     readonly timeouts: Timeouts,
     readonly brandingMap: BrandingMap,
     readonly profiling:
-    | {
-      start: () => void
-      stop: () => Promise<string | undefined>
-    }
-    | undefined,
+      | {
+        start: () => void
+        stop: () => Promise<string | undefined>
+      }
+      | undefined,
     readonly accountsUrl: string,
     readonly enableCompression: boolean,
     readonly doHandleTick: boolean = true,
     readonly queue: PlatformQueue,
     readonly pipelineFactory: PipelineFactory
   ) {
+    this.transactorId = process.env.TRANSACTOR_ID ?? os.hostname()
     if (this.doHandleTick) {
       this.checkInterval = setInterval(() => {
         this.handleTick()
@@ -160,7 +203,7 @@ export class TSessionManager implements SessionManager {
     this.workspaceConsumer = this.queue.createConsumer<QueueWorkspaceMessage>(
       ctx.newChild('ws-queue-consume', {}, { span: false }),
       QueueTopic.Workspace,
-      generateId(),
+      this.transactorId,
       async (ctx, msg) => {
         const m = msg.value
         if (
@@ -170,6 +213,71 @@ export class TSessionManager implements SessionManager {
         ) {
           // Handle workspace messages
           this.workspaceInfoCache.delete(msg.workspace)
+        } else if (m.type === QueueWorkspaceEvent.LimitsChanged) {
+          // Notify connected clients so they re-read usage/limits without waiting for the poll.
+          // Skip when no session is active for this workspace — broadcast would log "cannot find sessions".
+          if (this.workspaces.has(msg.workspace)) {
+            const tx: TxWorkspaceEvent = {
+              _id: generateId(),
+              _class: core.class.TxWorkspaceEvent,
+              event: WorkspaceEvent.LimitsChanged,
+              modifiedBy: core.account.System,
+              modifiedOn: Date.now(),
+              objectSpace: core.space.DerivedTx,
+              space: core.space.DerivedTx,
+              createdBy: core.account.System,
+              params: null
+            }
+            this.broadcast(ctx, null, msg.workspace, [tx], undefined)
+          }
+        } else if (m.type === QueueWorkspaceEvent.ForceClose) {
+          // Operator dropped every session of this workspace; whichever transactor holds it acts.
+          await this.forceClose(msg.workspace)
+        } else if (m.type === QueueWorkspaceEvent.Maintenance) {
+          // Global maintenance warning from the account service; workspace key is not meaningful here
+          const mm = m as QueueWorkspaceMaintenanceMessage
+          this.scheduleMaintenance(mm.timeoutMinutes, mm.message)
+        }
+      }
+    )
+
+    this.onlineUserTxConsumer = this.queue.createConsumer<QueueOnlineUserTx>(
+      ctx.newChild('transactor-online-user-tx-consumer', {}, { span: false }),
+      QueueTopic.OnlineUserTx,
+      this.transactorId,
+      async (ctx, msg) => {
+        const { tx, account } = msg.value
+        // The message names an account, so sessions are the index - a workspace without one
+        // had nothing to apply anyway.
+        const targets = new Set<WorkspaceUuid>()
+        for (const { session } of this.sessions.values()) {
+          if (session.getUser() === account) {
+            targets.add(session.workspace.uuid)
+          }
+        }
+
+        for (const workspaceUuid of targets) {
+          const workspace = this.workspaces.get(workspaceUuid)
+          if (workspace == null) continue
+
+          await workspace.with(async (pipeline) => {
+            ctx.contextData = new SessionDataImpl(
+              systemAccount,
+              'online-user-tx',
+              true,
+              { txes: [], targets: {}, queue: [], sessions: {} },
+              workspace.wsId,
+              true,
+              undefined,
+              undefined,
+              pipeline.context.modelDb,
+              new Map(),
+              'transactor'
+            )
+            // A copy per workspace: the pipeline rewrites objectSpace to this workspace's PersonSpace.
+            await pipeline.tx(ctx, [{ ...tx }])
+            await pipeline.handleBroadcast(ctx)
+          })
         }
       }
     )
@@ -256,10 +364,11 @@ export class TSessionManager implements SessionManager {
   }
 
   private handleWorkspaceTick (): void {
-    this.ctx.measure('sessions', this.sessions.size, { kind: 'total' }, true)
-
     if (this.ticks % ticksPerSecond === 0) {
-      // Let's update workspace statistics every 10 seconds
+      // A gauge does not need the full 20Hz tick rate.
+      this.ctx.measure('sessions', this.sessions.size, { kind: 'total' }, true)
+
+      // update workspace statistics every 10 seconds
       this.sendUserWorkspaceStats()
 
       // Send extra counters and clear them to collect again
@@ -279,7 +388,9 @@ export class TSessionManager implements SessionManager {
       for (const [wsId, workspace] of this.workspaces.entries()) {
         // update account lastVisit every minute per every workspace.
         for (const val of workspace.sessions.values()) {
-          if (val.session.getUser() !== systemAccountUuid) {
+          // Services may hold a person account (aibot), so the system account alone is not enough
+          // to tell a real visit from a service connection.
+          if (val.session.getUser() !== systemAccountUuid && val.session.token?.extra?.service === undefined) {
             workspacesToUpdate.push(wsId)
             break
           }
@@ -292,7 +403,8 @@ export class TSessionManager implements SessionManager {
       }
     }
     for (const [wsId, workspace] of this.workspaces.entries()) {
-      for (const [k, v] of Array.from(workspace.tickHandlers.entries())) {
+      // Map allows delete during iteration in JS; no need to spread to a temp array.
+      for (const [k, v] of workspace.tickHandlers) {
         v.ticks--
         if (v.ticks === 0) {
           workspace.tickHandlers.delete(k)
@@ -304,12 +416,14 @@ export class TSessionManager implements SessionManager {
         }
       }
 
-      for (const s of workspace.sessions) {
-        if (this.ticks % (5 * 60 * ticksPerSecond) === workspace.tickHash) {
-          s[1].session.mins5.find = s[1].session.current.find
-          s[1].session.mins5.tx = s[1].session.current.tx
+      // Hoisted out of the session loop: true once every five minutes, yet it made the tick walk
+      // every session of every workspace 20 times a second.
+      if (this.ticks % (5 * 60 * ticksPerSecond) === workspace.tickHash) {
+        for (const s of workspace.sessions.values()) {
+          s.session.mins5.find = s.session.current.find
+          s.session.mins5.tx = s.session.current.tx
 
-          s[1].session.current = { find: 0, tx: 0 }
+          s.session.current = { find: 0, tx: 0 }
         }
       }
 
@@ -425,7 +539,10 @@ export class TSessionManager implements SessionManager {
         role = AccountRole.DocGuest
         break
       default:
-        primarySocialId = pickPrimarySocialId(info.socialIds)._id
+        // The token names the key's own social id; resolved against the account's confirmed ids, so a
+        // deleted or unverified one falls back.
+        primarySocialId =
+          info.socialIds.find((it) => it._id === token.extra?.apisid)?._id ?? pickPrimarySocialId(info.socialIds)._id
     }
 
     return new ClientSession(
@@ -496,6 +613,12 @@ export class TSessionManager implements SessionManager {
     return Array.from(workspace.sessions.values())
       .filter((it) => it.session.getUser() === accountUuid)
       .reduce<number>((acc) => acc + 1, 0)
+  }
+
+  getUserSession (workspaceUuid: WorkspaceUuid, accountUuid: AccountUuid): Session | undefined {
+    const workspace = this.workspaces.get(workspaceUuid)
+    if (workspace == null) return undefined
+    return Array.from(workspace.sessions.values()).find((it) => it.session.getUser() === accountUuid)?.session
   }
 
   checkHealth (): SessionHealth {
@@ -722,6 +845,11 @@ export class TSessionManager implements SessionManager {
         let wsInfo = account.workspaces[token.workspace]
 
         if (wsInfo === undefined) {
+          if (token.extra?.apikey !== undefined) {
+            // API-key token for a workspace the key no longer belongs to (e.g. revoked) - deny,
+            // do not fall through to the guest/system Owner-role branch below.
+            return { error: UNAUTHORIZED, terminate: true }
+          }
           // In case of guest or system account
           // We need to get workspace info for system account.
           const workspaceInfo =
@@ -740,7 +868,8 @@ export class TSessionManager implements SessionManager {
               versionMinor: workspaceInfo.versionMinor,
               versionPatch: workspaceInfo.versionPatch
             },
-            role: AccountRole.Owner,
+            // Placeholder only: createSession takes the role from account.workspaces, never from here.
+            role: AccountRole.ReadOnlyGuest,
             endpoint: { externalUrl: '', internalUrl: '', region: workspaceInfo.region ?? '' },
             collaboratorEndpoint: { externalUrl: '', internalUrl: '', region: workspaceInfo.region ?? '' },
             progress: workspaceInfo.processingProgress,
@@ -750,7 +879,7 @@ export class TSessionManager implements SessionManager {
           this.workspaceInfoCache.delete(token.workspace)
         }
 
-        if (wsInfo.passwordAgingRule !== undefined && wsInfo.passwordAgingRule > 0) {
+        if (wsInfo.passwordAgingRule != null && wsInfo.passwordAgingRule > 0) {
           const isPasswordAgingOk = await this.checkPasswordAging(ctx, rawToken)
           if (!isPasswordAgingOk) {
             return { error: new Status(Severity.ERROR, platform.status.PasswordExpired, {}), terminate: true }
@@ -786,18 +915,33 @@ export class TSessionManager implements SessionManager {
 
         const accountUuid = account.account
         if (accountUuid !== systemAccountUuid && accountUuid !== guestAccount) {
-          await this.usersProducer.send(ctx, workspace.wsId.uuid, [
-            userEvents.login({
-              user: accountUuid,
-              sessions: this.countUserSessions(workspace, accountUuid),
-              socialIds: account.socialIds.map((it) => it._id)
-            })
-          ])
+          try {
+            await this.usersProducer.send(ctx, workspace.wsId.uuid, [
+              userEvents.login({
+                user: accountUuid,
+                sessions: this.countUserSessions(workspace, accountUuid),
+                socialIds: account.socialIds.map((it) => it._id),
+                timestamp: Date.now()
+              })
+            ])
+          } catch (err: any) {
+            // The caller never gets the session, so it must not stay registered.
+            this.sessions.delete(ws.id)
+            if (workspace.sessions.get(session.sessionId)?.session === session) {
+              workspace.sessions.delete(session.sessionId)
+            }
+            throw err
+          }
         }
 
         // Mark workspace as init completed and we had at least one client.
         if (!workspace.workspaceInitCompleted) {
           workspace.workspaceInitCompleted = true
+        }
+
+        // AI bot uses REST, not hello-time status; mark it online on first request.
+        if (token.extra?.service === 'aibot') {
+          this.queueStatus(workspace.wsId.uuid, session, true)
         }
 
         if (this.timeMinutes > 0) {
@@ -864,12 +1008,61 @@ export class TSessionManager implements SessionManager {
       const tt = it.session.getUser()
       return (target === undefined && !(exclude ?? []).includes(tt)) || (target?.includes(tt) ?? false)
     })
+    // Compute the set of classes that this broadcast touches. We include both
+    // objectClass and attachedToClass so collaborator-driven live queries on the
+    // parent doc also get refreshed after a drop.
+    const computeClasses = (txes: Tx[]): Ref<Class<Doc>>[] => {
+      const set = new Set<Ref<Class<Doc>>>()
+      for (const t of txes) {
+        if (TxProcessor.isExtendsCUD(t._class)) {
+          const cud = t as TxCUD<Doc>
+          if (cud.objectClass != null) set.add(cud.objectClass)
+          if (cud.attachedToClass != null) set.add(cud.attachedToClass)
+        }
+      }
+      return Array.from(set)
+    }
+    let cachedClasses: Ref<Class<Doc>>[] | null = null
+    const droppedClasses = (): Ref<Class<Doc>>[] => {
+      cachedClasses ??= computeClasses(tx)
+      return cachedClasses
+    }
+    const buildRefreshTx = (classes: Ref<Class<Doc>>[]): TxWorkspaceEvent => ({
+      _id: generateId(),
+      _class: core.class.TxWorkspaceEvent,
+      event: WorkspaceEvent.BulkUpdate,
+      modifiedBy: core.account.System,
+      modifiedOn: Date.now(),
+      objectSpace: core.space.DerivedTx,
+      space: core.space.DerivedTx,
+      createdBy: core.account.System,
+      params: { _class: classes } satisfies BulkUpdateEvent
+    })
     function send (): void {
       const promises: Promise<void>[] = []
+      // Identical bytes go to every socket that is not owed a refresh - pack and compress once.
+      const memo: SendMemo = new Map()
       for (const session of sessions) {
         try {
+          const sock = session.socket
+          // Slow client - drop tx for this socket and accumulate classes for a later refresh.
+          if (sock.isOverloaded?.() === true) {
+            sock.addDroppedClasses?.(droppedClasses())
+            ctx.measure('broadcast-dropped', tx.length)
+            continue
+          }
+          // Buffer drained enough - emit a single BulkUpdate event covering all dropped classes
+          // before delivering the current broadcast so client query cache invalidates.
+          const pending = sock.takePendingRefresh?.() ?? null
+          let outTx = tx
+          let sendMemo: SendMemo | undefined = memo
+          if (pending !== null && pending.length > 0) {
+            outTx = [buildRefreshTx(pending), ...tx]
+            sendMemo = undefined // this socket gets a different payload
+            ctx.measure('broadcast-flushed-refresh', pending.length)
+          }
           promises.push(
-            sendResponse(ctx, session.session, session.socket, { result: tx }).catch((err) => {
+            sendResponse(ctx, session.session, sock, { result: outTx }, sendMemo).catch((err) => {
               ctx.error('failed to send', err)
             })
           )
@@ -944,10 +1137,11 @@ export class TSessionManager implements SessionManager {
     const sessions = [...workspace.sessions.values()]
     ctx = ctx.newChild('📭 broadcast', {})
     const send = (): void => {
+      const memo: SendMemo = new Map()
       for (const sessionRef of sessions) {
         const tt = sessionRef.session.getUser()
         if ((target === undefined && !(exclude ?? []).includes(tt)) || (target?.includes(tt) ?? false)) {
-          sessionRef.session.broadcast(ctx, sessionRef.socket, resp)
+          sessionRef.session.broadcast(ctx, sessionRef.socket, resp, memo)
         }
       }
       ctx.end()
@@ -977,19 +1171,22 @@ export class TSessionManager implements SessionManager {
     }
 
     const factory = async (): Promise<Pipeline> => {
-      const pipeline = await this.counters.withCounter('startWorkspace', 1, () =>
-        this.pipelineFactory(
-          pipelineCtx,
-          workspaceIds,
-          {
-            broadcast: (ctx, tx, targets, exclude) => {
-              this.broadcastAll(ctx, workspaceIds.uuid, tx, targets, exclude)
+      // Only the cold build is gated (see coldBuildLimiter); pipeline ops run unthrottled.
+      const pipeline = await this.coldBuildLimiter.exec(() =>
+        this.counters.withCounter('startWorkspace', 1, () =>
+          this.pipelineFactory(
+            pipelineCtx,
+            workspaceIds,
+            {
+              broadcast: (ctx, tx, targets, exclude) => {
+                this.broadcastAll(ctx, workspaceIds.uuid, tx, targets, exclude)
+              },
+              broadcastSessions: (ctx, sessions) => {
+                this.broadcastSessions(ctx, sessions)
+              }
             },
-            broadcastSessions: (ctx, sessions) => {
-              this.broadcastSessions(ctx, sessions)
-            }
-          },
-          branding
+            branding
+          )
         )
       )
       return pipeline
@@ -1009,66 +1206,104 @@ export class TSessionManager implements SessionManager {
     return workspace
   }
 
-  private async trySetStatus (
-    ctx: MeasureContext,
-    pipeline: Pipeline,
-    session: Session,
-    online: boolean,
-    workspaceId: WorkspaceUuid
-  ): Promise<void> {
-    const current = this.statusPromises.get(session.getUser())
-    if (current !== undefined) {
-      await current
+  private queueStatus (workspaceId: WorkspaceUuid, session: Session, online: boolean): void {
+    const user = session.getUser()
+    if (user === undefined || session.getRawAccount().role === AccountRole.ReadOnlyGuest) return
+    let pending = this.pendingStatus.get(workspaceId)
+    if (pending === undefined) {
+      pending = new Map()
+      this.pendingStatus.set(workspaceId, pending)
     }
-    const promise = this.setStatus(ctx, pipeline, session, online, workspaceId)
-    this.statusPromises.set(session.getUser(), promise)
-    await promise
-    this.statusPromises.delete(session.getUser())
+    pending.set(user, { session, online, away: online && this.isUserAway(workspaceId, user, session) })
+    this.queueStatusFlush(workspaceId)
   }
 
-  private async setStatus (
-    ctx: MeasureContext,
-    pipeline: Pipeline,
-    session: Session,
-    online: boolean,
-    workspaceId: WorkspaceUuid
-  ): Promise<void> {
+  // A person is away from a workspace only when every one of their sessions there says so. A
+  // mobile session never says "here": a phone in hand is not a computer to read the message on,
+  // and the push meant for that phone must not wait for the phone's own connection.
+  private isUserAway (workspaceId: WorkspaceUuid, user: AccountUuid, session: Session): boolean {
+    if (!sessionAway(session)) return false
+    const workspace = this.workspaces.get(workspaceId)
+    if (workspace === undefined) return true
+    for (const other of workspace.sessions.values()) {
+      if (other.session !== session && !sessionAway(other.session) && other.session.getUser() === user) return false
+    }
+    return true
+  }
+
+  private queueStatusFlush (workspaceId: WorkspaceUuid): void {
+    if (this.statusFlushTimers.has(workspaceId)) return
+    this.statusFlushTimers.set(
+      workspaceId,
+      setTimeout(() => {
+        this.statusFlushTimers.delete(workspaceId)
+        void this.flushStatus(workspaceId)
+      }, this.statusFlushDelay)
+    )
+  }
+
+  private async flushStatus (workspaceId: WorkspaceUuid): Promise<void> {
+    // Serialize flushes per workspace: an overlapping flush could findAll before the prior
+    // create commits and duplicate a transient UserStatus. Re-arm and bail if one is running.
+    if (this.statusFlushing.has(workspaceId)) {
+      this.queueStatusFlush(workspaceId)
+      return
+    }
+    const pending = this.pendingStatus.get(workspaceId)
+    if (pending === undefined || pending.size === 0) return
+    this.pendingStatus.delete(workspaceId)
+    const workspace = this.workspaces.get(workspaceId)
+    if (workspace === undefined || workspace.maintenance) return
+    this.statusFlushing.add(workspaceId)
+    const entries = [...pending.entries()]
     try {
-      const user = session.getUser()
-      const userRawAccount = session.getRawAccount()
-      if (user === undefined || userRawAccount.role === AccountRole.ReadOnlyGuest) return
-
-      const clientCtx: ClientSessionCtx = {
-        requestId: undefined,
-        pipeline,
-        sendResponse: async () => {
-          // No response
-        },
-        ctx,
-        socialStringsToUsers: this.getActiveSocialStringsToUsersMap(workspaceId, session),
-        sendError: async () => {
-          // Assume no error send
-        },
-        sendPong: () => {}
-      }
-
-      const status = (await session.findAllRaw(clientCtx, core.class.UserStatus, { user }, { limit: 1 }))[0]
-      const txFactory = new TxFactory(userRawAccount.primarySocialId, true)
-      if (status === undefined) {
-        const tx = txFactory.createTxCreateDoc(core.class.UserStatus, core.space.Space, {
-          online,
-          user
+      await workspace.context.with('🧨 status-batch', {}, (ctx) =>
+        workspace.with(async (pipeline) => {
+          ctx.contextData = new SessionDataImpl(
+            systemAccount,
+            'status-batch',
+            true,
+            { txes: [], targets: {}, queue: [], sessions: {} },
+            workspace.wsId,
+            true,
+            undefined,
+            undefined,
+            pipeline.context.modelDb,
+            new Map(),
+            'transactor'
+          )
+          const users = entries.map(([user]) => user)
+          const existing = await pipeline.findAll(ctx, core.class.UserStatus, { user: { $in: users } })
+          const byUser = new Map(existing.map((s) => [s.user, s]))
+          const txes: Tx[] = []
+          for (const [user, { session, online, away }] of entries) {
+            const txFactory = new TxFactory(session.getRawAccount().primarySocialId, true)
+            const cur = byUser.get(user)
+            if (cur === undefined) {
+              if (online) {
+                txes.push(txFactory.createTxCreateDoc(core.class.UserStatus, core.space.Space, { online, away, user }))
+              }
+            } else {
+              const ops: Partial<Pick<UserStatus, 'online' | 'away'>> = {}
+              if (cur.online !== online) ops.online = online
+              if ((cur.away ?? false) !== away) ops.away = away
+              if (Object.keys(ops).length > 0) {
+                txes.push(txFactory.createTxUpdateDoc(cur._class, cur.space, cur._id, ops))
+              }
+            }
+          }
+          if (txes.length === 0) return
+          await pipeline.tx(ctx, txes)
+          await pipeline.handleBroadcast(ctx)
         })
-        await session.tx(clientCtx, tx)
-      } else if (status.online !== online) {
-        const tx = txFactory.createTxUpdateDoc(status._class, status.space, status._id, {
-          online
-        })
-        await session.tx(clientCtx, tx)
-      }
+      )
     } catch (err: any) {
-      ctx.error('failed to set status', { err })
+      this.ctx.error('failed to flush status batch', { err, workspaceId })
       Analytics.handleError(err)
+    } finally {
+      this.statusFlushing.delete(workspaceId)
+      // New changes may have arrived during the flush.
+      if ((this.pendingStatus.get(workspaceId)?.size ?? 0) > 0) this.queueStatusFlush(workspaceId)
     }
   }
 
@@ -1098,7 +1333,8 @@ export class TSessionManager implements SessionManager {
           userEvents.logout({
             user: userUuid,
             sessions: this.countUserSessions(workspace, userUuid),
-            socialIds: sessionRef.session.getUserSocialIds()
+            socialIds: sessionRef.session.getUserSocialIds(),
+            timestamp: Date.now()
           })
         ])
 
@@ -1113,17 +1349,21 @@ export class TSessionManager implements SessionManager {
                 if (another === -1 && !workspace.maintenance) {
                   void workspace.with(async (pipeline) => {
                     await pipeline.closeSession(ctx, sessionRef.session.sessionId)
-                    // await communicationApi.closeSession(sessionRef.session.sessionId)
-                    if (user !== guestAccount && user !== systemAccountUuid) {
-                      await this.trySetStatus(
-                        workspace.context.newChild('status', {}),
-                        pipeline,
-                        sessionRef.session,
-                        false,
-                        workspaceUuid
-                      ).catch(() => {})
-                    }
                   })
+                  // Keep the AI bot online while the workspace is up: its REST sessions come and
+                  // go per request, so flipping it offline on session close would blink it out.
+                  const isAiBot = sessionRef.session.token.extra?.service === 'aibot'
+                  if (user !== guestAccount && user !== systemAccountUuid && !isAiBot) {
+                    this.queueStatus(workspaceUuid, sessionRef.session, false)
+                  }
+                } else if (another !== -1 && !workspace.maintenance) {
+                  // A session of the person remains (a phone, a terminal): the closed one may have
+                  // been the only one that kept them "here", so their presence is recomputed.
+                  const remaining = Array.from(workspace.sessions.values())[another].session
+                  const isAiBot = remaining.token.extra?.service === 'aibot'
+                  if (user !== guestAccount && user !== systemAccountUuid && !isAiBot) {
+                    this.queueStatus(workspaceUuid, remaining, true)
+                  }
                 }
               }
             }
@@ -1229,6 +1469,7 @@ export class TSessionManager implements SessionManager {
 
   async closeWorkspaces (ctx: MeasureContext): Promise<void> {
     clearInterval(this.checkInterval)
+
     for (const w of this.workspaces) {
       await this.doCloseAll(w[1], 1, 'shutdown')
     }
@@ -1297,7 +1538,9 @@ export class TSessionManager implements SessionManager {
       sendPong: () => {
         ws.sendPong()
       },
-      socialStringsToUsers: this.getActiveSocialStringsToUsersMap(service.workspace.uuid),
+      // The requester itself, too: a REST session the hang check dropped from the workspace still serves
+      // requests, and without its ids every tx it sends fails with AccountMismatch.
+      socialStringsToUsers: this.getActiveSocialStringsToUsersMap(service.workspace.uuid, service),
       sendError: (reqId, msg, error: Status) =>
         sendResponse(sendCtx, service, ws, {
           id: reqId,
@@ -1320,30 +1563,35 @@ export class TSessionManager implements SessionManager {
       accountUuid: AccountUuid
       role: AccountRole
     }
-    > {
+  > {
     const ws = this.workspaces.get(workspace)
     if (ws === undefined) {
       return new Map()
     }
     const res = new Map<
-    PersonId,
-    {
-      accountUuid: AccountUuid
-      role: AccountRole
-    }
+      PersonId,
+      {
+        accountUuid: AccountUuid
+        role: AccountRole
+      }
     >()
-    for (const s of [...Array.from(ws.sessions.values()).map((it) => it.session), ...extra]) {
+    const populate = (s: Session): void => {
       const sessionAccount = s.getUser()
       if (sessionAccount === systemAccountUuid) {
-        continue
+        return
       }
+      const role = s.getRawAccount().role
       const userSocialIds = s.getUserSocialIds()
-      for (const id of userSocialIds) {
-        res.set(id, {
-          accountUuid: sessionAccount,
-          role: s.getRawAccount().role
-        })
+      for (let i = 0; i < userSocialIds.length; i++) {
+        res.set(userSocialIds[i], { accountUuid: sessionAccount, role })
       }
+    }
+    // Iterate Map directly - no intermediate Array.from / map / spread alloc.
+    for (const entry of ws.sessions.values()) {
+      populate(entry.session)
+    }
+    for (let i = 0; i < extra.length; i++) {
+      populate(extra[i])
     }
     return res
   }
@@ -1360,11 +1608,34 @@ export class TSessionManager implements SessionManager {
     () => Date.now()
   )
 
+  // Integrations (API-key tokens) are throttled tighter than interactive users: one key drives
+  // one automated workload, not a person clicking around.
+  apiKeyLimitter = new SlidingWindowRateLimitter(
+    parseInt(process.env.RATE_LIMIT_APIKEY_MAX ?? '300'),
+    parseInt(process.env.RATE_LIMIT_APIKEY_WINDOW ?? '30000'),
+    () => Date.now()
+  )
+
   checkRate (service: Session): RateLimitInfo {
     if (service.getUser() === systemAccountUuid) {
       return this.sysLimitter.checkRateLimit('#sys#' + (service.token.extra?.service ?? '') + service.workspace.uuid)
     }
+    if (service.token.extra?.apikey !== undefined) {
+      return this.apiKeyLimitter.checkRateLimit('#apikey#' + service.getUser() + service.workspace.uuid)
+    }
     return this.limitter.checkRateLimit(service.getUser() + (service.token.extra?.service ?? ''))
+  }
+
+  private reportRequestError (ctx: MeasureContext, err: any, opts: { method?: string, request?: unknown }): void {
+    if (err instanceof PlatformError && err.status.code !== platform.status.UnknownError) {
+      // Forbidden/Unauthorized etc are business outcomes, not faults: count them, don't log a stack.
+      ctx.measure('request-rejected', 1, { code: err.status.code, method: opts.method })
+      return
+    }
+    Analytics.handleError(err)
+    if (LOGGING_ENABLED) {
+      this.ctx.error('error handle request', { error: err, request: opts.request })
+    }
   }
 
   async handleRequest<S extends Session>(
@@ -1460,6 +1731,15 @@ export class TSessionManager implements SessionManager {
 
         if (request.method === 'ping') {
           service.lastRequest = Date.now()
+          const presence = request.params[0] as { away?: unknown } | undefined
+          const away = typeof presence?.away === 'boolean' ? presence.away : false
+          if (away !== service.away) {
+            service.away = away
+            const user = service.getUser()
+            if (user !== guestAccount && user !== systemAccountUuid) {
+              this.queueStatus(workspace.wsId.uuid, service, true)
+            }
+          }
           ws.sendPong()
           return
         }
@@ -1483,16 +1763,12 @@ export class TSessionManager implements SessionManager {
           })
         )
       } catch (err: any) {
-        Analytics.handleError(err)
-        if (LOGGING_ENABLED) {
-          this.ctx.error('error handle request', { error: err, request })
-        }
+        this.reportRequestError(requestCtx, err, { method: request.method, request })
         await ws.send(
           requestCtx,
           {
             id: request.id,
-            error: unknownError(err),
-            result: JSON.parse(JSON.stringify(err?.stack))
+            error: unknownError(err)
           },
           service.binaryMode,
           service.useCompression
@@ -1554,16 +1830,12 @@ export class TSessionManager implements SessionManager {
           })
         )
       } catch (err: any) {
-        Analytics.handleError(err)
-        if (LOGGING_ENABLED) {
-          this.ctx.error('error handle request', { error: err })
-        }
+        this.reportRequestError(requestCtx, err, { method })
         await ws.send(
           requestCtx,
           {
             id: reqId,
-            error: unknownError(err),
-            result: JSON.parse(JSON.stringify(err?.stack))
+            error: unknownError(err)
           },
           service.binaryMode,
           service.useCompression
@@ -1583,7 +1855,8 @@ export class TSessionManager implements SessionManager {
       userId: session.getUser(),
       sessionId: socket.id,
       total: session.total,
-      data: socket.data
+      // data is an accessor - assigning the function itself loses it on serialization to stats
+      data: socket.data()
     }
   }
 
@@ -1611,8 +1884,11 @@ export class TSessionManager implements SessionManager {
   ): Promise<void> {
     try {
       const hello = request as HelloRequest
-      service.binaryMode = hello.binary ?? false
-      service.useCompression = this.enableCompression ? (hello.compression ?? false) : false
+      // Applied after the hello is sent: a broadcast packed in the new mode before it, the client
+      // cannot read yet and drops.
+      const binaryMode = hello.binary ?? false
+      const useCompression = this.enableCompression ? (hello.compression ?? false) : false
+      service.clientKind = hello.client
 
       if (LOGGING_ENABLED) {
         ctx.info('hello happen', {
@@ -1620,8 +1896,9 @@ export class TSessionManager implements SessionManager {
           workspaceId: workspace.wsId.uuid,
           userId: service.getUser(),
           user: service.getSocialIds().find((it) => it.type !== SocialIdType.HULY)?.value,
-          binary: service.binaryMode,
-          compression: service.useCompression,
+          binary: binaryMode,
+          compression: useCompression,
+          client: service.clientKind,
           timeToHello: Date.now() - service.createTime,
           workspaceUsers: workspace.sessions.size,
           totalUsers: this.sessions.size
@@ -1637,23 +1914,21 @@ export class TSessionManager implements SessionManager {
         const helloResponse: HelloResponse = {
           id: -1,
           result: 'hello',
-          binary: service.binaryMode,
+          binary: binaryMode,
           reconnect,
           serverVersion: this.serverVersion,
           lastTx: pipeline.context.lastTx,
           lastHash: pipeline.context.lastHash,
           account,
-          useCompression: service.useCompression
+          useCompression
         }
         await ws.send(ctx, helloResponse, false, false)
+        service.binaryMode = binaryMode
+        service.useCompression = useCompression
       })
       if (account.uuid !== guestAccount && account.uuid !== systemAccountUuid) {
-        void workspace.with(async (pipeline) => {
-          // We do not need to wait for set-status, just return session to client
-          await workspace.context
-            .with('🧨 status', {}, (ctx) => this.trySetStatus(ctx, pipeline, service, true, service.workspace.uuid))
-            .catch(() => {})
-        })
+        // Batched + broadcast once per second (see queueStatus).
+        this.queueStatus(service.workspace.uuid, service, true)
       }
     } catch (err: any) {
       ctx.error('error', { err })
@@ -1666,11 +1941,11 @@ export function createSessionManager (
   brandingMap: BrandingMap,
   timeouts: Timeouts,
   profiling:
-  | {
-    start: () => void
-    stop: () => Promise<string | undefined>
-  }
-  | undefined,
+    | {
+      start: () => void
+      stop: () => Promise<string | undefined>
+    }
+    | undefined,
   accountsUrl: string,
   enableCompression: boolean,
   doHandleTick: boolean = true,

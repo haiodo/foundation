@@ -14,24 +14,25 @@
 -->
 
 <script lang="ts">
-  import { Card, FavoriteCard, MasterTag } from '@hcengineering/card'
-  import core, { Ref } from '@hcengineering/core'
+  import type { Card, FavoriteCard, MasterTag } from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
-  import { IconMoreV, NavItem, Action, ButtonIcon } from '@hcengineering/ui'
-  import { NotificationContext } from '@hcengineering/communication-types'
+  import type { Action } from '@hcengineering/ui'
+  import { IconMoreV, NavItem } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { showMenu } from '@hcengineering/view-resources'
   import preference from '@hcengineering/preference'
 
   import cardPlugin from '../../plugin'
-  import { CardsNavigatorConfig } from '../../types'
+  import type { CardsNavigatorConfig } from '../../types'
   import { getCardIconInfo } from '../../utils'
   import { CardIcon } from '../../index'
 
   export let type: Ref<MasterTag> | undefined = undefined
   export let card: Card
-  export let context: NotificationContext | undefined = undefined
   export let favorite: FavoriteCard | undefined = undefined
   export let applicationId: string
   export let selectedCard: Ref<Card> | undefined = undefined
@@ -117,56 +118,17 @@
   <svelte:fragment slot="actions">
     {#each actions as action}
       {#if action.icon}
-        <ButtonIcon
+        <IconButton
           icon={action.icon}
           size="extra-small"
           kind="tertiary"
           pressed={activeAction === action.id}
           tooltip={{ label: action.label }}
           on:click={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
             void action.action(action.props, e)
           }}
         />
       {/if}
     {/each}
   </svelte:fragment>
-
-  <svelte:fragment slot="notify">
-    {#if context && (context.totalNotifications ?? 0) > 0}
-      <div class="antiHSpacer" />
-      <div class="notify">
-        <div class="notifyMarker">
-          {context.totalNotifications}
-        </div>
-      </div>
-      <div class="antiHSpacer" />
-    {/if}
-  </svelte:fragment>
 </NavItem>
-
-<style lang="scss">
-  .notify {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    min-width: 1rem;
-    height: 1rem;
-  }
-  .notifyMarker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    border-radius: 0.5rem;
-    font-weight: 700;
-    background-color: var(--global-higlight-Color);
-    color: var(--global-on-accent-TextColor);
-    min-width: 1rem;
-    height: 1rem;
-    font-size: 0.5rem;
-    padding: 0 0.25rem;
-  }
-</style>

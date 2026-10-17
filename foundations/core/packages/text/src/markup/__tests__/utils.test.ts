@@ -22,6 +22,7 @@ import {
   isEmptyMarkup,
   isEmptyNode,
   jsonToMarkup,
+  type MarkupMark,
   MarkupMarkType,
   MarkupNode,
   MarkupNodeType,
@@ -283,7 +284,7 @@ describe('pmNodeToJSON', () => {
 
     const json: MarkupNode = {
       type: MarkupNodeType.paragraph,
-      attrs: { textAlign: null as any },
+      attrs: { textAlign: null },
       content: [nodeText('Hello, world!')]
     }
     expect(pmNodeToJSON(node)).toEqual(json)
@@ -299,6 +300,32 @@ describe('jsonToPmNode', () => {
     expect(node.content.childCount).toEqual(1)
     expect(node.content.child(0).type.name).toEqual('text')
     expect(node.content.child(0).text).toEqual('Hello, world!')
+  })
+
+  it('ServerKit schema includes node-uuid mark and parses text carrying it (QMS anchors)', () => {
+    const schema = getSchema(extensions)
+    expect(schema.marks['node-uuid']).toBeDefined()
+    const json: MarkupNode = {
+      type: MarkupNodeType.doc,
+      content: [
+        {
+          type: MarkupNodeType.paragraph,
+          attrs: { textAlign: null },
+          content: [
+            {
+              type: MarkupNodeType.text,
+              text: 'hello',
+              marks: [{ type: 'node-uuid' } as unknown as MarkupMark]
+            }
+          ]
+        }
+      ]
+    }
+    const node = jsonToPmNode(json, schema)
+    expect(node.type.name).toEqual('doc')
+    const para = node.content.child(0)
+    const text = para.content.child(0)
+    expect(text.marks.some((m) => m.type.name === 'node-uuid')).toBeTruthy()
   })
 })
 
@@ -389,6 +416,32 @@ describe('jsonToText', () => {
       content: []
     }
     expect(jsonToText(node)).toEqual('')
+  })
+  it('keeps a mention as its label, so a search can find who was addressed', () => {
+    const node: MarkupNode = {
+      type: MarkupNodeType.paragraph,
+      content: [
+        {
+          type: MarkupNodeType.reference,
+          attrs: { id: 'person-1', objectclass: 'contact:class:Person', label: 'Pavel Vasilenko' }
+        },
+        {
+          type: MarkupNodeType.text,
+          text: ' please have a look'
+        }
+      ]
+    }
+    expect(jsonToText(node)).toEqual('@Pavel Vasilenko please have a look')
+  })
+  it('keeps an emoji', () => {
+    const node: MarkupNode = {
+      type: MarkupNodeType.paragraph,
+      content: [
+        { type: MarkupNodeType.text, text: 'done ' },
+        { type: MarkupNodeType.emoji, attrs: { emoji: '✅', kind: 'unicode' } }
+      ]
+    }
+    expect(jsonToText(node)).toEqual('done ✅')
   })
   it('returns error for text node with no text', () => {
     const node: MarkupNode = {

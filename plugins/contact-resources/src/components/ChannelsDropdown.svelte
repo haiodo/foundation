@@ -16,28 +16,16 @@
 <script lang="ts">
   import type { Channel, ChannelProvider } from '@hcengineering/contact'
   import contact from '@hcengineering/contact'
-  import { AttachedData, Doc, Ref, toIdMap } from '@hcengineering/core'
-  import notification, { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
-  import { Asset, IntlString, getResource } from '@hcengineering/platform'
+  import type { AttachedData, Doc, Ref } from '@hcengineering/core'
+  import { toIdMap } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import {
-    Action,
-    AnyComponent,
-    Button,
-    ButtonKind,
-    ButtonSize,
-    Menu,
-    closeTooltip,
-    eventToHTMLElement,
-    getEventPopupPositionElement,
-    getFocusManager,
-    getPopupPositionElement,
-    showPopup
-  } from '@hcengineering/ui'
-  import view, { Action as ViewAction } from '@hcengineering/view'
-  import { ContextMenu, invokeAction } from '@hcengineering/view-resources'
+  import type { Action, AnyComponent, ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import { Button, Menu, closeTooltip, eventToHTMLElement, getFocusManager, showPopup } from '@hcengineering/ui'
+  import type { Action as ViewAction } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+  import { invokeAction } from '@hcengineering/view-resources'
   import { createEventDispatcher, tick } from 'svelte'
-  import { readable, Readable, Writable, writable } from 'svelte/store'
   import { channelProviders } from '../utils'
   import ChannelEditor from './ChannelEditor.svelte'
 
@@ -51,15 +39,6 @@
   export let integrations: Set<Ref<Doc>> = new Set<Ref<Doc>>()
   export let focusIndex = -1
   export let restricted: Ref<ChannelProvider>[] = []
-
-  let contextByDocStore: Writable<Map<Ref<Doc>, DocNotifyContext>> = writable(new Map())
-  let inboxNotificationsByContextStore: Readable<Map<Ref<DocNotifyContext>, InboxNotification[]>> = readable(new Map())
-
-  getResource(notification.function.GetInboxNotificationsClient).then((res) => {
-    const inboxClient = res()
-    contextByDocStore = inboxClient.contextByDoc
-    inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
-  })
 
   const dispatch = createEventDispatcher()
 
@@ -77,17 +56,11 @@
     canEdit: boolean
   }
 
-  function getProvider (
-    item: AttachedData<Channel>,
-    map: Map<Ref<ChannelProvider>, ChannelProvider>,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): Item | undefined {
+  function getProvider (item: AttachedData<Channel>, map: Map<Ref<ChannelProvider>, ChannelProvider>): Item | undefined {
     const provider = map.get(item.provider)
-    if (provider) {
+    if (provider != null) {
       const channel = item as Channel
-      const notification =
-        channel._id !== undefined ? isNew(channel, notifyContextByDoc, inboxNotificationsByContext) : false
+      const notification = channel._id !== undefined ? isNew(channel) : false
       const hasActivity = (channel.items ?? 0) > 0 || channel.lastMessage !== undefined
       const canEditRestricted = !hasActivity
       return {
@@ -106,28 +79,14 @@
     }
   }
 
-  function isNew (
-    item: Channel,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): boolean {
-    const notifyContext = notifyContextByDoc.get(item._id)
-
-    if (notifyContext === undefined) {
-      return (item.items ?? 0) > 0
-    }
-
-    const inboxNotifications = inboxNotificationsByContext.get(notifyContext._id) ?? []
-
-    return inboxNotifications.some(({ isViewed }) => !isViewed)
+  function isNew (item: Channel): boolean {
+    return (item.items ?? 0) > 0
   }
 
   async function update (
     value: AttachedData<Channel>[] | Channel | null,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>,
     channelProviders: ChannelProvider[]
-  ) {
+  ): Promise<void> {
     if (value == null) {
       displayItems = []
       return
@@ -137,13 +96,13 @@
     const map = toIdMap(channelProviders)
     if (Array.isArray(value)) {
       for (const item of value) {
-        const provider = getProvider(item, map, notifyContextByDoc, inboxNotificationsByContext)
+        const provider = getProvider(item, map)
         if (provider !== undefined) {
           result.push(provider)
         }
       }
     } else {
-      const provider = getProvider(value, map, notifyContextByDoc, inboxNotificationsByContext)
+      const provider = getProvider(value, map)
       if (provider !== undefined) {
         result.push(provider)
       }
@@ -152,7 +111,7 @@
     updateMenu(displayItems, channelProviders)
   }
 
-  $: if (value) update(value, $contextByDocStore, $inboxNotificationsByContextStore, $channelProviders)
+  $: if (value != null) void update(value, $channelProviders)
 
   let displayItems: Item[] = []
   let actions: Action[] = []
@@ -171,12 +130,7 @@
         icon: pr.icon ?? contact.icon.SocialEdit,
         label: pr.label,
         action: async () => {
-          const provider = getProvider(
-            { provider: pr._id, value: '' },
-            toIdMap(providers),
-            $contextByDocStore,
-            $inboxNotificationsByContextStore
-          )
+          const provider = getProvider({ provider: pr._id, value: '' }, toIdMap(providers))
           if (provider !== undefined) {
             displayItems = [..._displayItems, provider]
             if (focusIndex !== -1) {
@@ -193,7 +147,7 @@
   $: updateMenu(displayItems, $channelProviders)
 
   const dropItem = (n: number): Item[] => {
-    return displayItems.filter((it, i) => i !== n)
+    return displayItems.filter((_, i) => i !== n)
   }
   const saveItems = (): void => {
     value = filterUndefined(displayItems)
@@ -208,7 +162,7 @@
     })
   }
 
-  function remove (n: number) {
+  function remove (n: number): void {
     const removed = displayItems[n]
     displayItems = dropItem(n)
     dispatch('remove', removed.channel)
@@ -234,10 +188,10 @@
             remove(n)
           }
           if (result === 'open') {
-            if (item.action) {
+            if (item.action != null) {
               const doc = item.channel as Channel
               const action = client.getModel().findAllSync(view.class.Action, { _id: item.action })[0]
-              invokeAction(doc, result, action)
+              void invokeAction(doc, result, action)
             } else {
               dispatch('open', item)
             }
@@ -276,10 +230,10 @@
   const updateTooltip = (result: CustomEvent, item: Item, i: number): void => {
     if (result.detail === 'open') {
       closeTooltip()
-      if (item.action) {
+      if (item.action != null) {
         const doc = item.channel as Channel
         const action = client.getModel().findAllSync(view.class.Action, { _id: item.action })[0]
-        invokeAction(doc, result, action)
+        void invokeAction(doc, result, action)
       } else {
         dispatch('open', item)
       }
@@ -298,12 +252,12 @@
         id={item.label}
         bind:input={btns[i]}
         icon={item.icon}
-        kind={'link-bordered'}
+        kind="link-bordered"
         {size}
         {shape}
         highlight={item.integration || item.notification}
         on:click={(ev) => {
-          if (editable && item.canEdit) {
+          if (editable === true && item.canEdit) {
             closeTooltip()
             editChannel(eventToHTMLElement(ev), i, item)
           } else {
@@ -344,7 +298,7 @@
         {shape}
         highlight={item.integration || item.notification}
         on:click={(ev) => {
-          if (editable && item.canEdit) {
+          if (editable === true && item.canEdit) {
             closeTooltip()
             editChannel(eventToHTMLElement(ev), i, item)
           } else {

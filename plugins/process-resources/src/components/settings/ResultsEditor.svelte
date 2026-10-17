@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Process, UserResult } from '@hcengineering/process'
+  import type { Process, UserResult } from '@hcengineering/process'
   import { Button, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
@@ -64,6 +64,6 @@
     />
   {/each}
   <div class="flex-center mx-8">
-    <Button label={plugin.string.AddResult} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+    <Button label={plugin.string.AddResult} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
   </div>
 </div>

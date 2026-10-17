@@ -3,6 +3,7 @@
     "CreateFunnel": "New Funnel",
     "CreateLead": "New Lead",
     "Funnel": "Funnel",
+    "DefaultFunnel": "Default funnel",
     "FunnelName": "Funnel name",
     "Funnels": "Funnels",
     "LeadApplication": "Leads (beta)",
@@ -35,7 +36,9 @@
     "EditFunnel": "Edit Funnel",
     "FunnelMembers": "Members",
     "ForbidCreateFunnelPermission": "Forbid create funnel",
-    "ForbidCreateFunnelPermissionDescription": "Forbid users creating new funnels"
+    "ForbidCreateFunnelPermissionDescription": "Forbid users creating new funnels",
+    "Website": "Website",
+    "Industry": "Industry"
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{doc} was assigned to you by {sender}",

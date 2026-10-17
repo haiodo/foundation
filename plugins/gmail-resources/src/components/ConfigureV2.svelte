@@ -25,7 +25,8 @@
 
   import { getIntegrationClient, startSync } from '../api'
   import gmail from '../plugin'
-  import core, { getCurrentAccount, Ref, Space } from '@hcengineering/core'
+  import type { Ref, Space } from '@hcengineering/core'
+  import core, { getCurrentAccount } from '@hcengineering/core'
   import GmailColor from './icons/GmailColor.svelte'
   import { Analytics } from '@hcengineering/analytics'
 
@@ -104,9 +105,9 @@
             _class: { $in: [card.class.CardSpace, contact.class.PersonSpace] }
           }}
           label={core.string.Space}
-          kind={'regular'}
-          size={'medium'}
-          justify={'left'}
+          kind="regular"
+          size="medium"
+          justify="left"
           autoSelect={false}
           bind:space={selectedSpace}
           width="9rem"
@@ -117,12 +118,12 @@
   <svelte:fragment slot="footer">
     <div class="flex-row-center max-w-80 pr-4">
       {#if personSpace === selectedSpace}
-        <Icon size={'small'} icon={contact.icon.Person} />
+        <Icon size="small" icon={contact.icon.Person} />
         <span class="text-sm ml-2">
           <Label label={gmail.string.PersonSpaceInfo} />
         </span>
       {:else}
-        <Icon size={'small'} icon={contact.icon.Contacts} />
+        <Icon size="small" icon={contact.icon.Contacts} />
         <span class="text-sm ml-2">
           <Label label={gmail.string.SharedSpaceInfo} />
         </span>

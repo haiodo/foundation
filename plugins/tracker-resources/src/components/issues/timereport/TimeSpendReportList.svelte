@@ -14,15 +14,15 @@
 -->
 
 <script lang="ts">
-  import { DocumentQuery, IdMap, PersonId, Ref, toIdMap } from '@hcengineering/core'
+  import type { DocumentQuery, IdMap, PersonId, Ref } from '@hcengineering/core'
+  import { toIdMap } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { Issue, TimeSpendReport } from '@hcengineering/tracker'
+  import type { Issue, TimeSpendReport } from '@hcengineering/tracker'
   import tracker from '../../../plugin'
   import PersonCalendar from './PersonCalendar.svelte'
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
   import {
     Button,
-    ButtonIcon,
     DropdownLabelsIntl,
     Icon,
     IconAdd,
@@ -33,6 +33,7 @@
     deviceOptionsStore as deviceInfo,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import TimePresenter from './TimePresenter.svelte'
   import TimeReportHeader from './TimeReportHeader.svelte'
   import IssuePresenter from '../IssuePresenter.svelte'
@@ -99,9 +100,20 @@
     }
   )
 
-  // $: persons = Array.from(tasks.filter(it => it.assignee != null).map(it => it.assignee) as Ref<Person>[] ?? [])
+  let currentDate: Date = new Date()
+  type RangeMode = 'week' | 'twoWeeks' | 'month'
+  let rangeMode: RangeMode = 'week'
+
+  $: firstDayOfWeek = $deviceInfo.firstDayOfWeek ?? 1
+  $: periodStart = rangeMode === 'month' ? startOfMonth(currentDate) : startOfWeek(currentDate, firstDayOfWeek)
+  $: periodEndMs = getPeriodEndMs(periodStart, rangeMode)
+
+  $: periodReports = reports.filter(
+    (it) => it.date != null && it.date >= periodStart.getTime() && it.date <= periodEndMs
+  )
+
   $: reportPersons = Array.from(
-    (reports.filter((it) => it.employee != null).map((it) => it.employee) as Ref<Person>[]) ?? []
+    (periodReports.filter((it) => it.employee != null).map((it) => it.employee) as Ref<Person>[]) ?? []
   )
 
   let authorRefs = new Map<PersonId, Ref<Person>>()
@@ -110,19 +122,14 @@
     authorRefs = res
   })
 
-  $: noEmployeeReports = (reports ?? []).filter((it) => it.employee == null)
+  $: noEmployeeReports = periodReports.filter((it) => it.employee == null)
 
-  let onlyReports = false
+  const onlyReportsKey = '#tracker:onlyReports'
+  let onlyReports = localStorage.getItem(onlyReportsKey) !== 'false'
+  $: localStorage.setItem(onlyReportsKey, String(onlyReports))
 
-  $: finalPersons = [
-    ...(noEmployeeReports.length > 0 ? [null] : []),
-    ...Array.from(new Set([...reportPersons, ...(!onlyReports ? authorRefs.values() : [])]))
-  ]
+  $: finalPersons = [...(noEmployeeReports.length > 0 ? [null] : []), ...Array.from(new Set(reportPersons))]
 
-  let currentDate: Date = new Date()
-
-  type RangeMode = 'week' | 'twoWeeks' | 'month'
-  let rangeMode: RangeMode = 'week'
   let rangeSelected: string | number | undefined = 'week'
 
   function toRangeMode (value: string | number | undefined): RangeMode {
@@ -163,15 +170,10 @@
     return nextPeriodStart.getTime() - 1
   }
 
-  $: firstDayOfWeek = $deviceInfo.firstDayOfWeek ?? 1
-  $: periodStart = rangeMode === 'month' ? startOfMonth(currentDate) : startOfWeek(currentDate, firstDayOfWeek)
   $: periodDays = rangeMode === 'week' ? 7 : rangeMode === 'twoWeeks' ? 14 : daysInMonth(currentDate)
-  $: periodEndMs = getPeriodEndMs(periodStart, rangeMode)
   $: navStep = (rangeMode === 'week' ? 7 : rangeMode === 'twoWeeks' ? 14 : 'month') as number | 'month'
 
-  $: periodTotal = reports
-    .filter((it) => it.date != null && it.date >= periodStart.getTime() && it.date <= periodEndMs)
-    .reduce((a, b) => a + b.value, 0)
+  $: periodTotal = periodReports.reduce((a, b) => a + b.value, 0)
 </script>
 
 <TimeReportHeader bind:currentDate step={navStep}>
@@ -183,8 +185,8 @@
       { id: 'month', label: tracker.string.TimeRangeMonth }
     ]}
     bind:selected={rangeSelected}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
   />
   <div class="flex-row-center gap-1 ml-2">
     <span class="content-dark-color text-sm"><Label label={tracker.string.TimeRangePeriodTotal} />:</span>
@@ -198,7 +200,7 @@
   startDate={periodStart}
   maxDays={periodDays}
   minColWidthRem={onlyReports ? 3 : 8}
-  anchor={'start'}
+  anchor="start"
   rowHeightRem={onlyReports ? 3 : 8}
   personInfoInline={onlyReports}
 >
@@ -209,7 +211,7 @@
       (it) => it.employee === person && it.date != null && ld <= it.date && it.date <= rd
     )}
     <Button
-      kind={'link'}
+      kind="link"
       on:click={() => {
         showPopup(PersonReportsPopup, { person, ld, rd })
       }}
@@ -245,8 +247,8 @@
       <div class="dayCell flex-center" style:height="{height}rem">
         {#if dayTotal > 0}
           <Button
-            kind={'link'}
-            size={'x-small'}
+            kind="link"
+            size="x-small"
             on:click={() => {
               showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
             }}
@@ -257,10 +259,11 @@
           </Button>
         {:else}
           <div class="dayCellAdd">
-            <ButtonIcon
+            <IconButton
               icon={IconAdd}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
+              tooltip={{ label: tracker.string.TimeSpendReportAdd }}
               on:click={() => {
                 showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
               }}
@@ -272,10 +275,11 @@
       <div class="dayCell" style:overflow="auto" style:height="{height}rem" class:p-1={true}>
         {#if dayReports.length === 0 && dayIssues.length === 0}
           <div class="dayCellAdd dayCellAdd--center">
-            <ButtonIcon
+            <IconButton
               icon={IconAdd}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
+              tooltip={{ label: tracker.string.TimeSpendReportAdd }}
               on:click={() => {
                 showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
               }}
@@ -291,7 +295,7 @@
             <div class="flex flex-row-center gap-2 flex-wrap mb-1">
               <div class="flex flex-row-center gap-2">
                 {#if createdByMe}
-                  <Icon icon={IconCircleAdd} size={'small'} />
+                  <Icon icon={IconCircleAdd} size="small" />
                 {/if}
                 {#if closedByMe || dayReports.length > 0}
                   <IssueStatusPresenter value={issue} />
@@ -302,8 +306,8 @@
               </div>
               {#if issueReports.length > 0}
                 <Button
-                  kind={'link'}
-                  size={'x-small'}
+                  kind="link"
+                  size="x-small"
                   on:click={() => {
                     showPopup(EstimationPopup, { object: issue })
                   }}

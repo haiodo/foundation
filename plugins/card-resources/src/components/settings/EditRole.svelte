@@ -14,19 +14,18 @@
 -->
 <script lang="ts">
   import contact from '@hcengineering/contact'
-  import core, {
+  import type {
     AnyAttribute,
     AttributePermission,
     Class,
     ClassPermission,
     Doc,
-    notEmpty,
     Permission,
     Ref
   } from '@hcengineering/core'
-  import { AttributeEditor, MessageBox, createQuery, getClient } from '@hcengineering/presentation'
+  import core, { notEmpty } from '@hcengineering/core'
+  import presentation, { AttributeEditor, MessageBox, createQuery, getClient } from '@hcengineering/presentation'
   import {
-    ButtonIcon,
     Icon,
     IconDelete,
     IconEdit,
@@ -38,14 +37,15 @@
     navigate,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { ObjectBoxPopup } from '@hcengineering/view-resources'
 
-  import { MasterTag, Role } from '@hcengineering/card'
+  import type { MasterTag, Role } from '@hcengineering/card'
   import { clearSettingsStore } from '@hcengineering/setting-resources'
   import settingRes from '@hcengineering/setting-resources/src/plugin'
   import { createEventDispatcher } from 'svelte'
   import cardPlugin from '../../plugin'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
 
   export let _id: Ref<Role>
   export let readonly: boolean = false
@@ -210,23 +210,25 @@
 {#if role !== undefined}
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content gap">
           <div class="hulyComponent-content__column-group mt-4">
             <div class="hulyComponent-content__header mb-6 gap-2">
-              <ButtonIcon
+              <IconButton
                 icon={IconDelete}
                 size="large"
                 kind="secondary"
                 disabled={readonly || !role.types.includes(masterTag)}
+                tooltip={{ label: presentation.string.Delete }}
                 on:click={handleDeleteRole}
               />
-              <ButtonIcon
+              <IconButton
                 icon={contact.icon.Person}
                 size="large"
                 iconProps={{ size: 'small' }}
                 kind="secondary"
                 disabled={readonly}
+                tooltip={{ label: contact.string.Person }}
               />
               <div class="name" class:editable={!readonly}>
                 <AttributeEditor
@@ -243,10 +245,11 @@
               <div class="hulyTableAttr-header font-medium-12">
                 <IconSettings size="small" />
                 <span><Label label={settingRes.string.Permissions} /></span>
-                <ButtonIcon
+                <IconButton
                   kind="primary"
                   icon={IconEdit}
                   size="small"
+                  tooltip={{ label: presentation.string.Edit }}
                   on:click={handleEditPermissions}
                   disabled={readonly}
                 />

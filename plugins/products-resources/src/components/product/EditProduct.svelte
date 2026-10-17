@@ -23,7 +23,7 @@
   import { Panel } from '@hcengineering/panel'
   import { getResource } from '@hcengineering/platform'
   import { ActionContext, MessageViewer, IconWithEmoji, createQuery, getClient } from '@hcengineering/presentation'
-  import { Button, EditBox, IconMixin, IconMoreH, getPlatformColorDef, showPopup, themeStore } from '@hcengineering/ui'
+  import { Button, EditBox, IconMixin, IconMoreH, getPaletteColorDef, showPopup, themeStore } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { DocAttributeBar, IconPicker, getDocMixins, showMenu } from '@hcengineering/view-resources'
   import type { Product } from '@hcengineering/products'
@@ -39,7 +39,7 @@
 
   const client = getClient()
   const dispatch = createEventDispatcher()
-  const notificationClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const notificationClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   let object: Product | undefined
   let title = ''
@@ -129,37 +129,34 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'default'}
+    adaptive="default"
     on:open
     on:close={() => dispatch('close')}
   >
     <div class="flex-row-center clear-mins" style="gap: 1.5rem;">
       {#if canEdit}
         <Button
-          size={'medium'}
-          kind={'link-bordered'}
+          size="medium"
+          kind="link-bordered"
           noFocus
           icon={object.icon === view.ids.IconWithEmoji ? IconWithEmoji : (object.icon ?? products.icon.Product)}
           iconProps={object.icon === view.ids.IconWithEmoji
             ? { icon: object.color }
             : {
-                fill:
-                  object.color !== undefined && typeof object.color !== 'string'
-                    ? getPlatformColorDef(object.color, $themeStore.dark).icon
-                    : 'currentColor'
+                fill: getPaletteColorDef(object.color, $themeStore.dark)?.icon ?? 'currentColor'
               }}
           on:click={chooseIcon}
         />
       {:else}
         <div class="icon">
-          <DocIcon value={object} size={'small'} defaultIcon={products.icon.Product} />
+          <DocIcon value={object} size="small" defaultIcon={products.icon.Product} />
         </div>
       {/if}
       <EditBox
         bind:value={title}
         disabled={!canEdit}
         placeholder={products.string.ProductNamePlaceholder}
-        kind={'large-style'}
+        kind="large-style"
         on:blur={() => {
           const name = title.trim()
           if (name !== '') {
@@ -190,14 +187,14 @@
       <Button
         icon={IconMoreH}
         kind="ghost"
-        size={'medium'}
+        size="medium"
         on:click={(e) => {
           showMenu(e, { object })
         }}
       />
       <Button
         icon={IconMixin}
-        kind={'icon'}
+        kind="icon"
         iconProps={{ size: 'medium' }}
         selected={showAllMixins}
         on:click={() => {

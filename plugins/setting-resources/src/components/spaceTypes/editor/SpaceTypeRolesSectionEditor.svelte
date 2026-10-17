@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,8 +14,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Role, SortingOrder, SpaceType, SpaceTypeDescriptor } from '@hcengineering/core'
-  import { ButtonIcon, IconAdd, Label, getCurrentResolvedLocation, navigate } from '@hcengineering/ui'
+  import { onDestroy } from 'svelte'
+  import type { Role, SpaceType, SpaceTypeDescriptor } from '@hcengineering/core'
+  import core, { SortingOrder } from '@hcengineering/core'
+  import { IconAdd, Label, getCurrentResolvedLocation, navigate } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createQuery } from '@hcengineering/presentation'
 
   import MembersIcon from '../../icons/Members.svelte'
@@ -53,18 +57,23 @@
     clearSettingsStore()
     navigate(loc)
   }
+
+  onDestroy(() => {
+    clearSettingsStore()
+  })
 </script>
 
 {#if descriptor !== undefined}
   <div class="hulyTableAttr-header font-medium-12">
     <MembersIcon size="small" />
     <span><Label label={settingRes.string.Roles} /></span>
-    <ButtonIcon
+    <IconButton
       kind="primary"
       icon={IconAdd}
       size="small"
-      dataId={'btnAdd'}
+      data-id="btnAdd"
       {disabled}
+      tooltip={disabled ? { label: settingRes.string.OwnerOrMaintainerRequired } : { label: settingRes.string.Add }}
       on:click={(ev) => {
         $settingsStore = { id: 'createRole', component: CreateRole, props: { type, descriptor } }
       }}

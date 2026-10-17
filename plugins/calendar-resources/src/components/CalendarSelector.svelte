@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { AccessLevel, Calendar, getPrimaryCalendar, PrimaryCalendar } from '@hcengineering/calendar'
-  import { getCurrentAccount, Ref } from '@hcengineering/core'
+  import type { Calendar, PrimaryCalendar } from '@hcengineering/calendar'
+  import { AccessLevel, getPrimaryCalendar } from '@hcengineering/calendar'
+  import type { Ref } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import { Dropdown, Icon } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -73,11 +75,11 @@
 {#if calendars.length > 0}
   <div class="flex-row-center flex-gap-1">
     {#if withIcon}
-      <Icon icon={calendar.icon.Calendar} size={'small'} />
+      <Icon icon={calendar.icon.Calendar} size="small" />
     {/if}
     <Dropdown
-      kind={'ghost'}
-      size={'medium'}
+      kind="ghost"
+      size="medium"
       placeholder={calendar.string.Calendar}
       {items}
       withSearch={false}

@@ -289,13 +289,11 @@ export class CommentSyncManager implements DocSyncManager {
       return await this.createCommentPromise
     }
     const comment = info.external as CommentExternalData
-    if (parent === undefined) {
-      // Find parent by issue url
-      parent = await this.client.findOne(github.class.DocSyncInfo, {
-        space: container.project._id,
-        url: (comment.html_url.split('#')?.[0] ?? '').toLowerCase()
-      })
-    }
+    // Find parent by issue url
+    parent ??= await this.client.findOne(github.class.DocSyncInfo, {
+      space: container.project._id,
+      url: (comment.html_url.split('#')?.[0] ?? '').toLowerCase()
+    })
     if (parent === undefined) {
       // no Sync until parent is found, parent should trigger all child's refresh.
       return { needSync: githubSyncVersion }
@@ -459,7 +457,7 @@ export class CommentSyncManager implements DocSyncManager {
         const upd: DocumentUpdate<DocSyncInfo> = {
           parent: (result?.data.html_url?.split('#')?.[0] ?? '').toLowerCase(),
           url: (result?.data.url ?? '').toLowerCase(),
-          external: result?.data as CommentExternalData,
+          external: result?.data,
           current: result?.data,
           repository: repo._id,
           needSync: githubSyncVersion
@@ -486,7 +484,7 @@ export class CommentSyncManager implements DocSyncManager {
     repository: GithubIntegrationRepository,
     project: GithubProject
   ): Promise<void> {
-    // No need to perform external sync for comments, so let's update marks
+    // No need to perform external sync for comments, so update marks
     const tx = derivedClient.apply()
     for (const d of syncDocs) {
       await tx.update(d, { externalVersion: githubExternalSyncVersion })
@@ -574,7 +572,7 @@ export class CommentSyncManager implements DocSyncManager {
     }
     const syncInfo = await this.client.findAll<DocSyncInfo>(github.class.DocSyncInfo, {
       space: repo.githubProject,
-      // repository: repo._id, // If we skip repository, we will find orphaned comments, so we could connect them on.
+      // repository: repo._id, // If we skip repository, we find orphaned comments, so we could connect them on.
       objectClass: chunter.class.ChatMessage,
       url: { $in: comments.map((it) => (it.url ?? '').toLowerCase()) }
     })

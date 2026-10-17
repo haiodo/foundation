@@ -1,0 +1,528 @@
+//
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+import { SubscriptionStatus, SubscriptionType } from '@hcengineering/account-client'
+import { expireTrials, msUntilHour, remindUpcomingTrials, startTrialExpiry } from '../trialExpiry'
+
+const DAY = 24 * 60 * 60 * 1000
+
+describe('expireTrials', () => {
+  let ctx: any
+  let buildFree: jest.Mock
+
+  const trial = (workspaceUuid: string, trialEnd: number | undefined): any => ({
+    id: `trial-${workspaceUuid}`,
+    workspaceUuid,
+    provider: 'trial',
+    type: SubscriptionType.Tier,
+    status: SubscriptionStatus.Trialing,
+    plan: 'business',
+    trialEnd
+  })
+
+  const tier = (status: SubscriptionStatus, trialEnd?: number): any => ({
+    type: SubscriptionType.Tier,
+    status,
+    trialEnd
+  })
+
+  // The server filters expired trials by trialEnd; the mock mirrors that so tests exercise the
+  // same candidate set the pod would really receive.
+  const client = (trials: any[], byWorkspace: Record<string, any[]> = {}): any => ({
+    getSubscriptionsByProvider: jest.fn(async (_p: string, _s: string[], trialEndBefore?: number) =>
+      trialEndBefore === undefined ? trials : trials.filter((t) => t.trialEnd != null && t.trialEnd <= trialEndBefore)
+    ),
+    getSubscriptions: jest.fn(async (ws: string) => byWorkspace[ws] ?? []),
+    upsertSubscriptionsBulk: jest.fn(async (subs: any[]) => subs.map((s) => ({ id: s.id, ok: true })))
+  })
+
+  /** Everything written across every bulk call, flattened. */
+  const written = (accountClient: any): any[] =>
+    accountClient.upsertSubscriptionsBulk.mock.calls.flatMap((c: any) => c[0])
+
+  beforeEach(() => {
+    ctx = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    buildFree = jest.fn((workspace: string) => ({
+      id: `free-${workspace}`,
+      workspaceUuid: workspace,
+      provider: 'free',
+      type: SubscriptionType.Tier,
+      status: SubscriptionStatus.Active,
+      plan: 'start'
+    }))
+  })
+
+  it('asks the server for expired trials of the trial provider only', async () => {
+    const accountClient = client([])
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledWith(
+      'trial',
+      [SubscriptionStatus.Trialing],
+      expect.any(Number)
+    )
+  })
+
+  it('cancels an expired trial and creates the free tier in the same bulk call', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, Date.now() - DAY)]
+    })
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(accountClient.upsertSubscriptionsBulk).toHaveBeenCalledTimes(1)
+    // Cancel first: a free tier written before it would be retired by the supersede cascade.
+    expect(written(accountClient)).toEqual([
+      expect.objectContaining({
+        id: 'trial-ws-1',
+        status: SubscriptionStatus.Canceled,
+        canceledAt: expect.any(Number),
+        providerData: expect.objectContaining({ status: 'TRIAL_EXPIRED' })
+      }),
+      expect.objectContaining({ id: 'free-ws-1', provider: 'free', status: SubscriptionStatus.Active })
+    ])
+  })
+
+  it('leaves accountUuid unset on the free tier so account resolves the owner', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, Date.now() - DAY)]
+    })
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    const free = written(accountClient).find((w) => w.provider === 'free')
+    expect(free.accountUuid).toBeUndefined()
+  })
+
+  it('never marks the trial as a finalized user cancel (would double-provision free via the queue)', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, Date.now() - DAY)]
+    })
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(written(accountClient)[0].providerData.status).not.toBe('CANCELED')
+  })
+
+  it('cancels the expired trial even without a free plan configured', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, Date.now() - DAY)]
+    })
+
+    await expireTrials(ctx, accountClient, undefined)
+
+    expect(written(accountClient)).toEqual([expect.objectContaining({ status: SubscriptionStatus.Canceled })])
+  })
+
+  it('leaves a live trial alone even if the server hands one back', async () => {
+    // Server-side trialEnd filtering is bypassed on purpose: the pod re-checks the date itself.
+    const accountClient = client([])
+    accountClient.getSubscriptionsByProvider = jest.fn().mockResolvedValue([trial('ws-1', Date.now() + DAY)])
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(accountClient.upsertSubscriptionsBulk).not.toHaveBeenCalled()
+    // A live trial is skipped before the re-read — no extra account round-trip.
+    expect(accountClient.getSubscriptions).not.toHaveBeenCalled()
+  })
+
+  it('skips a trial without trialEnd instead of expiring it', async () => {
+    const accountClient = client([])
+    accountClient.getSubscriptionsByProvider = jest.fn().mockResolvedValue([trial('ws-1', undefined)])
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(accountClient.upsertSubscriptionsBulk).not.toHaveBeenCalled()
+  })
+
+  it('skips when the workspace already has a granting tier (paid in the meantime)', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      'ws-1': [tier(SubscriptionStatus.Active)]
+    })
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(accountClient.upsertSubscriptionsBulk).not.toHaveBeenCalled()
+  })
+
+  it('skips when free was already provisioned (idempotent across pods)', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      // Another pod won the race: the trial is Canceled and free is Active.
+      'ws-1': [tier(SubscriptionStatus.Canceled), tier(SubscriptionStatus.Active)]
+    })
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(accountClient.upsertSubscriptionsBulk).not.toHaveBeenCalled()
+  })
+
+  it('keeps sweeping after the re-read of one workspace fails', async () => {
+    const expiredAt = Date.now() - DAY
+    const accountClient = client([trial('ws-1', expiredAt), trial('ws-2', expiredAt)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, expiredAt)],
+      'ws-2': [tier(SubscriptionStatus.Trialing, expiredAt)]
+    })
+    accountClient.getSubscriptions.mockRejectedValueOnce(new Error('account down'))
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(written(accountClient).map((w) => w.id)).toEqual(['trial-ws-2', 'free-ws-2'])
+    expect(ctx.error).toHaveBeenCalledWith(
+      'failed to check trial workspace',
+      expect.objectContaining({ workspace: 'ws-1' })
+    )
+  })
+
+  it('reports a failed bulk entry without stopping the rest', async () => {
+    const expiredAt = Date.now() - DAY
+    const accountClient = client([trial('ws-1', expiredAt), trial('ws-2', expiredAt)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, expiredAt)],
+      'ws-2': [tier(SubscriptionStatus.Trialing, expiredAt)]
+    })
+    accountClient.upsertSubscriptionsBulk = jest.fn(async (subs: any[]) =>
+      subs.map((s) => ({ id: s.id, ok: s.id !== 'free-ws-1', error: s.id === 'free-ws-1' ? 'no members' : undefined }))
+    )
+
+    await expireTrials(ctx, accountClient, buildFree)
+
+    expect(ctx.error).toHaveBeenCalledWith(
+      'failed to move expired trial to free plan',
+      expect.objectContaining({ workspace: 'ws-1', error: 'no members' })
+    )
+    expect(ctx.info).toHaveBeenCalledWith(
+      'free subscription created for workspace',
+      expect.objectContaining({ workspace: 'ws-2' })
+    )
+  })
+
+  it('writes both the cancel and the free tier to the payment ledger', async () => {
+    const accountClient = client([trial('ws-1', Date.now() - DAY)], {
+      'ws-1': [tier(SubscriptionStatus.Trialing, Date.now() - DAY)]
+    })
+    const logOperation = jest.fn().mockResolvedValue(undefined)
+
+    await expireTrials(ctx, accountClient, buildFree, logOperation)
+
+    expect(logOperation).toHaveBeenCalledTimes(2)
+    expect(logOperation).toHaveBeenCalledWith(ctx, expect.objectContaining({ provider: 'trial' }), true)
+    expect(logOperation).toHaveBeenCalledWith(ctx, expect.objectContaining({ provider: 'free' }), false)
+  })
+
+  it('splits a large sweep into batches', async () => {
+    const expiredAt = Date.now() - DAY
+    const trials = Array.from({ length: 120 }, (_, i) => trial(`ws-${i}`, expiredAt))
+    const byWorkspace: Record<string, any[]> = {}
+    for (let i = 0; i < 120; i++) byWorkspace[`ws-${i}`] = [tier(SubscriptionStatus.Trialing, expiredAt)]
+
+    const accountClient = client(trials, byWorkspace)
+    await expireTrials(ctx, accountClient, buildFree)
+
+    // 120 trials -> batches of 100 and 20 candidates, each writing a cancel plus a free tier.
+    expect(accountClient.upsertSubscriptionsBulk).toHaveBeenCalledTimes(2)
+    expect(accountClient.upsertSubscriptionsBulk.mock.calls.map((c: any) => c[0].length)).toEqual([200, 40])
+  })
+})
+
+describe('msUntilHour', () => {
+  it('returns the delay to the target hour later the same day', () => {
+    const from = Date.UTC(2026, 7, 17, 18, 0, 0)
+    expect(msUntilHour(21, from)).toBe(3 * 60 * 60 * 1000)
+  })
+
+  it('rolls over to the next day when the hour already passed', () => {
+    const from = Date.UTC(2026, 7, 17, 22, 0, 0)
+    expect(msUntilHour(21, from)).toBe(23 * 60 * 60 * 1000)
+  })
+
+  it('waits a full day when fired exactly on the hour', () => {
+    const from = Date.UTC(2026, 7, 17, 21, 0, 0)
+    expect(msUntilHour(21, from)).toBe(24 * 60 * 60 * 1000)
+  })
+})
+
+describe('startTrialExpiry', () => {
+  let ctx: any
+  let accountClient: any
+
+  beforeEach(() => {
+    ctx = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    accountClient = {
+      getSubscriptionsByProvider: jest.fn().mockResolvedValue([]),
+      getSubscriptions: jest.fn().mockResolvedValue([]),
+      upsertSubscriptionsBulk: jest.fn().mockResolvedValue([])
+    }
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('does not sweep at startup — a deploy must not move plans mid-day', () => {
+    const stop = startTrialExpiry(ctx, accountClient, undefined, { hourUtc: 21 })
+
+    expect(accountClient.getSubscriptionsByProvider).not.toHaveBeenCalled()
+    stop()
+  })
+
+  it('sweeps at the configured hour and re-arms for the next day', () => {
+    jest.setSystemTime(Date.UTC(2026, 7, 17, 20, 0, 0))
+    const stop = startTrialExpiry(ctx, accountClient, undefined, { hourUtc: 21 })
+
+    jest.advanceTimersByTime(60 * 60 * 1000)
+    expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledTimes(1)
+
+    jest.advanceTimersByTime(24 * 60 * 60 * 1000)
+    expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledTimes(2)
+
+    stop()
+    jest.advanceTimersByTime(24 * 60 * 60 * 1000)
+    expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledTimes(2)
+  })
+
+  it('honors the interval override and stops on close', () => {
+    const stop = startTrialExpiry(ctx, accountClient, undefined, { hourUtc: 21, intervalMinutes: 30 })
+
+    jest.advanceTimersByTime(30 * 60 * 1000)
+    expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledTimes(1)
+
+    stop()
+    jest.advanceTimersByTime(30 * 60 * 1000)
+    expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('trial-expired email', () => {
+  let ctx: any
+  let buildFree: jest.Mock
+  let sent: any[]
+
+  const DAY = 24 * 60 * 60 * 1000
+  const NOW = Date.UTC(2026, 8, 4)
+  const ENDED = NOW - DAY
+
+  const trial = (over: Record<string, any> = {}): any => ({
+    id: 'trial-ws-1',
+    workspaceUuid: 'ws-1',
+    accountUuid: 'acc-1',
+    provider: 'trial',
+    providerSubscriptionId: 'trial-1',
+    type: SubscriptionType.Tier,
+    status: SubscriptionStatus.Trialing,
+    plan: 'business',
+    trialEnd: ENDED,
+    providerData: { quantity: 10 },
+    ...over
+  })
+
+  // Mail context over stub lookups: this suite asserts that the sweep sends, not how it renders.
+  const mailContext = (): any => ({
+    storage: {
+      getAccountContact: jest.fn().mockResolvedValue({ name: 'Иван', email: 'payer@x.com', locale: 'ru' }),
+      getWorkspaceInfo: jest.fn().mockResolvedValue({ name: 'Моя компания', url: 'my-company' }),
+      getWorkspaceUrl: jest.fn().mockResolvedValue('my-company')
+    },
+    send: async (_c: any, to: string, msg: any) => {
+      sent.push({ to, ...msg })
+    },
+    planLabel: async (plan: string) => plan,
+    planCurrency: async () => '₽',
+    frontUrl: 'https://app.intabia.ru'
+  })
+
+  const client = (trials: any[]): any => ({
+    getSubscriptionsByProvider: jest.fn(async () => trials),
+    getSubscriptions: jest.fn(async () => []),
+    upsertSubscriptionsBulk: jest.fn(async (subs: any[]) => subs.map((s) => ({ id: s.id, ok: true })))
+  })
+
+  beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ['nextTick'] })
+    jest.setSystemTime(NOW)
+    sent = []
+    ctx = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    buildFree = jest.fn((workspace: string) => ({
+      id: `free-${workspace}`,
+      workspaceUuid: workspace,
+      provider: 'free',
+      type: SubscriptionType.Tier,
+      status: SubscriptionStatus.Active,
+      plan: 'free'
+    }))
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('an expired trial gets one mail, dated by trialEnd', async () => {
+    await expireTrials(ctx, client([trial()]), buildFree, undefined, mailContext())
+    expect(sent).toHaveLength(1)
+    expect(sent[0].to).toBe('payer@x.com')
+    expect(sent[0].subject).toBe('Пробный период закончился')
+    // The date access ended, not the tick time.
+    expect(sent[0].text).toContain('03.09.2026')
+  })
+
+  it('no mail context -> the sweep still retires the trial', async () => {
+    const accountClient = client([trial()])
+    await expireTrials(ctx, accountClient, buildFree)
+    expect(sent).toHaveLength(0)
+    expect(accountClient.upsertSubscriptionsBulk).toHaveBeenCalled()
+  })
+
+  it('a trial that has not ended is neither retired nor emailed', async () => {
+    const accountClient = client([trial({ trialEnd: NOW + DAY })])
+    await expireTrials(ctx, accountClient, buildFree, undefined, mailContext())
+    expect(sent).toHaveLength(0)
+    expect(accountClient.upsertSubscriptionsBulk).not.toHaveBeenCalled()
+  })
+
+  it('a workspace that already bought a tier is skipped entirely', async () => {
+    const accountClient = client([trial()])
+    accountClient.getSubscriptions = jest.fn(async () => [
+      { type: SubscriptionType.Tier, status: SubscriptionStatus.Active, plan: 'business' }
+    ])
+    await expireTrials(ctx, accountClient, buildFree, undefined, mailContext())
+    expect(sent).toHaveLength(0)
+  })
+
+  it('a mail failure never breaks the sweep', async () => {
+    const mail = mailContext()
+    mail.send = async () => {
+      throw new Error('queue unavailable')
+    }
+    const accountClient = client([trial()])
+    await expect(expireTrials(ctx, accountClient, buildFree, undefined, mail)).resolves.toBeUndefined()
+    expect(accountClient.upsertSubscriptionsBulk).toHaveBeenCalled()
+  })
+})
+
+describe('remindUpcomingTrials', () => {
+  let ctx: any
+  let sent: any[]
+
+  const DAY = 24 * 60 * 60 * 1000
+  const NOW = Date.UTC(2026, 8, 4)
+  const NOTICE_DAYS = 5
+
+  const trial = (over: Record<string, any> = {}): any => ({
+    id: 'trial-ws-1',
+    workspaceUuid: 'ws-1',
+    accountUuid: 'acc-1',
+    provider: 'trial',
+    providerSubscriptionId: 'trial-1',
+    type: SubscriptionType.Tier,
+    status: SubscriptionStatus.Trialing,
+    plan: 'business',
+    trialEnd: NOW + 3 * DAY,
+    providerData: { quantity: 10 },
+    ...over
+  })
+
+  const mailContext = (): any => ({
+    storage: {
+      getAccountContact: jest.fn().mockResolvedValue({ name: 'Иван', email: 'payer@x.com', locale: 'ru' }),
+      getWorkspaceInfo: jest.fn().mockResolvedValue({ name: 'Моя компания', url: 'my-company' }),
+      getWorkspaceUrl: jest.fn().mockResolvedValue('my-company')
+    },
+    send: async (_c: any, to: string, msg: any) => {
+      sent.push({ to, ...msg })
+    },
+    planLabel: async (plan: string) => plan,
+    planCurrency: async () => '₽',
+    frontUrl: 'https://app.intabia.ru'
+  })
+
+  // Mirrors the server-side trialEndBefore bound the pod really gets.
+  const client = (trials: any[], byWorkspace: Record<string, any[]> = {}): any => ({
+    getSubscriptionsByProvider: jest.fn(async (_p: string, _s: string[], trialEndBefore?: number) =>
+      trialEndBefore === undefined ? trials : trials.filter((t) => t.trialEnd != null && t.trialEnd <= trialEndBefore)
+    ),
+    getSubscriptions: jest.fn(async (ws: string) => byWorkspace[ws] ?? []),
+    upsertSubscription: jest.fn(async (s: any) => s)
+  })
+
+  beforeEach(() => {
+    ctx = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    sent = []
+    jest.spyOn(Date, 'now').mockReturnValue(NOW)
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('a trial ending inside the notice window is mailed', async () => {
+    const accountClient = client([trial()])
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    expect(sent).toHaveLength(1)
+    expect(sent[0].to).toBe('payer@x.com')
+    expect(sent[0].subject).toContain('Пробный период заканчивается')
+  })
+
+  it('a trial ending beyond the window is left alone', async () => {
+    const accountClient = client([trial({ trialEnd: NOW + 30 * DAY })])
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    expect(sent).toHaveLength(0)
+  })
+
+  it('an already expired trial belongs to the sweep, not the reminder', async () => {
+    const accountClient = client([trial({ trialEnd: NOW - DAY })])
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    expect(sent).toHaveLength(0)
+  })
+
+  it('a trial already reminded for this trialEnd is not mailed twice', async () => {
+    const end = NOW + 3 * DAY
+    const accountClient = client([trial({ trialEnd: end, providerData: { upcomingNotifiedFor: end } })])
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    expect(sent).toHaveLength(0)
+    expect(accountClient.upsertSubscription).not.toHaveBeenCalled()
+  })
+
+  it('the trialEnd reminded for is recorded', async () => {
+    const accountClient = client([trial()])
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    const write = accountClient.upsertSubscription.mock.calls[0][0]
+    expect(write.providerData.upcomingNotifiedFor).toBe(NOW + 3 * DAY)
+    // Keeps the stale-write guard armed against a trial superseded between read and write.
+    expect(write.providerData.modifiedAt).toBe(0)
+  })
+
+  it('the trial itself does not count as a granting tier', async () => {
+    // A live trial grants its plan (grantsPlan is true until trialEnd), so an unfiltered
+    // hasGrantingTier check would suppress the very reminder it is about.
+    const t = trial()
+    const accountClient = client([t], { 'ws-1': [t] })
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    expect(sent).toHaveLength(1)
+  })
+
+  it('a workspace that already bought a tier is skipped', async () => {
+    const accountClient = client([trial()], {
+      'ws-1': [{ type: SubscriptionType.Tier, status: SubscriptionStatus.Active, plan: 'business' }]
+    })
+    await remindUpcomingTrials(ctx, accountClient, NOTICE_DAYS, mailContext())
+    expect(sent).toHaveLength(0)
+  })
+
+  it('noticeDays 0 disables the reminder without querying', async () => {
+    const accountClient = client([trial()])
+    await remindUpcomingTrials(ctx, accountClient, 0, mailContext())
+    expect(sent).toHaveLength(0)
+    expect(accountClient.getSubscriptionsByProvider).not.toHaveBeenCalled()
+  })
+})

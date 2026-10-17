@@ -86,10 +86,8 @@ const StaticEditorKit = extensionKit(
 
       shortcuts: e(subKits.shortcuts, context), // needs to be loaded as early as possible to override the default behavior
 
-      // ===========================================================================================
       // Extensions and kits with separate / shortened implementations in the server-side editor kit
       // See file://./../../../../packages/text/src/kits/server-kit.ts
-      // =============================================================
 
       tables: e(subKits.tables),
       lists: e(subKits.lists, context),
@@ -111,16 +109,14 @@ const StaticEditorKit = extensionKit(
       inlineNote: e(NoteExtension, context.mode === 'full'), // Semi-deprecated, should be removed in the future
       commentNode: e(CommentNode, false),
 
-      // =====================================================
       // Extensions and kits designed for client-side use only
-      // =====================================================
 
       toolbar: e(ToolbarExtension, {
         providers: [],
         context: getActionContext(context)
       }),
       toc: e(ToCExtension, false),
-      leftMenu: e(LeftMenuExtension, false),
+      leftMenu: e(LeftMenuExtension),
       inlineCommands: e(InlineCommandsExtension, false),
       placeholder: e(I18nPlaceholderExtension, false),
       editorContext: e(EditorContextExtension, {
@@ -182,7 +178,7 @@ const subKits = {
     (e, context: EditorKitContext) =>
       ({
         fileUpload: e(FileUploadExtension, false),
-        imageUpload: e(ImageUploadExtension, false),
+        imageUpload: e(ImageUploadExtension),
         indent: e(IndentExtension, indentExtensionOptions),
         smartPaste: e(SmartPasteExtension),
         tableMetadataPaste: e(TableMetadataPasteExtension),
@@ -262,9 +258,7 @@ let editorKitPromise: Promise<Extension<EditorKitOptions, any>>
 export async function getEditorKit (
   ...options: Array<Partial<EditorKitOptions>>
 ): Promise<Extension<EditorKitOptions, any>> {
-  if (editorKitPromise === undefined) {
-    editorKitPromise = buildEditorKit()
-  }
+  editorKitPromise ??= buildEditorKit()
 
   const kit = await editorKitPromise
   if ((options ?? []).length < 1) return kit

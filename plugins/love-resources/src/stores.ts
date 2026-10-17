@@ -1,4 +1,4 @@
-import { aiBotSocialIdentityStore } from '@hcengineering/ai-bot-resources'
+import { aiBotSocialIdentityStore, ensureAiBotIdentityLoaded } from '@hcengineering/ai-bot-resources'
 import { getCurrentEmployee, type Person } from '@hcengineering/contact'
 import { getPersonRefByPersonId, getPersonsByPersonRefs } from '@hcengineering/contact-resources'
 import { type Ref } from '@hcengineering/core'
@@ -26,14 +26,48 @@ export const rooms = writable<Room[]>([])
 export const meetings = writable<MeetingMinutes[]>([])
 export const pendingRecordings = writable<PendingRecording[]>([])
 
+// Raised for the whole join, from the click to the LiveKit session. `myConnectingSessionId`
+// only covers the tail of it, so buttons looked idle while video was already coming up.
+const connectingOps = writable<number>(0)
+export const connectingToMeeting = derived(connectingOps, (n) => n > 0)
+
+export async function withConnectingToMeeting<T> (op: () => Promise<T>): Promise<T> {
+  connectingOps.update((n) => n + 1)
+  try {
+    return await op()
+  } finally {
+    connectingOps.update((n) => Math.max(0, n - 1))
+  }
+}
+
 export const myOffice = derived(rooms, (val) => {
   const personId = getCurrentEmployee()
   return val.find((p) => (p as Office).person === personId) as Office | undefined
 })
 export const infos = writable<ParticipantInfo[]>([])
+// `infos` keeps one row per person, so a second session of mine is invisible there. Keep the raw
+// list too: it is the only place that knows I am still seated in a meeting I left open elsewhere.
+export const allInfos = writable<ParticipantInfo[]>([])
+export const aiBotPerson = writable<Ref<Person> | undefined>(undefined)
+
+aiBotSocialIdentityStore.subscribe((sid) => {
+  if (sid === undefined) {
+    aiBotPerson.set(undefined)
+    return
+  }
+  void getPersonRefByPersonId(sid._id).then((ref) => {
+    aiBotPerson.set(ref ?? undefined)
+  })
+})
 export const myInfo = derived(infos, (val) => {
   const personId = getCurrentEmployee()
   return val.find((p) => p.person === personId)
+})
+
+/** Every seat of mine, including the ones `infos` collapses away - a second tab or device. */
+export const myInfos = derived(allInfos, (all) => {
+  const personId = getCurrentEmployee()
+  return all.filter((p) => p.person === personId)
 })
 
 export const currentMeetingMinutes = derived([meetings, myInfo], ([meetings, myInfo]) => {
@@ -94,63 +128,61 @@ export const selectedRoomPlace = writable<{ _id: Ref<Room>, x: number, y: number
 
 async function filterParticipantInfo (value: ParticipantInfo[]): Promise<ParticipantInfo[]> {
   const map = new Map<string, ParticipantInfo>()
+  await ensureAiBotIdentityLoaded()
   const aiSid = get(aiBotSocialIdentityStore)
   const aiPerson = aiSid !== undefined ? await getPersonRefByPersonId(aiSid._id) : undefined
   for (const val of value) {
     if (aiPerson !== undefined && val.person === aiPerson) {
       map.set(val._id, val)
-    } else {
+      continue
+    }
+    // Two rows of one person mean the old session is not cleaned up yet. Query order is not
+    // guaranteed, so pick the newest deterministically - otherwise `myInfo` flickers.
+    const seen = map.get(val.person)
+    if (seen === undefined || isNewerParticipantInfo(val, seen)) {
       map.set(val.person, val)
     }
   }
   return Array.from(map.values())
 }
 
+function isNewerParticipantInfo (a: ParticipantInfo, b: ParticipantInfo): boolean {
+  if (a.modifiedOn !== b.modifiedOn) return a.modifiedOn > b.modifiedOn
+  return a._id > b._id
+}
+
 const officeLoaded = writable(false)
 
+// Loaded with the client: the top bar shows the running meetings from these, and a refreshed
+// page finds the meeting to rejoin in them.
 const query = createQuery(true)
 const statusQuery = createQuery(true)
+const meetingsQuery = createQuery(true)
+// Loaded on demand: only the office pages, the device settings and a joined meeting read these.
+// Startup goes out over a slow link as one queue, and every query in it delays the chat.
 const floorsQuery = createQuery(true)
 const preferencesQuery = createQuery(true)
-const meetingsQuery = createQuery(true)
 const pendingRecordingQuery = createQuery(true)
+
+let officeDetailsLoaded: Promise<void> | undefined
+let officePersonsUnsubscribe: (() => void) | undefined
 
 onClient(() => {
   const roomPromise = new Promise<void>((resolve) =>
     query.query(love.class.Room, {}, (res) => {
       rooms.set(res)
-
-      // cache for all office persons
-      void getPersonsByPersonRefs(
-        res
-          .filter((it) => isOffice(it))
-          .map((it) => it.person)
-          .filter((it) => it != null)
-      )
       resolve()
     })
   )
   const infoPromise = new Promise<void>((resolve) =>
     statusQuery.query(love.class.ParticipantInfo, {}, async (res) => {
+      allInfos.set(res)
       infos.set(await filterParticipantInfo(res))
       resolve()
     })
   )
-  const floorPromise = new Promise<void>((resolve) =>
-    floorsQuery.query(love.class.Floor, {}, (res) => {
-      floors.set(res)
-      resolve()
-    })
-  )
-  const preferencePromise = new Promise<void>((resolve) =>
-    preferencesQuery.query(love.class.DevicesPreference, {}, (res) => {
-      myPreferences.set(res[0])
-      $myPreferences = res[0]
-      resolve()
-    })
-  )
 
-  // All active meetings
+  // All meetings (for detailed info)
   const meetingsPromise = new Promise<void>((resolve) =>
     meetingsQuery.query(
       love.class.MeetingMinutes,
@@ -164,24 +196,52 @@ onClient(() => {
     )
   )
 
-  const pendingRecordingPromise = new Promise<void>((resolve) => {
-    pendingRecordingQuery.query(love.class.PendingRecording, {}, (result) => {
-      pendingRecordings.set(result)
-      resolve()
-    })
-  })
-
-  void Promise.all([
-    roomPromise,
-    infoPromise,
-    floorPromise,
-    preferencePromise,
-    meetingsPromise,
-    pendingRecordingPromise
-  ]).then(() => {
+  void Promise.all([roomPromise, infoPromise, meetingsPromise]).then(() => {
     officeLoaded.set(true)
   })
 })
+
+/**
+ * Floors, device preferences, pending recordings and the persons of the offices. Call before
+ * reading `floors`, `myPreferences` or the recording stores; the first call starts the queries.
+ */
+export async function ensureOfficeDetailsLoaded (): Promise<void> {
+  officeDetailsLoaded ??= (async () => {
+    const floorPromise = new Promise<void>((resolve) =>
+      floorsQuery.query(love.class.Floor, {}, (res) => {
+        floors.set(res)
+        resolve()
+      })
+    )
+    const preferencePromise = new Promise<void>((resolve) =>
+      preferencesQuery.query(love.class.DevicesPreference, {}, (res) => {
+        myPreferences.set(res[0])
+        $myPreferences = res[0]
+        resolve()
+      })
+    )
+    const pendingRecordingPromise = new Promise<void>((resolve) => {
+      pendingRecordingQuery.query(love.class.PendingRecording, {}, (result) => {
+        pendingRecordings.set(result)
+        resolve()
+      })
+    })
+
+    // cache for all office persons: the floor plan shows their names
+    officePersonsUnsubscribe?.()
+    officePersonsUnsubscribe = rooms.subscribe((res) => {
+      void getPersonsByPersonRefs(
+        res
+          .filter((it) => isOffice(it))
+          .map((it) => it.person)
+          .filter((it) => it != null)
+      )
+    })
+
+    await Promise.all([floorPromise, preferencePromise, pendingRecordingPromise])
+  })()
+  await officeDetailsLoaded
+}
 
 export async function waitForOfficeLoaded (): Promise<void> {
   if (!get(officeLoaded)) {
@@ -197,6 +257,9 @@ export async function waitForOfficeLoaded (): Promise<void> {
 }
 
 export const lockedRoom = writable<string>('')
+
+// True when the local user talks while their microphone is muted.
+export const speakingWhileMuted = writable<boolean>(false)
 
 // Store to track if RoomModal is active - when true, video should be hidden in ParticipantsListView
 export const roomModalActive = writable<boolean>(false)
@@ -220,4 +283,26 @@ export const personPrimaryOffice = derived(rooms, (val) => {
   }
 
   return officeMap
+})
+
+/**
+ * Store that tracks which persons are in private meetings (meetings we don't have access to).
+ * These persons should be shown as "Busy" in the UI.
+ * Logic: If a person has ParticipantInfo (is in a meeting) but the meeting is not in our meetings store
+ * (because we don't have access to that Space), they are considered busy.
+ */
+export const busyPersons = derived([infos, meetings, aiBotPerson], ([infos, meetings, aiPerson]) => {
+  const busySet = new Set<Ref<Person>>()
+  const accessibleMeetings = new Set(meetings.map((m) => m._id))
+
+  for (const info of infos) {
+    // Skip aiBot - it can be in multiple meetings simultaneously
+    if (aiPerson !== undefined && info.person === aiPerson) continue
+    // If participant is in a meeting we don't have access to, mark as busy
+    if (info.meeting !== undefined && !accessibleMeetings.has(info.meeting)) {
+      busySet.add(info.person)
+    }
+  }
+
+  return busySet
 })

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import { Issue } from '@hcengineering/tracker'
-  import { ButtonSize, Icon, Label } from '@hcengineering/ui'
-  import { GithubPullRequest, GithubPullRequestState } from '@hcengineering/github'
+  import type { Issue } from '@hcengineering/tracker'
+  import type { ButtonSize } from '@hcengineering/ui'
+  import { Icon, Label } from '@hcengineering/ui'
+  import type { GithubPullRequest } from '@hcengineering/github'
+  import { GithubPullRequestState } from '@hcengineering/github'
   import github from '../plugin'
   import PullRequestReviewDecisionValuePresenter from './presenters/PullRequestReviewDecisionValuePresenter.svelte'
 
@@ -28,14 +30,14 @@
     {/if}
   {:else if pr.state === GithubPullRequestState.merged}
     <div class:ml-4={!small} class="flex-row-center" class:flex-no-shrink={small}>
-      <Icon icon={github.icon.PullRequestMerged} size={'small'} />
+      <Icon icon={github.icon.PullRequestMerged} size="small" />
       {#if !small}
         <Label label={github.string.PRMerged} />
       {/if}
     </div>
   {:else if pr.state === GithubPullRequestState.closed}
     <div class:ml-4={!small} class="flex-row-center" class:flex-no-shrink={small}>
-      <Icon icon={github.icon.PullRequestClosed} size={'small'} />
+      <Icon icon={github.icon.PullRequestClosed} size="small" />
       {#if !small}
         <Label label={github.string.PRClosed} />
       {/if}

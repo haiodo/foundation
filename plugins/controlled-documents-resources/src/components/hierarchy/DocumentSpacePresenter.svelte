@@ -23,7 +23,8 @@
     ProjectDocumentTree,
     getDocumentName
   } from '@hcengineering/controlled-documents'
-  import { type Doc, type Ref, type Space, WithLookup } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { Doc, Ref, Space } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import {
@@ -35,7 +36,7 @@
     navigate,
     themeStore
   } from '@hcengineering/ui'
-  import { ActionGroup } from '@hcengineering/view'
+  import type { ActionGroup } from '@hcengineering/view'
   import { TreeItem, TreeNode, getActions as getContributedActions } from '@hcengineering/view-resources'
 
   import { getDocumentIdFromFragment, getProjectDocumentLink } from '../../navigation'
@@ -217,8 +218,7 @@
   }
 
   function onDragStart (event: DragEvent, object: Ref<DocumentMeta>): void {
-    // no prevent default to leverage default rendering
-    // event.preventDefault()
+    // No preventDefault: rely on default rendering.
     if (event.dataTransfer === null || event.target === null) {
       return
     }
@@ -325,7 +325,7 @@
     showMenu={pressed}
     {forciblyСollapsed}
     actions={() => getSpaceActions(space)}
-    type={'nested'}
+    type="nested"
     draggable
     on:drop={(evt) => {
       onDrop(evt, documents.ids.NoParent)
@@ -342,9 +342,9 @@
         <ProjectSelector
           value={project}
           space={space?._id}
-          maxWidth={'6rem'}
-          kind={'ghost'}
-          size={'x-small'}
+          maxWidth="6rem"
+          kind="ghost"
+          size="x-small"
           showDropdownIcon
           bind:pressed
           on:change={(evt) => {

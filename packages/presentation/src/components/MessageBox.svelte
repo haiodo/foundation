@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,15 +14,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { translate, type IntlString } from '@hcengineering/platform'
+  import type { Status } from '@hcengineering/platform'
+  import { translate, unknownError, type IntlString } from '@hcengineering/platform'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
   import {
     Button,
     FocusHandler,
     Label,
     createFocusManager,
-    AnySvelteComponent,
     Component,
-    type AnyComponent
+    type AnyComponent,
+    Status as StatusControl
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import presentation, { HTMLViewer } from '..'
@@ -41,6 +44,7 @@
 
   const dispatch = createEventDispatcher()
   let processing = false
+  let errorStatus: Status | undefined = undefined
 
   const manager = createFocusManager()
 
@@ -79,21 +83,32 @@
       <Component is={component} props={componentProps ?? {}} />
     </div>
   {/if}
+  {#if errorStatus}
+    <div class="error">
+      <StatusControl status={errorStatus} />
+    </div>
+  {/if}
   <div class="footer">
     <Button
       focus={!dangerous}
       focusIndex={1}
       label={okLabel ?? presentation.string.Ok}
-      size={'large'}
+      size="large"
       kind={dangerous ? 'dangerous' : 'primary'}
       loading={processing}
       on:click={() => {
         processing = true
+        errorStatus = undefined
         if (action !== undefined) {
-          void action().then(() => {
-            processing = false
-            dispatch('close', true)
-          })
+          void action()
+            .then(() => {
+              processing = false
+              dispatch('close', true)
+            })
+            .catch((err) => {
+              processing = false
+              errorStatus = unknownError(err)
+            })
         } else {
           dispatch('close', true)
           processing = false
@@ -104,7 +119,7 @@
       <Button
         focusIndex={2}
         label={presentation.string.Cancel}
-        size={'large'}
+        size="large"
         on:click={() => {
           dispatch('close', false)
         }}
@@ -138,6 +153,9 @@
     .component {
       display: flex;
       flex-direction: column;
+      margin-bottom: 1.5rem;
+    }
+    .error {
       margin-bottom: 1.5rem;
     }
     .footer {

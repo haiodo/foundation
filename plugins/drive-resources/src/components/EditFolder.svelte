@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type Folder } from '@hcengineering/drive'
+  import type { Folder } from '@hcengineering/drive'
 
   import FolderBrowser from './FolderBrowser.svelte'
 
@@ -22,5 +22,5 @@
 </script>
 
 {#if object}
-  <FolderBrowser space={object.space} parent={object._id} {readonly} type={'folder'} />
+  <FolderBrowser space={object.space} parent={object._id} {readonly} type="folder" />
 {/if}

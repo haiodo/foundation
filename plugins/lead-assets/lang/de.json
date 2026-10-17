@@ -3,6 +3,7 @@
     "CreateFunnel": "Neuer Trichter",
     "CreateLead": "Neuer Lead",
     "Funnel": "Trichter",
+    "DefaultFunnel": "Standardtrichter",
     "FunnelName": "Trichtername",
     "Funnels": "Trichter",
     "LeadApplication": "Leads (Beta)",
@@ -35,7 +36,9 @@
     "EditFunnel": "Trichter bearbeiten",
     "FunnelMembers": "Mitglieder",
     "ForbidCreateFunnelPermission": "Trichtererstellung verbieten",
-    "ForbidCreateFunnelPermissionDescription": "Verbietet Benutzern das Erstellen neuer Trichter"
+    "ForbidCreateFunnelPermissionDescription": "Verbietet Benutzern das Erstellen neuer Trichter",
+    "Website": "Website",
+    "Industry": "Branche"
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{doc} was assigned to you by {sender}",

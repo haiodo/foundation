@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,10 +14,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset } from '@hcengineering/platform'
-  import { ComponentType } from 'svelte'
+  import type { Asset } from '@hcengineering/platform'
+  import type { ComponentType } from 'svelte'
 
-  import { AnySvelteComponent, Icon, IconProps } from '../..'
+  import type { AnySvelteComponent } from '..'
+  import { Icon } from '..'
 
   export let icon: Asset | AnySvelteComponent | ComponentType
   export let iconProps: Record<string, any> = {}
@@ -31,8 +33,8 @@
   bind:this={element}
   class="antiButton ghost jf-center bs-none no-focus resetIconSize statusButton square"
   class:pressed
-  style:color={'var(--theme-dark-color)'}
+  style:color="var(--theme-dark-color)"
   on:click
 >
-  <Icon {icon} {iconProps} size={'small'} />
+  <Icon {icon} {iconProps} size="small" />
 </button>

@@ -14,10 +14,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, DocumentQuery } from '@hcengineering/core'
+  import type { Doc, DocumentQuery } from '@hcengineering/core'
   import { ActionContext } from '@hcengineering/presentation'
   import { Button, Label, Loading, SearchEdit, showPopup } from '@hcengineering/ui'
-  import view, { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
+  import type { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import {
     FilterBar,
     FilterButton,
@@ -27,7 +28,6 @@
   } from '@hcengineering/view-resources'
   import contact from '../plugin'
   import CreateContact from './CreateContact.svelte'
-  // import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
 
   let search = ''
   let searchQuery: DocumentQuery<Doc> = {}
@@ -60,8 +60,8 @@
     <div class="mb-1 clear-mins">
       <Button
         label={contact.string.ContactCreateLabel}
-        kind={'primary'}
-        size={'medium'}
+        kind="primary"
+        size="medium"
         on:click={(ev) => {
           showCreateDialog(ev)
         }}

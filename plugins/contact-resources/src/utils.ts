@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -42,6 +43,7 @@ import {
   getPersonByPersonRefCb as getPersonByPersonRefCbBase,
   getPersonsByPersonRefsCb as getPersonsByPersonRefsCbBase,
   getSocialIdByPersonId as getSocialIdByPersonIdBase,
+  getSocialIdsByPersonRefsBase,
   getSocialIdByPersonIdCb as getSocialIdByPersonIdCbBase,
   type PermissionsBySpace,
   type PermissionsStore,
@@ -51,6 +53,7 @@ import {
   type SocialIdentity
 } from '@hcengineering/contact'
 import core, {
+  AccountRole,
   type AccountUuid,
   type AggregateValue,
   type Class,
@@ -58,6 +61,7 @@ import core, {
   type Doc,
   type DocumentQuery,
   getCurrentAccount,
+  hasAccountRole,
   type Hierarchy,
   type IdMap,
   notEmpty,
@@ -66,19 +70,27 @@ import core, {
   type PersonId,
   pickPrimarySocialId,
   type Ref,
+  type SocialId,
   SocialIdType,
   type Space,
   type Timestamp,
   toIdMap,
-  type TxOperations,
+  TxOperations,
   type TypedSpace,
   type UserStatus,
-  type WithLookup
+  type WithLookup,
+  type TxCUD
 } from '@hcengineering/core'
 import login from '@hcengineering/login'
-import notification, { type DocNotifyContext, type InboxNotification } from '@hcengineering/notification'
-import { getMetadata, getResource, type IntlString, translate } from '@hcengineering/platform'
-import presentation, { addTxListener, createQuery, getClient, onClient } from '@hcengineering/presentation'
+import { getMetadata, type IntlString, translate } from '@hcengineering/platform'
+import presentation, {
+  addTxListener,
+  createQuery,
+  getClient,
+  isDisabled,
+  onClient,
+  onWorkspaceChange
+} from '@hcengineering/presentation'
 import { type TemplateDataProvider } from '@hcengineering/templates'
 import {
   getCurrentResolvedLocation,
@@ -88,12 +100,13 @@ import {
   type ResolvedLocation,
   type TabItem
 } from '@hcengineering/ui'
-import view, { type Filter, type GrouppingManager } from '@hcengineering/view'
+import view, { type AttributeApplierResult, type Filter, type GrouppingManager } from '@hcengineering/view'
 import { accessDeniedStore, FilterQuery } from '@hcengineering/view-resources'
 import { type LocationData } from '@hcengineering/workbench'
 import { derived, get, type Readable, writable } from 'svelte/store'
 
 import contact from './plugin'
+import { syncMyEmployeeTimezone } from './timezone'
 import { getPreviewPopup } from './components/person/utils'
 import ContactCacheStoreManager from './cache'
 
@@ -104,6 +117,17 @@ export function formatDate (dueDateMs: Timestamp): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+export function canEditPersonContactDetails (person: Person): boolean {
+  if (getCurrentEmployee() === person._id) return true
+
+  const account = getCurrentAccount()
+  if (person.personUuid === account.uuid) return true
+
+  if (!getClient().getHierarchy().hasMixin(person, contact.mixin.Employee)) return true
+
+  return hasAccountRole(account, AccountRole.Maintainer)
 }
 
 export async function employeeSort (client: TxOperations, value: Array<Ref<Employee>>): Promise<Array<Ref<Employee>>> {
@@ -133,6 +157,29 @@ export async function employeeSort (client: TxOperations, value: Array<Ref<Emplo
   })
 }
 
+export async function personSort (
+  client: TxOperations,
+  value: Array<Ref<Person> | null | undefined>
+): Promise<Array<Ref<Person> | null | undefined>> {
+  const h = client.getHierarchy()
+  const employees = get(employeeByIdStore)
+  const missing = value.filter((v): v is Ref<Person> => v != null && !employees.has(v as Ref<Employee>))
+  const persons = toIdMap(
+    missing.length > 0 ? await client.findAll(contact.class.Person, { _id: { $in: missing } }) : []
+  )
+  const nameOf = (id: Ref<Person>): string => {
+    const p = employees.get(id as Ref<Employee>) ?? persons.get(id)
+    return p !== undefined ? getName(h, p) : ''
+  }
+
+  return [...value].sort((a, b) => {
+    if (a == null && b == null) return 0
+    if (a == null) return 1
+    if (b == null) return -1
+    return nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
+  })
+}
+
 export async function filterChannelHasMessagesResult (filter: Filter, onUpdate: () => void): Promise<ObjQueryType<any>> {
   const result = await getRefs(filter, onUpdate, true)
   return { $in: result }
@@ -142,14 +189,7 @@ export async function filterChannelHasNewMessagesResult (
   filter: Filter,
   onUpdate: () => void
 ): Promise<ObjQueryType<any>> {
-  const inboxClient = (await getResource(notification.function.GetInboxNotificationsClient))()
-  const result = await getRefs(
-    filter,
-    onUpdate,
-    undefined,
-    get(inboxClient.contextByDoc),
-    get(inboxClient.inboxNotificationsByContext)
-  )
+  const result = await getRefs(filter, onUpdate, undefined)
   return { $in: result }
 }
 
@@ -163,13 +203,7 @@ export async function filterChannelNinResult (filter: Filter, onUpdate: () => vo
   return { $nin: result }
 }
 
-export async function getRefs (
-  filter: Filter,
-  onUpdate: () => void,
-  hasMessages?: boolean,
-  docUpdates?: Map<Ref<Doc>, DocNotifyContext>,
-  inboxNotificationsByContext?: Map<Ref<DocNotifyContext>, InboxNotification[]>
-): Promise<Array<Ref<Doc>>> {
+export async function getRefs (filter: Filter, onUpdate: () => void, hasMessages?: boolean): Promise<Array<Ref<Doc>>> {
   const lq = FilterQuery.getLiveQuery(filter.index)
   const client = getClient()
   const mode = await client.findOne(view.class.FilterMode, { _id: filter.mode })
@@ -183,16 +217,7 @@ export async function getRefs (
         ...hasMessagesQuery
       },
       (refs) => {
-        const filteredRefs =
-          docUpdates !== undefined && inboxNotificationsByContext !== undefined
-            ? refs.filter((channel) => {
-              const docUpdate = docUpdates.get(channel._id)
-              return docUpdate != null
-                ? inboxNotificationsByContext.get(docUpdate._id)?.some(({ isViewed }) => !isViewed)
-                : (channel.items ?? 0) > 0
-            })
-            : refs
-        const result = Array.from(new Set(filteredRefs.map((p) => p.attachedTo)))
+        const result = Array.from(new Set(refs.map((p) => p.attachedTo)))
         FilterQuery.results.set(filter.index, result)
         resolve(result)
         onUpdate()
@@ -219,6 +244,16 @@ export async function getCurrentEmployeeEmail (): Promise<string> {
     attachedToClass: contact.class.Person
   })
   return emailSocialId?.value ?? ''
+}
+
+export function isSocialIdOwnedByCurrentUser (value: SocialIdentity | SocialId): boolean {
+  if ('attachedTo' in value) {
+    const me = getCurrentEmployee()
+    return me != null && value.attachedTo === me
+  }
+
+  const account = getCurrentAccount()
+  return account.primarySocialId === value._id || account.socialIds.includes(value._id)
 }
 
 export async function getCurrentEmployeePosition (): Promise<string | undefined> {
@@ -350,6 +385,12 @@ export const myEmployeeStore = derived(
   }
 )
 
+onClient(() => {
+  myEmployeeStore.subscribe((employee) => {
+    void syncMyEmployeeTimezone(employee)
+  })
+})
+
 /**
  * [Ref<Employee> => PersonId (primary)] mapping
  */
@@ -396,8 +437,14 @@ const providerQuery = createQuery(true)
 const employeesQuery = createQuery(true)
 
 onClient(() => {
+  const shouldHideBannedChannels = isDisabled('hide-ru-banned-channels')
+
   providerQuery.query(contact.class.ChannelProvider, {}, (res) => {
-    channelProviders.set(res)
+    const filtered = shouldHideBannedChannels
+      ? res.filter((provider) => !BANNED_CHANNEL_PROVIDERS.includes(provider._id as Ref<ChannelProvider>))
+      : res
+
+    channelProviders.set(filtered)
   })
 
   employeesQuery.query(
@@ -534,44 +581,9 @@ export const grouppingPersonManager: GrouppingManager = {
 export function groupByPersonAccountCategories (categories: any[]): AggregateValue[] {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const mgr = get(personStore)
+  // TODO: implement
 
-  // const existingCategories: AggregateValue[] = [new AggregateValue(undefined, [])]
-  // const personMap = new Map<string, AggregateValue>()
-
-  // const usedSpaces = new Set<Ref<Space>>()
-  // const personAccountList: Array<WithLookup<PersonAccount>> = []
-  // for (const v of categories) {
-  //   const personAccount = mgr.getIdMap().get(v)
-  //   if (personAccount !== undefined) {
-  //     personAccountList.push(personAccount)
-  //     usedSpaces.add(personAccount.space)
-  //   }
-  // }
-
-  // for (const personAccount of personAccountList) {
-  //   if (personAccount !== undefined) {
-  //     let fst = personMap.get(personAccount.person)
-  //     if (fst === undefined) {
-  //       const people = mgr
-  //         .getDocs()
-  //         .filter(
-  //           (it) => it.person === personAccount.person && (categories.includes(it._id) || usedSpaces.has(it.space))
-  //         )
-  //         .sort((a, b) => a.email.localeCompare(b.email))
-  //         .map((it) => new AggregateValueData(it.person, it._id, it.space))
-  //       fst = new AggregateValue(personAccount.person, people)
-  //       personMap.set(personAccount.person, fst)
-  //       if (fst.name === undefined) {
-  //         existingCategories[0] = new AggregateValue(undefined, [...existingCategories[0].values, ...fst.values])
-  //         // Join with first value
-  //       } else {
-  //         existingCategories.push(fst)
-  //       }
-  //     }
-  //   }
-  // }
-  // return existingCategories
+  // TODO: implement
 }
 
 /**
@@ -580,21 +592,7 @@ export function groupByPersonAccountCategories (categories: any[]): AggregateVal
 export function groupPersonAccountValues (val: Doc[], targets: Set<any>): Doc[] {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const values = val
-  // const result: Doc[] = []
-  // const unique = [...new Set(val.map((c) => (c as PersonAccount).person))]
-  // unique.forEach((label, i) => {
-  //   let exists = false
-  //   values.forEach((c) => {
-  //     if ((c as PersonAccount).person === label) {
-  //       if (!exists) {
-  //         result[i] = c
-  //         exists = targets.has(c?._id)
-  //       }
-  //     }
-  //   })
-  // })
-  // return result
+  // TODO: implement
 }
 
 /**
@@ -603,9 +601,7 @@ export function groupPersonAccountValues (val: Doc[], targets: Set<any>): Doc[] 
 export function hasPersonAccountValue (value: Doc | undefined | null, values: any[]): boolean {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const mgr = get(personStore)
-  // const personSet = new Set(mgr.filter((it) => it.person === (value as PersonAccount)?.person).map((it) => it._id))
-  // return values.some((it) => personSet.has(it))
+  // TODO: implement
 }
 
 /**
@@ -619,22 +615,7 @@ export function groupPersonAccountValuesWithEmpty (
 ): Array<Ref<Doc>> {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const mgr = get(personStore)
-  // let personAccountList = mgr.getDocs()
-  // if (query !== undefined) {
-  //   const { [key]: st, space } = query
-  //   const resQuery: DocumentQuery<Doc> = {}
-  //   if (space !== undefined) {
-  //     resQuery.space = space
-  //   }
-  //   if (st !== undefined) {
-  //     resQuery._id = st
-  //   }
-  //   personAccountList = matchQuery<Doc>(personAccountList, resQuery, _class, hierarchy) as unknown as Array<
-  //   WithLookup<PersonAccount>
-  //   >
-  // }
-  // return personAccountList.map((it) => it._id)
+  // TODO: implement
 }
 
 export async function resolveLocationData (loc: Location): Promise<LocationData> {
@@ -694,50 +675,44 @@ export const permissionsStore = derived(
     const hierarchy = client.getHierarchy()
 
     for (const s of spaces) {
+      const typedSpace = s as TypedSpace
       membersBySpace[s._id] = new Set(s.members.map((m) => personRefByAccount.get(m)).filter(notEmpty))
-      if (hierarchy.isDerived(s._class, core.class.TypedSpace)) {
-        const typedSpace = s as TypedSpace
-        if (typedSpace.restricted === true) {
-          restrictedSpaces.add(s._id)
-        }
-        const type = client.getModel().findAllSync(core.class.SpaceType, { _id: (s as TypedSpace).type })[0]
-        const mixin = type?.targetClass
+      if (typedSpace.restricted === true) {
+        restrictedSpaces.add(s._id)
+      }
+      const type = client.getModel().findAllSync(core.class.SpaceType, { _id: typedSpace.type })[0]
+      const mixin = type?.targetClass
 
-        if (mixin === undefined) {
-          permissionsBySpace[s._id] = new Set()
-          employeesByPermission[s._id] = {}
+      if (mixin === undefined) {
+        permissionsBySpace[s._id] = new Set()
+        employeesByPermission[s._id] = {}
+        continue
+      }
+
+      const asMixin = hierarchy.as(s, mixin)
+      const roles = client.getModel().findAllSync(core.class.Role, { attachedTo: type._id })
+      const myRoles = roles.filter((r) => ((asMixin as any)[r._id] ?? []).includes(getCurrentAccount().uuid) === true)
+      permissionsBySpace[s._id] = new Set(myRoles.flatMap((r) => r.permissions))
+
+      employeesByPermission[s._id] = {}
+
+      for (const role of roles) {
+        const assignment: AccountUuid[] = (asMixin as any)[role._id] ?? []
+
+        if (assignment.length === 0) {
           continue
         }
 
-        const asMixin = hierarchy.as(s, mixin)
-        const roles = client.getModel().findAllSync(core.class.Role, { attachedTo: type._id })
-        const myRoles = roles.filter((r) => ((asMixin as any)[r._id] ?? []).includes(getCurrentAccount().uuid))
-        permissionsBySpace[s._id] = new Set(myRoles.flatMap((r) => r.permissions))
+        for (const permissionId of role.permissions) {
+          employeesByPermission[s._id][permissionId] ??= new Set()
 
-        employeesByPermission[s._id] = {}
-
-        for (const role of roles) {
-          const assignment: AccountUuid[] = (asMixin as any)[role._id] ?? []
-
-          if (assignment.length === 0) {
-            continue
-          }
-
-          for (const permissionId of role.permissions) {
-            if (employeesByPermission[s._id][permissionId] === undefined) {
-              employeesByPermission[s._id][permissionId] = new Set()
+          assignment.forEach((acc) => {
+            const personRef = personRefByAccount.get(acc)
+            if (personRef !== undefined) {
+              employeesByPermission[s._id][permissionId].add(personRef)
             }
-
-            assignment.forEach((acc) => {
-              const personRef = personRefByAccount.get(acc)
-              if (personRef !== undefined) {
-                employeesByPermission[s._id][permissionId].add(personRef)
-              }
-            })
-          }
+          })
         }
-      } else {
-        whitelistedSpaces.add(s._id)
       }
     }
 
@@ -754,7 +729,7 @@ export const permissionsStore = derived(
 const permissionsQuery = createQuery(true)
 
 permissionsQuery.query(
-  core.class.Space,
+  core.class.TypedSpace,
   {},
   (res) => {
     spacesStore.set(res)
@@ -834,6 +809,10 @@ export async function getSocialIdByPersonId (personId: PersonId): Promise<Social
   return await getSocialIdByPersonIdBase(getClient(), personId)
 }
 
+export async function getSocialIdsByPersonRefs (personRefs: Array<Ref<Person>>): Promise<Map<Ref<Person>, PersonId[]>> {
+  return await getSocialIdsByPersonRefsBase(getClient(), personRefs)
+}
+
 export function getSocialIdByPersonIdCb (personId: PersonId, cb: (socialId: SocialIdentity | null) => void): void {
   getSocialIdByPersonIdCbBase(getClient(), personId, cb)
 }
@@ -841,6 +820,11 @@ export function getSocialIdByPersonIdCb (personId: PersonId, cb: (socialId: Soci
 addTxListener(contactCache.handleTx)
 
 export const contactCacheStoreManager = ContactCacheStoreManager.instance
+
+onWorkspaceChange(() => {
+  contactCache.clear()
+  contactCacheStoreManager.reset()
+})
 
 export function getPersonRefByPersonIdStore (personIds: PersonId[]): Readable<Map<PersonId, Ref<Person>>> {
   return contactCacheStoreManager.getPersonRefByPersonIdStore(personIds)
@@ -854,4 +838,47 @@ export function getPersonByPersonRefStore (
   personRefs: Array<Ref<Person>>
 ): Readable<Map<Ref<Person>, Readonly<Person>>> {
   return contactCacheStoreManager.getPersonByPersonRefStore(personRefs)
+}
+
+export const BANNED_CHANNEL_PROVIDERS: Array<Ref<ChannelProvider>> = [
+  contact.channelProvider.LinkedIn,
+  contact.channelProvider.Twitter,
+  contact.channelProvider.Facebook,
+  contact.channelProvider.Viber,
+  contact.channelProvider.Whatsapp
+]
+
+export async function collaboratorsApplier (
+  doc: Doc,
+  value: AccountUuid[] | undefined
+): Promise<AttributeApplierResult> {
+  if (!Array.isArray(value)) return {}
+
+  const client = getClient()
+  const txes: Array<TxCUD<Doc>> = []
+
+  const existing = await client.findAll(core.class.Collaborator, { attachedTo: doc._id })
+  const existingAccounts = existing.map((c) => c.collaborator)
+
+  const toAdd = value.filter((a) => !existingAccounts.includes(a))
+  const toRemove = existing.filter((c) => !value.includes(c.collaborator))
+
+  for (const account of toAdd) {
+    const createTx = client.txFactory.createTxCreateDoc(core.class.Collaborator, doc.space, {
+      attachedTo: doc._id,
+      attachedToClass: doc._class,
+      collection: 'collaborators',
+      collaborator: account
+    })
+    const tx = client.txFactory.createTxCollectionCUD(doc._class, doc._id, doc.space, 'collaborators', createTx)
+    txes.push(tx)
+  }
+
+  for (const c of toRemove) {
+    const removeTx = client.txFactory.createTxRemoveDoc(core.class.Collaborator, c.space, c._id)
+    const tx = client.txFactory.createTxCollectionCUD(doc._class, doc._id, doc.space, 'collaborators', removeTx)
+    txes.push(tx)
+  }
+
+  return { txes }
 }

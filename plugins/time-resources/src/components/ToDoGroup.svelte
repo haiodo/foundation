@@ -19,14 +19,15 @@
   import type { IntlString } from '@hcengineering/platform'
   import type { Project } from '@hcengineering/tracker'
   import type { ToDosMode } from '..'
-  import { AccordionItem } from '@hcengineering/ui'
+  import { AccordionItem, formatDuration, themeStore, tooltip } from '@hcengineering/ui'
   import { getClient } from '@hcengineering/presentation'
   import { makeRank } from '@hcengineering/task'
   import ToDoProjectGroup from './ToDoProjectGroup.svelte'
   import ToDoDraggable from './ToDoDraggable.svelte'
   import ToDoElement from './ToDoElement.svelte'
   import { dragging } from '../dragging'
-  import { calculateEventsDuration } from '../utils'
+  import time from '../plugin'
+  import { splitEventsDuration } from '../utils'
 
   export let mode: ToDosMode
   export let title: IntlString
@@ -90,20 +91,30 @@
   }
 
   $: events = getAllWorkslots(todos)
-  $: duration = calculateEventsDuration(events)
+  $: split = splitEventsDuration(events)
+
+  let plannedLabel: string = ''
+  $: void formatDuration(split.planned, $themeStore.language).then((res) => {
+    plannedLabel = res
+  })
 </script>
 
 {#if showTitle}
   <AccordionItem
     {id}
     label={title}
-    size={'large'}
+    size="large"
     bottomSpace={false}
     counter={todos.length}
-    duration={showDuration ? duration : false}
+    duration={showDuration ? split.spent : false}
     fixHeader
-    background={'var(--theme-navpanel-color)'}
+    background="var(--theme-navpanel-color)"
   >
+    <svelte:fragment slot="duration">
+      {#if showDuration && split.planned > 0}
+        <span class="ml-1 content-dark-color" use:tooltip={{ label: time.string.PlannedTime }}>+{plannedLabel}</span>
+      {/if}
+    </svelte:fragment>
     {#if groups}
       {#each groups as group}
         <ToDoProjectGroup

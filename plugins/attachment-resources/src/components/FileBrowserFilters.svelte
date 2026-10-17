@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Person } from '@hcengineering/contact'
-  import { Class, Ref, Space } from '@hcengineering/core'
+  import type { Person } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { Class, Ref, Space } from '@hcengineering/core'
   import { SpaceMultiBoxList } from '@hcengineering/presentation'
   import { Component, DropdownLabelsIntl } from '@hcengineering/ui'
   import attachment from '../plugin'
@@ -44,8 +45,8 @@
     _classes={requestedSpaceClasses}
     label={attachment.string.FileBrowserFilterIn}
     selectedItems={selectedSpaces}
-    kind={'ghost'}
-    size={'medium'}
+    kind="ghost"
+    size="medium"
     on:update={(evt) => {
       selectedSpaces = evt.detail
     }}
@@ -54,15 +55,15 @@
     items={dateFileBrowserFilters}
     label={attachment.string.FileBrowserFilterDate}
     bind:selected={selectedDateId}
-    kind={'ghost'}
-    size={'medium'}
+    kind="ghost"
+    size="medium"
   />
   <DropdownLabelsIntl
     items={fileTypeFileBrowserFilters}
     label={attachment.string.FileBrowserFilterFileType}
     bind:selected={selectedFileTypeId}
-    kind={'ghost'}
-    size={'medium'}
+    kind="ghost"
+    size="medium"
   />
 </div>
 

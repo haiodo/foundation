@@ -35,4 +35,4 @@
   }
 </script>
 
-<DocIcon value={iconValue} size={'medium'} defaultIcon={products.icon.Product} />
+<DocIcon value={iconValue} size="medium" defaultIcon={products.icon.Product} />

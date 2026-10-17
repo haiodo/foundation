@@ -1,6 +1,7 @@
 <!--
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,18 +15,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, Status, StatusCategory } from '@hcengineering/core'
-  import { Asset } from '@hcengineering/platform'
+  import type { IdMap, Ref, Status, StatusCategory } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
   import { IconWithEmoji, getClient, reduceCalls } from '@hcengineering/presentation'
-  import task, { Project, ProjectType, TaskType } from '@hcengineering/task'
-  import {
-    ColorDefinition,
-    Icon,
-    IconSize,
-    getColorNumberByText,
-    getPlatformColorDef,
-    themeStore
-  } from '@hcengineering/ui'
+  import type { Project, ProjectType, TaskType } from '@hcengineering/task'
+  import task from '@hcengineering/task'
+  import type { ColorDefinition, IconSize } from '@hcengineering/ui'
+  import { Icon, getColorNumberByText, getPlatformColorDef, themeStore, resolvePaletteColor } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { statusStore } from '@hcengineering/view-resources'
   import { createEventDispatcher, onMount } from 'svelte'
@@ -84,12 +81,9 @@
 
   $: projectState = type?.statuses.find((p) => p._id === value?._id)
 
-  $: color = getPlatformColorDef(
-    projectState?.color !== undefined && typeof projectState?.color !== 'string'
-      ? projectState?.color
-      : (category?.color ?? getColorNumberByText(value?.name ?? '')),
-    $themeStore.dark
-  )
+  $: colorIndex =
+    resolvePaletteColor(projectState?.color, value?.color, category?.color) ?? getColorNumberByText(value?.name ?? '')
+  $: color = getPlatformColorDef(colorIndex, $themeStore.dark)
   $: void updateCategory(value)
 
   const updateCategory = reduceCalls(async function (value: Status | undefined): Promise<void> {
@@ -117,9 +111,7 @@
   $: index = sameCategory.findIndex((it) => it._id === value?._id) + 1
   $: emojiIcon = projectState?.icon === view.ids.IconWithEmoji
   $: icon = emojiIcon ? IconWithEmoji : projectState?.icon
-  $: iconProps = emojiIcon
-    ? { icon: projectState?.color ?? value?.color ?? category?.color }
-    : { fill: projectState?.color ?? value?.color ?? category?.color ?? 0 }
+  $: iconProps = emojiIcon ? { icon: projectState?.color ?? value?.color ?? category?.color } : { fill: colorIndex }
 
   const dispatchAccentColor = (color?: ColorDefinition, icon?: Asset | typeof IconWithEmoji): void => {
     if (icon == null) {

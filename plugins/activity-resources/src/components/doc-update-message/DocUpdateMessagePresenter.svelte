@@ -13,18 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import activity, {
+  import type {
     ActivityMessage,
     ActivityMessageViewType,
     DocUpdateMessage,
     DocUpdateMessageViewlet
   } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
   import { getPersonByPersonIdCb } from '@hcengineering/contact-resources'
-  import { AttachedDoc, Class, Collection, Doc, Ref, Space } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { AttachedDoc, Class, Collection, Doc, Ref, Space } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Action, Component, ShowMore } from '@hcengineering/ui'
-  import { AttributeModel } from '@hcengineering/view'
+  import type { Action } from '@hcengineering/ui'
+  import { Component, ShowMore } from '@hcengineering/ui'
+  import type { AttributeModel } from '@hcengineering/view'
   import { buildRemovedDoc, checkIsObjectRemoved } from '@hcengineering/view-resources'
 
   import ActivityMessageTemplate from '../activity-message/ActivityMessageTemplate.svelte'
@@ -34,7 +36,7 @@
 
   import { getAttributeModel, getCollectionAttribute } from '../../activityMessagesUtils'
   import { getIsTextType } from '../../utils'
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
 
   export let value: DocUpdateMessage
   export let doc: Doc | undefined = undefined
@@ -54,6 +56,7 @@
   export let type: ActivityMessageViewType = 'default'
   export let readonly = false
   export let space: Ref<Space> | undefined = undefined
+  export let timeFormat: 'time' | 'full' = 'time'
   export let onClick: (() => void) | undefined = undefined
 
   const client = getClient()
@@ -97,7 +100,7 @@
   }
 
   $: void getParentMessage(value.attachedToClass, value.attachedTo, value.space).then((res) => {
-    parentMessage = res as ActivityMessage
+    parentMessage = res
   })
 
   let person: Person | undefined
@@ -113,13 +116,13 @@
   $: void loadParentObject(value, parentMessage, doc)
 
   async function loadObject (_id: Ref<Doc>, _class: Ref<Class<Doc>>, doc?: Doc): Promise<void> {
-    if (doc !== undefined && doc._id === _id) {
+    if (doc?._id === _id) {
       object = doc
       isObjectRemoved = false
       return
     }
 
-    isObjectRemoved = await checkIsObjectRemoved(client, _id, _class)
+    isObjectRemoved = await checkIsObjectRemoved(client, _id, client.getHierarchy().getParentClass(_class))
 
     if (isObjectRemoved) {
       object = await buildRemovedDoc(client, _id, _class)
@@ -143,12 +146,12 @@
     const _class = parentMessage !== undefined ? parentMessage.attachedToClass : message.attachedToClass
     const space = parentMessage !== undefined ? parentMessage.space : message.space
 
-    if (doc !== undefined && doc._id === _id) {
+    if (doc?._id === _id) {
       parentObject = doc
       return
     }
 
-    const isRemoved = await checkIsObjectRemoved(client, _id, _class)
+    const isRemoved = await checkIsObjectRemoved(client, _id, client.getHierarchy().getParentClass(_class))
 
     if (isRemoved) {
       parentObject = await buildRemovedDoc(client, _id, _class)
@@ -185,7 +188,7 @@
     {hoverStyles}
     {readonly}
     type={viewlet?.label || getIsTextType(attributeModel) ? 'default' : type}
-    showDatePreposition={hideLink}
+    {timeFormat}
     {onClick}
   >
     <svelte:fragment slot="header">

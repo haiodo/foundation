@@ -114,18 +114,14 @@ class TelegramConnection {
     readonly client: TelegramClient,
     readonly phone: string
   ) {
-    // Important: this routine is also required to keep getting telegram updates
-    // For some reason gramjs (or Telegram API) stops getting updates after minute or so and
-    // calling api methods works like workaround
+    // GramJS stops receiving updates after ~1 min; keep alive with periodic getMe().
     this.setReadinessInterval()
   }
 
   setReadinessInterval (): void {
-    if (this.readinessInterval === undefined) {
-      this.readinessInterval = setInterval(() => {
-        void this.reconnect()
-      }, 30 * 1000)
-    }
+    this.readinessInterval ??= setInterval(() => {
+      void this.reconnect()
+    }, 30 * 1000)
   }
 
   async tryReconnect (): Promise<void> {
@@ -208,7 +204,7 @@ class TelegramConnection {
         }
 
         const user = await update.message.getChat()
-        if (user === undefined || user.className !== 'User') {
+        if (user?.className !== 'User') {
           return
         }
 
@@ -314,7 +310,7 @@ class TelegramConnection {
   getToken (): string | undefined {
     // TODO: Need recheck
     // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
-    return (this.client.session.save() as never as string) ?? undefined
+    return (this.client.session.save() as never) ?? undefined
   }
 }
 

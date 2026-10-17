@@ -33,6 +33,28 @@ const { xxh64 } = require('@node-rs/xxhash')
 const CACHE_VERSION = 2
 
 /**
+ * Find repository root by looking for pnpm-workspace.yaml
+ * Walks up from the given directory until found
+ */
+function findRepoRoot(startPath) {
+  let current = startPath
+  const root = process.platform === 'win32' ? '/' : '/'
+  
+  while (current !== root) {
+    if (fs.existsSync(join(current, 'pnpm-workspace.yaml'))) {
+      return current
+    }
+    const parent = join(current, '..')
+    if (parent === current) break
+    current = parent
+  }
+  
+  // Fallback: try to find from common known structure
+  // platform-rig/bin/libs/cache.js -> foundations/utils/packages/platform-rig/bin/libs -> foundations/utils/packages -> foundations/utils -> foundations
+  return null
+}
+
+/**
  * Output directories for each phase that need to be verified
  */
 const phaseOutputDirs = {
@@ -41,41 +63,6 @@ const phaseOutputDirs = {
   bundle: ['bundle'],
   package: ['dist'],
   'docker-build': []
-}
-
-/**
- * Calculate hash of output directory contents for a phase
- * @param {string} packagePath - Path to package directory
- * @param {string} phase - Phase name
- * @returns {string|null} MD5 hash of output files, or null if no outputs
- */
-function calculateOutputHash(packagePath, phase) {
-  const dirs = phaseOutputDirs[phase]
-  if (!dirs || dirs.length === 0) return null
-  return calculateOutputHashForDirs(packagePath, dirs)
-}
-
-/**
- * Calculate hash of specific output directories
- * @param {string} packagePath - Path to package directory
- * @param {string[]} dirs - Directory names relative to package
- * @returns {string|null} MD5 hash, or null if any dir doesn't exist
- */
-function calculateOutputHashForDirs(packagePath, dirs) {
-  const parts = []
-  for (const dir of dirs) {
-    const dirPath = join(packagePath, dir)
-    if (!fs.existsSync(dirPath)) return null
-
-    const sigs = collectFileSignatures(dirPath)
-    const sortedKeys = Object.keys(sigs).sort()
-    for (const key of sortedKeys) {
-      parts.push(`${dir}:${key}=${sigs[key]}`)
-    }
-  }
-
-  if (parts.length === 0) return null
-  return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
 }
 
 /**
@@ -91,7 +78,12 @@ function collectFileSignatures(dir, extensions = null) {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {
     const fullPath = join(dir, entry.name)
+    // A junction (how pnpm links packages on Windows) reports isDirectory() === true, unlike a
+    // symlink on unix. Without these guards the walk descends into node_modules and re-hashes the
+    // whole dependency tree once per package.
+    if (entry.name === 'node_modules' || entry.isSymbolicLink()) continue
     if (entry.isDirectory()) {
+      if (fs.lstatSync(fullPath).isSymbolicLink()) continue
       Object.assign(signatures, collectFileSignatures(fullPath, extensions))
     } else {
       // Skip if extensions filter is provided and file doesn't match
@@ -120,6 +112,30 @@ function collectFileSignatures(dir, extensions = null) {
 }
 
 /**
+ * Read fastBuild section from package.json
+ * Supported fields:
+ *   fastBuild.extraHashFiles: string[]  - extra files (relative to package dir)
+ *   fastBuild.extraHashPaths: string[]  - extra files/dirs (relative to package dir)
+ *                                          dirs are hashed recursively
+ * @param {string} packagePath
+ * @returns {{extraHashFiles: string[], extraHashPaths: string[]}}
+ */
+function readFastBuildConfig(packagePath) {
+  const pkgJsonPath = join(packagePath, 'package.json')
+  if (!fs.existsSync(pkgJsonPath)) return { extraHashFiles: [], extraHashPaths: [] }
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+    const fb = pkg.fastBuild || {}
+    return {
+      extraHashFiles: Array.isArray(fb.extraHashFiles) ? fb.extraHashFiles : [],
+      extraHashPaths: Array.isArray(fb.extraHashPaths) ? fb.extraHashPaths : []
+    }
+  } catch {
+    return { extraHashFiles: [], extraHashPaths: [] }
+  }
+}
+
+/**
  * Calculate unified package hash based on all source inputs
  * This hash is used across all phases to detect changes
  *
@@ -127,10 +143,11 @@ function collectFileSignatures(dir, extensions = null) {
  * - src/ directory (source files)
  * - package.json
  * - tsconfig.json (if exists)
- * - Any additional config files provided
+ * - common/scripts/version.txt (global version file)
+ * - Any additional config files provided via parameter or package.json fastBuild
  *
  * @param {string} packagePath - Path to package directory
- * @param {string[]} [extraFiles] - Additional files to include in hash
+ * @param {string[]} [extraFiles] - Additional files to include in hash (relative to package dir)
  * @returns {string} MD5 hash
  */
 function calculatePackageHash(packagePath, extraFiles = []) {
@@ -174,8 +191,38 @@ function calculatePackageHash(packagePath, extraFiles = []) {
   pushFileSig('tsconfig.json', join(packagePath, 'tsconfig.json'))
   pushFileSig('Dockerfile', join(packagePath, 'Dockerfile'))
 
-  for (const file of extraFiles) {
-    pushFileSig(file, join(packagePath, file))
+  // Global version file — when it changes, all packages must rebuild.
+  const rootDir = findRepoRoot(packagePath)
+  if (rootDir) {
+    pushFileSig('common/scripts/version.txt', join(rootDir, 'common', 'scripts', 'version.txt'))
+  }
+
+  // Merge extraFiles from parameter with fastBuild config from package.json
+  const fb = readFastBuildConfig(packagePath)
+  const allExtraFiles = [...extraFiles, ...fb.extraHashFiles]
+  for (const file of allExtraFiles) {
+    pushFileSig(`extra:${file}`, join(packagePath, file))
+  }
+
+  // extraHashPaths supports both files and directories (recursive)
+  // Paths are relative to package dir; can point outside (e.g. ../../dev/prod/dist)
+  for (const rel of fb.extraHashPaths) {
+    const absPath = join(packagePath, rel)
+    if (!fs.existsSync(absPath)) continue
+    try {
+      const stat = fs.statSync(absPath)
+      if (stat.isFile()) {
+        pushFileSig(`path:${rel}`, absPath)
+      } else if (stat.isDirectory()) {
+        const sigs = collectFileSignatures(absPath)
+        const sortedKeys = Object.keys(sigs).sort()
+        for (const key of sortedKeys) {
+          // Use relative key inside the directory to keep hash stable across machines
+          const relKey = key.slice(absPath.length)
+          parts.push(`path:${rel}:${relKey}=${sigs[key]}`)
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
@@ -388,6 +435,21 @@ function getCompletedPhases(packagePath, packageHash) {
 }
 
 /**
+ * Drop a single phase from the cache, leaving the other phases untouched.
+ * Transpile used to call invalidateCache() on any upstream change, which wiped
+ * validate/lint/svelte-check/bundle/package/docker-build for the whole downstream closure.
+ * @param {string} packagePath - Path to package directory
+ * @param {string} phase - Phase name
+ */
+function invalidatePhase(packagePath, phase) {
+  const cache = loadPackageCache(packagePath)
+  if (!cache || !cache.phases || !cache.phases[phase]) return
+
+  delete cache.phases[phase]
+  savePackageCache(packagePath, cache)
+}
+
+/**
  * Invalidate all caches for a package (when force rebuilding)
  * @param {string} packagePath - Path to package directory
  */
@@ -411,5 +473,6 @@ module.exports = {
   markPhaseCompleted,
   getPhaseMetadata,
   getCompletedPhases,
+  invalidatePhase,
   invalidateCache
 }

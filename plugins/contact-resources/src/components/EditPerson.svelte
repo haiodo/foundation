@@ -1,6 +1,7 @@
 <!--
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,12 +15,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Channel, Person, combineName, getCurrentEmployee, getFirstName, getLastName } from '@hcengineering/contact'
-  import { AccountRole, Ref, getCurrentAccount, hasAccountRole, type AccountUuid } from '@hcengineering/core'
+  import type { Channel, Person } from '@hcengineering/contact'
+  import { combineName, getFirstName, getLastName } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
+  import { getCurrentAccount, type AccountUuid } from '@hcengineering/core'
   import { AttributeEditor, createQuery, getClient, hasResource } from '@hcengineering/presentation'
   import type { PersonRating } from '@hcengineering/rating'
   import ratingPlugin from '@hcengineering/rating'
-  import setting, { IntegrationType } from '@hcengineering/setting'
+  import type { IntegrationType } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
   import { Component, EditBox, FocusHandler, Scroller, createFocusManager } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
   import contact from '../plugin'
@@ -27,24 +31,16 @@
   import ChannelsDropdown from './ChannelsDropdown.svelte'
   import ChannelsEditor from './ChannelsEditor.svelte'
   import EditableAvatar from './EditableAvatar.svelte'
+  import { canEditPersonContactDetails } from '../utils'
 
   export let object: Person
   export let readonly: boolean = false
   export let channels: Channel[] | undefined = undefined
 
   const client = getClient()
-  const h = client.getHierarchy()
 
   const account = getCurrentAccount()
-  const me = getCurrentEmployee()
-  $: owner = me === object._id
-
-  function isEditable (owner: boolean, object: Person): boolean {
-    if (owner) return true
-    if (!h.hasMixin(object, contact.mixin.Employee)) return true
-    return hasAccountRole(account, AccountRole.Maintainer)
-  }
-  $: editable = !readonly && isEditable(owner, object)
+  $: editable = !readonly && canEditPersonContactDetails(object)
 
   let avatarEditor: EditableAvatar
 
@@ -82,7 +78,8 @@
     }
   )
 
-  const sendOpen = () => dispatch('open', { ignoreKeys: ['comments', 'name', 'channels', 'city'] })
+  const sendOpen = () =>
+    dispatch('open', { ignoreKeys: ['comments', 'name', 'channels', 'city'], allowedCollections: ['labels'] })
   onMount(sendOpen)
 
   async function onAvatarDone (): Promise<void> {
@@ -118,13 +115,13 @@
         {#if editable}
           <EditableAvatar
             person={object}
-            size={'x-large'}
+            size="x-large"
             name={object.name}
             bind:this={avatarEditor}
             on:done={onAvatarDone}
           />
         {:else}
-          <Avatar person={object} size={'x-large'} name={object.name} />
+          <Avatar person={object} size="x-large" name={object.name} />
         {/if}
         {#if personRating != null && hasResource(ratingPlugin.component.RatingRing)}
           <div class="flex-row-center mt-2">
@@ -161,8 +158,8 @@
 
       <div class="separator" />
       <Scroller
-        contentDirection={'horizontal'}
-        padding={'.125rem .125rem .5rem'}
+        contentDirection="horizontal"
+        padding=".125rem .125rem .5rem"
         noStretch
         stickedScrollBars
         thinScrollBars
@@ -173,17 +170,17 @@
             attachedClass={object._class}
             {editable}
             bind:integrations
-            shape={'circle'}
+            shape="circle"
             focusIndex={10}
           />
         {:else}
           <ChannelsDropdown
             value={channels}
             editable={false}
-            kind={'link-bordered'}
-            size={'small'}
-            length={'full'}
-            shape={'circle'}
+            kind="link-bordered"
+            size="small"
+            length="full"
+            shape="circle"
           />
         {/if}
       </Scroller>

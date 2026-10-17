@@ -14,7 +14,7 @@
 //
 
 import { Analytics } from '@hcengineering/analytics'
-import { clone, type Ref, type Space } from '@hcengineering/core'
+import { clone } from '@hcengineering/core'
 import { type Plugin } from '@hcengineering/platform'
 import { derived, get, writable } from 'svelte/store'
 
@@ -100,8 +100,6 @@ function parseHash (hash: string): string {
   }
   return decodeURIComponent(hash)
 }
-
-// ------------------------
 
 export function getRawCurrentLocation (): PlatformLocation {
   return parseLocation(window.location)
@@ -196,11 +194,17 @@ export function setLocationStorageKey (storageKey: string): void {
   locationStorageKeyId = storageKey
 }
 
+// Link ids carry names (`dumpa-lumpa-<id>`, document titles): analytics gets the bare id only.
+export function stripLinkSlugs (url: string): string {
+  return url.replace(/\/[^/?#]*-([0-9a-f]{24})(?=[/?#]|$)/g, '/$1')
+}
+
 export function navigate (location: PlatformLocation, replace = false): boolean {
-  closePopup()
   const cur = locationToUrl(getCurrentLocation())
   const url = locationToUrl(location)
   if (cur !== url) {
+    // Only on a real move: a sync that re-applies the current location closed a popup opened meanwhile.
+    closePopup()
     const data = !desktopPlatform ? null : { location }
     const _url = !desktopPlatform ? url : undefined
     if (replace) {
@@ -216,7 +220,7 @@ export function navigate (location: PlatformLocation, replace = false): boolean 
       }
     }
     locationWritable.set(location)
-    Analytics.navigate(url)
+    Analytics.navigate(stripLinkSlugs(url))
     return true
   }
   return false
@@ -248,7 +252,7 @@ export function restoreLocation (loc: PlatformLocation, app: Plugin): void {
     const newLocation: PlatformLocation = JSON.parse(last)
 
     if (newLocation.path[1] === loc.path[1] && newLocation.path[3] != null) {
-      loc.path[3] = newLocation.path[3] as Ref<Space>
+      loc.path[3] = newLocation.path[3]
       loc.path[4] = newLocation.path[4]
       if (loc.path[4] == null) {
         loc.path.length = 4

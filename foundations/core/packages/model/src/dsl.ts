@@ -117,7 +117,7 @@ function clearAttrs (target: any, prop: string): void {
   const props = attributes.get(target)
   props?.delete(prop)
 
-  if (props !== undefined && props.size === 0) {
+  if (props?.size === 0) {
     attributes.delete(target)
   }
 }
@@ -173,6 +173,15 @@ export function Hidden () {
 export function ReadOnly () {
   return function (target: any, propertyKey: string): void {
     setAttr(target, propertyKey, 'readonly', true)
+  }
+}
+
+/**
+ * @public
+ */
+export function Activity (options: { set?: IntlString, unset?: IntlString }) {
+  return function (target: any, propertyKey: string): void {
+    setAttr(target, propertyKey, 'activity', { set: options.set, unset: options.unset })
   }
 }
 
@@ -544,9 +553,9 @@ export function TypeRank (pos: 'start' | 'end' = 'end'): TypeRankType {
 }
 
 export function TypePersonId (): Type<PersonId> {
-  return { _class: core.class.TypePersonId, label: core.string.PersonId }
+  return { _class: core.class.TypePersonId, label: core.string.PersonId, icon: core.icon.TypePersonId }
 }
 
 export function TypeAccountUuid (): Type<AccountUuid> {
-  return { _class: core.class.TypeAccountUuid, label: core.string.AccountId }
+  return { _class: core.class.TypeAccountUuid, label: core.string.AccountId, icon: core.icon.TypePersonId }
 }

@@ -37,13 +37,12 @@ import platform, {
   translateCB
 } from '@hcengineering/platform'
 import presentation, {
+  decodeTokenPayload,
   loadServerConfig,
   purgeClient,
-  purgeCommunicationClient,
   refreshClient,
-  refreshCommunicationClient,
+  releaseVersion,
   setClient,
-  setCommunicationClient,
   setPresentationCookie,
   uiContext,
   upgradeDownloadProgress
@@ -74,6 +73,11 @@ const versionStorageKey = 'last_server_version'
 let _token: string | undefined
 let _client: Client | undefined
 let _clientSet: boolean = false
+
+// True global DISABLED_FEATURES baseline, captured once from platform init metadata.
+// connect() narrows presentation.metadata.DisabledFeatures per workspace on every call, so we must not
+// recompute "effective" from the already-narrowed value on a later workspace switch.
+let _globalDisabledFeatures: Set<string> | undefined
 
 export async function disconnect (): Promise<void> {
   if (_client !== undefined) {
@@ -145,6 +149,14 @@ export async function connect (title: string): Promise<Client | undefined> {
 
   const token = workspaceLoginInfo.token
 
+  // An API key is for integrations, not for a browser session - refuse it even if pasted into local storage.
+  if (decodeTokenPayload(token).extra?.apikey !== undefined) {
+    console.error('An API key cannot be used to open a workspace. Please log in.')
+    await logOut()
+    navigate({ path: [loginId] })
+    return
+  }
+
   setMetadata(presentation.metadata.Token, workspaceLoginInfo.token)
   setMetadata(presentation.metadata.WorkspaceUuid, workspaceLoginInfo.workspace)
   setMetadata(presentation.metadata.WorkspaceName, workspaceLoginInfo.name ?? workspaceLoginInfo.workspaceUrl)
@@ -152,6 +164,17 @@ export async function connect (title: string): Promise<Client | undefined> {
   if (workspaceLoginInfo.collaboratorEndpoint != null && workspaceLoginInfo.collaboratorEndpoint !== '') {
     setMetadata(presentation.metadata.CollaboratorUrl, workspaceLoginInfo.collaboratorEndpoint)
   }
+
+  // DISABLED_FEATURES disables features globally; a workspace's disabledFeaturesOverride re-enables them.
+  // _globalDisabledFeatures is captured once so switching workspaces always recomputes from the true
+  // global set, not from a previous workspace's already-narrowed metadata.
+  _globalDisabledFeatures ??= new Set(getMetadata(presentation.metadata.DisabledFeatures) ?? [])
+  const disabledFeaturesOverride = new Set(workspaceLoginInfo.disabledFeaturesOverride ?? [])
+  const effectiveDisabledFeatures = new Set(
+    [..._globalDisabledFeatures].filter((f) => !disabledFeaturesOverride.has(f))
+  )
+  setMetadata(presentation.metadata.DisabledFeatures, effectiveDisabledFeatures)
+  setMetadata(client.metadata.ExtraFilter, [...effectiveDisabledFeatures])
 
   const fetchWorkspace = await getResource(login.function.FetchWorkspace)
 
@@ -236,7 +259,6 @@ export async function connect (title: string): Promise<Client | undefined> {
     // We need to flush all data from memory
     await ctx.with('purge-client', {}, async () => {
       await purgeClient()
-      await purgeCommunicationClient()
     })
     await ctx.with('close previous client', {}, async () => {
       await _client?.close()
@@ -249,6 +271,16 @@ export async function connect (title: string): Promise<Client | undefined> {
   }
   _token = token
 
+  // TODO: should we take the function from some resource like fetchWorkspace/selectWorkspace
+  // to remove account client dependency?
+  // Social ids need only the token, so the accounts round trip runs while the socket comes up.
+  // A failure surfaces at the await below; the no-op catch only keeps it from being reported
+  // as unhandled in the meantime.
+  const accountsUrl = getMetadata(login.metadata.AccountsUrl)
+  const accountClient = getAccountClient(accountsUrl, token)
+  const socialIdsPromise = ctx.with('get-social-ids', {}, async () => await accountClient.getSocialIds(true))
+  socialIdsPromise.catch(() => undefined)
+
   const clientFactory = await getResource(client.function.GetClient)
   let version: Version | undefined
   const newClient = await ctx.with(
@@ -258,17 +290,21 @@ export async function connect (title: string): Promise<Client | undefined> {
       await clientFactory(token, endpoint, {
         onHello: (serverVersion?: string) => {
           const frontVersion = getMetadata(presentation.metadata.FrontVersion)
+          // Compare release versions only: server bundles carry a build commit suffix that
+          // desktop builds do not have.
+          const serverRelease = serverVersion !== undefined ? releaseVersion(serverVersion) : undefined
+          const frontRelease = frontVersion !== undefined ? releaseVersion(frontVersion) : undefined
           if (
-            serverVersion !== undefined &&
-            serverVersion !== '' &&
-            frontVersion !== undefined &&
-            frontVersion !== serverVersion
+            serverRelease !== undefined &&
+            serverRelease !== '' &&
+            frontRelease !== undefined &&
+            frontRelease !== serverRelease
           ) {
-            const reloaded = localStorage.getItem(`versionUpgrade:s${serverVersion}:f${frontVersion}`)
+            const reloaded = localStorage.getItem(`versionUpgrade:s${serverRelease}:f${frontRelease}`)
             const isUpgrading = get(upgradeDownloadProgress) >= 0
 
             if (reloaded === null) {
-              localStorage.setItem(`versionUpgrade:s${serverVersion}:f${frontVersion}`, 't')
+              localStorage.setItem(`versionUpgrade:s${serverRelease}:f${frontRelease}`, 't')
               // It might have been refreshed manually and download has started - do not reload
               if (!isUpgrading) {
                 console.log('reload due to version upgrade')
@@ -388,12 +424,10 @@ export async function connect (title: string): Promise<Client | undefined> {
               console.log('[workbench] refreshClient triggered', { event, tokenChanged, gapMs })
               void ctx.with('refresh client', {}, async () => {
                 await refreshClient(tokenChanged, gapMs)
-                await refreshCommunicationClient()
               })
               tokenChanged = false
             } else if (event === ClientConnectEvent.Reconnected) {
               console.log('[workbench] reconnected no-refresh (lastTx unchanged)', { gapMs })
-              await refreshCommunicationClient()
             }
 
             if (event === ClientConnectEvent.Upgraded) {
@@ -445,7 +479,10 @@ export async function connect (title: string): Promise<Client | undefined> {
                 if (currentFrontVersion !== undefined) {
                   try {
                     const frontConfig = await loadServerConfig(concatLink(frontUrl, '/config.json'))
-                    if (frontConfig?.version !== undefined && frontConfig.version !== currentFrontVersion) {
+                    if (
+                      frontConfig?.version !== undefined &&
+                      releaseVersion(frontConfig.version as string) !== releaseVersion(currentFrontVersion)
+                    ) {
                       console.log('reload due to config version mismatch')
                       location.reload()
                     }
@@ -478,10 +515,7 @@ export async function connect (title: string): Promise<Client | undefined> {
 
   _client = newClient
 
-  // TODO: should we take the function from some resource like fetchWorkspace/selectWorkspace
-  // to remove account client dependency?
-  const accountsUrl = getMetadata(login.metadata.AccountsUrl)
-  const socialIds: SocialId[] = await getAccountClient(accountsUrl, token).getSocialIds(true)
+  const socialIds: SocialId[] = await socialIdsPromise
 
   const me: Account = {
     uuid: account,
@@ -493,7 +527,10 @@ export async function connect (title: string): Promise<Client | undefined> {
 
   // Ensure employee and social identifiers
   if (workspaceLoginInfo.role !== AccountRole.Admin) {
-    const employee = await ensureEmployee(ctx, me, newClient, socialIds, getGlobalPerson)
+    const [employee, spaceByAccount] = await Promise.all([
+      ensureEmployee(ctx, me, newClient, socialIds, getGlobalPerson),
+      newClient.findOne(contact.class.PersonSpace, { members: account }, { projection: { _id: 1, person: 1 } })
+    ])
 
     if (employee == null) {
       console.log('Failed to ensure employee')
@@ -504,7 +541,11 @@ export async function connect (title: string): Promise<Client | undefined> {
       return
     }
 
-    const space = await newClient.findOne(contact.class.PersonSpace, { person: employee }, { projection: { _id: 1 } })
+    // A first login creates the employee, and with it the space, only during ensureEmployee.
+    const space =
+      spaceByAccount?.person === employee
+        ? spaceByAccount
+        : await newClient.findOne(contact.class.PersonSpace, { person: employee }, { projection: { _id: 1 } })
 
     setCurrentEmployee(employee)
     if (space !== undefined) {
@@ -593,11 +634,10 @@ export async function connect (title: string): Promise<Client | undefined> {
   errorActions.set([])
 
   // Update window title
-  document.title = [wsUrl, title].filter((it) => it).join(' - ')
+  document.title = [wsUrl, title].filter((it) => it !== '').join(' - ')
   _clientSet = true
   await ctx.with('set-client', {}, async () => {
     await setClient(newClient)
-    await setCommunicationClient(newClient)
   })
   await ctx.with('broadcast-connected', {}, async () => {
     await broadcastEvent(plugin.event.NotifyConnection, me)

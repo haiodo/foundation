@@ -15,7 +15,7 @@
 <script lang="ts">
   import { getResourceP } from '@hcengineering/platform'
   import { deepEqual } from 'fast-equals'
-  import { SvelteComponent } from 'svelte'
+  import type { SvelteComponent } from 'svelte'
   import type { AnyComponent, AnySvelteComponent } from '../types'
   import ErrorPresenter from './ErrorPresenter.svelte'
   import Loading from './Loading.svelte'
@@ -42,10 +42,10 @@
   const filterDefaultUndefined = (pnew: any, pold: any): any =>
     pnew != null
       ? Object.fromEntries(
-        Object.entries(clone(pnew, undefined, undefined, 10)).filter(
-          ([k, v]) => v !== undefined || pold?.[k] !== undefined
+          Object.entries(clone(pnew, undefined, undefined, 10)).filter(
+            ([k, v]) => v !== undefined || pold?.[k] !== undefined
+          )
         )
-      )
       : pnew
 
   let _props: any = filterDefaultUndefined(props, props)

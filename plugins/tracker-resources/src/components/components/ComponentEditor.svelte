@@ -13,11 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AttachedData, DocumentQuery, Ref } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { RuleApplyResult, getClient, getDocRules } from '@hcengineering/presentation'
-  import { Component, Issue, IssueTemplate, Project, TrackerEvents } from '@hcengineering/tracker'
-  import { ButtonKind, ButtonShape, ButtonSize, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
+  import type { AttachedData, DocumentQuery, Ref } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { RuleApplyResult } from '@hcengineering/presentation'
+  import { getClient, getDocRules } from '@hcengineering/presentation'
+  import type { Component, Issue, IssueTemplate, Project } from '@hcengineering/tracker'
+  import { TrackerEvents } from '@hcengineering/tracker'
+  import type { ButtonKind, ButtonShape, ButtonSize } from '@hcengineering/ui'
+  import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { createEventDispatcher, afterUpdate } from 'svelte'
   import { Analytics } from '@hcengineering/analytics'
 
@@ -27,7 +30,6 @@
 
   export let value: Issue | Issue[] | IssueTemplate | AttachedData<Issue>
   export let isEditable: boolean = true
-  // export let shouldShowLabel: boolean = true
   export let popupPlaceholder: IntlString = tracker.string.MoveToComponent
   export let shouldShowPlaceholder = true
   export let size: ButtonSize = 'large'
@@ -36,12 +38,11 @@
   export let justify: 'left' | 'center' = 'left'
   export let width: string | undefined = '100%'
   export let maxWidth: string | undefined = undefined
-  // export let onlyIcon: boolean = false
+  export let maxLabelWidth: string | undefined = '5rem'
   export let isAction: boolean = false
   export let groupBy: string | undefined = undefined
   export let enlargedText: boolean = false
   export let compression: boolean = false
-  // export let shrink: number = 0
   export let space: Ref<Project> | undefined = undefined
 
   const client = getClient()
@@ -116,6 +117,7 @@
         {size}
         {shape}
         {justify}
+        {maxLabelWidth}
         isEditable={isEditable && !rulesQuery?.disableEdit}
         isAllowUnset={!rulesQuery?.disableUnset}
         {popupPlaceholder}

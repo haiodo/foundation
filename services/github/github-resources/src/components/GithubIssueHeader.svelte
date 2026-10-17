@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { Ref, WithLookup } from '@hcengineering/core'
+  import type { Ref, WithLookup } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { NavLink, createQuery, getClient, isAdminUser } from '@hcengineering/presentation'
-  import { Issue } from '@hcengineering/tracker'
-  import { ButtonKind, showPopup, Button, Icon } from '@hcengineering/ui'
-  import { DocSyncInfo, GithubIntegrationRepository, GithubProject } from '@hcengineering/github'
+  import type { Issue } from '@hcengineering/tracker'
+  import type { ButtonKind } from '@hcengineering/ui'
+  import { showPopup, Button, Icon } from '@hcengineering/ui'
+  import type { DocSyncInfo, GithubIntegrationRepository, GithubProject } from '@hcengineering/github'
   import github from '../plugin'
   import MarkdownDescriptionDiff from './MarkdownDescriptionDiff.svelte'
   import RepositoryPresenterRefEditor from './RepositoryPresenterRefEditor.svelte'
@@ -50,7 +51,7 @@
     {#if ghIssue?.repository == null}
       <RepositoryPresenterRefEditor
         label={github.string.CreateGithubIssue}
-        kind={'regular'}
+        kind="regular"
         showIcon={true}
         {space}
         disabled={readonly}
@@ -63,7 +64,7 @@
     {:else if ghIssue.url !== ''}
       <div class="flex flex-row-center">
         {#if repository !== undefined}
-          <Icon icon={github.icon.Github} size={'small'} />
+          <Icon icon={github.icon.Github} size="small" />
           <span class="ml-1">
             {repository?.name}
           </span>

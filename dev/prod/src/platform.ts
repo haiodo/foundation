@@ -1,5 +1,6 @@
 //
 // Copyright © 2022, 2023, 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -70,18 +71,17 @@ import { mediaId } from '@hcengineering/media/src/plugin'
 import recorder, { recorderId } from '@hcengineering/recorder'
 import { viewId } from '@hcengineering/view'
 import workbench, { workbenchId } from '@hcengineering/workbench'
-import { mailId } from '@hcengineering/mail'
-import { chatId } from '@hcengineering/chat'
 import github, { githubId } from '@hcengineering/github'
-import { inboxId } from '@hcengineering/inbox'
+
 import { achievementId } from '@hcengineering/achievement'
-import communication, { communicationId } from '@hcengineering/communication'
 import { emojiId } from '@hcengineering/emoji'
 import billingPlugin, { billingId } from '@hcengineering/billing'
+import admin, { adminId } from '@hcengineering/admin'
 import { hulyMailId } from '@hcengineering/huly-mail'
 import { aiAssistantId } from '@hcengineering/ai-assistant'
 import { ratingId } from '@hcengineering/rating'
-import { fetchMetadataLocalStorage } from '@hcengineering/ui'
+import { workflowId } from '@hcengineering/workflow'
+import { fetchMetadataLocalStorage, isUserAway } from '@hcengineering/ui'
 
 async function loadAssets(): Promise<void> {
 
@@ -134,17 +134,16 @@ async function loadAssets(): Promise<void> {
     await import(/* webpackChunkName: "assets" */'@hcengineering/media-assets'),
     await import(/* webpackChunkName: "assets" */'@hcengineering/view-assets'),
     await import(/* webpackChunkName: "assets" */'@hcengineering/workbench-assets'),
-    await import(/* webpackChunkName: "assets" */'@hcengineering/chat-assets'),
-    await import(/* webpackChunkName: "assets" */'@hcengineering/inbox-assets'),
+
     await import(/* webpackChunkName: "assets" */'@hcengineering/mail-assets'),
     await import(/* webpackChunkName: "assets" */'@hcengineering/github-assets'),
     await import(/* webpackChunkName: "assets" */'@hcengineering/achievement-assets'),
-    await import(/* webpackChunkName: "assets" */'@hcengineering/communication-assets'),
     await import(/* webpackChunkName: "assets" */'@hcengineering/emoji-assets'),
     await import(/* webpackChunkName: "assets" */'@hcengineering/billing-assets'),
     // await import(/* webpackChunkName: "assets" */'@hcengineering/huly-mail-assets'),
     // await import(/* webpackChunkName: "assets" */'@hcengineering/ai-assistant-assets'),
-    await import(/* webpackChunkName: "assets" */'@hcengineering/rating-assets')]
+    await import(/* webpackChunkName: "assets" */'@hcengineering/rating-assets'),
+    await import(/* webpackChunkName: "assets" */'@hcengineering/workflow-assets')]
   )
 }
 
@@ -154,8 +153,6 @@ import presentation, { loadServerConfig, createFileStorage, presentationId } fro
 import { setMetadata } from '@hcengineering/platform'
 import { initThemeStore, setDefaultLanguage, setForceAccent, type AccentColorType } from '@hcengineering/theme'
 
-import { preferenceId } from '@hcengineering/preference'
-import { uiId } from '@hcengineering/ui/src/plugin'
 import { configureAnalytics } from './analytics'
 import { Analytics } from '@hcengineering/analytics'
 
@@ -177,6 +174,7 @@ export interface Config {
   GITHUB_CLIENTID?: string
   GITHUB_URL: string
   LOVE_ENDPOINT?: string
+  LOVE_SCREEN_SHARE_SIMULCAST?: string
   LIVEKIT_WS?: string
   SIGN_URL?: string
   PRINT_URL?: string
@@ -194,15 +192,15 @@ export interface Config {
   STATS_URL?: string
   PRESENCE_URL?: string
   LANDING_URL?: string
-  USE_BINARY_PROTOCOL?: boolean
+  USE_BINARY_PROTOCOL?: boolean | string
   TRANSACTOR_OVERRIDE?: string
   BACKUP_URL?: string
+  WEBHOOK_SERVICE_URL?: string
   STREAM_URL?: string
   PUBLIC_SCHEDULE_URL?: string
   CALDAV_SERVER_URL?: string
   EXPORT_URL?: string
   USE_OTP?: string
-  COMMUNICATION_API_ENABLED?: string
   BILLING_URL?: string
   PAYMENT_URL?: string
   EXCLUDED_APPLICATIONS_FOR_ANONYMOUS?: string
@@ -293,137 +291,159 @@ const PASSWORD_REQUIREMENTS: Record<NonNullable<Config['PASSWORD_STRICTNESS']>, 
   }
 }
 
-function configureI18n(): void {
-  // Add localization
-  addStringsLoader(
-    platformId,
-    async (lang: string) =>
-      await import(
-        `@hcengineering/platform/lang/${lang}.json`
-      )
-  )
-  addStringsLoader(
-    coreId,
-    async (lang: string) =>
-      await import(
-        `@hcengineering/core/lang/${lang}.json`
-      )
-  )
-  addStringsLoader(
-    presentationId,
-    async (lang: string) => await import(`@hcengineering/presentation/lang/${lang}.json`)
-  )
-  addStringsLoader(
-    textEditorId,
-    async (lang: string) => await import(`@hcengineering/text-editor-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(uiId, async (lang: string) => await import(`@hcengineering/ui/lang/${lang}.json`))
-  addStringsLoader(uploaderId, async (lang: string) => await import(`@hcengineering/uploader-assets/lang/${lang}.json`))
-  addStringsLoader(recorderId, async (lang: string) => await import(`@hcengineering/recorder-assets/lang/${lang}.json`))
-  addStringsLoader(mediaId, async (lang: string) => await import(`@hcengineering/media-assets/lang/${lang}.json`))
-  addStringsLoader(activityId, async (lang: string) => await import(`@hcengineering/activity-assets/lang/${lang}.json`))
-  addStringsLoader(
-    attachmentId,
-    async (lang: string) => await import(`@hcengineering/attachment-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(calendarId, async (lang: string) => await import(`@hcengineering/calendar-assets/lang/${lang}.json`))
-  addStringsLoader(chunterId, async (lang: string) => await import(`@hcengineering/chunter-assets/lang/${lang}.json`))
-  addStringsLoader(contactId, async (lang: string) => await import(`@hcengineering/contact-assets/lang/${lang}.json`))
-  addStringsLoader(driveId, async (lang: string) => await import(`@hcengineering/drive-assets/lang/${lang}.json`))
-  addStringsLoader(gmailId, async (lang: string) => await import(`@hcengineering/gmail-assets/lang/${lang}.json`))
-  addStringsLoader(hrId, async (lang: string) => await import(`@hcengineering/hr-assets/lang/${lang}.json`))
-  addStringsLoader(
-    inventoryId,
-    async (lang: string) => await import(`@hcengineering/inventory-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(leadId, async (lang: string) => await import(`@hcengineering/lead-assets/lang/${lang}.json`))
-  addStringsLoader(loginId, async (lang: string) => await import(`@hcengineering/login-assets/lang/${lang}.json`))
-  addStringsLoader(
-    notificationId,
-    async (lang: string) => await import(`@hcengineering/notification-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(onboardId, async (lang: string) => await import(`@hcengineering/onboard-assets/lang/${lang}.json`))
-  addStringsLoader(
-    preferenceId,
-    async (lang: string) => await import(`@hcengineering/preference-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(recruitId, async (lang: string) => await import(`@hcengineering/recruit-assets/lang/${lang}.json`))
-  addStringsLoader(requestId, async (lang: string) => await import(`@hcengineering/request-assets/lang/${lang}.json`))
-  addStringsLoader(settingId, async (lang: string) => await import(`@hcengineering/setting-assets/lang/${lang}.json`))
-  addStringsLoader(supportId, async (lang: string) => await import(`@hcengineering/support-assets/lang/${lang}.json`))
-  addStringsLoader(tagsId, async (lang: string) => await import(`@hcengineering/tags-assets/lang/${lang}.json`))
-  addStringsLoader(taskId, async (lang: string) => await import(`@hcengineering/task-assets/lang/${lang}.json`))
-  addStringsLoader(telegramId, async (lang: string) => await import(`@hcengineering/telegram-assets/lang/${lang}.json`))
-  addStringsLoader(
-    templatesId,
-    async (lang: string) => await import(`@hcengineering/templates-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(trackerId, async (lang: string) => await import(`@hcengineering/tracker-assets/lang/${lang}.json`))
-  addStringsLoader(viewId, async (lang: string) => await import(`@hcengineering/view-assets/lang/${lang}.json`))
-  addStringsLoader(
-    workbenchId,
-    async (lang: string) => await import(`@hcengineering/workbench-assets/lang/${lang}.json`)
-  )
+import presentationStrings from '@hcengineering/presentation/src/lang'
+import textEditorStrings from '@hcengineering/text-editor-assets/lang'
+import uiStrings from '@hcengineering/ui/src/lang'
+import uploaderStrings from '@hcengineering/uploader-assets/lang'
+import recorderStrings from '@hcengineering/recorder-assets/lang'
+import mediaStrings from '@hcengineering/media-assets/lang'
+import activityStrings from '@hcengineering/activity-assets/lang'
+import attachmentStrings from '@hcengineering/attachment-assets/lang'
+import aiBotResourcesStrings from '@hcengineering/ai-bot-resources/src/lang'
+import calendarStrings from '@hcengineering/calendar-assets/lang'
+import chunterStrings from '@hcengineering/chunter-assets/lang'
+import contactStrings from '@hcengineering/contact-assets/lang'
+import driveStrings from '@hcengineering/drive-assets/lang'
+import gmailStrings from '@hcengineering/gmail-assets/lang'
+import hrStrings from '@hcengineering/hr-assets/lang'
+import inventoryStrings from '@hcengineering/inventory-assets/lang'
+import leadStrings from '@hcengineering/lead-assets/lang'
+import loginStrings from '@hcengineering/login-assets/lang'
+import notificationStrings from '@hcengineering/notification-assets/lang'
+import onboardStrings from '@hcengineering/onboard-assets/lang'
+import preferenceStrings from '@hcengineering/preference-assets/lang'
+import recruitStrings from '@hcengineering/recruit-assets/lang'
+import requestStrings from '@hcengineering/request-assets/lang'
+import settingStrings from '@hcengineering/setting-assets/lang'
+import supportStrings from '@hcengineering/support-assets/lang'
+import tagsStrings from '@hcengineering/tags-assets/lang'
+import taskStrings from '@hcengineering/task-assets/lang'
+import telegramStrings from '@hcengineering/telegram-assets/lang'
+import templatesStrings from '@hcengineering/templates-assets/lang'
+import trackerStrings from '@hcengineering/tracker-assets/lang'
+import viewStrings from '@hcengineering/view-assets/lang'
+import workbenchStrings from '@hcengineering/workbench-assets/lang'
+import desktopPreferencesStrings from '@hcengineering/desktop-preferences-assets/lang'
+import diffviewStrings from '@hcengineering/diffview-assets/lang'
+import documentStrings from '@hcengineering/document-assets/lang'
+import timeStrings from '@hcengineering/time-assets/lang'
+import githubStrings from '@hcengineering/github-assets/lang'
+import controlledDocumentsStrings from '@hcengineering/controlled-documents-assets/lang'
+import productsStrings from '@hcengineering/products-assets/lang'
+import questionsStrings from '@hcengineering/questions-assets/lang'
+import trainingStrings from '@hcengineering/training-assets/lang'
+import guestStrings from '@hcengineering/guest-assets/lang'
+import globalProfileStrings from '@hcengineering/global-profile-assets/lang'
+import loveStrings from '@hcengineering/love-assets/lang'
+import printStrings from '@hcengineering/print-assets/lang'
+import exportStrings from '@hcengineering/export-assets/lang'
+import analyticsCollectorStrings from '@hcengineering/analytics-collector-assets/lang'
+import testManagementStrings from '@hcengineering/test-management-assets/lang'
+import surveyStrings from '@hcengineering/survey-assets/lang'
+import cardStrings from '@hcengineering/card-assets/lang'
+import mailStrings from '@hcengineering/mail-assets/lang'
+import processStrings from '@hcengineering/process-assets/lang'
+import achievementStrings from '@hcengineering/achievement-assets/lang'
+import emojiStrings from '@hcengineering/emoji-assets/lang'
+import billingStrings from '@hcengineering/billing-assets/lang'
+import adminStrings from '@hcengineering/admin-assets/lang'
+import hulyMailStrings from '@hcengineering/huly-mail-assets/lang'
+import aiAssistantStrings from '@hcengineering/ai-assistant-assets/lang'
+import ratingStrings from '@hcengineering/rating-assets/lang'
+import workflowStrings from '@hcengineering/workflow-assets/lang'
 
-  addStringsLoader(
-    desktopPreferencesId,
-    async (lang: string) => await import(`@hcengineering/desktop-preferences-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(diffviewId, async (lang: string) => await import(`@hcengineering/diffview-assets/lang/${lang}.json`))
-  addStringsLoader(documentId, async (lang: string) => await import(`@hcengineering/document-assets/lang/${lang}.json`))
-  addStringsLoader(timeId, async (lang: string) => await import(`@hcengineering/time-assets/lang/${lang}.json`))
-  addStringsLoader(githubId, async (lang: string) => await import(`@hcengineering/github-assets/lang/${lang}.json`))
-  addStringsLoader(
-    documentsId,
-    async (lang: string) => await import(`@hcengineering/controlled-documents-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(productsId, async (lang: string) => await import(`@hcengineering/products-assets/lang/${lang}.json`))
-  addStringsLoader(
-    questionsId,
-    async (lang: string) => await import(`@hcengineering/questions-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(trainingId, async (lang: string) => await import(`@hcengineering/training-assets/lang/${lang}.json`))
-  addStringsLoader(guestId, async (lang: string) => await import(`@hcengineering/guest-assets/lang/${lang}.json`))
-  addStringsLoader(
-    globalProfileId,
-    async (lang: string) => await import(`@hcengineering/global-profile-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(loveId, async (lang: string) => await import(`@hcengineering/love-assets/lang/${lang}.json`))
-  addStringsLoader(printId, async (lang: string) => await import(`@hcengineering/print-assets/lang/${lang}.json`))
-  addStringsLoader(exportId, async (lang: string) => await import(`@hcengineering/export-assets/lang/${lang}.json`))
-  addStringsLoader(
-    analyticsCollectorId,
-    async (lang: string) => await import(`@hcengineering/analytics-collector-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(
-    testManagementId,
-    async (lang: string) => await import(`@hcengineering/test-management-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(surveyId, async (lang: string) => await import(`@hcengineering/survey-assets/lang/${lang}.json`))
-  addStringsLoader(cardId, async (lang: string) => await import(`@hcengineering/card-assets/lang/${lang}.json`))
-  addStringsLoader(mailId, async (lang: string) => await import(`@hcengineering/mail-assets/lang/${lang}.json`))
-  addStringsLoader(chatId, async (lang: string) => await import(`@hcengineering/chat-assets/lang/${lang}.json`))
-  addStringsLoader(processId, async (lang: string) => await import(`@hcengineering/process-assets/lang/${lang}.json`))
-  addStringsLoader(
-    achievementId,
-    async (lang: string) => await import(`@hcengineering/achievement-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(
-    communicationId,
-    async (lang: string) => await import(`@hcengineering/communication-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(inboxId, async (lang: string) => await import(`@hcengineering/inbox-assets/lang/${lang}.json`))
-  addStringsLoader(emojiId, async (lang: string) => await import(`@hcengineering/emoji-assets/lang/${lang}.json`))
-  addStringsLoader(billingId, async (lang: string) => await import(`@hcengineering/billing-assets/lang/${lang}.json`))
-  addStringsLoader(
-    hulyMailId,
-    async (lang: string) => await import(`@hcengineering/huly-mail-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(
-    aiAssistantId,
-    async (lang: string) => await import(`@hcengineering/ai-assistant-assets/lang/${lang}.json`)
-  )
-  addStringsLoader(ratingId, async (lang: string) => await import(`@hcengineering/rating-assets/lang/${lang}.json`))
+function configureI18n(): void {
+  const platformLangs: Record<string, () => Promise<any>> = {
+    cs: async () => await import('@hcengineering/platform/lang/cs.json'),
+    de: async () => await import('@hcengineering/platform/lang/de.json'),
+    en: async () => await import('@hcengineering/platform/lang/en.json'),
+    es: async () => await import('@hcengineering/platform/lang/es.json'),
+    fr: async () => await import('@hcengineering/platform/lang/fr.json'),
+    it: async () => await import('@hcengineering/platform/lang/it.json'),
+    ja: async () => await import('@hcengineering/platform/lang/ja.json'),
+    pt: async () => await import('@hcengineering/platform/lang/pt.json'),
+    'pt-br': async () => await import('@hcengineering/platform/lang/pt-br.json'),
+    ru: async () => await import('@hcengineering/platform/lang/ru.json'),
+    tr: async () => await import('@hcengineering/platform/lang/tr.json'),
+    zh: async () => await import('@hcengineering/platform/lang/zh.json')
+  }
+  addStringsLoader(platformId, async (lang: string) => await (platformLangs[lang] ?? platformLangs.en)())
+
+  const coreLangs: Record<string, () => Promise<any>> = {
+    cs: async () => await import('@hcengineering/core/lang/cs.json'),
+    de: async () => await import('@hcengineering/core/lang/de.json'),
+    en: async () => await import('@hcengineering/core/lang/en.json'),
+    es: async () => await import('@hcengineering/core/lang/es.json'),
+    fr: async () => await import('@hcengineering/core/lang/fr.json'),
+    it: async () => await import('@hcengineering/core/lang/it.json'),
+    ja: async () => await import('@hcengineering/core/lang/ja.json'),
+    pt: async () => await import('@hcengineering/core/lang/pt.json'),
+    'pt-br': async () => await import('@hcengineering/core/lang/pt-br.json'),
+    ru: async () => await import('@hcengineering/core/lang/ru.json'),
+    tr: async () => await import('@hcengineering/core/lang/tr.json'),
+    zh: async () => await import('@hcengineering/core/lang/zh.json')
+  }
+  addStringsLoader(coreId, async (lang: string) => await (coreLangs[lang] ?? coreLangs.en)())
+  presentationStrings()
+  textEditorStrings()
+  uiStrings()
+  uploaderStrings()
+  recorderStrings()
+  mediaStrings()
+  activityStrings()
+  attachmentStrings()
+  aiBotResourcesStrings()
+  calendarStrings()
+  chunterStrings()
+  contactStrings()
+  driveStrings()
+  gmailStrings()
+  hrStrings()
+  inventoryStrings()
+  leadStrings()
+  loginStrings()
+  notificationStrings()
+  onboardStrings()
+  preferenceStrings()
+  recruitStrings()
+  requestStrings()
+  settingStrings()
+  supportStrings()
+  tagsStrings()
+  taskStrings()
+  telegramStrings()
+  templatesStrings()
+  trackerStrings()
+  viewStrings()
+  workbenchStrings()
+  desktopPreferencesStrings()
+  diffviewStrings()
+  documentStrings()
+  timeStrings()
+  githubStrings()
+  controlledDocumentsStrings()
+  productsStrings()
+  questionsStrings()
+  trainingStrings()
+  guestStrings()
+  globalProfileStrings()
+  loveStrings()
+  printStrings()
+  exportStrings()
+  analyticsCollectorStrings()
+  testManagementStrings()
+  surveyStrings()
+  cardStrings()
+  mailStrings()
+  processStrings()
+  achievementStrings()
+  emojiStrings()
+  billingStrings()
+  adminStrings()
+  hulyMailStrings()
+  aiAssistantStrings()
+  ratingStrings()
+  workflowStrings()
 }
 
 export async function configurePlatform() {
@@ -440,7 +460,6 @@ export async function configurePlatform() {
       }
     }
   }
-
 
   setMetadata(platform.metadata.LoadHelper, async (loader) => {
     for (let i = 0; i < 5; i++) {
@@ -493,13 +512,11 @@ export async function configurePlatform() {
   }
 
   configureAnalytics(config)
-  // tryOpenInDesktopApp(config.APP_PROTOCOL ?? 'huly://')
 
   setMetadata(login.metadata.AccountsUrl, config.ACCOUNTS_URL)
   setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP === 'true')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
   setMetadata(login.metadata.LoginTheme, config.LOGIN_THEME ?? 'intabia')
-
 
   const updatesUrl = config.DESKTOP_UPDATES_URL
   // NOTE: env format is: default_value;key1:value1;key2:value2...
@@ -543,7 +560,6 @@ export async function configurePlatform() {
 
   setMetadata(recorder.metadata.StreamUrl, config.STREAM_URL)
   setMetadata(textEditor.metadata.Collaborator, config.COLLABORATOR)
-  setMetadata(communication.metadata.Enabled, config.COMMUNICATION_API_ENABLED === 'true')
 
   if (config.MODEL_VERSION != null) {
     console.log('Minimal Model version requirement', config.MODEL_VERSION)
@@ -573,6 +589,7 @@ export async function configurePlatform() {
   setMetadata(contactPlugin.metadata.LastNameFirst, myBranding.lastNameFirst === 'true')
   setMetadata(love.metadata.ServiceEndpoint, config.LOVE_ENDPOINT)
   setMetadata(love.metadata.WebSocketURL, config.LIVEKIT_WS)
+  setMetadata(love.metadata.ScreenShareSimulcast, config.LOVE_SCREEN_SHARE_SIMULCAST === 'true')
   setMetadata(print.metadata.PrintURL, config.PRINT_URL)
   setMetadata(sign.metadata.SignURL, config.SIGN_URL)
   setMetadata(presence.metadata.PresenceUrl, config.PRESENCE_URL ?? '')
@@ -613,6 +630,7 @@ export async function configurePlatform() {
       [calendarId, calendar.component.ConnectApp],
       [guestId, guest.component.GuestApp],
       [globalProfileRoute, globalProfile.component.GlobalProfileApp],
+      [adminId, admin.component.AdminApp],
       ['themes', workbench.component.Themes],
       ['meetings', love.component.GuestMeetingApp]
     ])
@@ -623,6 +641,7 @@ export async function configurePlatform() {
 
   addLocation(clientId, async () => await import(/* webpackChunkName: "client" */ '@hcengineering/client-resources'))
   addLocation(loginId, async () => await import(/* webpackChunkName: "login" */ '@hcengineering/login-resources'))
+  addLocation(adminId, async () => await import(/* webpackChunkName: "admin" */ '@hcengineering/admin-resources'))
   addLocation(onboardId, async () => await import(/* webpackChunkName: "onboard" */ '@hcengineering/onboard-resources'))
   addLocation(
     workbenchId,
@@ -742,15 +761,12 @@ export async function configurePlatform() {
     async () => await import(/* webpackChunkName: "presence" */ '@hcengineering/presence-resources')
   )
   addLocation(cardId, async () => await import(/* webpackChunkName: "card" */ '@hcengineering/card-resources'))
-  addLocation(chatId, async () => await import(/* webpackChunkName: "chat" */ '@hcengineering/chat-resources'))
+
   addLocation(processId, async () => await import(/* webpackChunkName: "process" */ '@hcengineering/process-resources'))
+  addLocation(workflowId, async () => await import(/* webpackChunkName: "workflow" */ '@hcengineering/workflow-resources'))
   addLocation(
     achievementId,
     async () => await import(/* webpackChunkName: "achievement" */ '@hcengineering/achievement-resources')
-  )
-  addLocation(
-    communicationId,
-    async () => await import(/* webpackChunkName: "communication" */ '@hcengineering/communication-resources')
   )
   addLocation(emojiId, async () => await import(/* webpackChunkName: "emoji" */ '@hcengineering/emoji-resources'))
   if ((config.BILLING_URL ?? '') !== '') {
@@ -767,7 +783,6 @@ export async function configurePlatform() {
     aiAssistantId,
     async () => await import(/* webpackChunkName: "ai-assistant" */ '@hcengineering/ai-assistant-resources')
   )
-  addLocation(inboxId, async () => await import(/* webpackChunkName: "inbox" */ '@hcengineering/inbox-resources'))
   addLocation(ratingId, async () => await import(/* webpackChunkName: "rating" */ '@hcengineering/rating-resources'))
 
   setMetadata(client.metadata.FilterModel, 'ui')
@@ -775,15 +790,18 @@ export async function configurePlatform() {
   setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin, pulseId as Plugin])
   setMetadata(login.metadata.TransactorOverride, config.TRANSACTOR_OVERRIDE)
 
-  // Use binary response transfer for faster performance and small transfer sizes.
+  // msgpack+snappy by default; localStorage or USE_BINARY_PROTOCOL=false switches json on.
   const binaryOverride = localStorage.getItem(client.metadata.UseBinaryProtocol)
   setMetadata(
     client.metadata.UseBinaryProtocol,
-    binaryOverride != null ? binaryOverride === 'true' : (config.USE_BINARY_PROTOCOL ?? true)
+    binaryOverride != null ? binaryOverride === 'true' : String(config.USE_BINARY_PROTOCOL ?? true) !== 'false'
   )
 
   // Disable for now, since it causes performance issues on linux/docker/kubernetes boxes for now.
   setMetadata(client.metadata.UseProtocolCompression, true)
+  // Every ping carries whether the person has left; the transactor keeps `UserStatus.away` from it.
+  setMetadata(client.metadata.PresenceProvider, () => ({ away: isUserAway() }))
+  setMetadata(client.metadata.ClientKind, 'web')
 
   setMetadata(uiPlugin.metadata.PlatformTitle, title)
   setMetadata(workbench.metadata.PlatformTitle, title)
@@ -799,7 +817,10 @@ export async function configurePlatform() {
     setMetadata(workbench.metadata.ExcludedApplicationsForAnonymous, [])
   }
 
+  setMetadata(workbench.metadata.DefaultHiddenApplications, ['contact', 'drive'])
+
   setMetadata(setting.metadata.BackupUrl, config.BACKUP_URL ?? '')
+  setMetadata(setting.metadata.WebhookServiceUrl, config.WEBHOOK_SERVICE_URL ?? '')
 
   await loadAssets()
   initThemeStore()

@@ -12,11 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 -->
+<script lang="ts" context="module">
+  import { derived } from 'svelte/store'
+  import { chunterId } from '@hcengineering/chunter'
+  import { location } from '@hcengineering/ui'
+
+  // One subscription for all person links; a primitive value does not wake them on every navigation.
+  const inChat = derived(location, (loc) => loc.path[2] === chunterId)
+</script>
+
 <script lang="ts">
-  import { Employee, Person } from '@hcengineering/contact'
-  import { IconSize, LabelAndProps, tooltip } from '@hcengineering/ui'
+  import type { Employee, Person } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import chunter from '@hcengineering/chunter'
+  import { getResource } from '@hcengineering/platform'
+  import { getClient, hasResource } from '@hcengineering/presentation'
+  import type { IconSize, LabelAndProps } from '@hcengineering/ui'
+  import { tooltip } from '@hcengineering/ui'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { ObjectPresenterType } from '@hcengineering/view'
 
   import Avatar from './Avatar.svelte'
 
@@ -39,16 +53,41 @@
   export let overflowLabel = true
   export let inlineBlock = false
   export let shrink: boolean = false
+  export let clickable: boolean = true
+  // Inline mention styling, forwarded down to ObjectMention.
+  export let highlight: string | undefined = undefined
+  export let transparent: boolean = false
+
+  const hierarchy = getClient().getHierarchy()
+
+  // A mention is a conversation starter: opening the person card here made people
+  // comment on the card instead of writing to the person.
+  function canOpenDirect (person: Person | Employee | undefined | null): boolean {
+    if (person == null || !hierarchy.hasMixin(person, contact.mixin.Employee)) return false
+    return (
+      hierarchy.as(person, contact.mixin.Employee).active && hasResource(chunter.function.OpenDirectForPerson) !== false
+    )
+  }
+
+  function openDirect (): void {
+    void getResource(chunter.function.OpenDirectForPerson).then(async (open) => {
+      await open(value as Person)
+    })
+  }
+
+  $: mentionClick = onEdit ?? (canOpenDirect(value) ? openDirect : undefined)
+  // In the chat a person link starts a conversation too; elsewhere it keeps opening the card.
+  $: linkClick = onEdit ?? ($inChat && canOpenDirect(value) ? openDirect : undefined)
 </script>
 
 {#if value}
   {#if inline}
-    <ObjectMention object={value} {disabled} onClick={onEdit} />
+    <ObjectMention object={value} {disabled} {highlight} {transparent} onClick={mentionClick} />
   {:else if type === 'link'}
     <DocNavLink
       object={value}
-      onClick={onEdit}
-      {disabled}
+      onClick={linkClick}
+      disabled={disabled || !clickable}
       {noUnderline}
       {colorInherit}
       {accent}

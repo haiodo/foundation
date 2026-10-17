@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { ActionContext, createQuery } from '@hcengineering/presentation'
   import { TaskKindSelector } from '@hcengineering/task-resources'
-  import tracker, { Component, IssueDraft, Milestone, Project } from '@hcengineering/tracker'
+  import type { Component, IssueDraft, Milestone, Project } from '@hcengineering/tracker'
+  import tracker from '@hcengineering/tracker'
   import { IconCircles, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { FixedColumn } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -131,11 +132,12 @@
     on:dragend={resetDrag}
   >
     <div class="draggable-container">
-      <IconCircles size={'small'} />
+      <IconCircles size="small" />
     </div>
     <div class="flex-row-center ml-6 clear-mins gap-2">
       <StatusEditor
         value={{ ...issue, space: project }}
+        isCreate={true}
         kind="list"
         size="small"
         on:change={({ detail }) => (issue.status = detail)}
@@ -143,9 +145,9 @@
       <PriorityEditor
         value={issue}
         isEditable
-        kind={'list'}
-        size={'small'}
-        justify={'center'}
+        kind="list"
+        size="small"
+        justify="center"
         on:change={(evt) => {
           dispatch('update-issue', { id: issue._id, priority: evt.detail })
           issue.priority = evt.detail
@@ -158,7 +160,7 @@
           openIssue(evt, issue)
         }}
       >
-        <FixedColumn key={'issue_template_issue'} justify={'left'}>
+        <FixedColumn key="issue_template_issue" justify="left">
           {getIssueTemplateId(currentProject, issue)}
         </FixedColumn>
       </span>
@@ -175,13 +177,13 @@
     <div class="flex-center flex-no-shrink">
       <TaskKindSelector
         projectType={currentProject?.type}
-        kind={'link'}
+        kind="link"
         bind:value={issue.kind}
         baseClass={tracker.class.Issue}
       />
       <EstimationEditor
-        kind={'link'}
-        size={'large'}
+        kind="link"
+        size="large"
         bind:value={issue}
         on:change={(evt) => {
           dispatch('update-issue', { id: issue._id, estimation: evt.detail })

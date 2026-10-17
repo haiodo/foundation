@@ -18,12 +18,20 @@
   import { signupStore } from '@hcengineering/analytics-providers'
   import { onMount } from 'svelte'
 
-  import { type BottomAction, doLoginAsGuest, doLoginNavigate, getAccountClient, LoginMethods } from '../index'
+  import {
+    type BottomAction,
+    doLoginAsGuest,
+    doLoginNavigate,
+    getAccountClient,
+    getAccountDisplayName,
+    LoginMethods,
+    restoreSession
+  } from '../index'
   import LoginPasswordForm from './LoginPasswordForm.svelte'
   import LoginOtpForm from './LoginOtpForm.svelte'
   import BottomActionComponent from './BottomAction.svelte'
   import login from '../plugin'
-  import { LoginInfo } from '@hcengineering/account-client'
+  import type { LoginInfo } from '@hcengineering/account-client'
 
   export let navigateUrl: string | undefined = undefined
   export let signUpDisabled = false
@@ -59,6 +67,16 @@
     }
   }
 
+  // Landing here with a live session is a dead end otherwise: nothing on the form leads back.
+  let signedInAs: string | undefined
+
+  onMount(async () => {
+    const account = await restoreSession()
+    if (account?.token != null) {
+      signedInAs = getAccountDisplayName(account)
+    }
+  })
+
   onMount(() => {
     signupStore.setSignUpFlow(false)
 
@@ -67,7 +85,7 @@
       if (!platformTestingEnabled() && window?.localStorage != null) {
         const stored = localStorage.getItem(LOGIN_METHOD_STORAGE_KEY)
         if (stored === LoginMethods.Password || stored === LoginMethods.Otp) {
-          method = stored as LoginMethods
+          method = stored
           return
         }
       }
@@ -129,12 +147,31 @@
     .then(({ allowed }) => {
       allowReadonlyGuests = allowed
     })
+    .catch(() => {})
 </script>
 
 {#if method === LoginMethods.Otp}
-  <LoginOtpForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} on:change={changeMethod} />
+  <LoginOtpForm
+    {navigateUrl}
+    {signUpDisabled}
+    {email}
+    {caption}
+    {subtitle}
+    {onLogin}
+    {signedInAs}
+    on:change={changeMethod}
+  />
 {:else}
-  <LoginPasswordForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} on:change={changeMethod} />
+  <LoginPasswordForm
+    {navigateUrl}
+    {signUpDisabled}
+    {email}
+    {caption}
+    {subtitle}
+    {onLogin}
+    {signedInAs}
+    on:change={changeMethod}
+  />
 {/if}
 
 <div class="actions">

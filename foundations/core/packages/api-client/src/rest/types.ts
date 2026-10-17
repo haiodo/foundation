@@ -44,6 +44,7 @@ import {
   type PersonUuid,
   type Ref,
   type SocialIdType,
+  type TxMeta,
   type WithLookup
 } from '@hcengineering/core'
 import type { MarkupFormat, MarkupRef } from '../markup'
@@ -95,7 +96,8 @@ export interface ClientOperations {
     attributes: Data<T>,
     id?: Ref<T>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ) => Promise<Ref<T>>
 
   /**
@@ -110,7 +112,8 @@ export interface ClientOperations {
     attributes: AttachedData<P>,
     id?: Ref<P>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ) => Promise<Ref<P>>
 
   /**
@@ -155,9 +158,8 @@ export interface ClientOperations {
   ) => Promise<TxResult>
 
   /**
-   * Remove a document or collection document.
-   *
-   * For documents be aware all collection documents attached will be removed as well.
+   * Remove a document or collection document. For documents be aware all collection documents
+   * attached will be removed as well.
    */
   remove: <T extends Doc>(doc: T, modifiedOn?: Timestamp, modifiedBy?: PersonId) => Promise<TxResult>
 

@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { onDestroy } from 'svelte'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { Button, location } from '@hcengineering/ui'
   import type { TestPlan } from '@hcengineering/test-management'
   import testManagement from '@hcengineering/test-management'
@@ -41,8 +41,8 @@
 
 <Button
   icon={testManagement.icon.Run}
-  justify={'left'}
-  kind={'primary'}
+  justify="left"
+  kind="primary"
   label={testManagement.string.RunTestCases}
   disabled={testPlanId === testManagement.ids.NoTestPlan}
   on:click={handleRun}

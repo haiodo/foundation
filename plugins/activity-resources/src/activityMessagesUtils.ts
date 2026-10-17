@@ -179,18 +179,19 @@ export function hasAttributeModel (
   }
 }
 
-export function activityMessagesComparator (message1: ActivityMessage, message2: ActivityMessage): number {
+type ActivityMessageDate = Pick<ActivityMessage, 'createdOn' | 'modifiedOn'>
+export function activityMessagesComparator<T extends ActivityMessageDate> (message1: T, message2: T): number {
   const time1 = getMessageTime(message1)
   const time2 = getMessageTime(message2)
 
   return time1 - time2
 }
 
-function getMessageTime (message: ActivityMessage): number {
+function getMessageTime<T extends ActivityMessageDate> (message: T): number {
   return message.createdOn ?? message.modifiedOn
 }
 
-export function sortActivityMessages<T extends ActivityMessage> (
+export function sortActivityMessages<T extends ActivityMessageDate> (
   messages: T[],
   order: SortingOrder = SortingOrder.Ascending
 ): T[] {
@@ -207,7 +208,9 @@ export function referencesFilter (message: ActivityMessage, _class?: Ref<Doc>): 
 
 export function attributesFilter (message: ActivityMessage, _class?: Ref<Doc>): boolean {
   if (message._class === activity.class.DocUpdateMessage) {
-    return (message as DocUpdateMessage).objectClass === _class
+    const { objectId, objectClass } = message as DocUpdateMessage
+    // objectClass goes stale when the doc class changes (task type), so own updates match by id
+    return objectId === message.attachedTo || objectClass === _class
   }
 
   return false
@@ -248,7 +251,7 @@ export async function getLinkData (
     return undefined
   }
 
-  if (person !== undefined && person._id === linkObject._id) {
+  if (person?._id === linkObject._id) {
     return undefined
   }
 

@@ -13,11 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
   import type { BlobType, WithLookup } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
-  import presentation, { canPreviewFile, getFileUrl, previewTypes } from '@hcengineering/presentation'
-  import { IconMoreH, Menu, Action as UIAction, showPopup, tooltip } from '@hcengineering/ui'
+  import presentation, { canPreviewFile, getFileUrl, previewTypes, MessageBox } from '@hcengineering/presentation'
+  import type { Action as UIAction } from '@hcengineering/ui'
+  import { IconMoreH, Menu, showPopup, tooltip } from '@hcengineering/ui'
   import view, { Action } from '@hcengineering/view'
   import workbench from '@hcengineering/workbench'
 
@@ -59,14 +60,14 @@
   }
 
   $: saveAttachmentAction = isSaved
-    ? ({
+    ? {
         label: attachmentPlugin.string.RemoveAttachmentFromSaved,
         action: attachmentPlugin.actionImpl.DeleteAttachmentFromSaved
-      } as unknown as Action)
-    : ({
+      }
+    : {
         label: attachmentPlugin.string.AddAttachmentToSaved,
         action: attachmentPlugin.actionImpl.AddAttachmentToSaved
-      } as unknown as Action)
+      }
 
   const openAction: UIAction = {
     label: view.string.Open,
@@ -91,7 +92,6 @@
     if (isAttachment(attachment)) {
       actions.push({
         label: saveAttachmentAction.label,
-        icon: saveAttachmentAction.icon,
         action: async (props: any, evt: Event) => {
           if (isAttachment(attachment)) {
             const impl = await getResource(saveAttachmentAction.action)
@@ -104,8 +104,7 @@
           label: attachmentPlugin.string.DeleteFile,
           action: async (props: any, evt: Event) => {
             if (isAttachment(attachment)) {
-              const impl = await getResource(attachmentPlugin.actionImpl.DeleteAttachment)
-              await impl(attachment, evt)
+              deleteAttachmentWithConfirmation(attachment, evt)
             }
           }
         })
@@ -122,6 +121,22 @@
       () => {
         hovered = false
       }
+    )
+  }
+
+  function deleteAttachmentWithConfirmation (attachment: Attachment, evt: Event): void {
+    showPopup(
+      MessageBox,
+      {
+        label: view.string.DeleteObject,
+        message: view.string.DeleteObjectConfirm,
+        params: { count: 1 },
+        action: async () => {
+          const impl = await getResource(attachmentPlugin.actionImpl.DeleteAttachment)
+          await impl(attachment, evt)
+        }
+      },
+      'top'
     )
   }
 </script>

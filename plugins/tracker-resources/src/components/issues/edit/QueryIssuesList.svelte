@@ -13,13 +13,26 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
+  import type { Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Issue } from '@hcengineering/tracker'
-  import { Button, Chevron, ExpandCollapse, IconAdd, closeTooltip, resizeObserver, showPopup } from '@hcengineering/ui'
-  import view, { ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Issue } from '@hcengineering/tracker'
+  import type { SelectPopupValueType } from '@hcengineering/ui'
+  import {
+    Button,
+    ButtonWithDropdown,
+    Chevron,
+    ExpandCollapse,
+    IconAdd,
+    IconDropdown,
+    closeTooltip,
+    resizeObserver,
+    showPopup
+  } from '@hcengineering/ui'
+  import { createEventDispatcher, afterUpdate } from 'svelte'
+  import type { ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view, { BuildModelKey } from '@hcengineering/view'
   import { ViewletsSettingButton, restrictionStore } from '@hcengineering/view-resources'
-  import { afterUpdate } from 'svelte'
   import tracker from '../../../plugin'
   import CreateIssue from '../../CreateIssue.svelte'
   import SubIssueList from './SubIssueList.svelte'
@@ -32,6 +45,11 @@
   export let viewletId = tracker.viewlet.SubIssues
   export let createLabel = tracker.string.AddIssue
   export let hasSubIssues = false
+  export let showCreateButton: boolean = true
+  export let dropdownItems: SelectPopupValueType[] | undefined = undefined
+  export let additionalConfig: Record<Ref<Class<Doc>>, Viewlet['config']> = {}
+
+  const dispatch = createEventDispatcher()
 
   let isCollapsed = false
   let listWidth: number
@@ -85,7 +103,11 @@
       }
     )
 
-  function updateConfiguration (configurationRaw: Viewlet[], preference: ViewletPreference[]): void {
+  function updateConfiguration (
+    configurationRaw: Viewlet[],
+    preference: ViewletPreference[],
+    additionalConfig: Record<Ref<Class<Doc>>, Viewlet['config']> = {}
+  ): void {
     const newConfigurations: Record<Ref<Class<Doc>>, Viewlet['config']> = {}
 
     for (const v of configurationRaw) {
@@ -102,10 +124,17 @@
       }
     }
 
+    for (const [className, additionalColumns] of Object.entries(additionalConfig)) {
+      const classRef = className as Ref<Class<Doc>>
+      const existingColumns = newConfigurations[classRef] ?? []
+
+      newConfigurations[classRef] = [...existingColumns, ...additionalColumns]
+    }
+
     configurations = newConfigurations
   }
 
-  $: updateConfiguration(configurationRaw, preference)
+  $: updateConfiguration(configurationRaw, preference, additionalConfig)
 </script>
 
 <div class="flex-between mb-1">
@@ -121,39 +150,69 @@
         }}
       >
         <svelte:fragment slot="content">
-          <Chevron
-            size={'small'}
-            expanded={!isCollapsed}
-            outline
-            fill={'var(--caption-color)'}
-            marginRight={'.375rem'}
-          />
+          <Chevron size="small" expanded={!isCollapsed} outline fill="var(--caption-color)" marginRight=".375rem" />
           <slot name="chevron" />
         </svelte:fragment>
       </Button>
     {/if}
   {/if}
-  <div class="flex-row-center gap-2 no-print">
+  <div class="flex-row-center no-print">
+    {#if !$restrictionStore.readonly && showCreateButton}
+      {#if hasSubIssues}
+        <Button
+          id="add-sub-issue"
+          icon={IconAdd}
+          kind="ghost"
+          showTooltip={{ label: createLabel, direction: 'bottom' }}
+          on:click={() => {
+            isCollapsed = false
+            closeTooltip()
+            openNewIssueDialog()
+          }}
+        />
+      {:else if dropdownItems !== undefined}
+        <ButtonWithDropdown
+          mainButtonId="add-sub-issue"
+          icon={IconAdd}
+          label={createLabel}
+          labelParams={{ subIssues: 0 }}
+          kind="ghost"
+          {dropdownItems}
+          dropdownIcon={IconDropdown}
+          showTooltipMain={{ label: createLabel, direction: 'bottom' }}
+          on:click={() => {
+            isCollapsed = false
+            closeTooltip()
+            openNewIssueDialog()
+          }}
+          on:dropdown-selected={(evt) => {
+            closeTooltip()
+            dispatch('dropdown-selected', evt.detail)
+          }}
+        />
+      {:else}
+        <Button
+          id="add-sub-issue"
+          icon={IconAdd}
+          label={createLabel}
+          labelParams={{ subIssues: 0 }}
+          kind="ghost"
+          showTooltip={{ label: createLabel, direction: 'bottom' }}
+          on:click={() => {
+            isCollapsed = false
+            closeTooltip()
+            openNewIssueDialog()
+          }}
+        />
+      {/if}
+    {/if}
     {#if hasSubIssues}
-      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'tertiary'} bind:viewlet />
+      <slot name="buttons-after" />
     {/if}
     {#if hasSubIssues}
       <slot name="buttons" />
-    {/if}
-    {#if !$restrictionStore.readonly}
-      <Button
-        id="add-sub-issue"
-        icon={IconAdd}
-        label={hasSubIssues ? undefined : createLabel}
-        labelParams={{ subIssues: 0 }}
-        kind={'ghost'}
-        showTooltip={{ label: createLabel, direction: 'bottom' }}
-        on:click={() => {
-          isCollapsed = false
-          closeTooltip()
-          openNewIssueDialog()
-        }}
-      />
+      <div class="w-1 flex-no-shrink" />
+      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="ghost" noGap bind:viewlet />
     {/if}
   </div>
 </div>
@@ -168,7 +227,7 @@
         }}
       >
         <SubIssueList
-          createItemDialog={!$restrictionStore.readonly ? CreateIssue : undefined}
+          createItemDialog={!$restrictionStore.readonly && showCreateButton ? CreateIssue : undefined}
           createItemLabel={tracker.string.AddIssueTooltip}
           createItemDialogProps={{ space: object.space, ...createParams, shouldSaveDraft }}
           focusIndex={focusIndex === -1 ? -1 : focusIndex + 1}

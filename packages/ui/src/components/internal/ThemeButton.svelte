@@ -35,12 +35,12 @@
 >
   {#if theme === 'theme-light' || theme === 'theme-system'}
     <div class="light-container">
-      <div class="paper"><FontSize size={'small'} /></div>
+      <div class="paper"><FontSize size="small" /></div>
     </div>
   {/if}
   {#if theme === 'theme-dark' || theme === 'theme-system'}
     <div class="dark-container">
-      <div class="paper"><FontSize size={'small'} /></div>
+      <div class="paper"><FontSize size="small" /></div>
     </div>
   {/if}
   {#if focused === theme}

@@ -1,0 +1,295 @@
+# Sanity flaky tests - root causes and costs
+
+Область: [тесты](../testing.md)
+
+## Diagnosing
+
+Playwright marks a test flaky when a retry passes, so the cause is in the *first* attempt. `node analyze_failures.js runs/<stamp>/playwright-report.json` - what failed. `node analyze_steps.js runs/<stamp>/step-report.ndjson` - where time went; a step with small p50 and huge max is the next flake. `test-results/<test>/error-context.md` - call log. Two opposite diagnoses: `waiting for <locator>` = the control was never there; `intercepts pointer events` = it was covered.
+
+Service logs for the failure window: `startTime` in the report is UTC, containers log UTC, host `date` is local - `docker logs --since <ISO>Z --until <ISO>Z sanity-<svc>-1`. Client-side causes (who called disconnect, console errors) are visible only in a trace: repro with `--trace on`. The JSON reporter carries no steps and `error-context.md` no snapshot for those.
+
+## Recurring shapes
+
+- **`locator.count()` never waits.** Arithmetic on it needs a settled read (`waitStable`). But settled is not the same as non-empty: a just-filtered list is stably 0 for a moment, which reads exactly like "matched nothing" (`checkAllIssuesInStatus` waits for the first row first).
+- **Controls that exist only while hovered or just opened.** Hover/open and use in two separate statements → a re-render between them leaves the second waiting out the whole test timeout. Retry the pair: hover → assert visible → click.
+- **An action with no timeout of its own inside `toPass`** blocks until the test dies and the retry loop never gets a turn. Same for an inner wait *longer* than the test timeout: the failure arrives as a bare "Test timeout exceeded" with no locator named.
+- **Timeouts are a measured maximum times a few, not "a minute just in case."** A minute only means the failure lands a minute later. ai-bot mock replies measured ≤4.9s against 60s bounds.
+- **A click that is not idempotent.** Rows toggle selection, rooms deselect. Retry the *wait*, not the click, or return early when the target state already holds.
+- **A click that opens nothing.** A row being re-ordered or moved between groups is replaced under the pointer. Retry the click until the panel really shows what was asked (`openIssueByName`, `openToDoByName`, `openDocumentForTeamspace`).
+- **Positional selectors** (`nth-child(2)`, `.nth(1)`, `first()`) shift when surrounding data change.
+- **A faker word is not an identifier.** Its list is finite, and `getByRole(name)` matches by substring. Four flakes from this: `Save` vs `autosave`, `IntegrationAlreadyExists`, workspace url collisions, `Edit` vs a channel named `Ampeditd...`. Use `generateId()` for identifiers and `exact: true` for fixed UI labels.
+- **A non-selective filter.** `selectMenuItem` filters by the first word, so parallel workers' objects stay in the list. Match the whole name; `selectAssignee` delegates to it for that reason.
+- **`hasText` matches a substring**, so a strict locator throws on grouped copy - `.first()`.
+- **The pointer stays where the previous step dropped it.** A tooltip then covers the next control, and a second `hover()` on the element it already rests on fires no mousemove, so a retried hover reopens nothing. Park it (`mouse.move(0, 0)`) before clicking.
+- **Chromium raises dragstart on the first move after `mouse.down()`** - anything between the two (scrolling, a settle wait) means `dragCard` is never set and every drop is a silent no-op. Assert the app saw it (the card takes `dragged`) before moving on.
+- **A one-shot request cannot be waited out.** Chat search runs `searchFulltext` once, so retrying
+  the assertion polls a DOM nothing will change - re-issue the request (retype; `setSearch` ignores
+  an unchanged value, Enter opens a row when the list is not empty).
+- **The open app has no icon in the list.** It can open between the url check and the click, so
+  `openApp` waits for the url to change, never for the button.
+- **`join()` waits for `/workbench/` itself.** Callers (teamspace, workspace/create) click an app button
+  next with no retry; returning on the "Log In" click let that click wait out 30s on a missing button.
+- **An unverified popup click fails somewhere else.** A swallowed assignee click left the old value
+  and broke the *other* user's test - every popup write in `editIssue` re-reads what it set.
+- **Ask the server, do not widen the window.** A settled field proves nothing when the stored value
+  arrives after it. `Component.description` is a plain `Markup` field: read it over REST
+  (`readComponentDescription`, markup JSON - match the text inside) instead of raising `stableFor`.
+- **Uploading a file is not idempotent.** Retrying "hover + send" attached it twice and the name
+  then resolved to two nodes for good - retry the send and the wait separately.
+- **Never pick "the first row" when the one asked for is missing.** A shared faker surname got a
+  stranger assigned and the test failed far away; `selectMenuItem` now throws, listing the rows.
+- **An absolute threshold breaks in a shared workspace.** `sharedWorkspace` is per worker, so the
+  previous test's leftovers already satisfy it - count from a baseline taken before the action.
+- **Escape does not close a panel the app opened through a url**, and the close it *did* start lands a beat later and tears down whatever opened after it. Wait for the new panel's own content and re-check it.
+- **A "reopen if missing" guard must test the popup, not the item.** A list still loading inside an open popup
+  looks "missing"; re-clicking the trigger hits the popup's own overlay and closes it (`selectFilter`).
+- **Check every seed write's status.** An unchecked failed seed surfaces later as a wrong number
+  (`billing` avgMeetingDuration: "23 vs 0"); suspect `RetryDB` with no backoff under load, unproven.
+- **A `page.goto` right after a popup close can abort its unawaited write.** Seat change: wait for
+  `changeSeats` to re-enable (`isUpdating`); package swap - `packageDisconnect-<key>` (`isPackageBusy`).
+- **`navigateToIssues()` (`text="Issues"`) opens whichever project node is expanded**, not the global list:
+  never use it to get back to a row; `linkSidebarAll()` does.
+- **A closed popup is no proof Apply landed.** A timed-out Apply click closed the filter popup with nothing
+  filtered; `selectFilter` verifies the Title/Name section and redoes the whole pick.
+- **Love `busy-badge` is one per busy `ParticipantInfo` on the whole floor** - scope it to `[data-id="room-<name>"]`.
+  Stuck at 1 after that means user3 never got the re-opened meeting (product).
+- **The player reads `hls` meta once on open** (`VideoViewer.svelte`), and the stream pod writes it after all
+  uploads drain: wait for `hls.thumbnail` (`waitForHlsThumbnail`), not for a derived-blob count.
+- **`toContainText` on a viewlet Table misses rows below the rendered window.** Cells render lazily
+  (`Table.svelte` `rowLimit`), sorted by `modifiedOn`; other workers' channels push a fresh one down. Scroll first.
+- **A fixed name in a shared workspace matches last run's copy** (`changeChannelName` "New Channel Name").
+- **`readEverything` by `Date.now()` marked a message sent right after as read**; it reads up to the last message's `createdOn`.
+- **A lazy `<img>` in a small popup never loads** until scrolled into view (`checkCommentWithImageExist`).
+- **`generateId(n)` with a small `n` is not unique across workers**: 16^n suffixes and a counter restarting per
+  worker - talent names collided in `sanity-ws` (6/50). Use `generateId()`.
+- **Click a row's link, not the cell**: `tr > :has-text(name)` clicks the cell centre, which misses a short name once
+  longer names widen the column (`createCandidateWithSkills` broke 3/3 after talent ids got longer).
+
+- **`isVisible()` as "already done" is instant**: a list not rendered yet reads as gone. `deleteAttachmentToIssue` skipped the delete that way; trust absence only after the click.
+
+- **A settings tab click changes the URL at once, the content only after `doSyncLoc`**: the old tab (Profile, with its own `.hulyAvatar-container`) stays ~100ms. "Change workspace picture" clicked the user's avatar; scope locators to the target tab. Found with console DIAG in the trace after 6 wrong fixes.
+- **A list category folds once, before the search lands.** `ListCategory.initCollapsed` re-runs only on level changes, so
+  Backlog folded at >20 rows stays folded with the one searched row (`createIssueByApiAndFind` expands in a retry).
+- **An object filter lists only values some doc already has.** The planner Space filter showed only "Not selected": the
+  restored sanity-ws has no ProjectToDo, the first comes from another spec. A test that picks a value creates its own doc.
+- **A popup dies with any location change** (`Workbench` closes popups on it). A click on a nav row's actions that
+  misses the "..." button opens the row's channel and kills the menu it opened: click the button, retry until the item shows.
+- **A warm window is not settled right after `enterWorkspace`**: for ~200ms something closes popups and
+  modals with the URL unchanged. Likely closer: `navigate()` (`packages/ui/src/location.ts`) called `closePopup()`
+  even for the current URL, so a late sync re-applying the location closed a popup opened meanwhile (also seen
+  in settings add-task-types, 3/3 attempts in run 20261015-153608). Now it closes only on a real move; the caller
+  was not pinned. `clickAddChannel`/`createChannel` retry to the open form and to the navigator row - a closed
+  form is no proof Create landed.
+- **Unread counters lag the app**: the service counts a fresh message (bot greeting) after the UI marks it.
+  `readEverything` also reads contexts whose read position is behind the last message.
+- **`getByRole({ name })` is a substring too**: `links-x` matched `links-x-target`, and a "created yet?" check
+  returned at once, leaving the form's overlay over the next click. `exact` breaks on the unread count in the
+  name; nav channel locators match the whole word (`(^|\s)name(\s|$)`).
+- **"Show more" is a `div.listGrid` row too** (a category past its limit), with no issue in it: a per-row check
+  waited on its missing icon. `issuesList()` excludes `.showMore`.
+- **A fixed wait before a memory sample measures a half-drawn app**: `leaks.spec` `sample()` waits for the DOM
+  node count to settle (1 in 10 "apps" runs read +49 nodes/iteration off a mid-render middle sample).
+- **The "Issue created" toast is not a reliable handle**: under parallel load it sometimes never shows while the
+  issue is stored (cause unknown). `createAndOpenIssue` falls back to the issue link after 5s.
+- **A memory soak's per-iteration growth is the smaller of its two halves**: a one-off retention (~1800 detached
+  nodes kept once) inside one half read as 180 nodes/iteration; a leak grows in both.
+
+## Product-side causes
+
+| What | Where | Effect |
+|---|---|---|
+| Categories auto-fold past 20 items | `ListCategory.initCollapsed` | Rows absent from DOM (`CommonPage.expandCollapsedCategories`) |
+| Async default-app navigation clobbers a click | `Workbench.svelte:syncLoc` | User navigation undone mid-load |
+| Toasts cover `#profile-button` for 10s | `packages/ui/src/utils.ts` | Clicks wait the toast out; suppressed at `0` |
+| `TimeInputBox` dispatches per digit | `TimeInputBox.svelte` | One server write per keystroke |
+| Tag saved before its category loads | `CreateTagElement.svelte` | Tag exists, `TagsPopup` renders empty |
+| Live query assigns server values into an open editor | `EditToDo.svelte` | Un-round-tripped edit wiped |
+| Estimation renders optimistically, falls back ~70ms later | issue details, template details | Write lost; needs a 500ms settle (200ms is not enough) |
+| Calendar keeps a stale event after a slot change | UBERF-4273 | A slot added right after a delete never appears |
+| Calendar block under 44px renders no body | `EventElement.svelte` (`empty`) | `hasText` finds no title once ~6 events share an hour |
+| Tag popup renders 50 tags per category | `TagsPopup.svelte` (`slice(0, 50)`) | A fresh tag past the cut is invisible; search for it instead |
+| `doSyncLoc` is queued by `reduceCalls`; it used to call `closePopup()` when it ran, not when the location changed | `Workbench.svelte` | A popup opened after the change is closed; a stale `syncLoc` also `closePanel()`s over the new page. `syncLoc` edits `loc` in place - compare `$location` by reference |
+| AI level card saves without awaiting (`void save()`) | `AISpaceSettingsEditor.svelte` | A reload right after the click can lose the level |
+| Status button shows the old status until the update round trip (>1s under load) | `StatusEditor.svelte` | "Stable for 1s" takes the old value; a retry click lands under the close-todos dialog |
+| A save resolves before its tx reaches the live queries | `AttachmentStyleBoxEditor.svelte` (`SaveVersion`) | A callback for another tx (`$inc`) brings the pre-save doc and reverts the editor. Compare server `modifiedOn` to the newest seen before the save, never to client `Date.now()`: `ModifiedMiddleware` stamps server time, and a client clock ahead hid other users' edits |
+| Do not drop `getCurrentDoc` copies older than the doc in the query | `foundations/core/packages/query` (`getCurrentDoc`) | `modifiedOn` is not monotonic: a request replays a tx prepared earlier (`approveTx`/`rejectedTx`) with its old `modifiedOn`; a guard on it froze QMS doc states |
+| A sent message renders before the server has it (`pendingCreatedDocs`) | `ChatMessagePresenter.svelte` (`data-delivered`) | A reload right after it shows loses the message |
+| Tag popup selects a tag it creates | `TagsPopup.svelte` `onCreateTagElement` | A click on the new tag unselects it |
+| `move()` returns silently when `dragCard` is unset | `packages/kanban/src/components/Kanban.svelte` `move()` | A drop with no dragstart changes nothing, reports nothing |
+| Templates group by assignee; the group stays collapsed and virtualised | Templates list | A fresh template is absent from the DOM |
+| `CreateCustomer.svelte`'s reactive `findContacts` call never cancels the previous duplicate lookup | contact | The empty-name answer overtakes the typed one, `matches` stays empty for good |
+| `getAILevels()` turns a failed request into an empty list, runs once in `onMount` | `ai-bot-resources/src/requests.ts` | Cards never appear however long the wait; only a reload helps |
+| The account service gives a colliding workspace its own url (`<name>-<id>`) | `server/account/src/utils.ts` | A url built from the requested name lands in someone else's workspace, i.e. on the login form |
+| Chat search is one-shot (`searchFulltext`, no live query) | `chunter-resources/src/search/store.ts:114` | A message indexed after the query ran never appears until it is re-issued |
+| Parallel `create-workspace` on a fresh db race on `CREATE TABLE IF NOT EXISTS` (23505 `pg_type`) | `postgres/src/utils.ts` `createTables` | Loser stays `is_disabled`, `configure` hangs; now reruns the create. prepare did not flag the failed create |
+| Server `LiveQueryMiddleware.tx` updates the cache before `DomainTx` writes; a `queryFind` registered in between loads a pre-commit snapshot and misses the doc for good | `middleware/src/liveQuery.ts:95` | Stale `getPersonSpaces`: owner got no `Chat` in 1/50 fresh workspaces. Fixed: store first, then the cache (`__tests__/liveQuery.test.ts`) |
+| `Move.svelte` fills `issueToUpdate` (a Map) via `.set()` with no reassignment | `tracker-resources` Move | Svelte misses it: keep-attributes toggle stays disabled if issues resolve after the target pick |
+| Channel nav entry waits for a `Chat` doc from async `OnCollaboratorAdded` | `ChatNavGroup.svelte` | Lags past UI timeouts. Pushing the open object by id was reverted: it kept an unsubscribed open channel in the nav |
+| (same, recruit vacancy/applicant chats) | `ChatApi.waitForLinkedChat` | Tests poll the server `Chat` doc before checking the nav |
+| A joiner's members-version bump crosses the queue (batch 500ms) after his first tx | `middleware/src/seatLimits.ts` | Not in `seatSet` -> read-only -> `Forbidden` on `ensureEmployee`, invite page blank. Fixed: rebuild for an unknown member, once per members-version (a non-member would rebuild on every tx), errors caught like `refreshSeatSetIfStale` |
+| `handleHello` switched the session to binary+snappy before the hello was sent | `server/src/sessionManager.ts` | A broadcast in that window was undecodable (`Unknown extension type 214`) and dropped by the client. Fixed: modes set after the hello |
+| Crop Save was enabled before cropperjs was ready; `crop()` returned `undefined` | `image-cropper-resources` Cropper, `EditAvatarPopup` | Pick silently falls back to a colour. Save now disabled until `ready` (not the picture flake's cause) |
+| `EditableAvatar` reset its pick on any new `person` object from the parent | `contact-resources` EditableAvatar | Reset now only on changed values (latent, not the picture flake's cause) |
+| `loadReadStates` overwrote the cache with its query snapshot | `notification-resources/src/client.ts` | A `ReadState` created while the lookup ran (listener set it first) became `null` for good: `readDoc`/viewport reads wrote nothing ("Latest messages" 1/100). Fixed: keep the newer, test in `client.test.ts` |
+| nginx upstream `keepalive` pool kept idle sockets 60s, Node closes them at 5s | `tests/nginx.conf`, `dev/nginx.conf` | Reused closed socket: 502 "upstream prematurely closed" on `POST /_account/` -> `ServiceUnavailable` (not retried, POST). Fixed: `keepalive_timeout 4s` per upstream |
+| Context unread counters are recounted by the notifications service from the queue | `services/notifications/src/utils/context.ts` | Lag after `readState`: closing a thread right after reading shows the stale count for a moment |
+| REST session dropped by the hang check | `sessionManager.createOpContext` | `socialStringsToUsers` built from live sessions only: every REST tx of that user fails `AccountMismatch` (500, retried ~165x) |
+| A debounced read wrote back an older position | `chunter-resources/src/scroll.ts` `readMessages` | compared with the `readState` captured at debounce time, not `readStateByDoc`: after "Latest messages" (`readDoc`) the old window's read moved the channel back to unread |
+
+## Open
+
+- **`chat-unread` "A reply lifts a thread..." timed out at 60s with no step logged**: ~203 unlogged REST calls
+  (101 messages + 101 replies) plus the worker's first `joinWorkspace` poll; the retry took 17s with a warm `others`.
+- **`team-planner` "Colleague project todo...": "Default" absent from the Space filter for 30s** (`selectFilter`).
+  Not the `dateStart` bug (`tomorrow`); what builds that value list is unknown.
+- **`issues` "Comment stored after reload": reload raced the send** - wait for `readStoredCommentCount` first.
+  "Add comment by popup": the row-anchored popup closes when the counter re-renders - reopen before checks.
+- **`pulse` second user: `/workbench/` url, no `#profile-button` for 15s (1/5).** Suspect `Workbench.svelte:780-795`
+  renders nothing for a non-owner until `$myEmployeeStore` resolves; `getSecondPageByInvite` now reports url + body.
+- **`chat-unread` "Reading a channel from inbox" (1/5):** message absent 15s after opening from inbox, 9ms on
+  retry. "Reconnect left the cached tail query stale" is ruled out: `refreshConnect` refreshes queries with callbacks.
+- **Calendar specs book both accounts' hours**; leftovers filled the day (`no free hour left`, a participant
+  "busy" at a freed hour). Each spec now removes its events in `finally` (`CalendarApi.deleteEventsByTitle`).
+- **`setTimeSlot` reads `dateStart: '1'` as the 1st of next month**: a "today" slot built from `getDate()` broke
+  every 1st (start next month, end clamped to start+30m). Use `'today'`.
+- **`todos` "Closing an issue...": status stays `todo` 20s after a clean click on Done.** Suspect
+  `StatusEditor.svelte` calling `changeStatus()` inside reactive `getSelectedStatus()`. Unconfirmed.
+- **`settings` create-template: "Edit template" never shows.** Template `t1` in persistent `sanity-ws`; unresolved.
+
+- **Comment counter reads one higher than the database** (`issues.spec` "Add comment by popup",
+  ~3/10). Measured: `counter "3", expected "2", popup lists 2, stored 2` - only the browser copy
+  drifts. Client-side dedup cannot fix it: the derived `$inc` is broadcast-only (`triggers.ts:301`
+  builds it into `DerivedTx`, `txPush.ts:55` keeps it out of DOMAIN_TX) and gets a fresh `_id` per
+  build (`tx.ts:542`), so a duplicate is indistinguishable from a second real increment - the two
+  `inc-match.test.ts` cases pin both sides. Fix belongs on the server: carry the source event id, or
+  stop sending it twice. Same drift on thread `replies` (same `Collection` counter): "3 replies" for 2. Both times
+  only on the AUTHOR's client. Ruled out by reading: server sends the derived `$inc` once, not in the
+  tx response (`txRaw` second broadcast needs async-trigger output or `hasDomainBroadcast`, neither
+  holds); `notifyEarly` never incs the parent. Mechanism still unfound - needs runtime evidence.
+- **`ai-bot-scenarios` "assistant button ... proposes a task"** (1/10 on 2026-09-21): "Create issue" stayed `disabled` for the whole 30s. `canSave` in `CreateIssue.svelte` needs a title, a status, a task type *and* `currentProject`, which comes from a query filtered by `members: getCurrentAccount().uuid` - an empty result leaves it `undefined` for good, and `TaskKindSelector` (hence `kind`) does not even render without it. Which of the four was missing is unknown; `clickButtonCreateIssue` now reports the title and whether the task type selector is in the DOM, so the next occurrence says it.
+- **`subissues.spec.ts` "Sub-issues move with parent issue"**: moving an issue closes the panel; reopening from the list renders the identifier as a breadcrumb instead of `div.title.not-active`
+  - 4 failures in 20 versus 1 flake in a full run, so the retry was reverted. Needs a locator matching both renderings.
+  Second shape (1/5, unresolved): the open panel kept the old `TSK-` id for 15s; the failure now reports
+  the stored identifier to split "move never landed" from "panel missed the update".
+  2026-10-02: stored `SECON-4` (move landed), panel showed `TSK-129` ~15s, then was gone. Spec keeps a trace now.
+  Same shape in todos "Closing an issue": `client.update` resolved (MessageBox shown), panel kept `Todo` 20s+. No server revert; cause open.
+- **Two "Close Action Item?" boxes from one status pick** (todos): a shared popup `id` is no fix - the box vanished and left its overlay blocking clicks. Reverted.
+- **`kanban` "drop into same cell does not update document"**: `after.modifiedOn` came back 109ms *lower* than `before.modifiedOn`, which an update after `before` cannot produce. One transactor, host/container clock skew 0-15ms - neither explains it.
+- **A lost webhook loses the "Joined meeting" activity for good**: only the webhook path writes it (`webhook.ts addActivityToMeeting`), the polling fallback creates the participant but no activity.
+
+## Chat view swap (FadeSwap)
+
+CI 2026-10-05 (branch read-on-join): 6 failed + 7 flaky in `chat-unread.spec.ts`, `message-search.spec.ts`, `chat.spec.ts`, plus QMS TESTS-161. All from `FadeSwap.svelte` (channel/thread switch fades the next view over the previous one), not from the tests:
+- `strict mode violation ... text-editor-view resolved to 2 elements`: during the swap (up to ~400 ms) both views are in the DOM, and `toBeVisible`/`fill`/`click` on a non-unique locator fail at once, without retrying. The outgoing layer is now `inert`; `channel-page.ts` `inputMessage`/`buttonSendMessage`/sidebar input take `:not([inert] *)`.
+- Counters one short ("expected 2, received 1", marker not found): the outgoing channel kept reading while it faded, and a test leaves a channel and sends to it at once. The outgoing view is frozen now and reads what it shows once on freeze (`leave()` in ReverseChannelScrollView), as on destroy before.
+- "New" separator back / opened mid-history after leave+reopen: a quick return reused the still-mounted old view (state of the previous visit). Every switch gets a fresh layer now (layers go by id, not by key).
+- QMS TESTS-161 `div.header intercepts pointer events`: QMS embeds `ThreadView` in an auto-height comment; absolute layers collapsed and overlapped the next comment. The first layer stays in the flow now.
+QMS REQ-10 `getByRole('button', { name: 'um' })` resolving to 19 buttons is unrelated: a one-word faker folder name matches by substring; folder names get a `generateId` suffix (REQ-10, documents, ES-40). See [chat-viewport.md](chat-viewport.md).
+
+## Kanban drag
+
+Everything the drop checks must compare, learned over three rounds:
+
+- **Zone key is `data-swimlane-id|data-state`**, in all three places (`wanted`, the capture-phase `drop` listener, `elementFromPoint`). With swim lanes every lane carries a cell per status, so a drop one lane off matched `data-state` alone and failed later as "attachedTo never changed".
+- **Aim at the column/cell, not at a card inside it.** Blink delivers `drop` to the node of the last `dragover`; Svelte recreates card content on any foreign tx in the same project, the node detaches, and neither `drop` nor `dragend` ever arrives. `visiblePointOf` picks a point with no `[data-id="kanban-card"]` under it, inside the target's intersection with the viewport (a swim lane cell is taller than the 900px viewport, so its centre sits below the fold).
+- **Require a *fresh* `dragover`** (a counter that grew), not a sticky `__dragOverCell`: a stale value from the previous render released the button immediately. 20 nudges with none → "drag session died", not 3s of waiting plus a `page.reload()`.
+- **`__dropSeen` is polled up to 3s** - reading it right after `mouse.up()` beats the event.
+- **Re-measure inside the held drag** (up to 4 times): taking the card out of its own cell rearranges the board, so the target moves after it was measured.
+- `grabCard()` retries the grab three times; `expectCardInColumn` calls `revealCard` first (past a column's limit the card is not in the DOM at all) and `revealCard` round-robins over all "Show more" buttons instead of always expanding the leftmost column.
+- Six status columns need ~2000px: `test.use({ viewport: { width: 2200, height: 1000 } })`.
+- `dragUntilField(read, target, drag)` reads the field *after* the drag, swallows the drag error and polls at `[100, 200, 300, 500]` with a 40s bound - shorter than the test timeout, so the poll gets to report its own error.
+
+## love / LiveKit
+
+LiveKit runs as a **host process** (`tests/run_livekit_test.sh`, port 7890), not a container - only `sanity-livekit-egress-test-1` shows in `docker ps`. Webhooks go back through nginx (`livekit-test-config.yaml` -> `http://127.0.0.1:8083/_love/webhook`).
+
+Product defects found through these tests (details in `docs/memory/love-service-replication.md` and `love_recording_button_stuck.md`):
+
+- **No queue handler may throw on housekeeping.** The consumer retries a failed message in a `while (true)` and the partition is shared by the whole group, so one message that can never succeed blocks every later webhook - measured: 636 webhooks delivered, 0 processed, for 8 runs straight, with wall at 2.5x. `updateMetadata` (LiveKit answers "no response from servers" forever for a room whose node it lost) now logs and returns instead of throwing.
+- **Every meeting is finished twice** (the `room_finished` webhook and polling, ×N replicas). `finishMeeting` now skips an already-`Finished` meeting, and knock invites - which carry only a room - are not dropped when another meeting is already live in that room.
+- **Recording reservation is one `TxApplyIf`** under a per-slot scope, not a `Map` in the process.
+- **ai-bot auto-joins every meeting of a room with `startWithTranscription`**, adding a third avatar and a second audio egress. The suite switches it off once in `beforeAll` (`disableRoomAutoTranscription`); the setting returns after `./prepare-pg.sh`.
+- **`ControlExt.svelte` read `myRoomAttached` outside the reactive statement's dependencies**, so a second tab left the meeting it had just joined. Pass the value as a parameter.
+
+Reproducing love flakes: `--project=Love -g "<title>" --repeat-each 8 --workers 1 --retries 0 --trace on` while a `--project=Platform --workers 5` run loads the machine.
+
+## Stand state
+
+**`restore-pg.sh` does not reset the account DB.** `tests/dotest.sh` calls it before every run of a series after the first, so `sanity-ws`/`meetings-ws` data goes back to seed each time - but the workspaces those runs created in the account DB are not part of what it resets (998 of them once), so they keep piling up across a series regardless. Full reset is `./prepare-pg.sh`. Consequences:
+
+- Tests that mutate seed data work exactly once. `plan.spec.ts` asserts absolute counts on seeded todos, so a leftover slot makes it unpassable rather than flaky.
+- **Accumulated data crosses product render limits.** Measured on an unrestored stand: 431 issues, 91 tags, 48 components, 62 todos, 28 templates - past `TagsPopup`'s 50 and enough to bury a fresh template below the fold. Tests that passed for months start failing with no code change. `plan.spec.ts` and `template.spec.ts` drop their own leftovers in `beforeAll`.
+- love tests share rooms in `meetings-ws`. `waitForActiveMeetingsToFinish` gives up after 20s and logs what was left.
+
+**Only local runs apply `tests/indexes.yaml`** (`dotest.sh:32`, `sync-indexes --apply` after `db-migrator`); CI never does, so an index dropped by a migration but still listed there breaks local runs only - keep the yaml in step with migrations.
+
+**Recreating one container breaks nginx** - it resolves upstreams at startup. `docker restart sanity-nginx-1` after any `--force-recreate`.
+
+## Wall time
+
+**Packing, not just work.** `meetings.all.spec.ts` imports every `love/*.tests.ts` file, so love runs as one sequential job: its own `Love` project (`testMatch: /love\/.*\.spec\.ts/`), scheduled **before** `Platform` (`testIgnore: /love\//`). Both projects now run with `fullyParallel: false` - a config comment records that per-test scheduling and a separate lane for the heavy tracker specs were both measured and lost to this layout.
+
+**Do not parallelise inside love.** `waitForActiveMeetingsToFinish` force-finishes every `MeetingMinutes` and deletes every `ParticipantInfo`/`UserMeetingInvite` in the workspace (no room filter), then waits until none are left - two love files in parallel kill each other's meetings. `meetings.start.tests.ts` has no cleanup at all and only works because the aggregator runs it first.
+
+Where the time went on a clean 5-worker run (1054s of step time over ~250s wall):
+
+| block | cost |
+|---|---|
+| UI login (form + workspace picker) | 87.9s over 80 tests |
+| in-app switch clicks | ~131s, 51.7s of it the *opening* navigation |
+| `page.waitForTimeout` | 56.6s in 118 calls |
+| `tab-all` (`clickModelSelectorAll`) | 40.2s in 122 |
+| love widget waits | 60s |
+
+- **Token login instead of the form.** `loginByToken` / `createAccountAndWorkspace` in `utils.ts`: form + picker ~1.1s, token + `goto /workbench/<ws>` **490ms**, the app segment only ~55ms more. Eleven specs converted: login-form steps 160 → 56.
+- **Open an app from the url, not the sidebar** - an opening click cost ~913ms against ~55ms. Pick the alias of the *first* step needed, not of the file's name.
+- **Clicking the icon of an app already open toggles the navigator shut**, and every later lookup in it waits out its timeout. `LeftSideMenuPage.openApp` returns early when the url already names the app. Same shape one level down: a navigator group renders a moment after the app, and an `isVisible()` read in that gap makes the caller press the hamburger and hide the panel it wanted.
+- **`Promise.race` of two `waitFor`s bills the loser** - 98.8s over 9 sign-ups. Use `expect.poll`.
+- **Tracing every attempt roughly doubles a local run** (17.9MB per kept trace). Default is `on-first-retry`; `TRACE_MODE=retain-on-failure` only when chasing a flake.
+- **Context reuse was tried twice and removed - do not reach for it again.** A single shared context gives half the suite the wrong user (53 specs declare their own `storageState`). A pool keyed by context options is correct on two specs (896 → 130 requests) and gives *exactly the same* wall time; the full suite then went 363 passed / 23 failed in 8.3m against 386 passed in 4.9m. What leaks is not storage but the live websocket session of the page kept open to write localStorage, which workspace tests see as an extra participant.
+- **4 workers on `ubuntu-latest` buy exactly nothing.** Work went 3159s → 5899s and every action's p50 doubled while wall stayed at 1744s vs 1813s - 4 vCPU with the whole 34-container stand is saturated at 2 workers. `workers` left unset (cores/2).
+- Browser cache is per BrowserContext (fresh context 6 `bundle*` hits, new page in it 0). `step-reporter.ts` is not a cost (18836 rows / 4MB).
+
+**Issue as a fixture goes through the API** (`createIssueWithDescription`, `prepareNewIssueByApiStep` / `prepareNewIssueWithOpenByApiStep`): ~0.1s write + ~0.3s until the search shows the row, against ~1s for the form on an idle stand (more under load). The description must be uploaded first (`RestClient.uploadMarkup`, collaborator endpoint from `workspaceToken.info`) - `description: null` renders empty. Keep the form where the test reads what it sets (labels, estimate, assignee) or uses a custom task type (`labels.spec` third test).
+
+**`sharedWorkspace(n)` with n>0 per test recycles the workspace every few tests** (~5.5s each): take a seat once
+per workspace and reuse the REST member (`others` map, as in chat-unread), `$pull` it from the channel on dispose.
+
+**Test duration minus depth-0 steps (~220s of ~2150s per run) was REST and polling that no step covered.** Runs 175120/175900: 228s/218s, of it chat-unread 66/58, chat-notifications 31/25, threads-list 26/31, inbox-notifications 16/18, billing-ui 14/15, chat 11/12, plan-limits-extra 8/12, plan-trial 7/8, `meetings.scheduled-links` 14.6 (one deliberate 14s `setTimeout` for a poll cycle). `ChatApi` methods, `Billing` helpers and `ApiEndpoint.createWorkspaceWithLogin/waitWorkspaceReady` are now `test.step`s (`ChatApi.*`, `Billing.*`, `ApiEndpoint.*`) and the gap is ~0 in every file; `ChatApi.send` shows twice (nested under `sendMessage`/`reply`), and steps of a `Promise.all` overlap, so their sum exceeds the test time. Quiet stand, chat-unread + threads-list: `sendMessage` 405 calls 28.5s (avg 70-85ms, floor 30ms), threads `reply` 6.4s, `joinWorkspace` 7.7s over 9 (0.86s, 1.3s of it `ensureEmployee`), `addMember` 3.9s, `readEverything` 3.3s (93ms). No waste per call: `RestClient` is one `fetch` per call, `getModel` is never called, `connect` is one `getAccount` (~18ms). The cost is server latency times call count, and only fewer or concurrent calls cut it - sequential `sendMany` must stay sequential (arrival order is the assertion), parallel parents in `threads-list.createThreads` gave no measurable gain (server serialises the writes) and was dropped. Billing/trial specs: the gap is `waitWorkspaceReady` (~130 polls of 35ms POST + 100ms sleep = 13-17s on a loaded stand) - workspace build time, not removable from the test. Only trimmed: the `createEmployee` retry pause 1000 -> 200ms, same 4s budget (`createEmployee` 18.4s -> 15.0s over 14 joins). Measurements on a shared stand are unusable at load average >10 (`sendMessage` avg 70ms -> 400-800ms, wall 37s -> 60-150s, notification-marker waits of 1-3s then fail): check `sysctl -n vm.loadavg` and other `playwright test` processes before comparing wall. The `ChatMember` method wrapper (`ChatApi.sendMessage`, `reply`, ...) was removed afterwards: `work` in `collect-run.js` sums depth-0 steps without merging overlaps, and the `Promise.all` of ~100 `sendMessage`/`reply` calls in chat-unread made each call a separate depth-0 step, +500s of phantom work. Only `connect`, `joinWorkspace` (with substeps) and `openMemberPage` stay as steps.
+
+## Fixed pauses (`waitForTimeout`) - what was replaced, what stays
+
+Replaced:
+- `SpotlightPopup.fillSearchInput` 500ms after every fill (16 calls, 8s per run): a positive count retries itself in `toPass`, so only `checkSearchResult(..., 0)` keeps a 500ms settle (absence passes before the query is answered), and only when a query is typed. The extra 500ms in the retype catch is gone - `toPass` intervals already wait longer.
+- `selectFilter('Title')` 500ms: waits for the first row's title to contain the filter text.
+
+Kept, with the reason (a condition would be a guess):
+- `editIssue` estimation 500ms (7s per run): the optimistic value reverts ~70ms later when an earlier update is in flight - no DOM signal; a REST read costs three round trips (config, login, token) per call.
+- `selectProfileByName` 1000ms: dropping it failed `update-profile` 3/8 under `--repeat-each 8` (baseline 8/8). `addOrEditPhone` reads `.search` with `count()` right after the page opens and takes "channels not rendered yet" for "no phone".
+- `addRandomLines` 100ms: tiptap typography turns a digit-x-digit run (`1x5`) into the multiplication sign (U+00D7), so waiting for the typed text fails on random lines.
+- Absence checks that are the point of the test: context-menu submenu must not reopen (500ms), kanban "drop into same cell" (2000ms), thread order "nothing moves it back" (1500ms).
+- Kanban drag/`revealCard` 50-300ms: poll intervals inside loops that already test their own condition; under 1s per run in total.
+- `openSubmenu` 3x100ms: MouseSpeedTracker needs slow mouse movement by definition.
+
+## Tooling traps
+
+- `pnpm build:lint` can report `errors 0` for a package served from `.fast-build-cache.json` and never linted. The real check is `npx eslint "tests/**/*.ts"` from inside `tests/sanity` - the glob is required, a plain `tests/` path is rejected.
+- `--reporter=line` **replaces** the reporter list: no `step-report.ndjson`, no `playwright-report.json`. Use `pnpm run uitest:telemetry` for a measured run and `pnpm run uitest:series [N] [args]` for a series.
+- `node telemetry/selftest.js` checks how a stopped run is classified - run it after touching `collect-run.js` or `stability.js`.
+- **End a series early with `touch runs/.stop`**: the current run finishes whole and the series stops before the next one. Ctrl-C reaches Playwright too, so that run ends partial - its in-flight tests come back `interrupted`, `run.json` gets `partial: true`, and `stability.js` prints the row but leaves it out of the tally.
+- A killed run used to copy the *previous* run's `playwright-report.json`, since both reports are written at the end and the file sits in the suite root. `run.sh` now deletes them up front, so a run that never got that far reports nothing instead of someone else's numbers.
+- love files are `*.tests.ts`; a path argument gives `No tests found`, select with `-g`.
+- `@llm` and `@network` are excluded from normal runs (`--grep-invert`), so they never appear in a series - and `@llm` needs a model server on host port 8000 or the bot fails in ~7s.
+- `workflow-settings.spec.ts` is a serial describe - one flake re-runs the whole block, so every test in the file gets a `-retry1` folder while only one is reported flaky.
+- `--repeat-each` on `kanban.spec.ts` gives false failures. Not view options: they go to localStorage (`plugins/view-resources/src/viewOptions.ts:59`) and every test gets its own context from `.auth/storage.json`. Cause not reproduced; from code: all copies work in the same `DefaultProject`, so tests that look at board columns and counters see issues of neighbour copies in other workers (`titlePrefix` differs per worker process, so it is not a shared prefix).
+- `love/*` timings swing by tens of seconds run to run (LiveKit on a Mac host); compare per-file deltas, not totals.
+- A `test.skip()` that depends on stand state changes the passed count without failing anything: run 20260917-123206 came out 415 instead of 417 because two `meetings.start` tests hit `test.skip(name === null, 'No regular room available')` - every room was busy at that moment.
+- A retry attempt can die with `End of central directory record signature not found` - the trace zip of the previous attempt was still being written. Playwright's own artefact race, not the test.
+- Wall time drifts up across a series (346 → 402s over 10 runs) because workspace data accumulates, not because of any one fix.
+
+## Dead time found in run 20261005-104540
+
+- `PlanningPage.setTimeSlot`, not `typeTime`: the five 3s `toHaveText` steps are the end-time check (`endShown`) after saving the end in the date popup. `typeTime` never failed. After the start time is typed, the end display flips to 12:00 at ~330ms and back at ~400-650ms (stale echo of the start edit; no DOM signal for it), and an end saved in that window is lost until the retry. A stability wait would cost >=1s on all 17 calls per run vs 5 failures, so the first check now times out at 1000ms (a good save shows in <300ms): ~2s saved per hit.
+- `getInviteLink` waited 5s for `appHeader`, which a fresh workspace never renders (`workspace/create.spec.ts` x2, 5005ms each); it now waits for `#profile-button`, which the toPass below clicks anyway. Join-link tests 4.0s/4.3s after.
+- `auth.setup.ts`: three tests ran on one worker (~1.2s each); `describe.configure({ mode: 'parallel' })`, setup 3 passed in 2.9s on 3 workers.
+- Re-running plan.spec many times (and `--repeat-each`) piles up `Plan work for several days-*` todos, and `Add several slots for the same day` then goes missing from the "All" list (todo is in the DB; fails the same on the original code). Needs a stand restore.

@@ -1,72 +1,551 @@
-//
-// Copyright © 2022 Hardcore Engineering Inc.
-//
-// Licensed under the Eclipse Public License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License. You may
-// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
+/**
+ Copyright © 2026 Intabia Fusion.
 
-/**
- * @public
- * Callback to inform of a value updates.
- */
-export declare type Subscriber<T> = (value: T) => void
+ Licensed under the Eclipse Public License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License. You may
+ obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
 
-/**
- * @public
- * Unsubscribes from value updates. */
-export declare type Unsubscriber = () => void
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
-/**
- * @public
- * Callback to update a value.
+ See the License for the specific language governing permissions and
+ limitations under the License.
  */
-export declare type Updater<T> = (value: T) => T
 
-/**
- * @public
- * Cleanup logic callback.
- */
-export declare type Invalidator<T> = (value?: T) => void
-/**
- * @public
- * Start and stop notification callbacks.
- */
-// eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-export declare type StartStopNotifier<T> = (set: Subscriber<T>) => Unsubscriber | void
+import { type Asset, IntlString, type Resource } from '@hcengineering/platform'
+import {
+  Class,
+  Doc,
+  PersonId,
+  Ref,
+  AccountUuid,
+  DocumentQuery,
+  AnyAttribute,
+  Tx,
+  Type,
+  BlobType,
+  Timestamp,
+  Markup,
+  Space,
+  WorkspaceUuid,
+  AttachedDoc,
+  type TxOperations
+} from '@hcengineering/core'
+import { AnyComponent, Location } from '@hcengineering/ui'
+import { ActivityMessage, ActivityMessageLite, Reaction } from '@hcengineering/activity'
+import { Preference } from '@hcengineering/preference'
+import { PersonSpace } from '@hcengineering/contact'
+import { Readable } from 'svelte/store'
 
-/**
- * @public
- * Readable interface for subscribing.
- */
-export interface Readable<T> {
-  /**
-   * Subscribe on value changes.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-  subscribe: (this: void, run: Subscriber<T>, invalidate?: Invalidator<T>) => Unsubscriber
+export interface AppPushNotification extends Doc, NotificationIntl {
+  account: AccountUuid
+  onClickLocation: Location
+  sender: PersonId
+  tag: string
+  messageId?: Ref<ActivityMessage>
+  objectId: Ref<Doc>
+  objectClass: Ref<Class<Doc>>
+  soundAlert: boolean
 }
+
+export interface PushData {
+  tag?: string
+  title: string
+  body: string
+  icon?: string
+  domain?: string
+  url?: string
+  objectId?: Ref<Doc>
+  objectClass?: Ref<Class<Doc>>
+  createdOn?: Timestamp
+  group?: Ref<Doc>
+  workspace?: WorkspaceUuid
+}
+
 /**
- * @public
- * Writable interface for both updating and subscribing.
- *
+ * Sent to the native apps when the person read the document elsewhere: the notifications
+ * listed in `tags`, and any other about `objectId` created at or before `readUpTo`, are gone.
+ * A `readUpTo` of zero names nothing beyond the tags (a read of reactions, mentions or commons).
  */
-export interface Writable<T> extends Readable<T> {
-  /**
-   * Set value and inform subscribers.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-  set: (this: void, value: T) => void
-  /**
-   * Update value using callback and inform subscribers.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-  update: (this: void, updater: Updater<T>) => void
+export interface PushDismissData {
+  kind: 'dismiss'
+  objectId: Ref<Doc>
+  objectClass: Ref<Class<Doc>>
+  tags: string[]
+  readUpTo: Timestamp
+}
+
+/**
+ * Sent to the native apps when the person read or cleared the whole inbox elsewhere: every
+ * notification of `workspace` created at or before `readUpTo` is gone.
+ */
+export interface PushDismissAllData {
+  kind: 'dismiss-all'
+  workspace: WorkspaceUuid
+  readUpTo: Timestamp
+}
+
+/**
+ * The incoming call a push rings the phone with: a meeting invite or a knock. `inviteId` is the
+ * invite the receiver answers; past `expiresAt` the phone must not ring.
+ */
+export interface PushCallData {
+  inviteId: Ref<Doc>
+  meetingId?: Ref<Doc>
+  roomId?: Ref<Doc>
+  callerName: string
+  callerPerson: Ref<Doc>
+  expiresAt: Timestamp
+}
+
+export interface PushSubscriptionKeys {
+  p256dh: string
+  auth: string
+}
+
+export interface PushSubscription extends Doc {
+  user: AccountUuid
+  endpoint: string
+  keys: PushSubscriptionKeys
+  name?: string
+}
+
+export interface PushSubscriptionSetting extends Preference {
+  attachedTo: Ref<PushSubscription>
+  enabled: boolean
+}
+
+export interface NotificationGroup extends Doc {
+  label: IntlString
+  icon: Asset
+  parent?: Ref<NotificationGroup>
+  objectClass?: Ref<Class<Doc>> // used for autogenerated settings
+  order?: number
+}
+
+export interface NotificationPreferencesGroup extends Doc {
+  label: IntlString
+  icon: Asset
+  presenter: AnyComponent
+}
+
+export interface NotificationTemplate {
+  text: IntlString
+  html: IntlString
+  subject: IntlString
+}
+
+export interface NotificationType extends Doc {
+  group: Ref<NotificationGroup>
+  subGroup?: Ref<NotificationGroup>
+
+  generated: boolean
+  hidden: boolean
+
+  label: IntlString
+  templates?: NotificationTemplate
+
+  defaultEnabled: boolean
+
+  objectClass: Ref<Class<Doc>>
+  attachedToClass?: Ref<Class<Doc>>
+
+  notifyAuthor?: boolean
+
+  priority?: number
+
+  notificationMessage?: IntlString
+  isMention?: boolean
+}
+
+export interface MessageNotificationType<T extends ActivityMessage = ActivityMessage> extends NotificationType {
+  messageClass: Ref<Class<T>>
+  attachedToClass: Ref<Class<Doc>>
+  match?: DocumentQuery<T>
+
+  // Use for DocUpdateMessage
+  field?: string
+  attribute?: Ref<AnyAttribute>
+}
+
+export interface TxNotificationType extends NotificationType {
+  txClasses: Ref<Class<Tx>>[]
+  field?: string
+  attrTypes?: Ref<Class<Type<Doc>>>[]
+  match?: DocumentQuery<Tx>
+  attachToParent?: boolean
+}
+
+export interface NotificationProvider extends Doc {
+  label: IntlString
+  description: IntlString
+  icon: Asset
+  defaultEnabled: boolean
+  depends?: Ref<NotificationProvider>
+  canDisable: boolean
+  ignoreAll?: boolean
+  order: number
+  presenter?: AnyComponent
+  isAvailableFn?: Resource<() => boolean>
+  holdMs?: number
+}
+
+export interface NotificationProviderDefaults extends Doc {
+  provider: Ref<NotificationProvider>
+  excludeIgnore?: Ref<NotificationType>[]
+  ignoredTypes: Ref<NotificationType>[]
+  enabledTypes: Ref<NotificationType>[]
+}
+
+export interface NotificationProviderSetting extends Preference {
+  attachedTo: Ref<NotificationProvider>
+  enabled: boolean
+  holdMs?: number
+}
+
+export interface NotificationTypeSetting extends Preference {
+  attachedTo: Ref<NotificationProvider>
+  type: Ref<NotificationType>
+  enabled: boolean
+}
+
+export interface NotificationObjectPresenter extends Class<Doc> {
+  presenter: AnyComponent
+}
+
+export interface NotificationPreview extends Class<Doc> {
+  presenter: AnyComponent
+}
+
+export interface NotificationContextPresenter extends Class<Doc> {
+  labelPresenter?: AnyComponent
+}
+
+export interface DocNotifyContext<T extends Doc = Doc> extends Doc<PersonSpace> {
+  user: AccountUuid
+
+  // Context
+  objectId: Ref<T>
+  objectClass: Ref<Class<T>>
+  objectSpace: Ref<Space>
+
+  // Data to display object in inbox without requests
+  objectTitle: string
+  objectIdentifier?: string
+  objectLabel?: IntlString
+  objectIcon?: { asset?: Asset, emoji?: number | number[], props?: Record<string, any> }
+  // Used for threads only to show message
+  object?: Partial<T>
+
+  // Parent Context (e.g. for threads/attached to a main object)
+  parentObjectId?: Ref<Doc>
+  parentObjectClass?: Ref<Class<Doc>>
+  parentObjectTitle?: string
+  parentObjectIdentifier?: string
+  parentObjectLabel?: IntlString
+  parentObjectIcon?: { asset?: Asset, emoji?: number | number[], props?: Record<string, any> }
+
+  lastNotify: Timestamp
+  latestNotifications: ContextNotification[] // store n latest notifications to show in inbox
+
+  unreadReactions: UnreadReaction[] // store unread reaction notifications
+  unreadMentions: UnreadMention[] // store unread mentions NOT in messages (collaborative content)
+  unreadMessages: UnreadMessage[] // unified timeline of unread messages and chunks
+  unreadCommons: CommonNotification[] // store unread common notifications
+
+  // Items that reached the inbox: messages marked `notified`, reactions, mentions, commons. Drives the inbox badge.
+  unreadCount: number
+  // Every unread chat message of the context. Drives the chat badges;
+  // service keeps it equal to the total of `unreadMessages`.
+  unreadMessagesCount: number
+  notifiedMessagesCount: number
+}
+
+export type ContextNotification = MessageNotification | ReactionNotification | MentionNotification | CommonNotification
+
+export type UnreadContext = Pick<
+  DocNotifyContext,
+  '_id' | 'objectId' | 'objectClass' | 'unreadCount' | 'unreadMessagesCount' | 'notifiedMessagesCount' | 'modifiedOn'
+>
+export type NotificationMessage<T extends ActivityMessage = ActivityMessage> = ActivityMessageLite<T>
+
+export interface MessageNotification<T extends ActivityMessage = ActivityMessage> {
+  type: 'message'
+  id: Ref<T>
+
+  messageId: Ref<ActivityMessage>
+  message: NotificationMessage<T>
+  // The embedded message carries an excerpt; the full text lives in the chat.
+  truncated?: boolean
+  intlMessage?: IntlString
+
+  attachments?: BlobType[]
+
+  createdBy: PersonId
+  createdOn: Timestamp
+}
+
+export interface ReactionNotification {
+  type: 'reaction'
+  id: Ref<Reaction>
+
+  messageId: Ref<ActivityMessage>
+  message: NotificationMessage
+  truncated?: boolean
+  attachments?: BlobType[]
+  reaction: Reaction
+
+  createdBy: PersonId
+  createdOn: Timestamp
+}
+
+export interface MentionNotification {
+  type: 'mention'
+  id: string
+
+  messageId?: Ref<ActivityMessage>
+
+  markup: Markup
+  // `markup` is an excerpt of the mentioning message.
+  truncated?: boolean
+  attachments?: BlobType[]
+
+  createdBy: PersonId
+  createdOn: Timestamp
+}
+
+export interface CommonNotification {
+  type: 'common'
+  id: string
+
+  header?: {
+    objectId?: Ref<Doc>
+    objectClass?: Ref<Class<Doc>>
+    titleIntl: IntlString
+    icon?: Asset
+  }
+
+  messageIntl?: IntlString
+  intlParams?: Record<string, string | number>
+  intlParamsNotLocalized?: Record<string, IntlString>
+
+  markup?: Markup
+
+  icon?: Asset
+  iconProps?: Record<string, any>
+
+  createdBy: PersonId
+  createdOn: Timestamp
+}
+
+export interface UnreadMessageId {
+  id: Ref<ActivityMessage>
+  createdOn: Timestamp
+  notified?: boolean
+  mentioned?: boolean
+}
+
+export interface UnreadMessageChunk {
+  from: Timestamp
+  to: Timestamp
+  count: number
+  notifiedCount?: number
+}
+
+export type UnreadMessage = UnreadMessageId | UnreadMessageChunk
+
+export interface UnreadMention {
+  id: string
+}
+
+export interface UnreadReaction {
+  id: Ref<Reaction>
+  attachedTo: Ref<ActivityMessage>
+}
+
+interface QueueMessageBase {
+  id: string
+  account: AccountUuid
+
+  objectId: Ref<Doc>
+  objectClass: Ref<Class<Doc>>
+  objectSpace: Ref<Space>
+
+  pushSubscriptions: PushSubscription[]
+}
+
+/** A notification to deliver: push, mail, whatever `providers` lists. */
+export interface QueueNotifyMessage extends QueueMessageBase {
+  // Absent in messages produced before the dismiss kind existed.
+  kind?: 'notify'
+  title: string
+  body: string
+  language: string
+
+  domain: string
+  url: string
+
+  group?: Ref<Doc>
+
+  template?: { subject: string, text: string, html: string }
+
+  // Set for a call: the phones ring instead of showing a banner.
+  call?: PushCallData
+
+  providers: Record<Ref<NotificationProvider>, Ref<NotificationType>[]>
+  createdOn: Timestamp
+}
+
+/**
+ * The dismiss for the native apps in `pushSubscriptions` (the keys as in PushDismissData). Web
+ * push is never dismissed: a push that shows nothing makes Chrome show its own notice.
+ */
+export interface QueueDismissMessage extends QueueMessageBase {
+  kind: 'dismiss'
+  tags: string[]
+  readUpTo: Timestamp
+}
+
+/** The call `objectId` names was answered, declined or cancelled: the phones stop ringing. */
+export interface QueueCallCancelMessage extends QueueMessageBase {
+  kind: 'call-cancel'
+}
+
+export interface QueueDismissAllMessage {
+  kind: 'dismiss-all'
+  id: string
+  account: AccountUuid
+  pushSubscriptions: PushSubscription[]
+  readUpTo: Timestamp
+}
+
+export type QueueNotificationMessage =
+  | QueueNotifyMessage
+  | QueueDismissMessage
+  | QueueDismissAllMessage
+  | QueueCallCancelMessage
+
+export interface NotificationIntl {
+  titleIntl: IntlString
+  bodyIntl: IntlString
+  intlParams: { senderName?: string, title?: string, identifier?: string, url?: string } & Record<
+    string,
+    string | number
+  >
+  intlParamsNotLocalized?: Record<string, IntlString>
+}
+
+export type DocNotificationMode = 'all' | 'mentions' | 'mute'
+
+export interface DocNotificationSetting extends Preference {
+  attachedTo: Ref<Doc>
+  attachedToClass: Ref<Class<Doc>>
+  account: AccountUuid
+  mode?: DocNotificationMode
+}
+
+export interface ReadState extends AttachedDoc {
+  latestMessageId?: Ref<ActivityMessage>
+  latestMessageTimestamp?: Timestamp
+  [key: AccountUuid]: ReadPosition
+}
+
+export interface ReadPosition {
+  messageId: Ref<ActivityMessage>
+  timestamp: Timestamp
+}
+
+export interface ActivityNotificationViewlet extends Doc {
+  messageMatch: DocumentQuery<ActivityMessageLite>
+  presenter: AnyComponent
+}
+
+export type NotifyFunc = (title: string, body: string, _id?: string, onClick?: () => void) => void
+
+export interface NotificationAppearancePreference extends Preference {
+  showChatBadge: boolean
+}
+
+export type NotificationsClientFactory = () => NotificationClient
+
+export interface NotificationClient {
+  totalUnreadCount: Readable<number>
+
+  clearingAllInbox: Readable<boolean>
+  readingAllInbox: Readable<boolean>
+
+  contextByDoc: Readable<Map<Ref<Doc>, DocNotifyContext | null>>
+  contextById: Readable<Map<Ref<DocNotifyContext>, DocNotifyContext | null>>
+  // Every context of the user with unread items, by document.
+  unreadByDoc: Readable<Map<Ref<Doc>, UnreadContext>>
+  setDocReading: (doc: Ref<Doc>, reading: boolean, reader?: unknown) => void
+
+  docSettingByDoc: Readable<Map<Ref<Doc>, DocNotificationSetting | null>>
+
+  readStateByDoc: Readable<Map<Ref<Doc>, ReadState | null>>
+
+  readDoc: (_id: Ref<Doc>) => Promise<void>
+  forceReadDoc: (doc: Doc) => Promise<void>
+  forceReadDocState: (attachedTo: Ref<Doc>, op?: TxOperations) => Promise<boolean>
+
+  readNotificationsWithoutMessage: (_id: Ref<Doc>) => Promise<void>
+
+  clearAll: () => Promise<void>
+  readAll: () => Promise<void>
+
+  getReadState: (attachedTo: Ref<Doc>) => Promise<ReadState | undefined>
+  loadReadState: (attachedTo: Ref<Doc>) => Promise<void>
+
+  getDocSetting: (attachedTo: Ref<Doc>) => Promise<DocNotificationSetting | undefined>
+  loadDocSetting: (attachedTo: Ref<Doc>) => Promise<void>
+
+  loadContextsById: (_id: Ref<DocNotifyContext>[]) => Promise<void>
+  loadContextById: (_id: Ref<DocNotifyContext>) => Promise<void>
+  getContextsById: (_id: Ref<DocNotifyContext>[]) => Promise<DocNotifyContext[]>
+  getContextById: (_id: Ref<DocNotifyContext>) => Promise<DocNotifyContext | undefined>
+
+  loadContextsByDoc: (docs: Ref<Doc>[]) => Promise<void>
+  loadContextByDoc: (doc?: Ref<Doc>) => Promise<void>
+  getContextsByDoc: (docs: Ref<Doc>[]) => Promise<DocNotifyContext[]>
+  getContextByDoc: (doc?: Ref<Doc>) => Promise<DocNotifyContext | undefined>
+}
+
+export type CommonNotificationLite = Omit<
+  CommonNotification,
+  'id' | 'type' | 'createdOn' | 'createdBy' | 'intlParamsNotLocalized' | 'intlParams'
+>
+
+export interface ReadNotificationAction extends Doc<PersonSpace> {
+  attachedTo: Ref<Doc>
+  attachedToClass: Ref<Class<Doc>>
+  account: AccountUuid
+
+  reactionIds?: Ref<Reaction>[]
+  messageIds?: Ref<ActivityMessage>[]
+  commonIds?: string[]
+  mentionIds?: string[]
+}
+
+export interface ReadAllNotificationAction extends Doc<PersonSpace> {
+  account: AccountUuid
+}
+
+export interface ClearAllNotificationAction extends Doc<PersonSpace> {
+  account: AccountUuid
+}
+
+export interface InboxChangeEvent extends Doc<PersonSpace> {
+  account: AccountUuid
+}
+
+export interface CreateNotificationAction extends Doc<PersonSpace> {
+  attachedTo: Ref<Doc>
+  attachedToClass: Ref<Class<Doc>>
+  account: AccountUuid
+
+  type?: Ref<NotificationType>
+  notification: CommonNotificationLite
+  intl?: Partial<NotificationIntl>
+  call?: PushCallData
 }

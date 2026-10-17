@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Employee } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import type { Class, DocumentQuery, Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { showPopup } from '@hcengineering/ui'
@@ -37,8 +38,8 @@
   export let limit: number = 6
   export let hideLimit: boolean = false
 
-  let persons: Employee[] = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined) as Employee[]
-  $: persons = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined) as Employee[]
+  let persons: Employee[] = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined)
+  $: persons = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined)
 
   const dispatch = createEventDispatcher()
 

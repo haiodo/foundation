@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -32,13 +33,29 @@ export function genRanks (count: number): Rank[] {
   return res
 }
 
+/**
+ * Normalize a legacy rank or id string into a canonical LexoRank.
+ * A non-canonical fallback (plain '0|'+id) sorts inconsistently against
+ * makeRank output, which breaks drag reorder - canonicalize so both agree.
+ * @public
+ */
+export function toRank (str: string | undefined): Rank | undefined {
+  if (str === undefined) return
+  const raw = str.startsWith('0|') ? str : '0|' + str.replaceAll(/[-:_]/g, '').toLowerCase()
+  try {
+    return LexoRank.parse(raw).toString()
+  } catch {
+    return raw
+  }
+}
+
 /** @public */
 export function makeRank (prev: Rank | undefined, next: Rank | undefined): Rank {
   try {
-    if (prev != null && prev.trim() === '') {
+    if (prev?.trim() === '') {
       prev = undefined
     }
-    if (next != null && next.trim() === '') {
+    if (next?.trim() === '') {
       next = undefined
     }
     if (prev !== undefined && next !== undefined) {

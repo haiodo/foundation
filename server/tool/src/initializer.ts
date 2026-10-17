@@ -150,23 +150,25 @@ export class WorkspaceInitializer {
     for (let index = 0; index < script.steps.length; index++) {
       try {
         const step = script.steps[index]
-        if (step.type === 'default') {
-          await this.processDefault(step, defaults)
-        } else if (step.type === 'create') {
-          await this.processCreate(step, vars, defaults)
-        } else if (step.type === 'update') {
-          await this.processUpdate(step, vars)
-        } else if (step.type === 'bulkUpdate') {
-          await this.processBulkUpdate(step, vars)
-        } else if (step.type === 'mixin') {
-          await this.processMixin(step, vars)
-        } else if (step.type === 'find') {
-          await this.processFind(step, vars)
-        } else if (step.type === 'upload') {
-          await this.processUpload(step, vars, logger)
-        } else if (step.type === 'import') {
-          await this.processImport(step, vars, logger)
-        }
+        await this.ctx.with(`init-step-${step.type}`, {}, async () => {
+          if (step.type === 'default') {
+            await this.processDefault(step, defaults)
+          } else if (step.type === 'create') {
+            await this.processCreate(step, vars, defaults)
+          } else if (step.type === 'update') {
+            await this.processUpdate(step, vars)
+          } else if (step.type === 'bulkUpdate') {
+            await this.processBulkUpdate(step, vars)
+          } else if (step.type === 'mixin') {
+            await this.processMixin(step, vars)
+          } else if (step.type === 'find') {
+            await this.processFind(step, vars)
+          } else if (step.type === 'upload') {
+            await this.processUpload(step, vars, logger)
+          } else if (step.type === 'import') {
+            await this.processImport(step, vars, logger)
+          }
+        })
 
         await progress(Math.round(((index + 1) * 100) / script.steps.length))
       } catch (error) {
@@ -239,7 +241,7 @@ export class WorkspaceInitializer {
     if (_id === undefined || space === undefined) {
       throw new Error('Update step must have _id and space')
     }
-    await this.client.updateDoc(step._class, space, _id as Ref<Doc>, props)
+    await this.client.updateDoc(step._class, space, _id, props)
   }
 
   private async processBulkUpdate<T extends Doc>(step: BulkUpdateStep<T>, vars: Record<string, any>): Promise<void> {

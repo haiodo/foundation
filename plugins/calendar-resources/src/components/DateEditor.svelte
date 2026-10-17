@@ -13,10 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import type { ButtonBaseKind, ButtonBaseSize } from '@hcengineering/ui'
   import ui, {
-    ButtonBase,
-    ButtonBaseKind,
-    ButtonBaseSize,
     DatePopup,
     SimpleDatePopup,
     TimeInputBox,
@@ -25,6 +23,7 @@
     getUserTimezone,
     showPopup
   } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { FixedColumn } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import DateLocalePresenter from './DateLocalePresenter.svelte'
@@ -91,19 +90,19 @@
   {#if showDate || withoutTime}
     {#if fixed === undefined}
       <div class="min-w-28">
-        <ButtonBase type="type-button" {kind} {size} {disabled} {focusIndex} on:click={dateClick}>
+        <Button {kind} {size} {disabled} {focusIndex} data-id="btnDateEditorDate" on:click={dateClick}>
           <span class="overflow-label tertiary-textColor">
             <DateLocalePresenter date={currentDate.getTime()} {timeZone} />
           </span>
-        </ButtonBase>
+        </Button>
       </div>
     {:else}
-      <FixedColumn key={fixed + '-date'} addClass={'min-w-28'}>
-        <ButtonBase type="type-button" {kind} {size} {disabled} {focusIndex} on:click={dateClick}>
+      <FixedColumn key={fixed + '-date'} addClass="min-w-28">
+        <Button {kind} {size} {disabled} {focusIndex} data-id="btnDateEditorDate" on:click={dateClick}>
           <span class="overflow-label tertiary-textColor">
             <DateLocalePresenter date={currentDate.getTime()} {timeZone} />
           </span>
-        </ButtonBase>
+        </Button>
       </FixedColumn>
     {/if}
   {/if}
@@ -128,14 +127,14 @@
           bind:currentDate
           {timeZone}
           noBorder
-          size={'small'}
+          size="small"
           on:update={(date) => {
             updateTime(date.detail)
           }}
         />
       </div>
     {:else}
-      <FixedColumn key={fixed + '-time'} addClass={'min-w-28'}>
+      <FixedColumn key={fixed + '-time'} addClass="min-w-28">
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
         <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -150,7 +149,7 @@
             bind:currentDate
             {timeZone}
             noBorder
-            size={'small'}
+            size="small"
             on:update={(date) => {
               updateTime(date.detail)
             }}
@@ -168,7 +167,7 @@
       <TimeShiftPresenter value={date - difference} exact />
     </div>
   {:else}
-    <FixedColumn key={fixed + '-duration'} addClass={'p-2 font-regular-14'}>
+    <FixedColumn key={fixed + '-duration'} addClass="p-2 font-regular-14">
       <TimeShiftPresenter value={date - difference} exact />
     </FixedColumn>
   {/if}

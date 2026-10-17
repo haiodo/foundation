@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type MicState } from '@hcengineering/media'
+  import type { MicState } from '@hcengineering/media'
   import { Icon, tooltip } from '@hcengineering/ui'
 
   import media from '../plugin'
@@ -31,6 +31,6 @@
     use:tooltip={{ label: state.enabled ? media.string.TurnOffMic : media.string.TurnOnMic, direction: 'bottom' }}
     on:click={toggleMicState}
   >
-    <Icon icon={state.enabled ? IconMicOn : IconMicOff} size={'small'} />
+    <Icon icon={state.enabled ? IconMicOn : IconMicOff} size="small" />
   </button>
 {/if}

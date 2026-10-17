@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import hr, { Request, RequestType } from '@hcengineering/hr'
+  import type { Request, RequestType } from '@hcengineering/hr'
+  import hr from '@hcengineering/hr'
   import { getClient } from '@hcengineering/presentation'
   import { jsonToText, markupToJSON } from '@hcengineering/text'
   import { Icon, Label, closeTooltip } from '@hcengineering/ui'
@@ -61,7 +62,7 @@
     >
       <Icon
         icon={type.icon}
-        size={'small'}
+        size="small"
         fill={available ? 'var(--highlight-blue-01)' : 'var(--primary-color-orange-02)'}
       />
 

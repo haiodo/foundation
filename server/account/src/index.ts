@@ -20,5 +20,9 @@ export * from './plugin'
 export * from './utils'
 export * from './types'
 export * from './region-config'
-export type { MongoAccountDB } from './collections/mongo'
+export * from './freeLimits'
+export { createManualSubscription } from './serviceOperations'
+export * from './adminOp'
+export * from './deletion'
+
 export default accountPlugin

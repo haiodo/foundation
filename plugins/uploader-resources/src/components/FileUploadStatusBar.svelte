@@ -16,7 +16,7 @@
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { ProgressCircle, showPopup, tooltip } from '@hcengineering/ui'
 
-  import { type Upload } from '../store'
+  import type { Upload } from '../store'
 
   import IconError from './icons/Error.svelte'
   import FileUploadStatusPopup from './FileUploadStatusPopup.svelte'
@@ -37,9 +37,9 @@
   use:tooltip={upload.error !== undefined ? { label: getEmbeddedLabel(upload.error) } : undefined}
 >
   {#if upload.error}
-    <IconError size={'small'} fill={'var(--negative-button-default)'} />
+    <IconError size="small" fill="var(--negative-button-default)" />
   {:else}
-    <ProgressCircle value={upload.progress / Math.max(upload.files.size, 1)} size={'small'} primary />
+    <ProgressCircle value={upload.progress / Math.max(upload.files.size, 1)} size="small" primary />
   {/if}
   <span>{Math.floor(upload.progress / Math.max(upload.files.size, 1))}%</span>
 </div>

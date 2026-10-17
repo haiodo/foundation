@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -34,10 +35,14 @@ export default class ContactCacheStoreManager {
     contactCache.removeChangeListener(this.handlePersonCacheChange)
   }
 
+  public reset (): void {
+    this._personRefByPersonIdStoreBase.set(new Map())
+    this._personByPersonIdStoreBase.set(new Map())
+    this._personByPersonRefStoreBase.set(new Map())
+  }
+
   public static get instance (): ContactCacheStoreManager {
-    if (this._instance === undefined) {
-      this._instance = new ContactCacheStoreManager()
-    }
+    this._instance ??= new ContactCacheStoreManager()
 
     return this._instance
   }

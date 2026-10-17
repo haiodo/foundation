@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,53 +15,56 @@
 -->
 <script lang="ts">
   import { AttachmentsPresenter } from '@hcengineering/attachment-resources'
-  import {
+  import type {
     CategoryType,
     Class,
     Doc,
     DocumentQuery,
     DocumentUpdate,
     FindOptions,
-    generateId,
-    getObjectValue,
     Lookup,
-    mergeQueries,
     Ref,
     WithLookup
   } from '@hcengineering/core'
-  import { Item, Kanban as KanbanUI, SwimLane } from '@hcengineering/kanban'
+  import { generateId, getObjectValue, groupByArray, mergeQueries } from '@hcengineering/core'
+  import type { Item, SwimLane } from '@hcengineering/kanban'
+  import { Kanban as KanbanUI } from '@hcengineering/kanban'
   import { employeeByIdStore } from '@hcengineering/contact-resources'
-  import { Employee, getName } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
+  import { getName } from '@hcengineering/contact'
   import { defaultPriorities, issuePriorities } from '../../types'
-  import { IntlString, translate } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
+  import { translate } from '@hcengineering/platform'
   import notification from '@hcengineering/notification'
   import { ActionContext, createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
   import tags from '@hcengineering/tags'
-  import { DocWithRank, getStates } from '@hcengineering/task'
-  import { getTaskKanbanResultQuery, typeStore, updateTaskKanbanCategories } from '@hcengineering/task-resources'
+  import type { DocWithRank, TaskType, Project as TaskProject } from '@hcengineering/task'
+  import task, { getStates } from '@hcengineering/task'
   import {
-    Component as TrackerComponent,
-    Issue,
-    IssuePriority,
-    IssuesGrouping,
-    IssuesOrdering,
-    Project,
-    reduceChildInfoTree
-  } from '@hcengineering/tracker'
+    getTaskKanbanResultQuery,
+    taskTypeStore,
+    typeStore,
+    updateTaskKanbanCategories
+  } from '@hcengineering/task-resources'
+  import type { Component as TrackerComponent, Issue, Project } from '@hcengineering/tracker'
+  import { IssuePriority, IssuesGrouping, IssuesOrdering, reduceChildInfoTree } from '@hcengineering/tracker'
+  import type { BlankViewProps, ColorDefinition } from '@hcengineering/ui'
   import {
     Button,
-    ColorDefinition,
     Component,
     defaultBackground,
     getPlatformAvatarColorForTextDef,
     getPlatformColorDef,
     IconAdd,
     Label,
+    BlankView,
     Loading,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
-  import view, { AttributeModel, BuildModelKey, Viewlet, ViewOptionModel, ViewOptions } from '@hcengineering/view'
+  import type { AttributeModel, BuildModelKey, Viewlet, ViewOptionModel, ViewOptions } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+  import type { SelectDirection } from '@hcengineering/view-resources'
   import {
     buildModel,
     enabledConfig,
@@ -75,17 +79,19 @@
     ListSelectionProvider,
     noCategory,
     openDoc,
-    SelectDirection,
     setGroupByValues,
     showMenu,
     statusStore
   } from '@hcengineering/view-resources'
   import { ChatMessagesPresenter } from '@hcengineering/chunter-resources'
+  import type { ProjectWorkflow, Workflow, WorkflowTransition } from '@hcengineering/workflow'
+  import workflow from '@hcengineering/workflow'
   import { onMount } from 'svelte'
 
   import tracker from '../../plugin'
   import { componentStore } from '../../component'
-  import { activeProjects, IssuePriorityColor } from '../../utils'
+  import { activeProjects, IssuePriorityColor, sortSwimLaneValues } from '../../utils'
+  import { orderSwimLanes } from '../../swimLanes'
   import ComponentEditor from '../components/ComponentEditor.svelte'
   import CreateIssue from '../CreateIssue.svelte'
   import AssigneeEditor from './AssigneeEditor.svelte'
@@ -107,8 +113,11 @@
   export let viewlet: Viewlet
   export let config: (string | BuildModelKey)[]
   export let options: FindOptions<DocWithRank> | undefined = undefined
+  export let emptyState: BlankViewProps | undefined = undefined
 
-  $: groupByKey = (viewOptions.groupBy[0] ?? noCategory) as IssuesGrouping
+  $: requestedGroupByKey = (viewOptions.groupBy[0] ?? noCategory) as IssuesGrouping
+  // Set together with categories: columns of the old grouping under a new key query {space: 0}.
+  let groupByKey = (viewOptions.groupBy[0] ?? noCategory) as IssuesGrouping
   $: orderBy = viewOptions.orderBy
   $: compactMode = viewOptions.compactMode === true
 
@@ -119,7 +128,15 @@
       customAttrModels = []
       return
     }
-    customAttrModels = await buildModel({ client, _class, keys: customKeys, ignoreMissing: true })
+    const groups = groupByArray(customKeys, (k) => k.displayProps?._class ?? _class)
+    const models = (
+      await Promise.all(
+        Array.from(groups.entries()).map(([targetClass, keys]) =>
+          buildModel({ client, _class: targetClass, keys, ignoreMissing: true, lookup })
+        )
+      )
+    ).flat()
+    customAttrModels = models
   })
   $: void buildCustomAttrModels(config)
 
@@ -129,11 +146,11 @@
     accentColors = accentColors
   }
 
-  $: dontUpdateRank = orderBy[0] !== IssuesOrdering.Manual
+  $: dontUpdateRank = orderBy ? orderBy[0] !== IssuesOrdering.Manual : false
 
   $: currentSpace = space ?? tracker.project.DefaultProject
   let currentProject: Project | undefined
-  $: currentProject = $activeProjects.get(currentSpace) as Project
+  $: currentProject = $activeProjects.get(currentSpace)
 
   let resultQuery: DocumentQuery<any> = { ...query }
   const client = getClient()
@@ -219,6 +236,13 @@
     pendingMoves = pendingMoves
   }
 
+  function clearPendingMove (id: string): void {
+    if (pendingMoves.has(id)) {
+      pendingMoves.delete(id)
+      pendingMoves = pendingMoves
+    }
+  }
+
   $: effectiveTasks = pendingMoves.size > 0 ? applyPendingMoves(tasks) : tasks
 
   // Memoize groupByDocs by a cheap content hash so that downstream Kanban
@@ -289,9 +313,11 @@
     (res) => {
       fastDocs = res
       fastQueryIds = new Set(res.map((it) => it._id))
+      docsLoaded = true
     },
     { ...categoryQueryOptions, limit: 1000 }
   )
+  let docsLoaded = false
   $: docsQuerySlow.query(
     _class,
     queryNoLookup,
@@ -310,54 +336,45 @@
 
   const queryId = generateId()
 
-  function update (): void {
-    void updateTaskKanbanCategories(
+  let headerComponent: AttributeModel | undefined
+
+  const updateCategories = reduceCalls(async function (
+    key: IssuesGrouping,
+    space: Ref<Project> | undefined,
+    tasks: DocWithRank[],
+    viewOptions: ViewOptions,
+    viewOptionsConfig: ViewOptionModel[] | undefined
+  ): Promise<void> {
+    const res = await updateTaskKanbanCategories(
       client,
       viewlet,
       _class,
       space,
       tasks,
-      groupByKey,
+      key,
       viewOptions,
       viewOptionsConfig,
       update,
       queryId
-    ).then((res) => {
-      categories = res
-      loadCategories = false
-    })
-  }
-
-  $: void updateTaskKanbanCategories(
-    client,
-    viewlet,
-    _class,
-    space,
-    tasks,
-    groupByKey,
-    viewOptions,
-    viewOptionsConfig,
-    update,
-    queryId
-  ).then((res) => {
+    )
+    // A missing presenter costs only the header, not the grouping.
+    const header =
+      key === noCategory ? undefined : await getPresenter(client, _class, { key }, { key }).catch(() => undefined)
+    // The grouping changed while loading: the next call applies the new one.
+    if (key !== requestedGroupByKey) return
+    groupByKey = key
+    headerComponent = header
     categories = res
     loadCategories = false
   })
 
-  const fullFilled: Record<string, boolean> = {}
-
-  function getHeader (_class: Ref<Class<Doc>>, groupByKey: string): void {
-    if (groupByKey === noCategory) {
-      headerComponent = undefined
-    } else {
-      void getPresenter(client, _class, { key: groupByKey }, { key: groupByKey }).then((p) => {
-        headerComponent = p
-      })
-    }
+  function update (): void {
+    void updateCategories(requestedGroupByKey, space, tasks, viewOptions, viewOptionsConfig)
   }
 
-  let headerComponent: AttributeModel | undefined
-  $: getHeader(_class, groupByKey)
+  $: void updateCategories(requestedGroupByKey, space, tasks, viewOptions, viewOptionsConfig)
+
+  const fullFilled: Record<string, boolean> = {}
 
   const getUpdateProps = (doc: Doc, category: CategoryType): DocumentUpdate<Item> | undefined => {
     const groupValue =
@@ -377,6 +394,11 @@
   const IMMUTABLE_SWIM_FIELDS = new Set<string>(['space'])
 
   let swimLanes: SwimLane[] = []
+  // The field the lanes were built for: old lanes under a new field query {attachedTo: 3} and a
+  // drop on them writes it.
+  let swimLanesBy = 'none'
+  // Generic lane header presenter, set together with the lanes it renders.
+  let swimLanePresenter: AttributeModel | undefined
   let emptyLabel = ''
   const EMPTY_LABEL_BY_FIELD: Record<string, IntlString> = {
     assignee: tracker.string.NoAssignee,
@@ -391,22 +413,28 @@
     })
   }
 
-  function normalizeSwimValue (v: unknown): { key: string, value: unknown, empty: boolean, title?: string } {
+  function normalizeSwimValue (
+    field: string,
+    v: unknown
+  ): { key: string, value: unknown, empty: boolean, title?: string } {
     if (v == null) return { key: UNASSIGNED_SWIM, value: null, empty: true }
-    if (swimLaneBy === 'attachedTo' && v === tracker.ids.NoParent) {
+    if (field === 'attachedTo' && v === tracker.ids.NoParent) {
       return { key: UNASSIGNED_SWIM, value: tracker.ids.NoParent, empty: true }
     }
     // Components with the same label may exist in different projects — group
     // them under one swimlane keyed by the (case-folded, trimmed) label so the
     // user sees a single "Chat" lane instead of one per project.
-    if (swimLaneBy === 'component') {
+    if (field === 'component') {
       const c = $componentStore.get(v as Ref<TrackerComponent>)
       if (c !== undefined) {
         const label = c.label
         return { key: 'component:' + label.toLowerCase().trim(), value: v, empty: false, title: label }
       }
     }
-    return { key: String(v), value: v, empty: false }
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      return { key: String(v), value: v, empty: false }
+    }
+    return { key: JSON.stringify(v), value: v, empty: false }
   }
 
   function buildGenericLanes (field: string, tasks: DocWithRank[]): SwimLane[] {
@@ -414,7 +442,7 @@
     const seen = new Map<string, { value: unknown, empty: boolean, title?: string }>()
     for (const t of tasks) {
       const raw = getObjectValue(field, t)
-      const n = normalizeSwimValue(raw)
+      const n = normalizeSwimValue(field, raw)
       if (!seen.has(n.key)) seen.set(n.key, { value: n.value, empty: n.empty, title: n.title })
     }
     // Priority has a fixed ordered set; preseed to keep empty lanes too.
@@ -436,40 +464,70 @@
       if (empty) unassigned = lane
       else lanes.push(lane)
     }
-    if (field === 'priority') {
-      lanes.sort(
-        (a, b) =>
-          defaultPriorities.indexOf(b.value as IssuePriority) - defaultPriorities.indexOf(a.value as IssuePriority)
-      )
-    } else {
-      // Stable, deterministic order by lane id (ascending) — prevents lane jumps on task reorder.
-      lanes.sort((a, b) => a._id.localeCompare(b._id))
-    }
     if (unassigned !== undefined) lanes.unshift(unassigned)
     return lanes
   }
 
-  $: swimLanes = buildGenericLanes(swimLaneBy, effectiveTasks)
+  // Order of the lanes without a sort function for the field: components by label, employees by name,
+  // the rest by value id (stable, no lane jumps on task reorder).
+  function laneFallbackKey (lane: SwimLane): string {
+    if (swimLaneBy === 'assignee') {
+      const emp = $employeeByIdStore.get(lane.value as Ref<Employee>)
+      if (emp !== undefined) return getName(client.getHierarchy(), emp)
+    }
+    return lane.title !== '' ? lane.title : lane._id
+  }
+
+  // The empty lane stays first; the rest follow the field's sort function (statuses by category and task
+  // type, priorities, milestones) and fall back to `laneFallbackKey`. The previous lanes stay on screen
+  // until the new order is known, and only the latest request may apply.
+  let laneOrderSeq = 0
+  async function orderLanes (field: string, lanes: SwimLane[]): Promise<void> {
+    const seq = ++laneOrderSeq
+    const unassigned = lanes.filter((it) => it._id === UNASSIGNED_SWIM)
+    const rest = lanes.filter((it) => it._id !== UNASSIGNED_SWIM)
+    const sorted =
+      rest.length > 1
+        ? await sortSwimLaneValues(
+          client,
+          _class,
+          space,
+          field,
+          rest.map((it) => it.value),
+          viewlet.descriptor
+        )
+        : undefined
+    const presenter =
+      field === 'none' || field === ''
+        ? undefined
+        : await getPresenter(client, _class, { key: field }, { key: field }).catch(() => undefined)
+    if (seq !== laneOrderSeq) return
+    swimLanesBy = field
+    swimLanePresenter = presenter
+    swimLanes = [...unassigned, ...orderSwimLanes(rest, sorted, laneFallbackKey)]
+  }
+
+  $: void orderLanes(swimLaneBy, buildGenericLanes(swimLaneBy, effectiveTasks))
 
   function getSwimLaneOfDoc (doc: Doc): string | undefined {
-    if (swimLaneBy === 'none' || swimLaneBy === '') return undefined
-    const raw = getObjectValue(swimLaneBy, doc)
-    return normalizeSwimValue(raw).key
+    if (swimLanesBy === 'none' || swimLanesBy === '') return undefined
+    const raw = getObjectValue(swimLanesBy, doc)
+    return normalizeSwimValue(swimLanesBy, raw).key
   }
 
   function getSwimLaneQuery (swimLane: SwimLane): DocumentQuery<any> {
-    if (swimLaneBy === 'none' || swimLaneBy === '') return {}
-    return { [swimLaneBy]: swimLane.value }
+    if (swimLanesBy === 'none' || swimLanesBy === '') return {}
+    return { [swimLanesBy]: swimLane.value }
   }
 
   function getSwimLaneUpdateProps (doc: Doc, swimLane: SwimLane): DocumentUpdate<Item> | undefined {
-    if (swimLaneBy === 'none' || swimLaneBy === '') return undefined
-    if (IMMUTABLE_SWIM_FIELDS.has(swimLaneBy)) return undefined
+    if (swimLanesBy === 'none' || swimLanesBy === '') return undefined
+    if (IMMUTABLE_SWIM_FIELDS.has(swimLanesBy)) return undefined
     let value: unknown = swimLane.value
     // Components are aggregated by label across projects; pick the ref that
     // belongs to the dropped issue's project, or skip the update entirely if
     // this lane has no matching component for the issue's project.
-    if (swimLaneBy === 'component') {
+    if (swimLanesBy === 'component') {
       const docSpace = (doc as any).space
       const lane = $componentStore.filter(
         (c) =>
@@ -481,8 +539,8 @@
       if (match === undefined) return undefined
       value = match
     }
-    const update: DocumentUpdate<Item> = { [swimLaneBy]: value } as unknown as DocumentUpdate<Item>
-    if (swimLaneBy === 'attachedTo') {
+    const update: DocumentUpdate<Item> = { [swimLanesBy]: value }
+    if (swimLanesBy === 'attachedTo') {
       ;(update as any).attachedToClass = tracker.class.Issue
     }
     return update
@@ -501,14 +559,14 @@
   $: getSwimLaneHeaderStyle = (swimLane: SwimLane): { background?: string, color?: string } | undefined => {
     void swimLaneAccents
     if (!showColors) return undefined
-    if (swimLaneBy === 'priority') {
+    if (swimLanesBy === 'priority') {
       const color = getPlatformColorDef(
         IssuePriorityColor[(swimLane.value as IssuePriority) ?? IssuePriority.NoPriority],
         $themeStore.dark
       )
       return { background: color.background, color: color.title }
     }
-    if (swimLaneBy === 'assignee') {
+    if (swimLanesBy === 'assignee') {
       const emp = $employeeByIdStore.get(swimLane._id as Ref<Employee>)
       if (emp != null) {
         const name = getName(client.getHierarchy(), emp)
@@ -521,21 +579,6 @@
       return { background: accent.background, color: accent.title }
     }
     return undefined
-  }
-
-  // Generic lane header presenter resolution.
-  let swimLanePresenter: AttributeModel | undefined
-  $: void resolveSwimLanePresenter(swimLaneBy)
-  async function resolveSwimLanePresenter (field: string): Promise<void> {
-    if (field === 'none' || field === '') {
-      swimLanePresenter = undefined
-      return
-    }
-    try {
-      swimLanePresenter = await getPresenter(client, _class, { key: field }, { key: field })
-    } catch {
-      swimLanePresenter = undefined
-    }
   }
 
   $: swimLaneStorageKey = viewlet?._id != null ? `${String(viewlet._id)}-${swimLaneBy}` : undefined
@@ -553,6 +596,32 @@
     }
     if (enabledConfig(config, 'attachments') && (issue.attachments ?? 0) > 0) return true
     return false
+  }
+
+  async function getWorkflowTransitions (
+    spaceId: Ref<Project>,
+    kind: Ref<TaskType>
+  ): Promise<WorkflowTransition[] | null> {
+    const space = await client.findOne(tracker.class.Project, { _id: spaceId })
+    if (space == null) return null
+
+    const hierarchy = client.getHierarchy()
+    if (!hierarchy.hasMixin(space, workflow.mixin.ProjectWorkflow)) return null
+
+    const projectWf = hierarchy.as<TaskProject, ProjectWorkflow>(space, workflow.mixin.ProjectWorkflow)
+    const wfId = projectWf?.workflows?.[kind]
+    if (wfId == null) return null
+
+    const wfDoc = await client.findOne<Workflow>(
+      workflow.class.Workflow,
+      { _id: wfId },
+      {
+        lookup: {
+          _id: { transitions: workflow.class.WorkflowTransition }
+        }
+      }
+    )
+    return (wfDoc?.$lookup?.transitions ?? []) as WorkflowTransition[]
   }
 
   const getAvailableCategories = async (doc: Doc): Promise<CategoryType[]> => {
@@ -581,8 +650,35 @@
     }
 
     if (groupByKey === IssuesGrouping.Status) {
-      const space = await client.findOne(tracker.class.Project, { _id: issue.space })
-      return getStates(space, $typeStore, $statusStore.byId).map(({ _id }) => _id)
+      if (issue.kind != null) {
+        const taskType =
+          $taskTypeStore.get(issue.kind) ?? (await client.findOne(task.class.TaskType, { _id: issue.kind }))
+        if (taskType?.statuses != null && taskType.statuses.length > 0) {
+          if (issue.space != null) {
+            const transitions = await getWorkflowTransitions(issue.space, issue.kind)
+            if (transitions != null) {
+              const allowed = new Set<string>()
+              if (issue.status != null) {
+                allowed.add(issue.status)
+              }
+              for (const t of transitions) {
+                if (t.from == null || t.from.length === 0 || (issue.status != null && t.from.includes(issue.status))) {
+                  allowed.add(t.to)
+                }
+              }
+              return taskType.statuses.filter((s) => allowed.has(s))
+            }
+          }
+          return taskType.statuses
+        }
+      }
+
+      if (issue.space != null) {
+        const space = await client.findOne(tracker.class.Project, { _id: issue.space })
+        if (space != null) {
+          return getStates(space, $typeStore, $statusStore.byId).map(({ _id }) => _id)
+        }
+      }
     }
 
     return categories
@@ -591,6 +687,10 @@
 
 {#if loadCategories}
   <Loading />
+{:else if emptyState !== undefined && docsLoaded && categories.length === 0}
+  <div class="flex-col-center flex-grow">
+    <BlankView {...emptyState} />
+  </div>
 {:else}
   <ActionContext
     context={{
@@ -606,6 +706,9 @@
     {orderBy}
     onMoveCommit={(id, fields) => {
       registerPendingMove(id, fields)
+    }}
+    onMoveRollback={(id) => {
+      clearPendingMove(id)
     }}
     {_class}
     query={resultQuery}
@@ -647,8 +750,8 @@
           <svelte:component
             this={swimLanePresenter.presenter}
             value={swimLane.value}
-            kind={'list-header'}
-            size={'small'}
+            kind="list-header"
+            size="small"
             {space}
             accent
             colorInherit={!$themeStore.dark}
@@ -676,9 +779,9 @@
                 this={headerComponent.presenter}
                 value={state}
                 {space}
-                size={'small'}
-                kind={'list-header'}
-                display={'kanban'}
+                size="small"
+                kind="list-header"
+                display="kanban"
                 colorInherit={!$themeStore.dark}
                 accent
                 on:accent-color={(ev) => {
@@ -694,7 +797,7 @@
         <div class="tools gap-1">
           <Button
             icon={IconAdd}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: tracker.string.AddIssueTooltip, direction: 'left' }}
             on:click={() => {
               showPopup(CreateIssue, { space: currentSpace, [groupByKey]: state }, 'top')
@@ -731,7 +834,7 @@
             </div>
             <div class="flex-row-center gap-2 reverse flex-no-shrink">
               <Component is={notification.component.NotificationPresenter} props={{ value: object }} />
-              <AssigneeEditor object={issue} avatarSize={'card'} shouldShowName={false} />
+              <AssigneeEditor object={issue} avatarSize="card" shouldShowName={false} />
             </div>
           </div>
           <div
@@ -744,16 +847,10 @@
           </div>
           <div class="card-labels meta">
             {#if enabledConfig(config, 'priority') && (!compactMode || issue.priority !== IssuePriority.NoPriority)}
-              <PriorityEditor
-                value={issue}
-                isEditable={true}
-                kind={'link-bordered'}
-                size={'small'}
-                justify={'center'}
-              />
+              <PriorityEditor value={issue} isEditable={true} kind="link-bordered" size="small" justify="center" />
             {/if}
             {#if enabledConfig(config, 'subIssues') && issue && issue.subIssues > 0}
-              <SubIssuesSelector value={issue} {currentProject} size={'small'} />
+              <SubIssuesSelector value={issue} {currentProject} size="small" />
             {/if}
             {#each customAttrModels as attrModel (attrModel.key)}
               <ListPresenter
@@ -764,29 +861,29 @@
                 props={{}}
                 hideDivider={true}
                 compactMode={true}
-                customStyle={'square'}
+                customStyle="square"
               />
             {/each}
             {#if enabledConfig(config, 'dueDate') && (!compactMode || issue.dueDate != null)}
-              <DueDatePresenter value={issue} size={'small'} kind={'link-bordered'} />
+              <DueDatePresenter value={issue} size="small" kind="link-bordered" />
             {/if}
             {#if compactMode}
               {#if enabledConfig(config, 'estimation') && (estimations > 0 || reports > 0)}
-                <EstimationEditor kind={'link-bordered'} size={'small'} value={issue} />
+                <EstimationEditor kind="link-bordered" size="small" value={issue} />
               {/if}
               {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}
-                <AttachmentsPresenter value={object.attachments} {object} kind={'link-bordered'} size={'small'} />
+                <AttachmentsPresenter value={object.attachments} {object} kind="link-bordered" size="small" />
               {/if}
               {#if enabledConfig(config, 'comments') && (object.comments ?? 0) > 0}
-                <ChatMessagesPresenter value={object.comments} {object} kind={'link-bordered'} size={'small'} />
+                <ChatMessagesPresenter value={object.comments} {object} kind="link-bordered" size="small" />
               {/if}
               {#if enabledConfig(config, 'comments') && (object.$lookup?.attachedTo?.comments ?? 0) > 0}
                 <ChatMessagesPresenter
                   object={object.$lookup?.attachedTo}
                   value={object.$lookup?.attachedTo?.comments}
                   withInput={false}
-                  kind={'link-bordered'}
-                  size={'small'}
+                  kind="link-bordered"
+                  size="small"
                 />
               {/if}
             {:else}
@@ -796,9 +893,9 @@
                     value={issue}
                     {space}
                     isEditable={true}
-                    kind={'link-bordered'}
-                    size={'small'}
-                    justify={'center'}
+                    kind="link-bordered"
+                    size="small"
+                    justify="center"
                   />
                 </div>
               {/if}
@@ -808,10 +905,10 @@
                     value={issue}
                     {space}
                     isEditable={true}
-                    kind={'link-bordered'}
-                    size={'small'}
-                    maxWidth={'7rem'}
-                    justify={'center'}
+                    kind="link-bordered"
+                    size="small"
+                    maxWidth="7rem"
+                    justify="center"
                   />
                 </div>
               {/if}
@@ -824,7 +921,7 @@
                 props={{
                   value: issue.labels,
                   object: issue,
-                  ckeckFilled: fullFilled[issueId],
+                  checkFilled: fullFilled[issueId],
                   kind: 'link',
                   compression: true
                 }}
@@ -839,7 +936,7 @@
               {#if withFooter}
                 <div class="card-footer flex-between">
                   {#if enabledConfig(config, 'estimation')}
-                    <EstimationEditor kind={'list'} size={'small'} value={issue} />
+                    <EstimationEditor kind="list" size="small" value={issue} />
                   {/if}
                   <div class="flex-row-center gap-3 reverse">
                     {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}

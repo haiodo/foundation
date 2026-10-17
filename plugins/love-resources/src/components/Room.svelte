@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { ActionContext } from '@hcengineering/presentation'
-  import { Room as TypeRoom } from '@hcengineering/love'
+  import type { Room as TypeRoom } from '@hcengineering/love'
   import { getMetadata } from '@hcengineering/platform'
   import { Label, Loading, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { onDestroy, onMount } from 'svelte'
@@ -30,8 +30,11 @@
   } from '../stores'
   import { isFullScreen, lk } from '../utils'
   import ControlBar from './meeting/ControlBar.svelte'
+  import KnockingList from './meeting/invites/KnockingList.svelte'
   import ParticipantsListView from './meeting/ParticipantsListView.svelte'
   import ScreenSharingView from './meeting/ScreenSharingView.svelte'
+  import SpeakingWhileMutedIndicator from './meeting/SpeakingWhileMutedIndicator.svelte'
+  import { screenSharingState, ScreenSharingState } from '../liveKitClient'
 
   export let canMaximize: boolean = true
   export let room: TypeRoom
@@ -65,7 +68,7 @@
 
     await waitForOfficeLoaded()
 
-    roomEl && roomEl.addEventListener('fullscreenchange', handleFullScreen)
+    roomEl?.addEventListener('fullscreenchange', handleFullScreen)
     loading = false
     console.log('[Room.onMount] Room component mounted', {
       roomId: room._id,
@@ -103,9 +106,14 @@
   }
 
   function updateStyle (count: number, screenSharing: boolean): void {
-    columns = screenSharing ? 1 : Math.min(Math.ceil(Math.sqrt(count)), 8)
+    columns = screenSharing ? 1 : Math.min(Math.max(1, Math.ceil(Math.sqrt(count))), 8)
     rows = Math.ceil(count / columns)
-    gridStyle = `grid-template-columns: repeat(${columns}, 1fr); aspect-ratio: ${columns * 1280}/${rows * 720};`
+
+    if (isModal) {
+      gridStyle = `grid-template-columns: repeat(${columns}, 1fr);`
+    } else {
+      gridStyle = `grid-template-columns: repeat(${columns}, 1fr); aspect-ratio: ${columns * 1280}/${rows * 720};`
+    }
   }
 
   const handleFullScreen = () => ($isFullScreen = document.fullscreenElement != null)
@@ -165,6 +173,13 @@
     $infos.filter((it) => it.meeting === $currentMeetingMinutes?._id).length ?? lk.numParticipants,
     withScreenSharing
   )
+
+  $: hasScreenShare = $screenSharingState !== ScreenSharingState.Inactive
+  $: shouldShowParticipants = isModal ? !hasScreenShare || $showParticipantsInModal : !$roomModalActive
+
+  $: if (isModal && !hasScreenShare && !$showParticipantsInModal) {
+    $showParticipantsInModal = true
+  }
 </script>
 
 <div bind:this={roomEl} class="flex-col-center w-full h-full" class:theme-dark={$isFullScreen}>
@@ -178,6 +193,7 @@
   {/if}
   <div
     class="room-container"
+    class:modal-view={isModal}
     class:sharing={withScreenSharing}
     class:many={columns > 3}
     class:hidden={loading}
@@ -188,7 +204,7 @@
         <ScreenSharingView bind:hasActiveTrack={withScreenSharing} />
       {/if}
     </div>
-    {#if ($showParticipantsInModal && isModal) || !$roomModalActive}
+    {#if shouldShowParticipants}
       <div class="videoGrid" style={withScreenSharing ? '' : gridStyle} class:scroll-m-0={withScreenSharing}>
         <ParticipantsListView
           room={room._id}
@@ -199,6 +215,12 @@
       </div>
     {/if}
   </div>
+  <div class="room-knocking"><KnockingList /></div>
+  {#if $isFullScreen}
+    <div class="speaking-muted-overlay">
+      <SpeakingWhileMutedIndicator />
+    </div>
+  {/if}
   {#if $currentRoom}
     <ControlBar room={$currentRoom} fullScreen={$isFullScreen} {onFullScreen} {canMaximize} {isModal} />
   {/if}
@@ -210,6 +232,18 @@
     font-size: 1.5rem;
     align-items: center;
   }
+  .room-knocking {
+    padding: 0 1rem;
+  }
+
+  .speaking-muted-overlay {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+  }
+
   .room-container {
     display: flex;
     justify-content: center;
@@ -286,6 +320,35 @@
       &:not(.sharing) .videoGrid,
       &.sharing {
         gap: var(--spacing-0_5);
+      }
+    }
+
+    &.modal-view:not(.sharing) {
+      .videoGrid {
+        width: 100%;
+        height: 100%;
+        align-items: stretch;
+
+        > :global(.video) {
+          min-width: 0;
+          min-height: 0;
+        }
+
+        :global(.parent) {
+          height: 100%;
+          max-height: 100%;
+        }
+
+        :global(.cover) :global(.video) {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        :global(.ava) {
+          max-height: 12rem;
+          max-width: 12rem;
+        }
       }
     }
   }

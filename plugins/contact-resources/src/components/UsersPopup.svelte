@@ -13,11 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Contact, getFirstName, getLastName, getName, Person } from '@hcengineering/contact'
+  import type { Contact, Person } from '@hcengineering/contact'
+  import contact, { getFirstName, getLastName, getName } from '@hcengineering/contact'
   import type { Class, Doc, DocumentQuery, FindOptions, Ref } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
-  import presentation, { getClient, ObjectCreate, ObjectPopup } from '@hcengineering/presentation'
-  import { AnySvelteComponent, Label } from '@hcengineering/ui'
+  import type { ObjectCreate } from '@hcengineering/presentation'
+  import presentation, { getClient, ObjectPopup } from '@hcengineering/presentation'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { Label } from '@hcengineering/ui'
   import UserInfo from './UserInfo.svelte'
   import { createEventDispatcher } from 'svelte'
 
@@ -35,6 +38,8 @@
   export let icon: Asset | AnySvelteComponent | undefined = undefined
   export let create: ObjectCreate | undefined = undefined
   export let readonly = false
+  export let disallowDeselect: Ref<Person>[] | undefined = undefined
+  export let protectLastSelected: boolean = false
 
   const client = getClient()
 
@@ -75,15 +80,17 @@
   {allowDeselect}
   {titleDeselect}
   {placeholder}
-  type={'object'}
+  type="object"
   docQuery={readonly ? { ...docQuery, _id: { $in: selectedUsers } } : docQuery}
   {filter}
   {sort}
-  groupBy={'_class'}
+  groupBy="_class"
   bind:selectedObjects={selectedUsers}
   bind:ignoreObjects={ignoreUsers}
   {shadows}
   create={_create}
+  {disallowDeselect}
+  {protectLastSelected}
   on:update
   on:close
   on:changeContent
@@ -93,7 +100,7 @@
 >
   <svelte:fragment slot="item" let:item={person}>
     <div class="flex-row-center flex-grow">
-      <UserInfo size={'smaller'} value={person} {icon} />
+      <UserInfo size="smaller" value={person} {icon} />
     </div>
   </svelte:fragment>
 

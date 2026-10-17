@@ -1100,6 +1100,32 @@ describe('markupToMarkdown', () => {
           }
         ]
       }
+    },
+    {
+      // Hard break uses two-space line break, not a literal backslash
+      name: 'bold then hard break',
+      markdown: '**Цель:**  \nСоздать',
+      markup: {
+        type: MarkupNodeType.doc,
+        content: [
+          {
+            type: MarkupNodeType.paragraph,
+            content: [
+              { type: MarkupNodeType.text, text: 'Цель:', marks: [{ type: MarkupMarkType.bold }] },
+              { type: MarkupNodeType.hard_break },
+              { type: MarkupNodeType.text, text: 'Создать' }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      name: 'image attributes are html-escaped',
+      markdown: '<img width="10" src="x&quot; onerror=&quot;alert(1)" alt="a&lt;b&gt;">',
+      markup: {
+        type: 'doc',
+        content: [{ type: 'image', attrs: { src: 'x" onerror="alert(1)', alt: 'a<b>', width: 10 } }]
+      }
     }
   ]
 
@@ -1181,10 +1207,6 @@ describe('markdownToMarkup -> markupToMarkdown', () => {
       name: 'Sub',
       markdown: '<sub>View in Huly <a href="http://localhost:8080/guest/github?token=token">TSK-50</a></sub>'
     }
-    // {
-    //   name: 'Malformed',
-    //   markdown: '<foo>try to parse me</bar></buzz>'
-    // }
   ]
 
   tests.forEach(({ name, markdown, alternate }) => {

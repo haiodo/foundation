@@ -13,9 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import type { TimeZone } from '@hcengineering/ui'
   import {
     Button,
-    TimeZone,
     TimeZonesPopup,
     convertTimeZone,
     eventToHTMLElement,
@@ -60,9 +60,9 @@
 <Button
   {disabled}
   label={calendar.string.TimeZone}
-  kind={'ghost'}
-  padding={'0 .5rem'}
-  justify={'left'}
+  kind="ghost"
+  padding="0 .5rem"
+  justify="left"
   {flex}
   on:click={open}
 >

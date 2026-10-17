@@ -14,44 +14,50 @@
 // limitations under the License.
 //
 
-import { type BrandingMap, type MeasureContext, type Tx, type WorkspaceIds } from '@hcengineering/core'
+import {
+  type BrandingMap,
+  generateId,
+  type MeasureContext,
+  type Ref,
+  type Tx,
+  type WorkspaceUuid
+} from '@hcengineering/core'
 import { buildStorageFromConfig } from '@hcengineering/server-storage'
 
 import { startSessionManager } from '@hcengineering/server'
 import {
-  type CommunicationCallbacks,
+  LimitCategory,
+  type PlanLimits,
   type PlatformQueue,
+  QueueTopic,
+  QueueWorkspaceEvent,
+  type QueueWorkspaceLimitsMessage,
   type SessionManager,
   type StorageConfiguration
 } from '@hcengineering/server-core'
 
-import { Api as CommunicationApi } from '@hcengineering/communication-server'
 import {
   createServerPipeline,
-  isAdapterSecurity,
+  matchLastTxLoader,
   registerAdapterFactory,
   registerDestroyFactory,
+  registerLastTxLoader,
   registerServerPlugins,
   registerStringLoaders,
-  registerTxAdapterFactory,
-  setAdapterSecurity
+  registerTxAdapterFactory
 } from '@hcengineering/server-pipeline'
-
-import {
-  createMongoAdapter,
-  createMongoDestroyAdapter,
-  createMongoTxAdapter,
-  shutdownMongo
-} from '@hcengineering/mongo'
 import {
   createPostgreeDestroyAdapter,
   createPostgresAdapter,
   createPostgresTxAdapter,
+  loadLastTxCache,
   shutdownPostgres
 } from '@hcengineering/postgres'
+import { LIMITS_PROVIDER_VAR, MEMBERS_VERSION_KEY, PLAN_LIMITS_MAP_KEY } from '@hcengineering/middleware'
 import { readFileSync } from 'node:fs'
+import { AccountLimitsProvider } from './limitsProvider'
 import { startHttpServer } from './server_http'
-import type { ServerApi } from '@hcengineering/communication-sdk-types'
+
 const model = JSON.parse(readFileSync(process.env.MODEL_JSON ?? 'model.json').toString()) as Tx[]
 
 registerStringLoaders()
@@ -59,9 +65,6 @@ registerStringLoaders()
 // Register close on process exit.
 process.on('exit', () => {
   shutdownPostgres().catch((err) => {
-    console.error(err)
-  })
-  shutdownMongo().catch((err) => {
     console.error(err)
   })
 })
@@ -77,7 +80,6 @@ export function start (
     storageConfig: StorageConfiguration
     port: number
     brandingMap: BrandingMap
-    communicationApiEnabled: boolean
 
     enableCompression?: boolean
 
@@ -87,18 +89,12 @@ export function start (
       start: () => void
       stop: () => Promise<string | undefined>
     }
-
-    mongoUrl?: string
   }
 ): { shutdown: () => Promise<void>, sessionManager: SessionManager } {
-  registerTxAdapterFactory('mongodb', createMongoTxAdapter)
-  registerAdapterFactory('mongodb', createMongoAdapter)
-  registerDestroyFactory('mongodb', createMongoDestroyAdapter)
-
   registerTxAdapterFactory('postgresql', createPostgresTxAdapter, true)
   registerAdapterFactory('postgresql', createPostgresAdapter, true)
+  registerLastTxLoader('postgresql', loadLastTxCache)
   registerDestroyFactory('postgresql', createPostgreeDestroyAdapter, true)
-  setAdapterSecurity('postgresql', true)
 
   // Prepare statements are controlled via POSTGRES_OPTIONS (e.g. {"prepare": true}).
   // The old DB_PREPARE env var is removed; do not rely on it.
@@ -107,42 +103,62 @@ export function start (
 
   const externalStorage = buildStorageFromConfig(opt.storageConfig)
 
-  const communicationApiFactory = async (
-    ctx: MeasureContext,
-    workspace: WorkspaceIds,
-    broadcastSessions: CommunicationCallbacks
-  ): Promise<ServerApi> => {
-    if (dbUrl.startsWith('mongodb') || !opt.communicationApiEnabled) {
-      return {
-        findMessagesMeta: async () => [],
-        findMessagesGroups: async () => [],
-        findNotificationContexts: async () => [],
-        findCollaborators: async () => [],
-        findNotifications: async () => [],
-        findLabels: async () => [],
-        findPeers: async () => [],
-        subscribeCard: () => {},
-        unsubscribeCard: () => {},
-        event: async () => {
-          return {}
-        },
-        closeSession: async () => {},
-        close: async () => {}
-      }
-    }
+  // Shared across all per-workspace pipelines in this process; updated live by the consumer below.
+  const planLimitsMap = new Map<WorkspaceUuid, PlanLimits>()
+  // Bumped on each membership change so SeatLimitsMiddleware rebuilds its seat set without restart.
+  const membersVersion = new Map<WorkspaceUuid, number>()
+  const limitsProvider = new AccountLimitsProvider(opt.accountsUrl)
 
-    return await CommunicationApi.create(
-      ctx.newChild('💬 communication api', {}, { span: false }),
-      workspace.uuid,
-      dbUrl,
-      broadcastSessions
-    )
-  }
+  const limitsConsumer =
+    opt.queue != null
+      ? opt.queue.createBatchConsumer<QueueWorkspaceLimitsMessage>(
+          metrics.newChild('payment-limits-consumer', {}, { span: false }),
+          QueueTopic.Workspace,
+          `transactor-limits-${generateId()}`, // unique per-process group: every replica keeps its own map, must get all events
+          async (ctx, msgs) => {
+            for (const m of msgs) {
+              const v = m.value
+              if (v.type !== QueueWorkspaceEvent.LimitsChanged) continue
+              if (v.category === LimitCategory.Plan) {
+                // Plan/limits changed: refresh the snapshot so middlewares pick it up without restart.
+                try {
+                  planLimitsMap.set(m.workspace, await limitsProvider.getPlanLimits(m.workspace))
+                  ctx.info('plan limits refreshed', { workspace: m.workspace })
+                } catch (err: any) {
+                  ctx.error('failed to refresh plan limits', { workspace: m.workspace, err })
+                }
+              } else if (v.category === LimitCategory.Members) {
+                // Membership changed: bump the version so seat middleware rebuilds its set on next tx.
+                membersVersion.set(m.workspace, (membersVersion.get(m.workspace) ?? 0) + 1)
+              }
+            }
+          },
+          { batchSize: 100, batchTimeout: 500 }
+        )
+      : undefined
+
+  // Seed each workspace's context.lastTx on cold build so a restart with no data change
+  // reconnects clients as Reconnected, not Refresh (full LiveQuery refetch). Empty until loaded = safe.
+  const lastTxCache = new Map<string, Ref<Tx>>()
+  // Feature-detect: backends that registered a loader fill the cache; others skip -> Refresh.
+  const lastTxLoader = matchLastTxLoader(dbUrl)
+  if (lastTxLoader !== undefined) void lastTxLoader(metrics, dbUrl, lastTxCache)
+
   const pipelineFactory = createServerPipeline(
     metrics,
     dbUrl,
     model,
-    { ...opt, externalStorage, adapterSecurity: isAdapterSecurity(dbUrl), queue: opt.queue, communicationApiFactory },
+    {
+      ...opt,
+      externalStorage,
+      queue: opt.queue,
+      pipelineContextVars: {
+        [LIMITS_PROVIDER_VAR]: limitsProvider,
+        [PLAN_LIMITS_MAP_KEY]: planLimitsMap,
+        [MEMBERS_VERSION_KEY]: membersVersion,
+        lastTxCache
+      }
+    },
     {}
   )
 
@@ -157,6 +173,7 @@ export function start (
   const shutdown = startHttpServer(metrics, sessionManager, opt.port, opt.accountsUrl, externalStorage)
   return {
     shutdown: async () => {
+      await limitsConsumer?.close()
       await externalStorage.close()
       await sessionManager.closeWorkspaces(metrics)
       await shutdown()

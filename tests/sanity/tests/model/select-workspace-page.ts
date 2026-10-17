@@ -14,7 +14,12 @@ export class SelectWorkspacePage extends CommonPage {
   buttonCreateWorkspace = (): Locator => this.page.locator('button > span', { hasText: 'Create workspace' })
   buttonWorkspaceName = (): Locator => this.page.locator('input')
   buttonCreateNewWorkspace = (): Locator => this.page.locator('div.form-row button')
-  workspaceButtonByName = (workspace: string): Locator => this.buttonWorkspace().filter({ hasText: workspace }).first()
+  // Exact match to avoid 'sanity-ws' also matching 'sanity-ws-qms'
+  workspaceButtonByName = (workspace: string): Locator =>
+    this.buttonWorkspace()
+      .filter({ has: this.page.getByText(workspace, { exact: true }) })
+      .first()
+
   createAnotherWorkspace = (): Locator => this.page.getByRole('link', { name: 'Create workspace' })
   workspaceLogo = (): Locator => this.page.getByText('N', { exact: true })
   workspaceList = (workspaceName: string): Locator => this.page.getByRole('button', { name: workspaceName })
@@ -33,6 +38,11 @@ export class SelectWorkspacePage extends CommonPage {
   async createWorkspace (workspaceName: string, worskpaceNew: boolean = true): Promise<void> {
     if (worskpaceNew) {
       await this.buttonCreateWorkspace().waitFor({ state: 'visible' })
+      // OTP sign up lands on select workspace, password sign up goes straight to the create form.
+      if (!this.page.url().includes('/login/createWorkspace')) {
+        await this.buttonCreateWorkspace().click()
+        await this.page.waitForURL((url) => url.pathname.startsWith('/login/createWorkspace'))
+      }
       await this.enterWorkspaceName(workspaceName)
       expect(await this.buttonCreateNewWorkspace().isEnabled()).toBe(true)
       await this.buttonCreateNewWorkspace().click()
@@ -42,9 +52,15 @@ export class SelectWorkspacePage extends CommonPage {
       expect(await this.buttonCreateNewWorkspace().isEnabled()).toBe(true)
       await this.buttonCreateNewWorkspace().click()
     }
+    // Creation shows a progress screen first; callers expect to be inside the workspace.
+    await this.page.waitForURL((url) => url.pathname.startsWith('/workbench/'))
+    // The url flips before the workspace is built; under load the progress screen lingers, so the
+    // first click waits out its timeout on a workbench not yet there (WorkbenchApp.svelte).
+    await expect(this.page.getByText('Creation in progress')).toHaveCount(0, { timeout: 120000 })
   }
 
   async checkIfWorkspaceExists (workspace: string): Promise<void> {
-    await expect(this.workspaceList(workspace)).toBeVisible()
+    // Rows are divs, not buttons - use the same locator selectWorkspace clicks.
+    await expect(this.workspaceButtonByName(workspace)).toBeVisible()
   }
 }

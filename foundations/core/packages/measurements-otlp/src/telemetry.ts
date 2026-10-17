@@ -449,7 +449,8 @@ export function initOpenTelemetrySDK (serviceName: string, version: string): boo
     keepAlive: true
   })
 
-  const batchLogProcessor = new BatchLogRecordProcessor(logExporter, {
+  const batchLogProcessor = new BatchLogRecordProcessor({
+    exporter: logExporter,
     maxExportBatchSize: parseInt(process.env.OTEL_EXPORTER_OTLP_LOGS_MAX_EXPORT_BATCH_SIZE ?? '1000'),
     maxQueueSize: parseInt(process.env.OTEL_EXPORTER_OTLP_LOGS_MAX_QUEUE_SIZE ?? '1000')
   })
@@ -538,9 +539,7 @@ let externalMetricsCtx: MetricsContext | undefined
  */
 export function recordOTELMetric (scope: string, name: string, value: number, labels: Record<string, any> = {}): void {
   if (sdkServiceName === undefined) return
-  if (externalMetricsCtx === undefined) {
-    externalMetricsCtx = new MetricsContext(otelMetrics.getMeter(scope, sdkServiceVersion))
-  }
+  externalMetricsCtx ??= new MetricsContext(otelMetrics.getMeter(scope, sdkServiceVersion))
   const isDuration = /(\.duration|_duration|\.ms|_ms)$/.test(name)
   if (isDuration) {
     externalMetricsCtx.getHistogram(name)?.record(value, labels)

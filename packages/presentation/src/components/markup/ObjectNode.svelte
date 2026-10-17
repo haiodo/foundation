@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { highlightRuns } from '@hcengineering/text'
   import { Component, Icon, Label, showPopup } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import contact from '@hcengineering/contact'
@@ -27,6 +28,7 @@
   export let _class: Ref<Class<Doc>> | undefined = undefined
   export let title: string = ''
   export let transparent: boolean = false
+  export let highlight: string | undefined = undefined
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
@@ -37,6 +39,7 @@
   const withoutDoc: Ref<Doc>[] = [contact.mention.Here, contact.mention.Everyone]
 
   $: clazz = _class ? hierarchy.findClass(_class) : undefined
+  $: hit = highlight !== undefined && highlightRuns(title, highlight).some((r) => r.marked)
 
   $: icon =
     _class !== undefined &&
@@ -46,7 +49,7 @@
       ? clazz?.icon
       : null
 
-  $: if (_class != null && _id != null && hierarchy.hasClass(_class) && !withoutDoc.includes(_id as any)) {
+  $: if (_class != null && _id != null && hierarchy.hasClass(_class) && !withoutDoc.includes(_id)) {
     docQuery.query(_class, { _id }, (r) => {
       doc = r.shift()
       broken = doc === undefined
@@ -66,16 +69,24 @@
 {#if !doc && title}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <span class="antiMention" class:transparent class:broken on:click={onBrokenLinkClick}>
+  <span class="antiMention" class:transparent class:broken class:highlighted={hit} on:click={onBrokenLinkClick}>
     {#if icon}{#if icon === view.ids.IconWithEmoji}<IconWithEmoji
           icon={clazz?.color ?? 0}
-          size={'smaller'}
+          size="smaller"
           inline
-        />{:else}<Icon {icon} size="small" />{/if}{' '}{:else}@{/if}{#if _id === contact.mention.Here}<span
+        />{:else}<Icon {icon} size="small" />{/if}&#32;{:else}@{/if}{#if _id === contact.mention.Here}<span
         class="lower"><Label label={contact.string.Here} /></span
       >{:else if _id === contact.mention.Everyone}<span class="lower"><Label label={contact.string.Everyone} /></span
       >{:else}{title}{/if}
   </span>
+{:else if doc && hierarchy.isDerived(doc._class, contact.class.Person)}
+  <!-- Goes through the person presenter so a click opens the direct instead of the person card. -->
+  <Component
+    is={contact.component.EmployeePresenter}
+    showLoading={false}
+    inline
+    props={{ value: doc, highlight, transparent }}
+  />
 {:else if doc}
   <Component
     is={view.component.ObjectMention}
@@ -83,7 +94,15 @@
     props={{
       object: doc,
       title,
-      transparent
+      transparent,
+      highlight
     }}
   />
 {/if}
+
+<style lang="scss">
+  .antiMention.highlighted {
+    background-color: var(--tag-nuance-SunshineBackground);
+    color: var(--tag-accent-SunshineText);
+  }
+</style>

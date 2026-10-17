@@ -1,6 +1,7 @@
 import { expect, type Locator } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { NewIssue } from './types'
+import { retry } from '../../retry'
 
 export class TemplatePage extends CommonTrackerPage {
   buttonNewTemplate = (): Locator => this.page.getByRole('button', { name: 'Template', exact: true })
@@ -38,7 +39,9 @@ export class TemplatePage extends CommonTrackerPage {
   createTemplateButton = (): Locator => this.page.locator('#create-template')
   newTemplateInput = (): Locator => this.page.locator('[placeholder="New\\ template"]')
   proseMirrorEditor = (): Locator => this.page.locator('.ProseMirror')
-  saveTemplateButton = (): Locator => this.page.locator('text=Save template')
+  // The button, not its label span: the span carries pointer-events-none while the button is
+  // disabled, so a click on it waits out the whole test instead of failing.
+  saveTemplateButton = (): Locator => this.page.locator('button:has-text("Save template")')
   editTemplateButton = (): Locator => this.page.locator('text=Edit template')
   newSpaceTypeButton = (): Locator => this.page.locator('#new-space-type')
 
@@ -62,12 +65,11 @@ export class TemplatePage extends CommonTrackerPage {
         await this.addNewTagPopup(this.page, data.labels, 'Tag from templateNewIssue')
       }
       await this.checkFromDropdown(this.page, data.labels)
-      // await this.inputIssueTitle.click({ force: true })
       await this.buttonPopupCreateNewTemplatePriority().click({ force: true })
     }
     if (data.estimation != null) {
       await this.buttonPopupCreateNewTemplateEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      await this.fillEstimationPopup(this.page, data.estimation)
     }
     if (data.component != null) {
       await this.buttonPopupCreateNewTemplateComponent().click()
@@ -81,8 +83,20 @@ export class TemplatePage extends CommonTrackerPage {
     await this.buttonSaveTemplate().click()
   }
 
+  // Templates group by assignee and the group stays collapsed, so the row is not in the DOM at all
+  // - and it can join the group after the expand, which is why the wait is retried around it.
   async openTemplate (templateName: string): Promise<void> {
-    await this.directTemplateLocator(templateName).click()
+    const row = this.directTemplateLocator(templateName)
+    await retry(async () => {
+      await this.expandCollapsedCategories()
+      // The expanded group is virtualised, so a row further down is not in the DOM until scrolled to.
+      if ((await row.count()) === 0) {
+        await this.page.mouse.move(700, 500)
+        await this.page.mouse.wheel(0, 1200)
+      }
+      await expect(row).toBeVisible({ timeout: 2000 })
+    })
+    await row.click()
   }
 
   async checkTemplateNotExist (templateName: string): Promise<void> {
@@ -123,12 +137,33 @@ export class TemplatePage extends CommonTrackerPage {
     await this.proseMirrorEditor().fill(templateContent)
     await this.proseMirrorEditor().press('Enter')
     await this.proseMirrorEditor().fill('some more value')
-    await this.saveTemplateButton().click()
+    await this.clickSaveTemplate()
   }
 
+  // Save stays disabled until the editor reports the change, which the collaborative editor does
+  // a tick later than fill() returns.
+  private async clickSaveTemplate (): Promise<void> {
+    const save = this.saveTemplateButton()
+    await expect(save).toBeEnabled({ timeout: 15000 })
+    // The panel keeps re-rendering while the editor content settles, so the button moves under the
+    // pointer or is replaced mid-click. Saving switches it to view mode - retry until it does.
+    await retry(async () => {
+      // Gone already: an earlier click saved, the switch to view mode just came late.
+      if ((await save.count()) === 0) return
+      await save.click({ timeout: 5000 })
+      await expect(save).toHaveCount(0, { timeout: 3000 })
+    })
+  }
+
+  // Edit and fill are one interaction: a click that landed before the panel was ready leaves view
+  // mode standing, and the fill then waits out its whole 30s on an editor that never mounted.
   async editTemplate (newContent: string): Promise<void> {
-    await this.editTemplateButton().click()
-    await this.proseMirrorEditor().fill(newContent)
-    await this.saveTemplateButton().click()
+    await retry(async () => {
+      if ((await this.proseMirrorEditor().count()) === 0) {
+        await this.editTemplateButton().click({ timeout: 5000 })
+      }
+      await this.proseMirrorEditor().fill(newContent, { timeout: 5000 })
+    })
+    await this.clickSaveTemplate()
   }
 }

@@ -13,24 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
-    Class,
-    Doc,
-    DocumentQuery,
-    FindOptions,
-    getObjectValue,
-    RateLimiter,
-    Ref,
-    RefTo,
-    Space,
-    mergeQueries
-  } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Class, Doc, DocumentQuery, FindOptions, Ref, RefTo, Space } from '@hcengineering/core'
+  import core, { getObjectValue, RateLimiter, mergeQueries } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
-  import { AnyComponent, AnySvelteComponent } from '@hcengineering/ui'
-  import { BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { AnyComponent, AnySvelteComponent } from '@hcengineering/ui'
+  import type { BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
-  import { SelectionFocusProvider } from '../../selection'
+  import type { SelectionFocusProvider } from '../../selection'
   import { buildConfigLookup, isRefAttribute } from '../../utils'
   import { getResultOptions, getResultQuery } from '../../viewOptions'
   import ListCategories from './ListCategories.svelte'
@@ -57,6 +47,7 @@
   export let listProvider: SelectionFocusProvider
   export let singleCategoryLimit: number | undefined = undefined
   export let readonly: boolean = false
+  export let empty: boolean = false
 
   const limiter = new RateLimiter(10)
 
@@ -70,6 +61,9 @@
   $: orderBy = viewOptions.orderBy
 
   const docsQuery = createQuery()
+  let docsLoaded = false
+  let noCategories = false
+  $: empty = docsLoaded && noCategories
   const docsQuerySlow = createQuery()
 
   $: lookup = buildConfigLookup(client.getHierarchy(), _class, config, options?.lookup)
@@ -114,6 +108,7 @@
     (res) => {
       fastDocs = res
       fastQueryIds = new Set(res.map((it) => it._id))
+      docsLoaded = true
     },
     { ...categoryQueryOptions, limit: 1000 }
   )
@@ -128,6 +123,7 @@
       categoryQueryOptions
     )
   } else {
+    docsQuerySlow.unsubscribe()
     slowDocs = []
   }
 
@@ -264,6 +260,7 @@
 <div class="list-container" bind:this={listDiv}>
   <ListCategories
     bind:this={listCategories}
+    bind:empty={noCategories}
     newObjectProps={() => (space != null ? { space } : {})}
     {docs}
     {categoryRefsMap}
@@ -281,7 +278,7 @@
     {limiter}
     {listProvider}
     level={0}
-    groupPersistKey={''}
+    groupPersistKey=""
     {createItemDialog}
     {createItemDialogProps}
     {createItemLabel}

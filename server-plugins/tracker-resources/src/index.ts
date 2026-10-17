@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -26,7 +27,7 @@ import core, {
   TxUpdateDoc,
   WithLookup
 } from '@hcengineering/core'
-import { getMetadata } from '@hcengineering/platform'
+import { getMetadata, IntlString } from '@hcengineering/platform'
 import serverCore, { TriggerControl } from '@hcengineering/server-core'
 import tracker, {
   Component,
@@ -35,10 +36,28 @@ import tracker, {
   TimeSpendReport,
   reduceChildInfoTree,
   trackerId,
-  type Project
+  type Project,
+  IssuePriority,
+  IssueStatus
 } from '@hcengineering/tracker'
 import { workbenchId } from '@hcengineering/workbench'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import {
+  StringPresenterFn,
+  PresenterControl,
+  IconPresenterFn,
+  Icon,
+  AttributePresenterFn
+} from '@hcengineering/server-activity'
+
+import { formatDuration } from '@hcengineering/tracker'
+
+const timeSpendReportTitlePresenter: StringPresenterFn<TimeSpendReport> = async (
+  doc: TimeSpendReport,
+  control: PresenterControl
+) => {
+  const language = control.branding?.defaultLanguage ?? 'en'
+  return formatDuration(doc.value, language)
+}
 
 async function updateSubIssues (
   updateTx: TxUpdateDoc<Issue>,
@@ -53,14 +72,14 @@ async function updateSubIssues (
   })
 }
 
-const issueUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const issueUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const issue = doc as Issue
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${trackerId}/${issue.identifier}`
   return concatLink(front, path)
 }
 
-const issueIdentifierPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const issueIdentifierPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   return await getIssueId(doc as Issue, control)
 }
 
@@ -334,7 +353,7 @@ async function doIssueUpdate (updateTx: TxUpdateDoc<Issue>, control: TriggerCont
     const [newParent] = await control.findAll(
       control.ctx,
       tracker.class.Issue,
-      { _id: updateTx.operations.attachedTo as Ref<Issue> },
+      { _id: updateTx.operations.attachedTo },
       { limit: 1 }
     )
 
@@ -370,14 +389,7 @@ async function doIssueUpdate (updateTx: TxUpdateDoc<Issue>, control: TriggerCont
 
     // Remove from parent estimation list.
     const issue = await getCurrentIssue()
-    updateIssueParentEstimations(
-      issue,
-      res,
-      control,
-      issue.parents,
-      updatedParents,
-      updateTx.operations.attachedTo as Ref<Issue>
-    )
+    updateIssueParentEstimations(issue, res, control, issue.parents, updatedParents, updateTx.operations.attachedTo)
   }
 
   if (
@@ -467,12 +479,76 @@ async function issueLinkIdProvider (issue: Issue): Promise<string> {
   return issue.identifier
 }
 
+const issueIconPresenter: IconPresenterFn<Issue> = async (issue: Issue): Promise<Icon> => {
+  return {
+    asset: tracker.icon.Issue,
+    props: {
+      space: issue.space,
+      kind: issue.kind,
+      status: issue.status
+    }
+  }
+}
+
+const issueStatusPresenter: AttributePresenterFn = async (
+  _,
+  value: Ref<IssueStatus>,
+  control: PresenterControl
+): Promise<
+  | {
+    intlString?: IntlString
+    value: any
+  }
+  | undefined
+> => {
+  if (value === null || value === undefined) return undefined
+  try {
+    const status = (await control.findAll(control.ctx, tracker.class.IssueStatus, { _id: value }))[0]
+    if (status !== undefined) {
+      return {
+        value: status.name ?? String(value)
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return { value: String(value) }
+}
+
+const priorityKeys: Record<number, any> = {
+  [IssuePriority.NoPriority]: tracker.string.NoPriority,
+  [IssuePriority.Urgent]: tracker.string.Urgent,
+  [IssuePriority.High]: tracker.string.High,
+  [IssuePriority.Medium]: tracker.string.Medium,
+  [IssuePriority.Low]: tracker.string.Low
+}
+
+const issuePriorityPresenter: AttributePresenterFn = async (
+  _,
+  value: any
+): Promise<{
+  intlString?: IntlString
+  value: any
+}> => {
+  const priority = Number(value)
+  const key = priorityKeys[priority]
+
+  return {
+    intlString: key,
+    value
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   function: {
     IssueIdentifierPresenter: issueIdentifierPresenter,
     IssueUrlPresenter: issueUrlPresenter,
-    IssueLinkIdProvider: issueLinkIdProvider
+    IssueLinkIdProvider: issueLinkIdProvider,
+    IssueIconPresenter: issueIconPresenter,
+    IssueStatusPresenter: issueStatusPresenter,
+    IssuePriorityPresenter: issuePriorityPresenter,
+    TimeSpendReportTitlePresenter: timeSpendReportTitlePresenter
   },
   trigger: {
     OnIssueUpdate,

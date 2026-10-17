@@ -3,15 +3,15 @@
 -->
 
 <script lang="ts">
-  import {
-    type QuestionDataEditorProps,
-    type QuestionDataEditorPropsSubmit,
-    type QuestionDataPresenterProps,
-    type QuestionOption,
-    type MultipleChoiceAssessment,
-    type MultipleChoiceAssessmentData,
-    type MultipleChoiceQuestion,
-    type MultipleChoiceQuestionData
+  import type {
+    QuestionDataEditorProps,
+    QuestionDataEditorPropsSubmit,
+    QuestionDataPresenterProps,
+    QuestionOption,
+    MultipleChoiceAssessment,
+    MultipleChoiceAssessmentData,
+    MultipleChoiceQuestion,
+    MultipleChoiceQuestionData
   } from '@hcengineering/questions'
   import { CheckBox } from '@hcengineering/ui'
   import { moveItem } from '../utils'
@@ -23,7 +23,7 @@
   type Q = MultipleChoiceQuestion | MultipleChoiceAssessment
 
   /**
-   * Declared $$Props help TypeScript ensure that your component properly implements interface
+   * Declared $$Props help TypeScript verify component prop interface conformance
    * @see https://raqueebuddinaziz.com/blog/svelte-type-events-slots-and-props/#restprops-props
    */
   type $$Props = QuestionDataPresenterProps<Q> | QuestionDataEditorProps<Q>

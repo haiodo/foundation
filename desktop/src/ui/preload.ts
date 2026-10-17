@@ -56,8 +56,8 @@ console.log('Open passed', openArg)
 let configPromise: Promise<Config> | undefined
 
 const expose: IPCMainExposed = {
-  setBadge: (badge: number) => {
-    ipcRenderer.send(IpcMessage.SetBadge, badge)
+  setBadge: (badge: number | string, tooltip?: string) => {
+    ipcRenderer.send(IpcMessage.SetBadge, badge, tooltip)
   },
   setTitle: (title: string) => {
     ipcRenderer.send(IpcMessage.SetTitle, title)
@@ -89,6 +89,12 @@ const expose: IPCMainExposed = {
     ipcRenderer.on(IpcMessage.WindowFocusLoss, callback)
   },
 
+  onSystemIdle: (callback) => {
+    ipcRenderer.on(IpcMessage.SystemIdle, (_event, idle: boolean) => {
+      callback(idle)
+    })
+  },
+
   isOsUsingDarkTheme: async () => {
     return await ipcRenderer.invoke(IpcMessage.GetIsOsUsingDarkTheme)
   },
@@ -98,32 +104,38 @@ const expose: IPCMainExposed = {
   },
 
   config: async () => {
-    if (configPromise === undefined) {
-      configPromise = new Promise((resolve, reject) => {
-        ipcRenderer.invoke(IpcMessage.GetMainConfig).then(
-          async (mainConfig) => {
-            const serverConfig = await loadServerConfig(concatLink(mainConfig.FRONT_URL, mainConfig.CONFIG_URL))
-            const combinedConfig = {
-              ...serverConfig,
-              ...mainConfig,
-              INITIAL_URL: openArg ?? '',
-              UPLOAD_URL: (serverConfig.UPLOAD_URL as string).includes('://')
-                ? serverConfig.UPLOAD_URL
-                : concatLink(mainConfig.FRONT_URL, serverConfig.UPLOAD_URL),
-              MODEL_VERSION: mainConfig.MODEL_VERSION,
-              VERSION: mainConfig.VERSION
-            }
-
-            ipcRenderer.send(IpcMessage.SetCombinedConfig, combinedConfig)
-
-            resolve(combinedConfig)
-          },
-          (err) => {
-            reject(err)
+    configPromise ??= new Promise((resolve, reject) => {
+      // A bridged promise still pending at reload (offline retries) pins the whole old page in memory.
+      window.addEventListener(
+        'pagehide',
+        () => {
+          reject(new Error('Page unloaded'))
+        },
+        { once: true }
+      )
+      ipcRenderer.invoke(IpcMessage.GetMainConfig).then(
+        async (mainConfig) => {
+          const serverConfig = await loadServerConfig(concatLink(mainConfig.FRONT_URL, mainConfig.CONFIG_URL))
+          const combinedConfig = {
+            ...serverConfig,
+            ...mainConfig,
+            INITIAL_URL: openArg ?? '',
+            UPLOAD_URL: (serverConfig.UPLOAD_URL as string).includes('://')
+              ? serverConfig.UPLOAD_URL
+              : concatLink(mainConfig.FRONT_URL, serverConfig.UPLOAD_URL),
+            MODEL_VERSION: mainConfig.MODEL_VERSION,
+            VERSION: mainConfig.VERSION
           }
-        )
-      })
-    }
+
+          ipcRenderer.send(IpcMessage.SetCombinedConfig, combinedConfig)
+
+          resolve(combinedConfig)
+        },
+        (err) => {
+          reject(err)
+        }
+      )
+    })
 
     return await configPromise
   },
@@ -185,22 +197,32 @@ const expose: IPCMainExposed = {
 
   getScreenAccess: () => ipcRenderer.invoke(IpcMessage.GetScreenAccess),
   getScreenSources: () => ipcRenderer.invoke(IpcMessage.GetScreenSources),
-  cancelBackup: () => { ipcRenderer.send(IpcMessage.CancelBackup) },
-  startBackup: (token, endpoint, wsIds) => { ipcRenderer.send(IpcMessage.StartBackup, token, endpoint, wsIds) },
+  cancelBackup: () => {
+    ipcRenderer.send(IpcMessage.CancelBackup)
+  },
+  startBackup: (token, endpoint, wsIds) => {
+    ipcRenderer.send(IpcMessage.StartBackup, token, endpoint, wsIds)
+  },
 
-  rebuildJumpList: (spares: JumpListSpares) => { ipcRenderer.send(IpcMessage.RebuildUserJumpList, spares) },
+  rebuildJumpList: (spares: JumpListSpares) => {
+    ipcRenderer.send(IpcMessage.RebuildUserJumpList, spares)
+  },
 
   isMinimizeToTrayEnabled: async () => {
     return await ipcRenderer.invoke(IpcMessage.GetMinimizeToTrayEnabled)
   },
   onMinimizeToTraySettingChanged: (callback: (enabled: boolean) => void) => {
-    ipcRenderer.on(IpcMessage.MinimizeToTraySettingChanged, (_event, enabled: boolean) => { callback(enabled) })
+    ipcRenderer.on(IpcMessage.MinimizeToTraySettingChanged, (_event, enabled: boolean) => {
+      callback(enabled)
+    })
   },
   isAutoLaunchEnabled: async () => {
     return await ipcRenderer.invoke(IpcMessage.GetAutoLaunchEnabled)
   },
   onAutoLaunchSettingChanged: (callback: (enabled: boolean) => void) => {
-    ipcRenderer.on(IpcMessage.AutoLaunchSettingChanged, (_event, enabled: boolean) => { callback(enabled) })
+    ipcRenderer.on(IpcMessage.AutoLaunchSettingChanged, (_event, enabled: boolean) => {
+      callback(enabled)
+    })
   }
 }
 contextBridge.exposeInMainWorld('electron', expose)

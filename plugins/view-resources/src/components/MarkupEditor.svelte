@@ -18,17 +18,19 @@
   import { MessageViewer } from '@hcengineering/presentation'
   import { Button, eventToHTMLElement, Label, showPopup } from '@hcengineering/ui'
   import MarkupEditorPopup from './MarkupEditorPopup.svelte'
+  import { StyledTextBox } from '@hcengineering/text-editor-resources'
+  import type { EditorKitOptions } from '@hcengineering/text-editor-resources'
+  import textEditorPlugin from '@hcengineering/text-editor'
 
-  // export let label: IntlString
-  export let placeholder: IntlString
+  export let placeholder: IntlString = textEditorPlugin.string.EditorPlaceholder
   export let value: string
-  // export let focus: boolean = false
   export let onChange: (value: string) => void
   export let kind: 'no-border' | 'link' = 'no-border'
   export let readonly = false
-  // export let size: ButtonSize = 'x-large'
   export let justify: 'left' | 'center' = 'center'
   export let width: string | undefined = 'fit-content'
+  export let kitOptions: Partial<EditorKitOptions> = { reference: true, emoji: true }
+  export let isScrollable: boolean = true
 
   let shown: boolean = false
 </script>
@@ -36,13 +38,13 @@
 {#if kind === 'link'}
   <Button
     {kind}
-    size={'x-large'}
+    size="x-large"
     {justify}
     {width}
     height={value ? 'auto' : undefined}
     on:click={(ev) => {
       if (!shown && !readonly) {
-        showPopup(MarkupEditorPopup, { value }, eventToHTMLElement(ev), (res) => {
+        showPopup(MarkupEditorPopup, { value, kitOptions }, eventToHTMLElement(ev), (res) => {
           if (res != null) {
             value = res
             onChange(value)
@@ -53,7 +55,7 @@
     }}
   >
     <svelte:fragment slot="content">
-      <div class="lines-limit-4" style:text-align={'left'} class:content-dark-color={readonly}>
+      <div class="lines-limit-4" style:text-align="left" class:content-dark-color={readonly}>
         {#if value}
           <MessageViewer message={value} />
         {:else}
@@ -62,10 +64,18 @@
       </div>
     </svelte:fragment>
   </Button>
-{:else if readonly}
-  {#if value}
-    <span class="overflow-label">{value}</span>
-  {:else}
-    <span class="content-dark-color"><Label label={placeholder} /></span>
-  {/if}
+{:else}
+  <StyledTextBox
+    content={value}
+    {placeholder}
+    alwaysEdit
+    previewUnlimit
+    {kitOptions}
+    mode={2}
+    {readonly}
+    {isScrollable}
+    on:value={(e) => {
+      onChange(e.detail)
+    }}
+  />
 {/if}

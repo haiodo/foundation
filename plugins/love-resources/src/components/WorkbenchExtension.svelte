@@ -1,16 +1,18 @@
 <script lang="ts">
   import { isSafari, pushRootBarComponent } from '@hcengineering/ui'
-  import {
+  import type {
     Participant,
     RemoteParticipant,
     RemoteTrack,
     RemoteTrackPublication,
-    RoomEvent,
-    Track,
     TrackPublication
   } from 'livekit-client'
+  import { RoomEvent, Track } from 'livekit-client'
   import { onDestroy, onMount } from 'svelte'
   import { subscribeToIncomingInvites, unsubscribeFromIncomingInvites } from '../invites'
+  import { reconnectToCurrentMeeting, reconnectingToMeeting, cancelReconnect } from '../meetings'
+  import { confirmSwitchWorkspace } from '../loveGuards'
+  import { addLeaveWorkspaceGuard } from '@hcengineering/presentation'
   import { lkIsConnecting, lkReconnected, lkSessionConnected } from '../liveKitClient'
   import love from '../plugin'
   import { myConnectingSessionId } from '../stores'
@@ -253,11 +255,9 @@
     element.autoplay = true
     parentElement.appendChild(element)
 
-    console.log('[WorkbenchExtension] Audio element attached', {
-      trackSid: publication.trackSid,
-      participant: participant?.identity ?? 'unknown',
-      parentChildrenCount: parentElement?.children?.length ?? 0
-    })
+    console.log(
+      `[WorkbenchExtension] Audio element attached track=${publication.trackSid} participant=${participant?.identity ?? 'unknown'} children=${parentElement?.children?.length ?? 0}`
+    )
 
     safePlay(element, publication.trackSid)
   }
@@ -355,11 +355,28 @@
                 ids: pausedElements.map((el) => el.id),
                 ctxState
               })
-              reattachAllAudioTracks()
+              void reattachAllAudioTracks()
             }
           }, 100)
         })
       }
+    }
+  }
+
+  /**
+   * LiveKit signals playback got blocked by the browser (Safari autoplay policy,
+   * suspended AudioContext). Canonical recovery point — force unlock and retry.
+   */
+  function handleAudioPlaybackStatusChanged (): void {
+    const canPlayback = lk.canPlaybackAudio
+    console.log(
+      `[WorkbenchExtension] AudioPlaybackStatusChanged canPlayback=${canPlayback} ctx=${getAudioContextState().state}`
+    )
+    if (!canPlayback) {
+      audioUnlocked = false
+      void ensureAudioUnlocked(true).then(() => {
+        retryPausedAudioElements()
+      })
     }
   }
 
@@ -386,10 +403,9 @@
     element.autoplay = true
     parentElement.appendChild(element)
 
-    console.log('[WorkbenchExtension.safariReattachTrack] Re-attached', {
-      trackSid: publication.trackSid,
-      participant: participant.name
-    })
+    console.log(
+      `[WorkbenchExtension.safariReattachTrack] Re-attached track=${publication.trackSid} participant=${participant.name ?? participant.identity}`
+    )
 
     safePlay(element, publication.trackSid)
   }
@@ -398,10 +414,15 @@
    * Re-attach all remote audio tracks. Called after LiveKit reconnect
    * to ensure audio elements reference the new MediaStreams.
    */
-  function reattachAllAudioTracks (): void {
+  async function reattachAllAudioTracks (): Promise<void> {
     if (parentElement == null) return
 
     console.log('[WorkbenchExtension] Reattaching audio tracks after reconnect')
+
+    // Resume the AudioContext first — re-attaching elements is useless if the
+    // context is suspended or was recreated at a different sampleRate. Await so
+    // the detach/attach below runs against a running context.
+    await ensureAudioUnlocked(true)
 
     // Cleanup analysers and detach tracks before removing elements
     for (const participant of lk.remoteParticipants.values()) {
@@ -434,7 +455,7 @@
 
     console.log('[WorkbenchExtension] Reattached audio tracks', { count })
 
-    void ensureAudioUnlocked()
+    await ensureAudioUnlocked()
   }
 
   /**
@@ -445,6 +466,7 @@
    */
   const AUDIO_CHECK_INTERVAL_MS = 5000
   let lastRecoveryTime = 0
+  let lastSampleRate = 0
   const RECOVERY_COOLDOWN_MS = 10000
   let healthCheckCount = 0
   // Log full diagnostics every N checks (every ~30s) to avoid flooding console
@@ -465,8 +487,33 @@
       const now = Date.now()
       const problems: string[] = []
 
+      // AudioContext-level check: a suspended context or a context recreated at a
+      // different sampleRate (Safari does this on mic mute/unmute) silently kills
+      // remote playback even though tracks and elements look healthy.
+      const ctxState = getAudioContextState()
+      if (ctxState.state !== 'running' && ctxState.state !== 'not_available') {
+        problems.push(`AudioContext state=${ctxState.state}`)
+        needsRecovery = true
+      }
+      if (ctxState.sampleRate != null) {
+        if (lastSampleRate !== 0 && lastSampleRate !== ctxState.sampleRate) {
+          problems.push(`AudioContext sampleRate changed ${lastSampleRate} -> ${ctxState.sampleRate}`)
+          needsRecovery = true
+        }
+        lastSampleRate = ctxState.sampleRate
+      }
+
       for (const participant of lk.remoteParticipants.values()) {
         for (const publication of participant.trackPublications.values()) {
+          // Audio publication without an active subscription = participant is permanently
+          // inaudible; force re-subscribe (autoSubscribe should have handled it)
+          if (publication.kind === Track.Kind.Audio && !publication.isSubscribed) {
+            problems.push(
+              `${participant.identity}/${publication.trackSid}: audio not subscribed, forcing setSubscribed(true)`
+            )
+            publication.setSubscribed(true)
+            continue
+          }
           if (publication.track?.kind !== Track.Kind.Audio || !publication.isSubscribed) continue
           if (publication.isMuted) continue
 
@@ -496,7 +543,7 @@
           }
 
           const streamTrack = stream.getAudioTracks()[0]
-          if (streamTrack != null && streamTrack.readyState === 'ended') {
+          if (streamTrack?.readyState === 'ended') {
             problems.push(`${trackKey}: stream audio track ended`)
             needsRecovery = true
             continue
@@ -525,28 +572,25 @@
       if (healthCheckCount % DIAGNOSTICS_LOG_INTERVAL === 0) {
         const diag = collectAudioDiagnostics()
         if (diag.length > 0) {
-          console.log('[WorkbenchExtension.healthCheck] Audio diagnostics', {
-            checkNumber: healthCheckCount,
-            audioContext: getAudioContextState(),
-            tracks: diag
-          })
+          // Inline JSON so copied Safari console text contains the data (objects paste as "Object")
+          console.log(
+            `[WorkbenchExtension.healthCheck] Audio diagnostics #${healthCheckCount} ctx=${JSON.stringify(getAudioContextState())} tracks=${JSON.stringify(diag)}`
+          )
         }
       }
 
       if (problems.length > 0) {
-        console.warn('[WorkbenchExtension.healthCheck] Audio problems detected', { problems })
+        console.warn(`[WorkbenchExtension.healthCheck] Audio problems detected: ${problems.join('; ')}`)
       }
 
       if (needsRecovery && now - lastRecoveryTime > RECOVERY_COOLDOWN_MS) {
         lastRecoveryTime = now
         silentTrackCounts.clear()
-        console.log('[WorkbenchExtension.healthCheck] Triggering audio recovery', {
-          problems,
-          audioContext: getAudioContextState(),
-          diagnostics: collectAudioDiagnostics()
-        })
+        console.log(
+          `[WorkbenchExtension.healthCheck] Triggering audio recovery problems=[${problems.join('; ')}] ctx=${JSON.stringify(getAudioContextState())} diagnostics=${JSON.stringify(collectAudioDiagnostics())}`
+        )
         audioUnlocked = false
-        reattachAllAudioTracks()
+        void reattachAllAudioTracks()
       }
     }, AUDIO_CHECK_INTERVAL_MS)
   }
@@ -592,15 +636,27 @@
     lk.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
     lk.on(RoomEvent.TrackMuted, handleTrackMuted)
     lk.on(RoomEvent.TrackUnmuted, handleTrackUnmuted)
+    lk.on(RoomEvent.AudioPlaybackStatusChanged, handleAudioPlaybackStatusChanged)
 
     // Subscribe to incoming meeting invites
     subscribeToIncomingInvites()
 
+    // Resume an in-flight LiveKit session if the page was refreshed mid-call.
+    // Side-effects in `meetings.ts` (onClient + subscribes) only register
+    // once this module is imported — WorkbenchExtension is the first guaranteed
+    // entry point on every workbench page.
+    console.log('[WorkbenchExtension] calling reconnectToCurrentMeeting')
+    void reconnectToCurrentMeeting()
+
     // Attach existing audio tracks
     attachExistingAudioTracks()
 
-    // Unlock audio context
-    void ensureAudioUnlocked()
+    // Only unlock audio when already in a meeting. Calling startAudio() at page
+    // load creates a LiveKit AudioContext that steals the iOS audio session and
+    // interrupts CarPlay / background music even though no call is active.
+    if (get(lkSessionConnected)) {
+      void ensureAudioUnlocked()
+    }
 
     // Start Safari audio health check
     startSafariAudioHealthCheck()
@@ -610,12 +666,15 @@
       // Skip initial subscription call (value is 0)
       if (get(lkReconnected) > 0) {
         audioUnlocked = false
-        reattachAllAudioTracks()
+        void reattachAllAudioTracks()
       }
     })
   })
 
+  const releaseLeaveGuard = addLeaveWorkspaceGuard(confirmSwitchWorkspace)
+
   onDestroy(async () => {
+    releaseLeaveGuard()
     console.log('[WorkbenchExtension.onDestroy] Destroying WorkbenchExtension', {
       lkState: lk.state,
       audioElementsCount: parentElement?.children?.length ?? 0
@@ -625,6 +684,7 @@
     lk.off(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
     lk.off(RoomEvent.TrackMuted, handleTrackMuted)
     lk.off(RoomEvent.TrackUnmuted, handleTrackUnmuted)
+    lk.off(RoomEvent.AudioPlaybackStatusChanged, handleAudioPlaybackStatusChanged)
     unsubReconnect?.()
     stopSafariAudioHealthCheck()
     // Cleanup all audio analysers
@@ -649,3 +709,59 @@
 </script>
 
 <div bind:this={parentElement} class="hidden"></div>
+
+{#if $reconnectingToMeeting}
+  <div class="love-reconnect-banner">
+    <span class="spinner" />
+    <span>Reconnecting to meeting…</span>
+    <button class="cancel" on:click={cancelReconnect}>Cancel</button>
+  </div>
+{/if}
+
+<style lang="scss">
+  .love-reconnect-banner {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    background: var(--global-surface-01-BackgroundColor, #2c2c2c);
+    color: var(--global-primary-TextColor, #fff);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    font-size: 0.875rem;
+
+    .spinner {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: love-reconnect-spin 0.8s linear infinite;
+    }
+
+    .cancel {
+      background: transparent;
+      border: 1px solid currentColor;
+      color: inherit;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font: inherit;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+  }
+
+  @keyframes love-reconnect-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>

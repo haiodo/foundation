@@ -1,5 +1,6 @@
 //
-// Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -16,6 +17,7 @@
 import { DOMAIN_MODEL_TX, TxOperations, type Ref, type Status } from '@hcengineering/core'
 import { leadId, type Lead } from '@hcengineering/lead'
 import {
+  findCachedSpace,
   tryMigrate,
   tryUpgrade,
   type MigrateOperation,
@@ -24,17 +26,20 @@ import {
   type ModelLogger
 } from '@hcengineering/model'
 import core, { DOMAIN_SPACE } from '@hcengineering/model-core'
-
 import { DOMAIN_CONTACT } from '@hcengineering/model-contact'
-import task, { createSequence, DOMAIN_TASK, migrateDefaultStatusesBase } from '@hcengineering/model-task'
+import task, {
+  createSequence,
+  DOMAIN_TASK,
+  migrateDefaultStatusesBase,
+  migrateTaskTypesToClasses
+} from '@hcengineering/model-task'
+import { migrateMixinCustomAttributesPref } from '@hcengineering/model-view'
 
 import lead from './plugin'
 import { defaultLeadStatuses } from './spaceType'
 
-async function createSpace (tx: TxOperations): Promise<void> {
-  const current = await tx.findOne(core.class.Space, {
-    _id: lead.space.DefaultFunnel
-  })
+async function createSpace (tx: TxOperations, client: MigrationUpgradeClient): Promise<void> {
+  const current = await findCachedSpace(client, lead.space.DefaultFunnel)
   if (current === undefined) {
     await tx.createDoc(
       lead.class.Funnel,
@@ -52,8 +57,8 @@ async function createSpace (tx: TxOperations): Promise<void> {
   }
 }
 
-async function createDefaults (tx: TxOperations): Promise<void> {
-  await createSpace(tx)
+async function createDefaults (tx: TxOperations, client: MigrationUpgradeClient): Promise<void> {
+  await createSpace(tx, client)
   await createSequence(tx, lead.class.Lead)
 }
 
@@ -107,7 +112,7 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
   const oldSpaceTypeMixin = `${lead.template.DefaultFunnel}:type:mixin`
   const newSpaceTypeMixin = lead.mixin.DefaultFunnelTypeData
   const oldTaskTypeMixin = `${lead.taskType.Lead}:type:mixin`
-  const newTaskTypeMixin = lead.mixin.LeadTypeData
+  const newTaskTypeMixin = 'lead:mixin:LeadTypeData' as any
 
   await client.update(
     DOMAIN_MODEL_TX,
@@ -145,6 +150,10 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
       }
     }
   )
+}
+
+async function migrateLeadTaskTypesToClasses (client: MigrationClient): Promise<void> {
+  await migrateTaskTypesToClasses(client, lead.taskType.Lead, 'lead:mixin:LeadTypeData' as any, lead.class.LeadTaskType)
 }
 
 export const leadOperation: MigrateOperation = {
@@ -185,6 +194,18 @@ export const leadOperation: MigrateOperation = {
             }
           )
         }
+      },
+      {
+        state: 'migrateTaskTypesToClasses-v6',
+        mode: 'upgrade',
+        func: migrateLeadTaskTypesToClasses
+      },
+      {
+        state: 'migrateTaskTypeMixinPrefs-v1',
+        mode: 'upgrade',
+        func: async (client) => {
+          await migrateMixinCustomAttributesPref(client, 'lead:mixin:LeadTypeData', lead.class.LeadTaskType)
+        }
       }
     ])
   },
@@ -194,7 +215,7 @@ export const leadOperation: MigrateOperation = {
         state: 'u-default-funnel',
         func: async (client) => {
           const ops = new TxOperations(client, core.account.System)
-          await createDefaults(ops)
+          await createDefaults(ops, client)
         }
       }
     ])

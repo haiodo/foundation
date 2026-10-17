@@ -16,7 +16,7 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { MarkupNode } from '@hcengineering/text'
+  import type { MarkupNode } from '@hcengineering/text'
   import { onDestroy, onMount } from 'svelte'
   import { Doc as Ydoc, encodeStateAsUpdate, applyUpdate } from 'yjs'
 
@@ -24,7 +24,7 @@
   import { Plugin, PluginKey } from '@tiptap/pm/state'
   import { DecorationSet } from '@tiptap/pm/view'
 
-  import { getEditorKit } from '../../src/kits/editor-kit'
+  import { getEditorKit } from '../kits/editor-kit'
   import { calculateDecorations, createYdocDocument } from './diff/decorations'
   import { defaultEditorAttributes } from './editor/editorProps'
 
@@ -32,8 +32,6 @@
   export let field: string | undefined = undefined
   export let comparedYdoc: Ydoc | undefined = undefined
   export let comparedField: string | undefined = undefined
-
-  // export let mode: 'unified' = 'unified'
 
   let element: HTMLElement
   let editor: Editor
@@ -100,7 +98,13 @@
     })
 
     editor = new Editor({
-      editorProps: { attributes: mergeAttributes(defaultEditorAttributes, { class: 'flex-grow' }) },
+      editorProps: {
+        // tabindex from the defaults makes the node focusable, and Safari scrolls to it on mount;
+        // a read-only diff never needs focus
+        attributes: mergeAttributes(defaultEditorAttributes, { class: 'flex-grow', tabindex: '-1' }),
+        // a read-only diff must never scroll the page to its selection
+        handleScrollToSelection: () => true
+      },
       element,
       editable: false,
       extensions: [kit, DecorationExtension],

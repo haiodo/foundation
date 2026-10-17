@@ -14,19 +14,17 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { MasterTag } from '@hcengineering/card'
-  import core, { Doc, Ref } from '@hcengineering/core'
+  import type { MasterTag } from '@hcengineering/card'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
+  import type { AnyComponent, AnySvelteComponent, BreadcrumbItem, Location } from '@hcengineering/ui'
   import {
-    AnyComponent,
-    AnySvelteComponent,
-    BreadcrumbItem,
     Breadcrumbs,
     deviceOptionsStore as deviceInfo,
     getCurrentLocation,
     Header,
-    Location,
     navigate,
     resizeObserver,
     resolvedLocationStore
@@ -141,8 +139,8 @@
   }}
 >
   {#if masterTag !== undefined}
-    <Header adaptive={'disabled'}>
-      <Breadcrumbs {items} selected={items.length - 1} size={'large'} on:select={handleSelect} />
+    <Header adaptive="disabled">
+      <Breadcrumbs {items} selected={items.length - 1} size="large" on:select={handleSelect} />
     </Header>
     {#if subEditor === undefined}
       {#key masterTag._id}

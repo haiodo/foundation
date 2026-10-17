@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Ref, Space } from '@hcengineering/core'
-  import ui, { ModernButton } from '@hcengineering/ui'
-  import { GithubProject } from '@hcengineering/github'
+  import type { Ref, Space } from '@hcengineering/core'
+  import ui from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
+  import type { GithubProject } from '@hcengineering/github'
   import github from '../plugin'
   import { githubAuth, githubProjects, onAuthorize } from './utils'
   import { getMetadata } from '@hcengineering/platform'
@@ -18,25 +19,25 @@
 {#if spaceObj !== undefined}
   {#if auth === undefined || auth.login === ''}
     {#if !readonly}
-      <ModernButton
+      <Button
         label={github.string.Authorize}
         labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
         icon={github.icon.Github}
-        kind={'primary'}
-        size={'small'}
+        kind="primary"
+        size="small"
         on:click={() => {
           void onAuthorize()
         }}
       />
     {/if}
   {:else}
-    <ModernButton
+    <Button
       icon={github.icon.Github}
       label={github.string.AuthorizeAs}
       labelParams={{ login: auth.login }}
       disabled={true}
       {kind}
-      size={'small'}
+      size="small"
     />
   {/if}
 {/if}

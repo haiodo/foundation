@@ -18,55 +18,50 @@ import core, {
   AccountUuid,
   Branding,
   Class,
-  Data,
   Doc,
   type DocumentQuery,
+  DOMAIN_TRANSIENT,
   type FindOptions,
+  type LowLevelStorage,
   FindResult,
   Hierarchy,
   MeasureContext,
   ModelDb,
-  notEmpty,
-  PersonId,
-  readOnlyGuestAccountUuid,
   Ref,
-  Space,
   Timestamp,
   Tx,
-  TxCreateDoc,
   TxCUD,
   TxFactory,
-  TxProcessor,
-  TxRemoveDoc,
   TxUpdateDoc,
+  UserStatus,
   type WithLookup,
   WorkspaceInfoWithStatus
 } from '@hcengineering/core'
-import activity, { ActivityMessage, DocUpdateMessage, Reaction } from '@hcengineering/activity'
+import activity, { ActivityMessage } from '@hcengineering/activity'
 import { RestClient } from '@hcengineering/api-client'
 import notification, {
-  DocNotifyContext,
-  InboxNotification,
-  NotificationContent,
-  NotificationProvider,
-  NotificationType,
-  ReactionInboxNotification,
-  ReadPosition,
+  TxNotificationType,
+  QueueNotificationMessage,
   ReadState,
-  TxNotificationType
+  ReadNotificationAction,
+  ReadAllNotificationAction,
+  ClearAllNotificationAction,
+  CreateNotificationAction,
+  DocNotifyContext,
+  UnreadReaction,
+  UnreadMention,
+  CommonNotification
 } from '@hcengineering/notification'
-import contact, { Employee } from '@hcengineering/contact'
-import serverNotification, {
-  getSenderName,
-  normalizeTextMessage,
-  Receiver,
-  TypeMatch
-} from '@hcengineering/server-notification'
 import { StorageAdapter } from '@hcengineering/storage'
-import { getResource, IntlString, PlatformError, unknownError } from '@hcengineering/platform'
-import { markupToText } from '@hcengineering/text-core'
-import config from './config'
-import { createPipeline, MiddlewareCreator, Pipeline, PipelineContext } from '@hcengineering/server-core'
+import { PlatformError, unknownError } from '@hcengineering/platform'
+import { DelayStrategyFactory, retryNetworkErrors, withRetry } from '@hcengineering/retry'
+import {
+  createPipeline,
+  MiddlewareCreator,
+  Pipeline,
+  PipelineContext,
+  PlatformQueueProducer
+} from '@hcengineering/server-core'
 import { getConfig } from '@hcengineering/server-pipeline'
 import {
   ContextNameMiddleware,
@@ -78,28 +73,120 @@ import {
   ModelMiddleware
 } from '@hcengineering/middleware'
 
-import WsCache from './cache'
-import { Client, NotifyResult } from './types'
+import config from './config'
+import WorkspaceCache from './cache'
+import { Client, Result, TimeMachineMessage, TxCache } from './types'
+import { emptyResult, getEmptyTxCache, getResultTxes, isEmptyResult } from './utils/utils'
+import { setUnreadMessagesCounts } from './utils/context'
+import { handleMessage } from './module/message'
+import { handleTxNotification } from './module/tx'
+import { handleReadState } from './module/read'
 import {
-  getAllowedProviders,
-  getMessageNotificationContent,
-  getMessageNotifyResult,
-  getNotifiedUsers,
-  getTxNotifyResult,
-  getTypeMatchClient,
-  isMatchedTxType
-} from './utils'
-import { createMentionsData, getMentionNotificationContent } from './mention'
-import { getReactionNotificationContent } from './reaction'
+  handleReadNotificationAction,
+  handleReadAllNotificationAction,
+  handleClearAllNotificationAction,
+  handleCreateNotificationAction
+} from './module/action'
+import { HeldPush, PendingPushHolder } from './pendingPush'
+import { heldLetterId, type HeldLetterId } from './heldLetter'
+
+const transientHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504])
+// Attempts of one tx batch on a transient transactor error before the source tx goes back to the queue.
+const applyAttempts = 4
+const applyBackoff = DelayStrategyFactory.exponentialBackoff({
+  initialDelayMs: 500,
+  maxDelayMs: 5000,
+  backoffFactor: 2,
+  jitter: 0.2
+})
+
+// The context txes are applied by the time the queue messages go out, and a redelivered tx is
+// recognised as already recorded, so a message that fails to publish is not retried later: push
+// and email of that batch are lost. The producer is therefore retried for about a minute before
+// giving up, longer than a broker leader change or a short outage takes.
+const publishAttempts = 8
+// How long a letter that went out is remembered, to drop the time machine firing it again.
+const releasedMemoryMs = 10 * 60 * 1000
+const publishBackoff = DelayStrategyFactory.exponentialBackoff({
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffFactor: 2,
+  jitter: 0.2
+})
+
+// Network failures and transactor-side outages are worth a retry; a rejected batch (bad request,
+// policy reject, forbidden) is not.
+const READ_CHECK_CHUNK = 200
+
+// Which held pushes were read meanwhile, one answer per push in order. From the DB, not the
+// cache: a read the cache knows of already cancelled its hold. One query per chunk of documents.
+export async function areHeldPushesRead (ctx: MeasureContext, pipeline: Pipeline, held: HeldPush[]): Promise<boolean[]> {
+  const byPosition = held.filter((it) => it.readBy === 'position')
+  const byList = held.filter((it) => it.readBy !== 'position')
+
+  const states = new Map<Ref<Doc>, ReadState>()
+  for (const ids of chunks(unique(byPosition.map((it) => it.objectId)))) {
+    for (const state of await pipeline.findAll<ReadState>(ctx, notification.class.ReadState, {
+      attachedTo: { $in: ids }
+    })) {
+      states.set(state.attachedTo, state)
+    }
+  }
+
+  const contexts = new Map<string, DocNotifyContext>()
+  for (const ids of chunks(unique(byList.map((it) => it.objectId)))) {
+    for (const context of await pipeline.findAll<DocNotifyContext>(ctx, notification.class.DocNotifyContext, {
+      objectId: { $in: ids },
+      user: { $in: unique(byList.map((it) => it.account)) }
+    })) {
+      contexts.set(`${context.user}:${context.objectId}`, context)
+    }
+  }
+
+  return held.map((it) => {
+    if (it.readBy === 'position') {
+      const position = states.get(it.objectId)?.[it.account]
+      return position != null && position.timestamp >= it.createdOn
+    }
+    const context = contexts.get(`${it.account}:${it.objectId}`)
+    if (context === undefined) return true
+    const unread: ReadonlyArray<UnreadReaction | UnreadMention | CommonNotification> =
+      it.readBy === 'reactions'
+        ? (context.unreadReactions ?? [])
+        : it.readBy === 'mentions'
+          ? (context.unreadMentions ?? [])
+          : (context.unreadCommons ?? [])
+    return !unread.some((entry) => entry.id === it.notificationId)
+  })
+}
+
+function unique<T> (values: T[]): T[] {
+  return Array.from(new Set(values))
+}
+
+function chunks<T> (values: T[]): T[][] {
+  const result: T[][] = []
+  for (let i = 0; i < values.length; i += READ_CHECK_CHUNK) result.push(values.slice(i, i + READ_CHECK_CHUNK))
+  return result
+}
+
+export function isTransientError (e: unknown): boolean {
+  if (retryNetworkErrors(e)) return true
+  const httpStatus = (e as any)?.httpStatus
+  return typeof httpStatus === 'number' && transientHttpStatuses.has(httpStatus)
+}
 
 class Workspace {
-  private readonly cache: WsCache
+  public readonly cache: WorkspaceCache
 
-  private inProgress = false
-  private lastTxDate: Timestamp | undefined = undefined
+  private readonly inProgress = new Set<Promise<void>>()
+  // When each letter went out: the time machine delivers at least once, a repeat is dropped.
+  private readonly released = new Map<HeldLetterId, Timestamp>()
+  private lastUpdate: Timestamp | undefined = Date.now()
 
   private readonly txFactory = new TxFactory(core.account.System, true)
-  private readonly client: Client
+  readonly client: Client
+  readonly pendingPush: PendingPushHolder
 
   private constructor (
     private readonly ctx: MeasureContext,
@@ -110,56 +197,189 @@ class Workspace {
     private readonly rest: RestClient,
     private readonly storage: StorageAdapter,
     private readonly branding: Branding | undefined,
-    private readonly txTypes: TxNotificationType[]
+    private readonly txTypes: TxNotificationType[],
+    private readonly producer: PlatformQueueProducer<QueueNotificationMessage>,
+    private readonly timeMachine: PlatformQueueProducer<TimeMachineMessage>,
+    getAiBotAccount: () => Promise<AccountUuid | undefined>
   ) {
+    this.pendingPush = new PendingPushHolder({
+      holdMs: config.PushHoldMs,
+      publish: async (message) => {
+        await this.publish([message])
+      },
+      areRead: async (held) => await areHeldPushesRead(this.ctx, this.pipeline, held),
+      onError: (err, held) => {
+        this.ctx.error('Failed to release a held push, it is lost', {
+          error: err instanceof Error ? err.message : String(err),
+          notificationId: held.notificationId,
+          account: held.account
+        })
+      },
+      onCheckFailed: (err, held, attempt) => {
+        this.ctx.warn('Failed to check whether a held push was read, retrying', {
+          error: err instanceof Error ? err.message : String(err),
+          notificationId: held.notificationId,
+          account: held.account,
+          attempt
+        })
+      }
+    })
     this.client = this.getClient()
-    this.cache = new WsCache(this.ctx, this.client)
+    this.cache = new WorkspaceCache(this.ctx, this.client, getAiBotAccount)
   }
 
   async tx (tx: TxCUD<Doc>): Promise<void> {
-    this.inProgress = true
+    await this.track(this.processTx(tx))
+  }
+
+  // A letter the time machine fired: out unless read meanwhile (heldLetter.ts).
+  async releaseHeld (held: HeldPush): Promise<void> {
+    await this.track(
+      (async () => {
+        const key = heldLetterId(held)
+        const now = Date.now()
+        // Oldest first (a Map keeps insertion order), so the sweep stops at the first fresh one.
+        for (const [id, at] of this.released) {
+          if (now - at <= releasedMemoryMs) break
+          this.released.delete(id)
+        }
+        if (this.released.has(key)) {
+          this.ctx.warn('held letter fired again, dropped', { notificationId: held.notificationId })
+          return
+        }
+        const [read] = await areHeldPushesRead(this.ctx, this.pipeline, [held])
+        if (read) return
+        await this.publish([held.message])
+        this.released.set(key, now)
+      })()
+    )
+  }
+
+  private async track (run: Promise<void>): Promise<void> {
+    this.lastUpdate = Date.now()
+    this.inProgress.add(run)
+    try {
+      await run
+    } finally {
+      this.inProgress.delete(run)
+    }
+  }
+
+  private async processTx (tx: TxCUD<Doc>): Promise<void> {
     const domain = this.hierarchy.findDomain(tx.objectClass)
     if (domain == null) {
-      this.inProgress = false
       return
     }
 
     if (domain === 'model') {
+      // addTxes keeps the hierarchy in step, applying it here too would double $push/$inc.
       this.model.addTxes(this.ctx, [tx], true)
-      this.hierarchy.tx(tx)
     }
 
-    this.cache.tx(tx)
+    // The status before this tx: a removal takes it out of the cache, and only this copy names the account.
+    const isUserStatus = this.hierarchy.isDerived(tx.objectClass, core.class.UserStatus)
+    const statusBefore = isUserStatus ? this.cache.getCachedUserStatus(tx.objectId as Ref<UserStatus>) : undefined
 
+    try {
+      this.cache.tx(tx)
+    } catch (e: any) {
+      // A cache that failed half way through an update cannot be trusted; the DB can.
+      this.ctx.error('Failed to apply tx to the cache, cache is reset', { error: e?.message ?? String(e), tx: tx._id })
+      this.cache.reset()
+    }
+
+    if (isUserStatus) {
+      await this.releaseHeldPushes(tx, statusBefore)
+      return
+    }
     if (this.hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) return
-    if (this.hierarchy.isDerived(tx.objectClass, notification.class.InboxNotification)) return
-    if (this.hierarchy.isDerived(tx.objectClass, notification.class.BrowserNotification)) return
+    if (this.hierarchy.isDerived(tx.objectClass, notification.class.AppPushNotification)) return
     if (this.hierarchy.isDerived(tx.objectClass, activity.class.ActivityReference)) return
 
-    const res: TxCUD<Doc>[] = []
+    const result: Result = emptyResult()
+    const txCache: TxCache = getEmptyTxCache()
 
-    if (this.hierarchy.isDerived(tx.objectClass, notification.class.ReadState)) {
-      res.push(...(await this.processReadState(tx as TxCUD<ReadState>)))
-    } else {
-      res.push(...(await this.processTxNotifications(tx)))
+    if (this.hierarchy.isDerived(tx.objectClass, notification.class.ReadAllNotificationAction)) {
+      const readAll = tx as TxCUD<ReadAllNotificationAction>
+      await this.finishInboxAction(
+        result,
+        await handleReadAllNotificationAction(this.client, this.cache, result, readAll)
+      )
+      return
+    }
+    if (this.hierarchy.isDerived(tx.objectClass, notification.class.ClearAllNotificationAction)) {
+      const clearAll = tx as TxCUD<ClearAllNotificationAction>
+      await this.finishInboxAction(
+        result,
+        await handleClearAllNotificationAction(this.client, this.cache, result, clearAll)
+      )
+      return
+    }
 
-      const notifiedUsers = getNotifiedUsers(this.hierarchy, res)
+    if (this.hierarchy.isDerived(tx.objectClass, notification.class.ReadNotificationAction)) {
+      await handleReadNotificationAction(this.client, this.cache, result, tx as TxCUD<ReadNotificationAction>)
+    } else if (this.hierarchy.isDerived(tx.objectClass, notification.class.CreateNotificationAction)) {
+      await handleCreateNotificationAction(
+        this.client,
+        this.cache,
+        txCache,
+        result,
+        tx as TxCUD<CreateNotificationAction>
+      )
+    } else if (this.hierarchy.isDerived(tx.objectClass, notification.class.ReadState)) {
+      await handleReadState(this.client, this.cache, result, tx as TxCUD<ReadState>)
+    }
+
+    if (tx.meta?.silent !== true) {
+      await handleTxNotification(this.client, this.cache, txCache, result, tx, this.txTypes)
 
       if (this.hierarchy.isDerived(tx.objectClass, activity.class.ActivityMessage)) {
-        res.push(...(await this.processMessage(tx as TxCUD<ActivityMessage>, notifiedUsers, res)))
+        await handleMessage(this.client, this.cache, txCache, result, tx as TxCUD<ActivityMessage>)
       }
     }
 
-    if (res.length > 0) {
-      this.lastTxDate = tx.createdOn ?? tx.modifiedOn
+    if (!isEmptyResult(result)) {
+      if (tx.meta?.inboxOnly === true) this.keepInboxProviderOnly(result)
+      // Derived counters are filled once here, after every handler had its say on the context txes.
+      await setUnreadMessagesCounts(result, this.cache, this.client)
+      await this.applyResult(result)
     }
-
-    await this.applyTxes(res)
-
-    this.inProgress = false
   }
 
-  private async applyTxes (txes: TxCUD<Doc>[]): Promise<void> {
+  private async finishInboxAction (result: Result, account: AccountUuid | undefined): Promise<void> {
+    if (!isEmptyResult(result)) await this.applyResult(result)
+    if (account !== undefined) void this.track(this.notifyInboxChanged(account))
+  }
+
+  private async notifyInboxChanged (account: AccountUuid): Promise<void> {
+    try {
+      const [space] = await this.cache.getPersonSpaces([account])
+      if (space === undefined) return
+      const event = this.txFactory.createTxCreateDoc(notification.class.InboxChangeEvent, space._id, { account })
+      await withRetry(() => this.rest.tx(event), {
+        maxRetries: applyAttempts,
+        isRetryable: isTransientError,
+        delayStrategy: applyBackoff
+      })
+    } catch (e: unknown) {
+      // The inbox is read; a redelivered action would find nothing to do and send no event either.
+      this.ctx.error('Failed to tell the clients their inbox changed, they show it stale until a reload', {
+        error: e instanceof Error ? e.message : String(e),
+        account
+      })
+    }
+  }
+
+  // Push/sound/email/telegram senders filter by allowedProviders, so trimming them leaves the inbox entry alone.
+  private keepInboxProviderOnly (res: Result): void {
+    res.queueMessages = []
+    res.createAppPushNotificationTx = []
+    res.heldPushes = []
+    res.timeMachine = res.timeMachine.filter((it) => it.type !== 'schedule')
+  }
+
+  private async applyResult (result: Result): Promise<void> {
+    const txes = getResultTxes(result)
     for (let i = 0; i < txes.length; i += config.ApplyTxBatchSize) {
       const batch = txes.slice(i, i + config.ApplyTxBatchSize)
       const txApply = this.txFactory.createTxApplyIf(
@@ -172,11 +392,92 @@ class Workspace {
         true
       )
       try {
-        await this.rest.tx(txApply)
-      } catch (e) {
-        console.error(e)
-        this.ctx.error('Failed to send tx batch', { tx: txApply, batchSize: batch.length })
+        await withRetry(() => this.rest.tx(txApply), {
+          maxRetries: applyAttempts,
+          isRetryable: isTransientError,
+          delayStrategy: applyBackoff
+        })
+        this.mirrorToCache(batch)
+      } catch (e: any) {
+        this.cache.resetContexts()
+        const transient = isTransientError(e)
+        this.ctx.error(transient ? 'Failed to apply tx batch, tx will be redelivered' : 'Tx batch rejected, dropped', {
+          error: e?.message ?? String(e),
+          status: e instanceof PlatformError ? e.status : undefined,
+          batchSize: batch.length,
+          txIds: batch.map((it) => it._id)
+        })
+        if (transient) {
+          throw e
+        }
       }
+    }
+
+    // The inbox entries are in; now the native pushes about them wait.
+    for (const held of result.heldPushes) this.pendingPush.hold(held)
+
+    if (result.queueMessages.length > 0) {
+      try {
+        await this.publish(result.queueMessages)
+      } catch (e: any) {
+        // Known limitation, see docs/features/notifications.md: the inbox entries exist, the
+        // push and email of this batch do not. The line is the alert hook.
+        this.ctx.error('Failed to publish user notifications, push and email of this batch are lost', {
+          error: e?.message ?? String(e),
+          count: result.queueMessages.length,
+          notificationIds: result.queueMessages.map((it) => it.id),
+          accounts: Array.from(new Set(result.queueMessages.map((it) => it.account)))
+        })
+      }
+    }
+    if (result.timeMachine.length > 0) {
+      try {
+        await withRetry(() => this.timeMachine.send(this.ctx, this.ws.uuid, result.timeMachine), {
+          maxRetries: publishAttempts,
+          isRetryable: () => true,
+          delayStrategy: publishBackoff
+        })
+      } catch (e: unknown) {
+        // A lost cancel is harmless: the check when the letter fires drops it if read.
+        this.ctx.error('Failed to send held letters to the time machine, they are lost', {
+          error: e instanceof Error ? e.message : String(e),
+          count: result.timeMachine.length,
+          ids: result.timeMachine.map((it) => it.id)
+        })
+      }
+    }
+  }
+
+  private async publish (messages: QueueNotificationMessage[]): Promise<void> {
+    await withRetry(() => this.producer.send(this.ctx, this.ws.uuid, messages), {
+      maxRetries: publishAttempts,
+      isRetryable: () => true,
+      delayStrategy: publishBackoff
+    })
+  }
+
+  // The receiver left (away, offline): what waited for them goes out. A status the cache never
+  // saw names no account; the cap releases those pushes instead.
+  private async releaseHeldPushes (tx: TxCUD<Doc>, status: UserStatus | undefined): Promise<void> {
+    if (this.pendingPush.size === 0) return
+    if (status === undefined) return
+    const gone =
+      tx._class === core.class.TxRemoveDoc ||
+      (tx._class === core.class.TxUpdateDoc &&
+        ((tx as TxUpdateDoc<UserStatus>).operations.away === true ||
+          (tx as TxUpdateDoc<UserStatus>).operations.online === false))
+    if (gone) await this.pendingPush.flushByAccount(status.user)
+  }
+
+  // The batch is applied by now: a failure here is a cache problem, not a rejected batch.
+  private mirrorToCache (batch: TxCUD<Doc>[]): void {
+    try {
+      for (const tx of batch) {
+        this.cache.tx(tx, true)
+      }
+    } catch (e: any) {
+      this.ctx.error('Failed to mirror applied txes to the cache, cache is reset', { error: e?.message ?? String(e) })
+      this.cache.reset()
     }
   }
 
@@ -189,641 +490,69 @@ class Workspace {
       hierarchy: this.hierarchy,
       model: this.model,
       branding: this.branding,
+      pendingPush: this.pendingPush,
       findAll: async <T extends Doc>(
         _class: Ref<Class<T>>,
         query: DocumentQuery<T>,
         options?: FindOptions<T>
       ): Promise<FindResult<T>> => {
-        return await this.pipeline.findAll(this.ctx, _class, query, options)
+        return await this.find(_class, query, options)
+      },
+      bulkUpdate: async (_class, query, operations) => {
+        await this.lowLevel().rawUpdate(this.hierarchy.getDomain(_class), query, operations)
+      },
+      bulkRemove: async (_class, query) => {
+        await this.lowLevel().rawDeleteMany(this.hierarchy.getDomain(_class), query)
       },
       findOne: async <T extends Doc>(
         _class: Ref<Class<T>>,
         query: DocumentQuery<T>,
         options?: FindOptions<T>
       ): Promise<WithLookup<T> | undefined> => {
-        return (await this.pipeline.findAll(this.ctx, _class, query, { ...options, limit: 1 }))[0]
+        return (await this.find(_class, query, { ...options, limit: 1 }))[0]
       }
     }
   }
 
-  async processReadState (_tx: TxCUD<ReadState>): Promise<TxCUD<Doc>[]> {
-    if (_tx._class !== core.class.TxUpdateDoc) return []
-
-    const tx = _tx as TxUpdateDoc<ReadState>
-    if (tx.attachedTo == null) return []
-
-    const res: TxCUD<Doc>[] = []
-    const contexts = await this.cache.getContexts(tx.attachedTo)
-
-    for (const [key, value] of Object.entries(tx.operations)) {
-      const ctx = contexts.filter((it) => it.user === key)
-      if (ctx.length === 0) continue
-      const ts = (value as ReadPosition)?.timestamp ?? 0
-      if (ts === 0) continue
-
-      for (const context of ctx) {
-        const current = context.lastView ?? 0
-        if (current === ts) continue
-        context.lastView = ts
-        res.push(
-          this.txFactory.createTxUpdateDoc(context._class, context.space, context._id, {
-            lastView: ts
-          })
-        )
-      }
-    }
-
-    return res
-  }
-
-  async processTxNotifications (tx: TxCUD<Doc>): Promise<TxCUD<Doc>[]> {
-    if (this.hierarchy.isDerived(tx.objectClass, activity.class.Reaction)) {
-      return await this.processReaction(tx as TxCUD<Reaction>)
-    }
-
-    let matched: TxNotificationType[] = []
-    const client: Client = this.client
-    const { hierarchy } = client
-
-    for (const type of this.txTypes) {
-      if (isMatchedTxType(client, tx, type)) {
-        matched.push(type)
-      }
-    }
-
-    if (matched.length === 0) return []
-
-    const txAttachedToDoc =
-      tx.attachedTo != null && tx.attachedToClass != null
-        ? await this.cache.getDoc(tx.attachedTo, tx.attachedToClass)
-        : undefined
-    const txObject =
-      tx._class === core.class.TxCreateDoc
-        ? TxProcessor.createDoc2Doc(tx as TxCreateDoc<Doc>)
-        : await this.cache.getDoc(tx.objectId, tx.objectClass)
-    if (txObject === undefined) return []
-
-    const space = await this.cache.getDocSpace(txObject)
-    if (space === undefined) return []
-
-    const res: TxCUD<Doc>[] = []
-    const doc = txAttachedToDoc ?? txObject
-    const contexts = await this.cache.getContexts(doc._id)
-    const sender = await this.cache.getSender(tx.modifiedBy)
-
-    const settings = await this.cache.getSettings()
-    const mentionType = matched.find((it) => it._id === notification.ids.MentionNotificationType)
-
-    if (mentionType != null) {
-      if (
-        tx._class === core.class.TxCreateDoc &&
-        hierarchy.isDerived(txObject._class, activity.class.ActivityMessage)
-      ) {
-        res.push(
-          ...this.updateContextLastUpdate(
-            contexts,
-            (txObject as ActivityMessage).createdOn ?? tx.modifiedOn,
-            sender.account,
-            []
-          )
-        )
-      }
-      const result = await createMentionsData(
-        client,
-        this.cache,
-        tx,
-        contexts,
-        txAttachedToDoc,
-        txObject,
-        settings,
-        mentionType
-      )
-      res.push(...result.txes)
-
-      for (const d of result.data) {
-        res.push(
-          ...(await this.createNotifications(
-            notification.class.MentionInboxNotification,
-            d.data,
-            await getMentionNotificationContent(client, txAttachedToDoc ?? txObject, txObject, d.data.markup, sender),
-            doc,
-            tx.modifiedOn,
-            tx.modifiedBy,
-            d.context,
-            d.receiver,
-            d.notifyResult,
-            hierarchy.isDerived(txObject._class, activity.class.ActivityMessage),
-            [],
-            (txObject as ActivityMessage).createdOn
-          ))
-        )
-      }
-
-      matched = matched.filter((it) => it._id !== notification.ids.MentionNotificationType)
-    }
-
-    if (matched.length === 0) return res
-
-    const notifiedUsers = getNotifiedUsers(this.hierarchy, res)
-
-    const collaborators = (await this.getCollaboratorAccounts(doc, space)).filter((it) => !notifiedUsers.includes(it))
-    if (collaborators.length === 0) return res
-
-    const receivers = await this.cache.getReceivers(collaborators)
-
-    for (const receiver of receivers) {
-      const context = contexts.find((it) => it.user === receiver.account)
-      const mode = context?.settings?.mode ?? 'all'
-      if (mode === 'mute') continue
-      const notifyResult = await getTxNotifyResult(client, tx, doc, receiver, settings, matched, mode)
-
-      const types = notifyResult[notification.providers.InboxNotificationProvider] ?? []
-      const type = types[0] as TxNotificationType
-      if (type == null) continue
-
-      if (client.hierarchy.hasMixin(type, serverNotification.mixin.TypeMatch)) {
-        const mixin = client.hierarchy.as<NotificationType, TypeMatch>(type, serverNotification.mixin.TypeMatch)
-        if (mixin.create == null) continue
-        const f = await getResource(mixin.create)
-        const data = await f(getTypeMatchClient(client), tx, txAttachedToDoc, txObject, receiver)
-        if (data == null) continue
-        let content: NotificationContent
-
-        if (mixin.contentProvider != null) {
-          const f = await getResource(mixin.contentProvider)
-          content = await f(getTypeMatchClient(client), type, tx, txAttachedToDoc ?? txObject, txObject, sender)
-        } else {
-          const intlParams: Record<string, string | number> = {
-            ...data.props,
-            senderName: getSenderName(sender, client.branding?.lastNameFirst)
-          }
-          const intlParamsNotLocalized: Record<string, IntlString> = { ...data.propsIntl }
-
-          if (data.markup != null) {
-            intlParams.message = normalizeTextMessage(markupToText(data.markup))
-          } else if (data.message != null) {
-            intlParamsNotLocalized.message = data.message
-          }
-
-          if (data.header != null) {
-            intlParamsNotLocalized.title = data.header
-          }
-
-          const message = intlParams.message ?? intlParamsNotLocalized.message
-          content = {
-            title:
-              intlParams.identifier != null
-                ? notification.string.CommonNotificationTitleWithIdentifier
-                : notification.string.CommonNotificationTitle,
-            body:
-              message != null
-                ? notification.string.MessageNotificationBody
-                : notification.string.UpdateNotificationBody,
-            intlParams,
-            intlParamsNotLocalized
-          }
-        }
-
-        res.push(
-          ...(await this.createNotifications(
-            notification.class.CommonInboxNotification,
-            data,
-            content,
-            doc,
-            tx.modifiedOn,
-            tx.modifiedBy,
-            context,
-            receiver,
-            notifyResult,
-            false
-          ))
-        )
-      }
-    }
-
-    return res
-  }
-
-  private async processReaction (tx: TxCUD<Reaction>): Promise<TxCUD<Doc>[]> {
-    if (tx._class === core.class.TxCreateDoc) {
-      return await this.processCreateReaction(tx as TxCreateDoc<Reaction>)
-    } else if (tx._class === core.class.TxRemoveDoc) {
-      return await this.processRemoveReaction(tx as TxRemoveDoc<Reaction>)
-    }
-
-    return []
-  }
-
-  private async processCreateReaction (tx: TxCreateDoc<Reaction>): Promise<TxCUD<Doc>[]> {
-    if (tx.attachedTo === undefined) return []
-
-    const reaction = TxProcessor.createDoc2Doc(tx)
-
-    const message = await this.client.findOne(activity.class.ActivityMessage, { _id: reaction.attachedTo })
-    if (message === undefined) return []
-
-    const socialId = message.createdBy ?? message.modifiedBy
-    if (socialId === core.account.System || socialId === tx.modifiedBy) return []
-
-    const doc = await this.client.findOne(message.attachedToClass, { _id: message.attachedTo })
-    if (doc === undefined) return []
-
-    const account = await this.cache.getAccountBySocialId(socialId)
-    if (account == null) return []
-
-    const receiver = (await this.cache.getReceivers([account]))[0]
-    if (receiver === undefined) return []
-
-    const settings = await this.cache.getSettings()
-
-    const data: Partial<Data<ReactionInboxNotification>> = {
-      emoji: reaction.emoji,
-      attachedTo: message._id,
-      attachedToClass: message._class,
-      ref: reaction._id
-    }
-
-    const type: TxNotificationType = this.model.findAllSync(notification.class.TxNotificationType, {
-      _id: activity.ids.AddReactionNotification
-    })[0]
-
-    const providers: Ref<NotificationProvider>[] = getAllowedProviders(this.client, settings, receiver.socialIds, type)
-    if (providers.length === 0 || !providers.includes(notification.providers.InboxNotificationProvider)) return []
-
-    const res: TxCUD<Doc>[] = []
-    const context = (await this.cache.getContexts(doc._id)).find((it) => it.user === receiver.account)
-    const sender = await this.cache.getSender(reaction.modifiedBy)
-
-    const notifyResult: NotifyResult = Object.fromEntries(providers.map((p) => [p, [type]]))
-
-    const txes = await this.createNotifications(
-      notification.class.ReactionInboxNotification,
-      data,
-      getReactionNotificationContent(this.client, message, reaction, sender),
-      doc,
-      reaction.modifiedOn,
-      reaction.modifiedBy,
-      context,
-      receiver,
-      notifyResult,
-      false
-    )
-
-    res.push(...txes)
-
-    return res
-  }
-
-  private async processRemoveReaction (tx: TxRemoveDoc<Reaction>): Promise<TxCUD<Doc>[]> {
-    const toRemove = await this.client.findAll(notification.class.ReactionInboxNotification, { ref: tx.objectId })
-
-    return toRemove.map((it) => this.txFactory.createTxRemoveDoc(it._class, it.space, it._id))
-  }
-
-  private async processMessage (
-    tx: TxCUD<ActivityMessage>,
-    notifiedUsers: AccountUuid[],
-    _res: TxCUD<Doc>[]
-  ): Promise<TxCUD<Doc>[]> {
-    if (tx._class === core.class.TxCreateDoc) {
-      return await this.processCreateMessage(tx as TxCreateDoc<ActivityMessage>, notifiedUsers, _res)
-    } else if (tx._class === core.class.TxRemoveDoc) {
-      return await this.processRemoveMessage(tx as TxRemoveDoc<ActivityMessage>)
-    } else if (tx._class === core.class.TxUpdateDoc) {
-      if (!this.client.hierarchy.isDerived(tx.objectClass, activity.class.DocUpdateMessage)) return []
-
-      const updateTx = tx as TxUpdateDoc<DocUpdateMessage>
-      const ops = updateTx.operations ?? {}
-      const historyChanged =
-        ops.history !== undefined || ops.$push?.history !== undefined || ops.$pull?.history !== undefined
-
-      // Skip processing if it's a simple aggregation of history within CREATE_COMBINE_THRESHOLD.
-      // This aggregation ONLY uses $push: { history: ... } and doesn't change the main message content.
-      const isCombine = ops.$push?.history !== undefined && Object.keys(ops).length === 1
-
-      if (historyChanged && !isCombine) {
-        return await this.processUpdateMessage(updateTx, notifiedUsers, _res)
-      }
-    }
-
-    return []
-  }
-
-  private async processCreateMessage (
-    tx: TxCreateDoc<ActivityMessage>,
-    notifiedUsers: AccountUuid[],
-    _res: TxCUD<Doc>[]
-  ): Promise<TxCUD<Doc>[]> {
-    const client = this.client
-    const message = TxProcessor.createDoc2Doc(tx)
-
-    const doc = await this.cache.getDoc(message.attachedTo, message.attachedToClass)
-    if (doc === undefined) return []
-
-    const space = await this.cache.getDocSpace(doc)
-    if (space === undefined) return []
-
-    const res: TxCUD<Doc>[] = []
-    const contexts = await this.cache.getContexts(doc._id)
-    const sender = await this.cache.getSender(message.modifiedBy)
-
-    res.push(...this.updateContextLastUpdate(contexts, message.createdOn ?? message.modifiedOn, sender.account, _res))
-
-    const collaborators = (await this.getCollaboratorAccounts(doc, space)).filter((it) => !notifiedUsers.includes(it))
-
-    if (client.hierarchy.isDerived(message._class, activity.class.DocUpdateMessage)) {
-      const dum = message as DocUpdateMessage
-
-      if (dum.objectClass === core.class.Collaborator) {
-        const acc = dum.objectAttributes?.collaborator as AccountUuid | undefined
-        if (acc != null && !collaborators.includes(acc)) collaborators.push(acc)
-      }
-    }
-
-    if (collaborators.length === 0) return res
-
-    const settings = await this.cache.getSettings()
-    const receivers = await this.cache.getReceivers(collaborators)
-
-    if (receivers.length === 0) return res
-    const contentByType = new Map<Ref<NotificationType>, NotificationContent>()
-
-    for (const receiver of receivers) {
-      const context = contexts.find((it) => it.user === receiver.account)
-      const mode = context?.settings?.mode ?? 'all'
-      if (mode === 'mute') continue
-      const notifyResult = await getMessageNotifyResult(client, message, doc, receiver, settings, mode)
-
-      const types = notifyResult[notification.providers.InboxNotificationProvider] ?? []
-      const type = types[0]
-      if (type == null) continue
-
-      const content =
-        contentByType.get(type._id) ?? (await getMessageNotificationContent(client, type, doc, message, sender))
-      contentByType.set(type._id, content)
-
-      res.push(
-        ...(await this.createNotifications(
-          notification.class.ActivityInboxNotification,
-          {
-            attachedTo: message._id,
-            attachedToClass: message._class
-          },
-          content,
-          doc,
-          message.modifiedOn,
-          message.modifiedBy,
-          context,
-          receiver,
-          notifyResult,
-          true,
-          res,
-          message.createdOn
-        ))
-      )
-    }
-    return res
-  }
-
-  private async createNotifications<T extends InboxNotification>(
+  // Transient docs (UserStatus) live in the transactor's memory; this pipeline's InMemory adapter is empty.
+  private async find<T extends Doc>(
     _class: Ref<Class<T>>,
-    data: Partial<Data<T>>,
-    content: NotificationContent,
-    doc: Doc,
-    modifiedOn: Timestamp,
-    modifiedBy: PersonId,
-    context: DocNotifyContext | undefined,
-    receiver: Receiver,
-    notifyResult: NotifyResult,
-    isMessageNotify: boolean,
-    txes: TxCUD<Doc>[] = [],
-    messageCreatedOn?: Timestamp
-  ): Promise<TxCUD<Doc>[]> {
-    const res: TxCUD<Doc>[] = []
-
-    let contextId: Ref<DocNotifyContext>
-    if (context != null) {
-      contextId = context._id
-      const updateTx = this.findContextUpdateTx(txes, contextId)
-      if (updateTx != null) {
-        updateTx.operations.lastNotify = modifiedOn
-        if (isMessageNotify) {
-          updateTx.operations.lastNotifiedMessage = modifiedOn
-        }
-      } else {
-        res.push(
-          this.txFactory.createTxUpdateDoc(context._class, context.space, context._id, {
-            lastNotify: modifiedOn,
-            ...(isMessageNotify ? { lastNotifiedMessage: modifiedOn } : {})
-          })
-        )
-      }
-    } else {
-      const readState = await this.cache.getDocReadState(doc._id)
-      const lastView = readState?.[receiver.account]?.timestamp ?? 0
-      const contextTx = this.getCreateContextTx(doc, receiver, modifiedOn, lastView, isMessageNotify, messageCreatedOn)
-      res.push(contextTx)
-      contextId = TxProcessor.createDoc2Doc(contextTx)._id
+    query: DocumentQuery<T>,
+    options?: FindOptions<T>
+  ): Promise<FindResult<T>> {
+    if (this.hierarchy.findDomain(_class) === DOMAIN_TRANSIENT) {
+      return await this.rest.findAll(_class, query, options)
     }
-
-    const allowedProviders: Record<Ref<NotificationProvider>, Ref<NotificationType>[]> = Object.fromEntries(
-      Object.entries(notifyResult).map(([provider, types]) => [provider, types.map((it) => it._id)])
-    ) as Record<Ref<NotificationProvider>, Ref<NotificationType>[]>
-
-    const attrs: Data<InboxNotification> = {
-      ...content,
-      ...data,
-      objectId: doc._id,
-      objectClass: doc._class,
-      user: receiver.account,
-      isViewed: receiver.role === 'GUEST' && receiver.account === readOnlyGuestAccountUuid,
-      docNotifyContext: contextId,
-      archived: false,
-      allowedProviders
-    }
-    const tx = this.txFactory.createTxCreateDoc(_class, receiver.space, attrs, undefined, modifiedOn, modifiedBy)
-    res.push(tx)
-
-    return res
+    return await this.pipeline.findAll(this.ctx, _class, query, options)
   }
 
-  private getCreateContextTx (
-    doc: Doc,
-    receiver: Receiver,
-    createdOn: Timestamp,
-    lastView: Timestamp,
-    isMessageNotify: boolean,
-    messageCreatedOn?: Timestamp
-  ): TxCreateDoc<DocNotifyContext> {
-    const createTx = this.txFactory.createTxCreateDoc(notification.class.DocNotifyContext, receiver.space, {
-      user: receiver.account,
-      objectId: doc._id,
-      objectClass: doc._class,
-      objectSpace: doc.space,
-      lastView,
-      lastUpdate: isMessageNotify ? (messageCreatedOn ?? createdOn) : undefined,
-      lastNotify: createdOn,
-      lastNotifiedMessage: isMessageNotify ? createdOn : undefined
-    })
-
-    this.cache.storeContext(TxProcessor.createDoc2Doc(createTx))
-    return createTx
-  }
-
-  private async processRemoveMessage (tx: TxRemoveDoc<ActivityMessage>): Promise<TxCUD<Doc>[]> {
-    return []
-  }
-
-  private async processUpdateMessage (
-    tx: TxUpdateDoc<DocUpdateMessage>,
-    notifiedUsers: AccountUuid[],
-    _res: TxCUD<Doc>[]
-  ): Promise<TxCUD<Doc>[]> {
-    const client = this.client
-    const _message = await this.cache.getDoc(tx.objectId, tx.objectClass)
-    if (_message === undefined) return []
-
-    const message = TxProcessor.updateDoc2Doc(_message, tx)
-
-    const doc = await this.cache.getDoc(message.attachedTo, message.attachedToClass)
-    if (doc === undefined) return []
-
-    const space = await this.cache.getDocSpace(doc)
-    if (space === undefined) return []
-
-    const res: TxCUD<Doc>[] = []
-    const contexts = await this.cache.getContexts(doc._id)
-    const sender = await this.cache.getSender(tx.modifiedBy)
-
-    const collaborators = (await this.getCollaboratorAccounts(doc, space)).filter((it) => !notifiedUsers.includes(it))
-
-    if (message.objectClass === core.class.Collaborator) {
-      const acc = message.objectAttributes?.collaborator as AccountUuid | undefined
-      if (acc != null && !collaborators.includes(acc)) collaborators.push(acc)
-    }
-
-    if (collaborators.length === 0) return res
-
-    const settings = await this.cache.getSettings()
-    const receivers = await this.cache.getReceivers(collaborators)
-
-    if (receivers.length === 0) return res
-
-    const oldNotifications = (await this.client.findAll(notification.class.ActivityInboxNotification, {
-      attachedTo: message._id
-    })) as InboxNotification[]
-
-    for (const receiver of receivers) {
-      const context = contexts.find((it) => it.user === receiver.account)
-      const mode = context?.settings?.mode ?? 'all'
-      if (mode === 'mute') continue
-
-      const notifyResult = await getMessageNotifyResult(client, message, doc, receiver, settings, mode)
-      const types = notifyResult[notification.providers.InboxNotificationProvider] ?? []
-      const type = types[0]
-      if (type == null) continue
-
-      const oldNotification = oldNotifications.find((it) => it.user === receiver.account)
-      if (oldNotification != null) {
-        res.push(this.txFactory.createTxRemoveDoc(oldNotification._class, oldNotification.space, oldNotification._id))
-      }
-
-      res.push(
-        ...(await this.createNotifications(
-          notification.class.ActivityInboxNotification,
-          {
-            attachedTo: message._id,
-            attachedToClass: message._class
-          },
-          await getMessageNotificationContent(client, type, doc, message, sender),
-          doc,
-          tx.modifiedOn,
-          tx.modifiedBy,
-          context,
-          receiver,
-          notifyResult,
-          true,
-          res
-        ))
-      )
-    }
-    return res
-  }
-
-  private async getCollaboratorAccounts (doc: Doc, space: Space): Promise<AccountUuid[]> {
-    const collaborators = await this.cache.getCollaborators(doc._id, doc._class)
-
-    const filtered = !space.private
-      ? collaborators
-      : collaborators.filter((it) => space.members.includes(it.collaborator))
-
-    const accounts = new Set(filtered.map((it) => it.collaborator))
-
-    if (this.hierarchy.isDerived(doc._class, contact.mixin.Employee)) {
-      const account = (doc as Employee).personUuid
-
-      if (account != null) {
-        accounts.add(account)
-      }
-    }
-
-    return Array.from(accounts)
-  }
-
-  private findContextUpdateTx (
-    txes: TxCUD<Doc>[],
-    _id: Ref<DocNotifyContext>
-  ): TxUpdateDoc<DocNotifyContext> | undefined {
-    return txes.find(
-      (it): it is TxUpdateDoc<DocNotifyContext> =>
-        it._class === core.class.TxUpdateDoc &&
-        (it as TxUpdateDoc<Doc>).objectClass === notification.class.DocNotifyContext &&
-        (it as TxUpdateDoc<DocNotifyContext>).objectId === _id
-    )
-  }
-
-  private updateContextLastUpdate (
-    contexts: DocNotifyContext[],
-    timestamp: Timestamp,
-    author: AccountUuid | undefined,
-    txes: TxCUD<Doc>[]
-  ): TxCUD<Doc>[] {
-    return contexts
-      .map((it) => {
-        const updateTx = this.findContextUpdateTx(txes, it._id)
-        if (updateTx != null) {
-          updateTx.operations.lastUpdate = Math.max(updateTx.operations.lastUpdate ?? it.lastUpdate ?? 0, timestamp)
-          if (it.user === author) {
-            updateTx.operations.lastView = Math.max(updateTx.operations.lastView ?? it.lastView ?? 0, timestamp)
-          }
-          return undefined
-        }
-        return this.txFactory.createTxUpdateDoc(it._class, it.space, it._id, {
-          lastUpdate: Math.max(it.lastUpdate ?? 0, timestamp),
-          ...(it.user === author ? { lastView: Math.max(timestamp, it.lastView ?? 0) } : {})
-        })
-      })
-      .filter(notEmpty)
+  private lowLevel (): LowLevelStorage {
+    const storage = this.pipeline.context.lowLevelStorage
+    if (storage === undefined) throw new Error('Low level storage is not defined')
+    return storage
   }
 
   public isInProgress (): boolean {
-    return this.inProgress
+    return this.inProgress.size > 0
   }
 
   public getLastTxDate (): Timestamp | undefined {
-    return this.lastTxDate
+    return this.lastUpdate
   }
 
   static async create (
     ctx: MeasureContext,
     ws: WorkspaceInfoWithStatus,
-    hierarchy: Hierarchy,
-    modelDb: ModelDb,
+    sharedHierarchy: Hierarchy | undefined,
+    sharedModel: ModelDb | undefined,
     sysModel: Tx[],
     storage: StorageAdapter,
     rest: RestClient,
     branding: Branding | undefined,
-    txTypes: TxNotificationType[]
+    txTypes: TxNotificationType[],
+    producer: PlatformQueueProducer<QueueNotificationMessage>,
+    timeMachine: PlatformQueueProducer<TimeMachineMessage>,
+    getAiBotAccount: () => Promise<AccountUuid | undefined> = async () => undefined
   ): Promise<Workspace> {
     const dbConf = getConfig(ctx, config.DbUrl, ctx, {
       disableTriggers: true,
@@ -836,9 +565,13 @@ class Workspace {
       DomainFindMiddleware.create,
       DomainTxMiddleware.create,
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(sysModel),
+      // The system part already sits in the shared model, only this workspace's txes are applied here.
+      ModelMiddleware.create(sysModel, undefined, sharedModel !== undefined, false),
       DBAdapterMiddleware.create(dbConf)
     ]
+
+    const hierarchy = new Hierarchy(sharedHierarchy)
+    const modelDb = new ModelDb(hierarchy, sharedModel)
 
     const context: PipelineContext = {
       workspace: {
@@ -862,10 +595,27 @@ class Workspace {
       throw new Error('Low level storage is not defined')
     }
 
-    return new Workspace(ctx, ws, pipeline, hierarchy, modelDb, rest, storage, branding, txTypes)
+    return new Workspace(
+      ctx,
+      ws,
+      pipeline,
+      hierarchy,
+      modelDb,
+      rest,
+      storage,
+      branding,
+      txTypes,
+      producer,
+      timeMachine,
+      getAiBotAccount
+    )
   }
 
   async close (): Promise<void> {
+    // A restore event can drop the workspace mid-tx; the pipeline has to outlive that tx.
+    await Promise.allSettled(Array.from(this.inProgress))
+    // Before the pipeline closes: the read check runs through it.
+    await this.pendingPush.flushAll()
     try {
       await this.pipeline.close()
     } catch (e) {

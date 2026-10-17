@@ -1,5 +1,6 @@
 //
 // Copyright © 2026 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,7 +14,59 @@
 // limitations under the License.
 //
 
-import type { LoginInfoByToken, LoginInfoRequest, WorkspaceLoginInfo } from './types'
+import { AccountRole, type AccountUuid, configUserAccountUuid, systemAccountUuid } from '@hcengineering/core'
+import {
+  type LoginInfoByToken,
+  type LoginInfoRequest,
+  type Subscription,
+  type WorkspaceLoginInfo,
+  SubscriptionStatus,
+  SubscriptionType
+} from './types'
+
+// Statuses that grant a plan: active/trialing plus past_due (grace) and readonly. Not canceled/expired.
+export const PLAN_GRANTING_STATUSES: SubscriptionStatus[] = [
+  SubscriptionStatus.Active,
+  SubscriptionStatus.Trialing,
+  SubscriptionStatus.PastDue,
+  SubscriptionStatus.ReadOnly
+]
+
+export function grantsPlan (sub: Pick<Subscription, 'status' | 'providerData' | 'trialEnd'> | undefined): boolean {
+  if (sub == null) return false
+  // A past_due first-payment draft (pending) is unpaid — it does not grant a plan.
+  if (sub.status === SubscriptionStatus.PastDue && (sub.providerData as any)?.pending === true) return false
+  // An expired trial (trialEnd passed) no longer grants its plan -> falls back to free.
+  if (sub.status === SubscriptionStatus.Trialing && sub.trialEnd != null && sub.trialEnd < Date.now()) return false
+  return PLAN_GRANTING_STATUSES.includes(sub.status)
+}
+
+// Free plan = no granting tier, the free-billing provider, or the 'free' plan by name (admin/manual
+// free tiers carry provider='manual', so provider alone misses them).
+export function isFreePlan (tier: Pick<Subscription, 'plan' | 'provider'> | undefined): boolean {
+  return tier === undefined || tier.provider === 'free' || tier.plan === 'free'
+}
+
+export const GUEST_ROLES: AccountRole[] = [AccountRole.ReadOnlyGuest, AccountRole.DocGuest, AccountRole.Guest]
+
+/**
+ * Whether a workspace_members entry occupies a paid seat. Source of truth for seat counting now that
+ * a person is in ws_members only after real login. Excludes the AI bot (role=User in ws_members),
+ * system/config accounts, Admin, and guest roles.
+ */
+export function memberOccupiesSeat (
+  person: AccountUuid,
+  role: AccountRole,
+  aiBotAccount: AccountUuid | undefined
+): boolean {
+  if (person === systemAccountUuid || person === configUserAccountUuid || person === aiBotAccount) return false
+  if (role === AccountRole.Admin) return false
+  return !GUEST_ROLES.includes(role)
+}
+
+export function makePlanKey (plan: string, type: SubscriptionType | string): string {
+  return `${plan}@${type}`
+}
 
 export function isWorkspaceLoginInfo (loginInfo: LoginInfoByToken): loginInfo is WorkspaceLoginInfo {
   return !isLoginInfoRequest(loginInfo) && (loginInfo as WorkspaceLoginInfo)?.workspace != null
@@ -23,13 +76,21 @@ export function isLoginInfoRequest (info: LoginInfoByToken): info is LoginInfoRe
   return (info as LoginInfoRequest)?.request
 }
 
+// Every account RPC sends this as a header, and resolving it was ~4% of a service's CPU.
+// Process-lifetime cache, drop it if a client must follow an OS timezone change.
+let cachedTimezone: string | undefined
+let timezoneResolved = false
+
 export function getClientTimezone (): string | undefined {
+  if (timezoneResolved) return cachedTimezone
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone
+    cachedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
   } catch (err: any) {
     console.error('Failed to get client timezone', err)
-    return undefined
+    cachedTimezone = undefined
   }
+  timezoneResolved = true
+  return cachedTimezone
 }
 
 const connectionErrorCodes = ['ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND']

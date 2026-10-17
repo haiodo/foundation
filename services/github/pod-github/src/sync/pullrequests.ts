@@ -73,7 +73,7 @@ import {
 } from './utils'
 
 type GithubPullRequestData = GithubIssueData &
-Omit<GithubPullRequest, keyof Issue | 'commits' | 'reviews' | 'reviewComments'>
+  Omit<GithubPullRequest, keyof Issue | 'commits' | 'reviews' | 'reviewComments'>
 
 type GithubPullRequestUpdate = DocumentUpdate<WithMarkup<GithubPullRequest>>
 
@@ -286,7 +286,7 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
           true,
           undefined,
           async (state, existing, external, update) => {
-            // We need to be sure we not change status if category is same, since github doesn't know about it.
+            // We must not change status if category is same, since github doesn't know about it.
             const existingStatus = statuses.find((it) => it._id === existing.status)
             const updateState = statuses.find((it) => it._id === update.status)
             if (existingStatus?.category === updateState?.category) {
@@ -611,8 +611,8 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
     ctx: MeasureContext,
     client: TxOperations,
     pullRequest: Pick<
-    GithubPullRequest,
-    '_id' | 'identifier' | 'reviewers' | 'title' | 'state' | 'space' | '_class' | 'modifiedBy'
+      GithubPullRequest,
+      '_id' | 'identifier' | 'reviewers' | 'title' | 'state' | 'space' | '_class' | 'modifiedBy'
     >,
     external: PullRequestExternalData,
     info: DocSyncInfo,
@@ -849,8 +849,8 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
   private async requestFix (
     client: TxOperations,
     pullRequest: Pick<
-    GithubPullRequest,
-    '_id' | 'identifier' | 'reviewers' | 'title' | 'space' | 'state' | 'space' | '_class'
+      GithubPullRequest,
+      '_id' | 'identifier' | 'reviewers' | 'title' | 'space' | 'state' | 'space' | '_class'
     >,
     external: PullRequestExternalData,
     todoUser: Ref<Person>,
@@ -904,7 +904,7 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
   }
 
   private async markDoneOrDeleteTodo (td: WithLookup<GithubTodo>): Promise<void> {
-    // Let's mark as done in any case
+    // Mark as done in any case.
     await this.client.diffUpdate(td, {
       doneOn: Date.now()
     })

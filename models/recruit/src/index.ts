@@ -38,7 +38,16 @@ import recruit from './plugin'
 import { createReviewModel, reviewTableConfig, reviewTableOptions } from './review'
 import { defineSpaceType } from './spaceType'
 import { definePermissions } from './permissions'
-import { TApplicant, TApplicantMatch, TCandidate, TOpinion, TReview, TVacancy, TVacancyList } from './types'
+import {
+  TApplicant,
+  TApplicantMatch,
+  TApplicantTaskType,
+  TCandidate,
+  TOpinion,
+  TReview,
+  TVacancy,
+  TVacancyList
+} from './types'
 
 export { recruitId } from '@hcengineering/recruit'
 export { recruitOperation } from './migration'
@@ -47,7 +56,16 @@ export * from './spaceType'
 export * from './types'
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TVacancy, TCandidate, TApplicant, TReview, TOpinion, TVacancyList, TApplicantMatch)
+  builder.createModel(
+    TVacancy,
+    TCandidate,
+    TApplicant,
+    TApplicantTaskType,
+    TReview,
+    TOpinion,
+    TVacancyList,
+    TApplicantMatch
+  )
 
   builder.mixin(recruit.class.Vacancy, core.class.Class, activity.mixin.ActivityDoc, {})
   builder.mixin(recruit.class.Applicant, core.class.Class, activity.mixin.ActivityDoc, {})
@@ -595,7 +613,7 @@ export function createModel (builder: Builder): void {
         {
           key: 'shouldShowAll',
           type: 'toggle',
-          defaultValue: false,
+          defaultValue: true,
           actionTarget: 'category',
           action: view.function.ShowEmptyGroups,
           label: view.string.ShowEmptyGroups
@@ -891,10 +909,6 @@ export function createModel (builder: Builder): void {
     card: recruit.component.KanbanCard
   })
 
-  // builder.mixin(recruit.class.Applicant, core.class.Class, view.mixin.PreviewPresenter, {
-  //   presenter: recruit.component.KanbanCard
-  // })
-
   builder.mixin(recruit.class.Applicant, core.class.Class, view.mixin.ObjectEditor, {
     editor: recruit.component.EditApplication
   })
@@ -1098,6 +1112,7 @@ export function createModel (builder: Builder): void {
       query: recruit.completion.ApplicationQuery,
       context: ['search', 'mention', 'spotlight'],
       classToSearch: recruit.class.Applicant,
+      includeChilds: true,
       priority: 500
     },
     recruit.completion.ApplicationCategory

@@ -17,13 +17,12 @@
   import MD5 from 'crypto-js/md5'
   import { AvatarType, checkHasGravatar, type AvatarInfo } from '@hcengineering/contact'
   import type { Ref } from '@hcengineering/core'
-  import { Blob as PlatformBlob } from '@hcengineering/core'
-  import { Asset } from '@hcengineering/platform'
+  import type { Blob as PlatformBlob } from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
   import presentation, { Card, getFileUrl, uiContext } from '@hcengineering/presentation'
+  import type { AnySvelteComponent, ColorDefinition } from '@hcengineering/ui'
   import ui, {
-    AnySvelteComponent,
     Button,
-    ColorDefinition,
     Label,
     TabList,
     eventToHTMLElement,
@@ -66,7 +65,7 @@
 
   const colors = getPlatformAvatarColors($themeStore.dark)
   let color: ColorDefinition | undefined =
-    (selectedAvatarType as AvatarType) === AvatarType.COLOR
+    selectedAvatarType === AvatarType.COLOR
       ? getPlatformAvatarColorByName(selectedAvatarProps?.color ?? '', $themeStore.dark)
       : undefined
 
@@ -76,7 +75,7 @@
   async function updateHasGravatar (email?: string) {
     hasGravatar = !!email && (await checkHasGravatar(buildGravatarId(email)))
   }
-  $: updateHasGravatar(email)
+  $: void updateHasGravatar(email)
 
   const dispatch = createEventDispatcher()
 
@@ -201,7 +200,7 @@
 <Card
   label={contact.string.SelectAvatar}
   okLabel={presentation.string.Save}
-  width={'x-small'}
+  width="x-small"
   accentHeader
   canSave={selectedAvatarType !== initialSelectedAvatarType ||
     selectedAvatar !== initialSelectedAvatar ||
@@ -224,7 +223,7 @@
           avatarProps: selectedAvatarProps
         }}
         direct={selectedAvatarType === AvatarType.IMAGE ? selectedFile : undefined}
-        size={'2x-large'}
+        size="2x-large"
         {icon}
         {name}
         clickable
@@ -240,13 +239,13 @@
     </div>
     <TabList
       items={getAvatarTypeDropdownItems(hasGravatar, imageOnly)}
-      kind={'separated-free'}
+      kind="separated-free"
       bind:selected={selectedAvatarType}
       on:select={handleDropdownSelection}
     />
   </div>
   <svelte:fragment slot="buttons">
-    <Button minWidth={'5rem'} label={ui.string.Clear} kind={'ghost'} size={'large'} on:click={handleClearClick} />
+    <Button minWidth="5rem" label={ui.string.Clear} kind="ghost" size="large" on:click={handleClearClick} />
   </svelte:fragment>
   <svelte:fragment slot="footer">
     {#if selectedAvatarType === AvatarType.GRAVATAR}

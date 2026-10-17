@@ -1,6 +1,7 @@
 /*!
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -131,6 +132,7 @@ export default plugin(platformId, {
     UnknownError: '' as StatusCode<{ message: string }>,
     InvalidId: '' as StatusCode<{ id: string }>,
     ConnectionClosed: '' as StatusCode,
+    ServiceUnavailable: '' as StatusCode,
 
     LoadingPlugin: '' as StatusCode<{ plugin: string }>,
     NoLocationForPlugin: '' as StatusCode<{ plugin: Plugin }>,
@@ -167,17 +169,22 @@ export default plugin(platformId, {
     PersonNotFound: '' as StatusCode<{ person: string }>,
     InvalidPassword: '' as StatusCode<{ account: string }>,
     PasswordLoginLocked: '' as StatusCode,
+    AccountBlocked: '' as StatusCode,
+    WorkspaceReadOnly: '' as StatusCode,
     AccountAlreadyExists: '' as StatusCode,
+    PhoneAlreadyExists: '' as StatusCode,
     WorkspaceAlreadyExists: '' as StatusCode<{ workspace: string }>,
     WorkspaceRateLimit: '' as StatusCode<{ workspace: string }>,
     WorkspaceLimitReached: '' as StatusCode<{ workspace: string }>,
+    ApiKeyLimitReached: '' as StatusCode<{ limit: number }>,
     InvalidOtp: '' as StatusCode,
     InviteNotFound: '' as StatusCode<{ email: string }>,
     MailboxError: '' as StatusCode<{ reason: string }>,
     SocialIdAlreadyExists: '' as StatusCode,
     ReadOnlyAccount: '' as StatusCode,
     RegularAccount: '' as StatusCode,
-    SystemAccount: '' as StatusCode
+    SystemAccount: '' as StatusCode,
+    PlanLimitExceeded: '' as StatusCode<{ category?: string }>
   },
   metadata: {
     locale: '' as Metadata<string>,

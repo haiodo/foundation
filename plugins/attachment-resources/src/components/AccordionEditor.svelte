@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref, Space } from '@hcengineering/core'
+  import type { Class, Doc, Ref, Space } from '@hcengineering/core'
   import textEditorPlugin from '@hcengineering/text-editor'
   import { TextEditor } from '@hcengineering/text-editor-resources'
   import { Button, IconDownOutline, Label, tooltip } from '@hcengineering/ui'
@@ -48,7 +48,9 @@
       case 'opened':
         attachments[index].setEditable(false)
         items[index].state = 'closed'
-        setTimeout(() => edits[index].focus(), 0)
+        setTimeout(() => {
+          edits[index].focus()
+        }, 0)
         break
       case 'closed':
         items[index].state = 'opened'
@@ -117,15 +119,15 @@
           {/if}
         </div>
         <Button
-          size={'medium'}
-          kind={'ghost'}
+          size="medium"
+          kind="ghost"
           on:click={(ev) => {
             flip(i, ev)
           }}
         >
           <svelte:fragment slot="icon">
             <div class="rotated-icon {item.state}">
-              <IconDownOutline size={'medium'} />
+              <IconDownOutline size="medium" />
             </div>
           </svelte:fragment>
         </Button>
@@ -143,7 +145,7 @@
           {space}
           on:changeContent={(ev) => dispatch('update', { item, value: ev.detail })}
           on:attach={(ev) => {
-            if (ev && ev.detail.action === 'drop') attachments[attachments.length - 1].fileDrop(ev.detail.event)
+            if (ev?.detail.action === 'drop') attachments[attachments.length - 1].fileDrop(ev.detail.event)
             else if (ev.detail.action === 'add') attachments[attachments.length - 1].attach()
             else if (ev.detail.action === 'saved') {
               if (ev.detail.value !== hasAttachments) hasAttachments = ev.detail.value

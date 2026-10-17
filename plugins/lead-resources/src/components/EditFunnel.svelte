@@ -50,7 +50,7 @@
   $: updateObject(_id)
 
   function onChange (key: string, value: any): void {
-    client.updateDoc(object._class, object.space, object._id, { [key]: value })
+    void client.updateDoc(object._class, object.space, object._id, { [key]: value })
   }
 </script>
 
@@ -83,7 +83,7 @@
       <EditBox
         bind:value={object.name}
         placeholder={lead.string.FunnelPlaceholder}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusable
         on:blur={() => {

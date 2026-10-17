@@ -17,7 +17,17 @@ import log from 'electron-log'
 import love from '@hcengineering/love'
 import { setCustomCreateScreenTracks } from '@hcengineering/love-resources'
 import { showPopup } from '@hcengineering/ui'
-import { Track, LocalTrack, LocalAudioTrack, LocalVideoTrack, ParticipantEvent, TrackInvalidError, ScreenShareCaptureOptions, DeviceUnsupportedError, ScreenSharePresets } from 'livekit-client'
+import {
+  Track,
+  LocalTrack,
+  LocalAudioTrack,
+  LocalVideoTrack,
+  ParticipantEvent,
+  TrackInvalidError,
+  ScreenShareCaptureOptions,
+  DeviceUnsupportedError,
+  ScreenSharePresets
+} from 'livekit-client'
 import { ipcMainExposed } from './typesUtils'
 
 export function defineGetDisplayMedia (): void {
@@ -79,7 +89,10 @@ export function defineGetDisplayMedia (): void {
 }
 
 export function defineScreenShare (): void {
-  setCustomCreateScreenTracks(async function electronCreateScreenTracks (options?: ScreenShareCaptureOptions) {
+  setCustomCreateScreenTracks(async function electronCreateScreenTracks (
+    this: any,
+    options?: ScreenShareCaptureOptions
+  ) {
     const ipcMain = ipcMainExposed()
     const sources = await ipcMain.getScreenSources()
 
@@ -110,13 +123,9 @@ export function defineScreenShare (): void {
         (val) => {
           if (val != null) {
             wasSelected = true
-            if (options === undefined) {
-              options = {}
-            }
+            options ??= {}
 
-            if (options.resolution === undefined) {
-              options.resolution = ScreenSharePresets.h1080fps30.resolution
-            }
+            options.resolution ??= ScreenSharePresets.h1080fps30.resolution
 
             const constraints = screenCaptureToDisplayMediaStreamOptions(options)
 
@@ -170,9 +179,7 @@ export function defineScreenShare (): void {
   })
 }
 
-function screenCaptureToDisplayMediaStreamOptions (
-  options: ScreenShareCaptureOptions
-): DisplayMediaStreamOptions {
+function screenCaptureToDisplayMediaStreamOptions (options: ScreenShareCaptureOptions): DisplayMediaStreamOptions {
   let videoConstraints: MediaTrackConstraints | boolean = options.video ?? true
   // treat 0 as uncapped
   if (options.resolution !== undefined && options.resolution.width > 0 && options.resolution.height > 0) {

@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import { TagCategory, TagElement, findTagCategory } from '@hcengineering/tags'
+  import type { TagCategory, TagElement } from '@hcengineering/tags'
+  import { findTagCategory } from '@hcengineering/tags'
   import {
     Button,
     EditWithIcon,
@@ -29,7 +30,8 @@
     getPlatformColorDef,
     resizeObserver,
     showPopup,
-    themeStore
+    themeStore,
+    tooltip
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import tags from '../plugin'
@@ -139,8 +141,8 @@
   <div class="header flex-row-center gap-2">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       {placeholder}
@@ -150,8 +152,8 @@
     />
     {#if !isSingleCategory}
       <Button
-        kind={'ghost'}
-        size={'large'}
+        kind="ghost"
+        size="large"
         icon={show ? IconView : IconViewHide}
         dataId={`btn${show ? 'Collapse' : 'Expand'}`}
         on:click={() => {
@@ -160,7 +162,7 @@
       />
     {/if}
     {#if !hideAdd}
-      <Button kind={'ghost'} size={'large'} icon={IconAdd} dataId={'btnAdd'} on:click={createTagElementPopup} />
+      <Button kind="ghost" size="large" icon={IconAdd} dataId="btnAdd" on:click={createTagElementPopup} />
     {/if}
   </div>
   <div class="scroll">
@@ -208,6 +210,19 @@
                   on:click={() => {
                     checkSelected(selected, element)
                   }}
+                  use:tooltip={element !== undefined
+                    ? {
+                        label: tags.string.TagTooltip,
+                        props: {
+                          text: `${element?.title} ${
+                            element?.description !== undefined && element?.description.length > 0
+                              ? ': ' + element?.description
+                              : ''
+                          }`
+                        },
+                        direction: 'left'
+                      }
+                    : {}}
                 >
                   <div class="tag" style:background-color={color.color} />
                   <span class="lines-limit-2 flex-grow">{element.title}</span>
@@ -216,7 +231,7 @@
                   </span>
                   <div class="check ml-3">
                     {#if isSelected(selected, element)}
-                      <Icon icon={IconCheck} size={'small'} />
+                      <Icon icon={IconCheck} size="small" />
                     {/if}
                   </div>
                 </button>

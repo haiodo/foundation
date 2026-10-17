@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-import { type Chat, chunterId, type DirectMessage, type ThreadMessage } from '@hcengineering/chunter'
+import { type Chat, type ChatMessage, chunterId, type DirectMessage, type ThreadMessage } from '@hcengineering/chunter'
 import core, {
   TxOperations,
   type Class,
@@ -26,7 +26,8 @@ import core, {
   DOMAIN_SPACE,
   type AccountUuid,
   DOMAIN_COLLABORATOR,
-  type Collaborator
+  type Collaborator,
+  type TxUpdateDoc
 } from '@hcengineering/core'
 import {
   tryMigrate,
@@ -39,7 +40,7 @@ import {
 } from '@hcengineering/model'
 import activity, { migrateMessagesSpace, DOMAIN_ACTIVITY, DOMAIN_REACTION } from '@hcengineering/model-activity'
 import { getAllAccounts } from '@hcengineering/contact'
-import { DOMAIN_DOC_NOTIFY, DOMAIN_NOTIFICATION } from '@hcengineering/model-notification'
+import { DOMAIN_DOC_NOTIFY } from '@hcengineering/model-notification'
 import { type ActivityMessage, type DocUpdateMessage, type Reaction } from '@hcengineering/activity'
 
 import { DOMAIN_CHUNTER, DOMAIN_CHUNTER_DOC } from './index'
@@ -47,9 +48,10 @@ import chunter from './plugin'
 import { createHash } from 'crypto'
 import { type Attachment } from '@hcengineering/attachment'
 import { DOMAIN_ATTACHMENT } from '@hcengineering/model-attachment'
-import { type DocNotifyContext, type InboxNotification } from '@hcengineering/notification'
+import notification, { type DocNotifyContext } from '@hcengineering/notification'
 
 export const DOMAIN_COMMENT = 'comment' as Domain
+export const DOMAIN_NOTIFICATION = 'notification' as Domain
 
 export async function createGeneral (client: MigrationUpgradeClient, tx: TxOperations): Promise<void> {
   const current = await tx.findOne(chunter.class.Channel, { _id: chunter.space.General })
@@ -132,7 +134,24 @@ export async function createRandom (client: MigrationUpgradeClient, tx: TxOperat
   }
 }
 
+// The default channels are created here, past the trigger that gives any other doc its read state,
+// and a channel without one cannot be read.
+async function createDefaultReadStates (tx: TxOperations): Promise<void> {
+  for (const _id of [chunter.space.General, chunter.space.Random]) {
+    const channel = await tx.findOne(chunter.class.Channel, { _id })
+    if (channel === undefined) continue
+    const state = await tx.findOne(notification.class.ReadState, { attachedTo: _id })
+    if (state !== undefined) continue
+    await tx.createDoc(notification.class.ReadState, _id, {
+      attachedTo: _id,
+      attachedToClass: channel._class,
+      collection: 'readStates'
+    })
+  }
+}
+
 async function convertCommentsToChatMessages (client: MigrationClient): Promise<void> {
+  if (!client.hierarchy.domains().includes(DOMAIN_COMMENT)) return
   await client.update(
     DOMAIN_COMMENT,
     { _class: 'chunter:class:Comment' as Ref<Class<Doc>> },
@@ -142,10 +161,12 @@ async function convertCommentsToChatMessages (client: MigrationClient): Promise<
 }
 
 async function removeBacklinks (client: MigrationClient): Promise<void> {
-  await client.deleteMany(DOMAIN_COMMENT, { _class: 'chunter:class:Backlink' as Ref<Class<Doc>> })
+  if (client.hierarchy.domains().includes(DOMAIN_COMMENT)) {
+    await client.deleteMany(DOMAIN_COMMENT, { _class: 'chunter:class:Backlink' as Ref<Class<Doc>> })
+  }
   await client.deleteMany(DOMAIN_ACTIVITY, {
     _class: activity.class.DocUpdateMessage,
-    objectClass: 'chunter:class:Backlink' as Ref<Class<Doc>>
+    objectClass: 'chunter:class:Backlink'
   })
 }
 
@@ -286,7 +307,7 @@ async function migrateDuplicatedDirects (client: MigrationClient): Promise<void>
 
     const toContexts = await client.find<DocNotifyContext>(DOMAIN_DOC_NOTIFY, { objectId: to })
     for (const context of toContexts) {
-      await client.update<InboxNotification>(
+      await client.update(
         DOMAIN_NOTIFICATION,
         { objectId: from, user: context.user },
         { objectId: to, docNotifyContext: context._id }
@@ -338,6 +359,60 @@ async function removeUnavailableChats (client: MigrationClient): Promise<void> {
   } finally {
     await iterator.close()
   }
+}
+
+export async function unhideAutoHiddenDirects (client: MigrationClient): Promise<void> {
+  const hiddenDirects = new Map(
+    (
+      await client.find<Chat>(
+        DOMAIN_CHUNTER_DOC,
+        { _class: chunter.class.Chat, attachedToClass: chunter.class.DirectMessage, hidden: true },
+        { projection: { _id: 1, attachedTo: 1 } }
+      )
+    ).map((it) => [it._id, it.attachedTo])
+  )
+  if (hiddenDirects.size === 0) return
+
+  // One pass: tx.objectId has no index, a per-batch $in would scan the table every time.
+  const lastHiddenTx = new Map<Ref<Chat>, TxUpdateDoc<Chat>>()
+  const txIterator = await client.traverse<TxUpdateDoc<Chat>>(DOMAIN_TX, {
+    _class: core.class.TxUpdateDoc,
+    objectClass: chunter.class.Chat,
+    'operations.hidden': { $exists: true }
+  })
+  try {
+    while (true) {
+      const txes = (await txIterator.next(1000)) ?? []
+      if (txes.length === 0) break
+      for (const tx of txes) {
+        if (!hiddenDirects.has(tx.objectId)) continue
+        const last = lastHiddenTx.get(tx.objectId)
+        if (last !== undefined && last.modifiedOn > tx.modifiedOn) continue
+        lastHiddenTx.set(tx.objectId, tx)
+      }
+    }
+  } finally {
+    await txIterator.close()
+  }
+
+  const toUnhide: Ref<Chat>[] = []
+  for (const [chatId, direct] of hiddenDirects) {
+    const tx = lastHiddenTx.get(chatId)
+    if (tx?.operations.hidden === true) {
+      // A message after the user's hide means the chat was auto-unhidden: a DerivedTx, not stored in DOMAIN_TX.
+      const newer = await client.find<ChatMessage>(
+        DOMAIN_ACTIVITY,
+        { _class: chunter.class.ChatMessage, attachedTo: direct, createdOn: { $gt: tx.modifiedOn } },
+        { limit: 1, projection: { _id: 1 } }
+      )
+      if (newer.length === 0) continue
+    }
+    toUnhide.push(chatId)
+  }
+  for (let i = 0; i < toUnhide.length; i += 500) {
+    await client.update<Chat>(DOMAIN_CHUNTER_DOC, { _id: { $in: toUnhide.slice(i, i + 500) } }, { hidden: false })
+  }
+  client.logger.log('unhidden auto-hidden directs', { count: toUnhide.length, hidden: hiddenDirects.size })
 }
 
 export const chunterOperation: MigrateOperation = {
@@ -429,6 +504,11 @@ export const chunterOperation: MigrateOperation = {
         state: 'remove-unavailable-chats-v1',
         mode: 'upgrade',
         func: removeUnavailableChats
+      },
+      {
+        state: 'unhide-auto-hidden-directs-v1',
+        mode: 'upgrade',
+        func: unhideAutoHiddenDirects
       }
     ])
   },
@@ -440,6 +520,12 @@ export const chunterOperation: MigrateOperation = {
           const tx = new TxOperations(client, core.account.System)
           await createGeneral(client, tx)
           await createRandom(client, tx)
+        }
+      },
+      {
+        state: 'default-channels-read-states-v1',
+        func: async (client) => {
+          await createDefaultReadStates(new TxOperations(client, core.account.System))
         }
       }
     ])

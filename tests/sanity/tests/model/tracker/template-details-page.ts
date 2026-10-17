@@ -2,6 +2,7 @@ import { expect, type Locator } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { Issue, NewIssue } from './types'
 import { convertEstimation } from '../../tracker/tracker.utils'
+import { retry, waitStable } from '../../retry'
 
 export class TemplateDetailsPage extends CommonTrackerPage {
   inputTitle = (): Locator => this.page.locator('div.popupPanel-body input[type="text"]')
@@ -11,7 +12,11 @@ export class TemplateDetailsPage extends CommonTrackerPage {
   textLabels = (dataLabels: string): Locator => this.page.locator('div.menu-group span', { hasText: dataLabels })
   buttonAddLabel = (): Locator => this.page.locator('//span[text()="Labels"]/following-sibling::button[1]//span')
   buttonComponent = (): Locator => this.page.locator('//span[text()="Component"]/following-sibling::div[1]/div/button')
-  buttonEstimation = (): Locator => this.page.locator('//span[text()="Estimation"]/following-sibling::div[1]/button')
+  buttonEstimation = (): Locator =>
+    this.page.locator(
+      '//span[contains(@class, "labelOnPanel") and normalize-space(text())="Estimation"]/following-sibling::div[1]//div[contains(@class, "link-container")]'
+    )
+
   buttonDueDate = (): Locator => this.page.locator('//span[text()="Due date"]/following-sibling::div[1]/button')
   buttonSaveDueDate = (): Locator => this.page.locator('div.footer > button')
   activityContent = (): Locator => this.page.locator('div.grid div.content')
@@ -28,6 +33,9 @@ export class TemplateDetailsPage extends CommonTrackerPage {
     }
     if (data.labels != null) {
       await this.buttonAddLabel().click()
+      // TagsPopup renders only the first 50 tags of a category, and the stand holds far more than
+      // that - type into its search instead of looking for the label in the list.
+      await this.page.locator('div.selectPopup input').fill(data.labels)
       await expect(this.textLabels(data.labels)).toBeVisible()
       await this.inputTitle().click({ force: true })
     }
@@ -62,8 +70,22 @@ export class TemplateDetailsPage extends CommonTrackerPage {
       await this.selectMenuItem(this.page, data.component)
     }
     if (data.estimation != null) {
-      await this.buttonEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      const estimation = data.estimation
+      // The popup parses its input reactively, so a Save that lands first writes the old value back
+      // and reports nothing. Check the panel and redo the edit rather than trust one pass.
+      await retry(async () => {
+        await this.buttonEstimation().click()
+        await this.fillEstimationPopup(this.page, estimation)
+        await expect(this.buttonEstimation()).toHaveText(convertEstimation(estimation), { timeout: 5000 })
+        // The panel shows the typed value first and falls back a beat later when the write is lost -
+        // the check above passes on that first render, so read it again once it stops moving.
+        const settled = await waitStable(async () => (await this.buttonEstimation().innerText()).trim(), {
+          stableFor: 500,
+          interval: 100,
+          timeout: 5000
+        })
+        expect(settled).toBe(convertEstimation(estimation))
+      })
     }
     if (data.duedate != null) {
       if (data.duedate === 'today') {

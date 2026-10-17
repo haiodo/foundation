@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { TalentName } from './types'
 import { generateId } from '../../utils'
+import { retry } from '../../retry'
 import { CommonRecruitingPage } from './common-recruiting-page'
 
 export class TalentsPage extends CommonRecruitingPage {
@@ -59,7 +60,6 @@ export class TalentsPage extends CommonRecruitingPage {
   createSkillInput = (): Locator => this.page.getByPlaceholder('Please type skill title')
 
   createSkillButton = (): Locator => this.page.locator('form[id="tags:string:AddTag"]  button:has-text("Create")')
-  selectSkillButton = (skillName: string): Locator => this.page.locator(`button:has-text("${skillName}") .check`)
   createCandidateButton = (): Locator => this.page.locator('button:has-text("Create")')
   openOtherSkills = (): Locator => this.page.getByText('Other')
   skillsLink = (): Locator => this.page.locator('.antiPanel-navigator').locator('text=Skills')
@@ -188,8 +188,8 @@ export class TalentsPage extends CommonRecruitingPage {
 
   async createNewTalent (): Promise<TalentName> {
     const talentName: TalentName = {
-      firstName: `TestFirst-${generateId(4)}`,
-      lastName: `TestLast-${generateId(4)}`
+      firstName: `TestFirst-${generateId()}`,
+      lastName: `TestLast-${generateId()}`
     }
     await this.createNewTalentWithName(talentName.firstName, talentName.lastName)
     return talentName
@@ -242,13 +242,6 @@ export class TalentsPage extends CommonRecruitingPage {
     await expect(this.page).toHaveURL(PlatformURI)
   }
 
-  // async createNewTalent(firstName: string, lastName: string): Promise<void> {
-  //     await this.newTalentButton().click();
-  //     await this.firstNameInput().fill(firstName);
-  //     await this.lastNameInput().click();
-  //     await this.lastNameInput().fill(lastName);
-  // }
-
   async inputNewTallent (firstName: string, lastName: string): Promise<void> {
     await this.newTalentButton().click()
     await this.firstNameInput().fill(firstName)
@@ -268,9 +261,31 @@ export class TalentsPage extends CommonRecruitingPage {
     await this.openOtherSkills().click()
   }
 
-  async selectSkill (skillName: string): Promise<void> {
-    await this.selectSkillButton(skillName).click()
-    await this.page.keyboard.press('Escape')
+  // The popup selects a skill it creates: a click on it would unselect it, and a fresh skill can be
+  // past the popup's 50-per-category cut anyway.
+  async checkSkillAdded (skillName: string): Promise<void> {
+    await expect(this.page.locator('form.antiCard').getByText(skillName, { exact: true })).toBeVisible()
+    await this.closeSkillsPopup()
+  }
+
+  private async closeSkillsPopup (): Promise<void> {
+    const popupSearch = this.page.locator('div.popup input.search')
+    for (let i = 0; i < 5; i++) {
+      if ((await this.page.locator('.popup .menu-group').count()) === 0) {
+        return
+      }
+      if ((await popupSearch.count()) > 0) {
+        await popupSearch.press('Escape')
+      } else {
+        await this.page.keyboard.press('Escape')
+      }
+      try {
+        await this.page.waitForSelector('.popup .menu-group', { state: 'detached', timeout: 2000 })
+        return
+      } catch {
+        // popup still open, retry Escape
+      }
+    }
   }
 
   async createCandidate (): Promise<void> {
@@ -300,13 +315,27 @@ export class TalentsPage extends CommonRecruitingPage {
     await this.lastNameInput().fill(lastName)
     await this.skillsButton().click()
     await this.clickOpenOtherSkills()
+    const search = this.page.getByPlaceholder('Search...', { exact: true })
     for (const skill of skills) {
-      await this.page.click(`text=${skill}`)
+      const chip = this.page.locator('form.antiCard').getByText(skill, { exact: true })
+      // Through the search: a fresh skill can be past the popup's 50-per-category cut. Proved by the chip on
+      // the form, an unchecked click left the candidate without it; a click on a picked row unpicks it.
+      await retry(async () => {
+        if (await chip.isVisible()) return
+        await search.fill(skill, { timeout: 5000 })
+        const row = new RegExp(`^${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`)
+        await this.page.getByRole('button', { name: row }).click({ timeout: 5000 })
+        await expect(chip).toBeVisible({ timeout: 3000 })
+      })
     }
-    await this.page.keyboard.press('Escape')
+    await this.closeSkillsPopup()
     await this.createCandidateButton().click()
     await this.page.waitForSelector('form.antiCard', { state: 'detached' })
-    await this.page.click(`tr > :has-text("${lastName} ${firstName}")`)
+    // Click the name link, not the cell: the cell centre misses it once longer names widen the column.
+    await this.page
+      .locator('tr')
+      .getByRole('link', { name: `${lastName} ${firstName}` })
+      .click()
     for (const skill of skills) {
       await expect(this.page.locator(`text=${skill}`).first()).toBeVisible()
     }

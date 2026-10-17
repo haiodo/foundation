@@ -6,10 +6,13 @@ import {
   type AccountRole,
   type Timestamp,
   type SocialId as SocialIdBase,
+  type Ref,
+  type Space,
   PersonUuid,
   type WorkspaceMode,
   Person,
   WorkspaceInfo,
+  type WorkspaceInfoWithStatus,
   AccountInfo,
   IntegrationKind
 } from '@hcengineering/core'
@@ -19,6 +22,8 @@ export interface LoginInfo {
   name?: string
   socialId?: PersonId
   token?: string
+  // Set when the account is scheduled for deletion: the client asks whether to call it off.
+  deleteOn?: number
 }
 
 export interface EndpointInfo {
@@ -42,7 +47,7 @@ export interface LoginInfoWorkspace {
   role: AccountRole | null
   progress?: number
   branding?: string
-  passwordAgingRule?: number // in days
+  passwordAgingRule?: number | null // in days
 }
 
 export interface LoginInfoWithWorkspaces extends LoginInfo {
@@ -65,6 +70,7 @@ export interface WorkspaceLoginInfo extends LoginInfo {
   token: string
   role: AccountRole
   allowGuestSignUp?: boolean
+  disabledFeaturesOverride?: string[]
 }
 
 export interface LoginInfoRequestData {
@@ -76,10 +82,18 @@ export type LoginInfoRequest = {
   request: true
 } & LoginInfoRequestData
 
+export interface WorkspaceSeatsInfo {
+  // True when the plan has a free seat, or the plan is unlimited / free-fallback.
+  available: boolean
+  seatsLeft?: number
+}
+
 export interface WorkspaceInviteInfo {
   workspace: WorkspaceUuid
   email?: string
   name?: string
+  // False when the workspace plan has no free seats: the join page must not offer sign up / sign in.
+  seatsAvailable?: boolean
 }
 
 export interface OtpInfo {
@@ -90,6 +104,14 @@ export interface OtpInfo {
 export interface RegionInfo {
   region: string
   name: string
+}
+
+// Self-host edition, resolved by account (single license-key holder). Other pods fetch this instead
+// of verifying a key themselves. maxUsers 0 = unlimited.
+export interface LicenseInfo {
+  edition: 'dev' | 'community' | 'licensed'
+  canRunPayment: boolean
+  maxUsers: number
 }
 
 export type WorkspaceOperation = 'create' | 'upgrade' | 'all' | 'all+backup'
@@ -148,6 +170,61 @@ export interface AccountAggregatedInfo extends AccountInfo, Person {
   integrations: Omit<Integration, 'data'>[]
   socialIds: SocialId[]
   workspaces: Omit<WorkspaceInfo, 'allowReadOnlyGuest' | 'allowGuestSignUp'>[]
+  // Max last_visit across the account's workspaces (approximation of user's last activity)
+  lastVisit?: number
+  // Earliest social id creation time - when the person first appeared
+  registeredOn?: number
+  // False for an unfinished signup: person + social ids exist, but no account row yet
+  hasAccount?: boolean
+  // Earliest email social id - what the admin list shows and sorts by
+  primaryEmail?: string
+  // Set while the admin keeps the account out: no login, no workspace access
+  blockedOn?: number
+}
+
+export type AccountsSortKey = 'name' | 'lastVisit' | 'registeredOn' | 'workspaces' | 'email'
+
+/** Admin audit trail entry. Duplicated in server/account/src/types.ts - change both */
+export interface AdminAction {
+  id?: string
+  actor: string
+  actorEmail?: string
+  action: string
+  target?: string
+  targetLabel?: string
+  data?: Record<string, any>
+  createdOn: number
+}
+
+export interface AdminActionsQuery {
+  search?: string
+  action?: string
+  skip?: number
+  limit?: number
+}
+
+export interface AdminActionsResult {
+  actions: AdminAction[]
+  total: number
+}
+
+/** Server-side filters for listAccounts */
+export interface AccountsFilter {
+  /** Accounts not belonging to any workspace */
+  noWorkspaces?: boolean
+  /** Accounts with no visit for at least this many days (never visited counts as inactive) */
+  inactiveDays?: number
+  /** Unfinished signups only: person + social ids without an account row */
+  pendingOnly?: boolean
+  /** Blocked accounts only */
+  blockedOnly?: boolean
+}
+
+/** Transactor endpoint entry for admin manage calls */
+export interface TransactorEndpointInfo {
+  region: string
+  name?: string
+  external: string
 }
 
 /**
@@ -173,7 +250,8 @@ export type PersonWithProfile = Person & Omit<UserProfile, 'personUuid'>
 export enum SubscriptionStatus {
   Active = 'active', // Subscription is active and paid
   Trialing = 'trialing', // In trial period (free usage)
-  PastDue = 'past_due', // Payment failed but subscription not yet canceled
+  PastDue = 'past_due', // Payment failed but subscription not yet canceled (grace period — full access)
+  ReadOnly = 'readonly', // Grace period expired — read-only access, payment still due
   Canceled = 'canceled', // Subscription was canceled by user or admin
   Paused = 'paused', // Subscription is temporarily paused (some providers support this)
   Expired = 'expired' // Subscription or trial has expired
@@ -185,7 +263,9 @@ export enum SubscriptionStatus {
  */
 export enum SubscriptionType {
   Tier = 'tier', // Main workspace tier (free, starter, pro, enterprise)
-  Support = 'support' // Voluntary support/donation subscription
+  Support = 'support', // Voluntary support/donation subscription
+  Package = 'package', // Additional package (storage, etc.)
+  Purchase = 'purchase' // One-time catalog purchase (AI usage reset, skins, unlocks) — not a limit-granting subscription
 }
 
 /**
@@ -209,6 +289,31 @@ export interface Subscription {
   status: SubscriptionStatus // Current status
   plan: string // Plan/product identifier (e.g. 'free', 'pro', 'storage-100gb', 'supporter')
 
+  // Snapshot of plan limits at time of subscription creation
+  // Used instead of plan config to ensure limits are stable over time
+  limits?: {
+    storageLimitGB: number
+    trafficLimitGB: number
+    meetingMinutesLimit: number
+    tokenLimit: number
+    usersLimit: number
+    // AI rolling-window limit (billed tokens/month) + package multiplier. Bigger plan = bigger window.
+    windowMonthLimit?: number
+    tokenPackageMultiplier?: number
+  }
+
+  // Free fallback limits (from the plan flagged free in config). Applied when the paid tier is unpaid:
+  // the workspace runs on these instead of full read-only. Same shape as limits.
+  freeLimits?: {
+    storageLimitGB: number
+    trafficLimitGB: number
+    meetingMinutesLimit: number
+    tokenLimit: number
+    usersLimit: number
+    windowMonthLimit?: number
+    tokenPackageMultiplier?: number
+  }
+
   // Amount paid (in cents, e.g. 9999 = $99.99)
   // Used primarily for pay-what-you-want/donation subscriptions to track actual payment
   amount?: number
@@ -222,6 +327,7 @@ export interface Subscription {
 
   // Cancellation tracking (optional)
   canceledAt?: Timestamp
+  willCancelAt?: Timestamp // Scheduled cancellation date (cancel at period end)
 
   // Provider-specific data stored as JSONB (optional)
   providerData?: Record<string, any>
@@ -236,3 +342,313 @@ export interface Subscription {
  * Used by billing service to upsert subscription data
  */
 export type SubscriptionData = Omit<Subscription, 'createdOn' | 'updatedOn'>
+
+/**
+ * Upsert payload.
+ * `accountUuid` is optional here only: a free/trial tier has no payer.
+ */
+export type SubscriptionUpsert = Omit<SubscriptionData, 'accountUuid'> & { accountUuid?: AccountUuid }
+
+export interface AccountWorkspaceBadgeStatus {
+  accountUuid: AccountUuid
+  workspaceUuid: WorkspaceUuid
+  hasUnread: boolean
+  updatedOn: Timestamp
+}
+
+export type PaymentIntentStatus = 'pending' | 'charged' | 'failed'
+
+/**
+ * One claim per claimKey. The unique claimKey makes claiming atomic across pods/replicas/
+ * rolling-updates. claimKey is 'renew:<subscriptionId>:<periodEnd>' (one charge per subscription
+ * period) or 'checkout:<workspaceUuid>:<type>' (one pending checkout per workspace + plan type).
+ */
+export interface PaymentIntent {
+  id: string
+  claimKey: string
+  provider: string
+  status: PaymentIntentStatus
+  paymentId?: string
+  paymentUrl?: string
+  amount?: number
+  heartbeatAt?: number
+  // context columns (nullable; which one is set depends on the claim kind):
+  subscriptionId?: string
+  workspaceUuid?: WorkspaceUuid
+  orderFingerprint?: string // checkout: 'plan:seats:period', reuse URL only on an exact order match
+  createdOn: number
+  updatedOn: number
+}
+
+/** Append-only payment audit row (immutable). */
+export type PaymentOperationKind = 'init_charge' | 'webhook' | 'charge_recurrent' | 'cancel' | 'refund' | 'update'
+/** Who drove this row: the workspace user, our scheduler, the bank callback, or an admin. */
+export type PaymentActor = 'user' | 'system' | 'provider' | 'admin'
+export interface PaymentOperation {
+  id?: string
+  provider: string
+  operation: PaymentOperationKind
+  status?: string
+  paymentId?: string
+  orderId?: string
+  subscriptionId?: string
+  workspaceUuid?: WorkspaceUuid
+  accountUuid?: AccountUuid
+  actionId?: string // groups every row produced by one intent (purchase, plan change, renewal cycle)
+  actor?: PaymentActor
+  amount?: number
+  raw?: Record<string, any>
+  createdOn?: number
+}
+
+/** One-time catalog purchase owned by a workspace (AI usage reset now; skins/themes later). */
+export type WorkspacePurchaseStatus = 'pending' | 'active' | 'consumed' | 'failed'
+
+export interface WorkspacePurchase {
+  id?: string
+  workspaceUuid: WorkspaceUuid
+  accountUuid: AccountUuid // who bought
+  sku: string
+  category?: string
+  status: WorkspacePurchaseStatus
+  amount?: number // minor units (kopecks)
+  paymentId?: string
+  provider?: string
+  raw?: Record<string, any>
+  createdOn?: number
+  activatedOn?: number
+}
+
+export interface PaymentOperationStats {
+  from: number
+  to: number
+  totalCharges: number
+  totalAmount: number
+  totalErrors: number
+  workspaces: Array<{ workspaceUuid: string, charges: number, amount: number, errors: number }>
+}
+
+export interface PaymentOperationFilter {
+  from?: number
+  to?: number
+  workspaceUuid?: WorkspaceUuid
+  operation?: PaymentOperationKind
+  status?: string
+  provider?: string
+  limit?: number
+  offset?: number
+}
+
+/** Ledger aggregation for one calendar month (UTC), month formatted as 'YYYY-MM'. */
+export interface PaymentMonthlyStats {
+  month: string
+  charges: number
+  amount: number
+  errors: number
+  cancels: number
+  refunds: number
+}
+
+/**
+ * Subscription with resolved owner email (used in admin panel)
+ */
+export interface SubscriptionInfo extends Subscription {
+  payerEmail?: string
+  payerName?: string
+}
+
+export type WorkspacesSortKey = 'name' | 'backupDate' | 'backupSize' | 'lastVisit' | 'createdOn'
+
+export interface WorkspacesPagedQuery {
+  search?: string
+  modes?: WorkspaceMode[]
+  region?: string
+  attemptsGte?: number
+  billingPlan?: string
+  billingStatus?: string
+  billingStatusNot?: string
+  billingExpired?: boolean
+  sort?: WorkspacesSortKey
+  order?: 'asc' | 'desc'
+  skip?: number
+  limit?: number
+}
+
+/** Workspace row with the current tier subscription snapshot */
+export type WorkspaceInfoWithBilling = WorkspaceInfoWithStatus & {
+  billingPlan?: string
+  billingStatus?: string
+  billingPeriodEnd?: number
+}
+
+export interface WorkspacesPagedResult {
+  workspaces: WorkspaceInfoWithBilling[]
+  total: number
+}
+
+export interface BillingPlanSummary {
+  plan: string
+  workspaces: number
+  seats: number
+}
+
+export interface WorkspacesSummary {
+  total: number
+  byMode: Record<string, number>
+  byRegion: Record<string, number>
+  byVersion: Record<string, number>
+  billing: BillingPlanSummary[]
+}
+
+export interface RegistrationStatsPoint {
+  day: string
+  count: number
+}
+
+export interface RegistrationStats {
+  workspaces: RegistrationStatsPoint[]
+  accounts: RegistrationStatsPoint[]
+}
+
+export interface WorkspaceActivityPoint {
+  week: string
+  count: number
+}
+
+export interface WorkspaceMemberDetails {
+  account: AccountUuid
+  role: string
+  firstName?: string
+  lastName?: string
+  email?: string
+  lastActivity?: number
+  txTotal: number
+}
+
+export interface AccountWorkspaceActivity {
+  workspace: WorkspaceUuid
+  name?: string
+  url?: string
+  count: number
+  lastTx: number
+}
+
+export interface AccountActivityStats {
+  workspaces: AccountWorkspaceActivity[]
+  weekly: WorkspaceActivityPoint[]
+}
+
+/** Deferral windows the deletion warnings quote. Configured per installation. */
+export interface DeletionPolicy {
+  graceDays: number
+  readonlyDays: number
+}
+
+/** Whether the caller may purge their own account, and the workspaces that stand in the way. */
+export interface CanDeleteAccountResult {
+  canDelete: boolean
+  ownedWorkspaces: Array<{ uuid: WorkspaceUuid, name: string, url: string }>
+}
+
+/**
+ * Integration API key write operation, `<domain>:<action>`. No write is granted by default; reading
+ * the workspace is implicit and limited only by `spaces`.
+ */
+export type ApiKeyOperation =
+  | 'issue:create'
+  | 'issue:update'
+  | 'issue:comment'
+  | 'issue:time_report'
+  | 'chat:post'
+  | 'doc:create'
+  | 'doc:update'
+
+export const apiKeyOperations: ApiKeyOperation[] = [
+  'issue:create',
+  'issue:update',
+  'issue:comment',
+  'issue:time_report',
+  'chat:post',
+  'doc:create',
+  'doc:update'
+]
+
+/** API key as shown to the workspace owner. The key itself is returned once, on creation. */
+export interface ApiKeyInfo {
+  keyId: string
+  name: string
+  /** Human-readable stub of the key: prefix plus last 4 chars. */
+  masked: string
+  /** Allowed writes; reads are implicit. */
+  ops: ApiKeyOperation[]
+  /** Space ids the key may touch, reads included; empty means every space of the workspace. */
+  spaces: Ref<Space>[]
+  socialId: PersonId
+  createdOn: Timestamp
+  createdBy: AccountUuid
+  /** Acts as its creator with their own rights, narrowed or not by `ops`/`spaces`. Absent/false = integration key. */
+  personal?: boolean
+  /** True = full rights of the key's principal, `ops`/`spaces` unused. A personal key can only narrow the
+   * user's own rights this way, never exceed them - the session still runs under the user's real role/spaces. */
+  unrestricted?: boolean
+  /** May be used on pod-webhook's ingest routes. A separate, independent gate from `ops`/`unrestricted` -
+   * absent/false refuses ingest regardless of what the key can otherwise do.
+   * Duplicated in server/account/src/apiKeys.ts - change both */
+  incoming?: boolean
+  /** When the key itself stops being usable - distinct from `tokenTtlMs`, the lifetime of tokens it issues. */
+  expiresOn?: Timestamp
+  /**
+   * Lifetime (ms) of a token minted via this key, owner-chosen at creation, 1-90 days. Rotation is
+   * manual - once a token expires the integration must exchange the key for a new one.
+   * Duplicated in server/account/src/apiKeys.ts - change both
+   */
+  tokenTtlMs?: number
+  lastUsed?: Timestamp
+  revokedOn?: Timestamp
+  revokedBy?: AccountUuid
+}
+
+export interface CreateApiKeyParams {
+  name: string
+  ops: ApiKeyOperation[]
+  spaces?: Ref<Space>[]
+  expiresOn?: Timestamp
+  /** 1-90 days in ms; omit for the server default. Duplicated in server/account/src/apiKeys.ts - change both */
+  tokenTtlMs?: number
+  /** Acts as its creator with their own rights - `ops`/`spaces` above apply only when not `unrestricted`. */
+  personal?: boolean
+  /** Full rights, no narrowing. Only valid together with `personal: true`. */
+  unrestricted?: boolean
+  /** May be used on pod-webhook's ingest routes. Duplicated in server/account/src/apiKeys.ts - change both */
+  incoming?: boolean
+}
+
+export interface CreatedApiKey {
+  /** Shown once and never stored in plain text. */
+  key: string
+  info: ApiKeyInfo
+}
+
+/** `limit` is the integration-key quota (Workspace.maxApiKeys ?? the env default); `personalLimit` is per-user. */
+export interface ApiKeysList {
+  keys: ApiKeyInfo[]
+  limit: number
+  personalLimit: number
+}
+
+/** Result of a key check, for services acting on the key's behalf. */
+export interface ApiKeyCheck {
+  keyId: string
+  name: string
+  workspace: WorkspaceUuid
+  socialId: PersonId
+  personUuid: PersonUuid
+  ops: ApiKeyOperation[]
+  spaces: Ref<Space>[]
+  /** Whether this key may be used on pod-webhook's ingest routes. */
+  incoming: boolean
+  /** A personal key acts within its user's own membership; a workspace key gets its spaces granted. */
+  personal: boolean
+  /** Used by pod-webhook to accept incoming rules only from the key creator's PersonSpace. */
+  createdBy: AccountUuid
+}

@@ -1,7 +1,13 @@
 // Copyright © 2025 Andrey Sobolev (haiodo@gmail.com)
 
 import { MeasureContext } from '@hcengineering/core'
-import { TranscriptionOptions, TranscriptionProvider, TranscriptionResult, AudioFormat } from '../types'
+import {
+  AUDIO_FORMAT_INFO,
+  TranscriptionOptions,
+  TranscriptionProvider,
+  TranscriptionResult,
+  AudioFormat
+} from '../types'
 
 /**
  * Deepgram pre-recorded API response structure
@@ -16,12 +22,12 @@ interface DeepgramResponse {
     channels: number
     models: string[]
     model_info: Record<
-    string,
-    {
-      name: string
-      version: string
-      arch: string
-    }
+      string,
+      {
+        name: string
+        version: string
+        arch: string
+      }
     >
   }
   results?: {
@@ -68,16 +74,9 @@ interface DeepgramResponse {
 }
 
 /**
- * Deepgram pre-recorded (batch) API provider
- *
- * Uses the Deepgram Listen API for pre-recorded audio
- * Endpoint: POST https://api.deepgram.com/v1/listen
- *
- * Features:
- * - Multiple models: nova-2, nova, enhanced, base
- * - Language detection and specification
- * - Word-level timestamps
- * - Punctuation and smart formatting
+ * Deepgram pre-recorded (batch) provider via the Listen API
+ * (POST /v1/listen). Models: nova-2/nova/enhanced/base; supports language spec,
+ * word-level timestamps, punctuation and smart formatting.
  */
 export class DeepgramProvider implements TranscriptionProvider {
   readonly name = 'deepgram'
@@ -94,11 +93,11 @@ export class DeepgramProvider implements TranscriptionProvider {
    * Get content type and encoding for audio format
    */
   private getFormatInfo (format: AudioFormat): { contentType: string, encoding?: string } {
+    // encoding only for wav; compressed containers Deepgram reads from the header.
     if (format === 'wav') {
       return { contentType: 'audio/wav', encoding: 'linear16' }
     }
-    // OGG Opus is the default format from love-agent
-    return { contentType: 'audio/ogg' }
+    return { contentType: (AUDIO_FORMAT_INFO[format] ?? AUDIO_FORMAT_INFO.ogg).contentType }
   }
 
   async transcribe (audioData: Buffer, options: TranscriptionOptions): Promise<TranscriptionResult> {

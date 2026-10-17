@@ -28,16 +28,16 @@ import {
   editSpace,
   cardCustomLinkEncode,
   cardCustomLinkMatch,
+  cardReferenceObjectProvider,
   openCardInSidebar,
   checkRelationsSectionVisibility,
   checkOldMessagesSectionVisibility,
-  checkCommunicationMessagesSectionVisibility,
   getSpaceAccessPublicLink,
   canGetSpaceAccessPublicLink,
   cardFactory,
-  duplicateCard,
   checkChildrenSectionVisibility,
-  createChildAction
+  createChildAction,
+  showAllVersions
 } from './utils'
 import { formatCardValue } from './cardTableFormatter'
 import CardGridView from './components/CardGridView.svelte'
@@ -57,10 +57,10 @@ import CardEditor from './components/CardEditor.svelte'
 import CardRefPresenter from './components/CardRefPresenter.svelte'
 import ChangeType from './components/ChangeType.svelte'
 import CreateCardButton from './components/CreateCardButton.svelte'
+import CreateCardPopup from './components/CreateCardPopup.svelte'
 import CardArrayEditor from './components/CardArrayEditor.svelte'
 import SpacePresenter from './components/navigator/SpacePresenter.svelte'
 import TypesNavigator from './components/navigator/TypesNavigator.svelte'
-import LabelsPresenter from './components/LabelsPresenter.svelte'
 import RolesSection from './components/settings/RolesSection.svelte'
 import EditRole from './components/settings/EditRole.svelte'
 import CreateRolePopup from './components/settings/CreateRolePopup.svelte'
@@ -68,6 +68,7 @@ import CardWidget from './components/CardWidget.svelte'
 import CreateSpace from './components/navigator/CreateSpace.svelte'
 import CardHeaderButton from './components/navigator/CardHeaderButton.svelte'
 import MyCards from './components/navigator/MyCards.svelte'
+import DuplicateCard from './components/DuplicateCard.svelte'
 
 // Card Sections
 import AttachmentsCardSection from './components/sections/AttachmentsSection.svelte'
@@ -75,7 +76,6 @@ import ChildrenCardSection from './components/sections/ChildrenSection.svelte'
 import ContentCardSection from './components/sections/ContentSection.svelte'
 import PropertiesCardSection from './components/sections/PropertiesSection.svelte'
 import RelationsCardSection from './components/sections/RelationsSection.svelte'
-import CardCommunicatiomMessages from './components/sections/CardCommunicatiomMessages.svelte'
 import OldMessagesCardSection from './components/sections/OldMessagesCardSection.svelte'
 
 import FavoriteCardPresenter from './components/FavoriteCardPresenter.svelte'
@@ -96,7 +96,7 @@ export { default as CardTagsColored } from './components/CardTagsColored.svelte'
 export { default as CardPathPresenter } from './components/CardPathPresenter.svelte'
 export { default as CardTimestamp } from './components/CardTimestamp.svelte'
 
-export * from './types'
+export type * from './types'
 export { getCardIconInfo, openCardInSidebar } from './utils'
 
 export default async (): Promise<Resources> => ({
@@ -123,10 +123,10 @@ export default async (): Promise<Resources> => ({
     CardsPresenter,
     ChangeType,
     CreateCardButton,
+    CreateCard: CreateCardPopup,
     CardArrayEditor,
     SpacePresenter,
     TypesNavigator,
-    LabelsPresenter,
     RolesSection,
     EditRole,
     CardWidget,
@@ -140,7 +140,8 @@ export default async (): Promise<Resources> => ({
     CreateSpace,
     CardHeaderButton,
     CreateRolePopup,
-    MyCards
+    MyCards,
+    DuplicateCard
   },
   sectionComponent: {
     AttachmentsSection: AttachmentsCardSection,
@@ -148,8 +149,7 @@ export default async (): Promise<Resources> => ({
     ContentSection: ContentCardSection,
     PropertiesSection: PropertiesCardSection,
     RelationsSection: RelationsCardSection,
-    OldMessagesSection: OldMessagesCardSection,
-    CommunicationMessagesSection: CardCommunicatiomMessages
+    OldMessagesSection: OldMessagesCardSection
   },
   completion: {
     CardQuery: queryCard
@@ -160,23 +160,23 @@ export default async (): Promise<Resources> => ({
   },
   actionImpl: {
     DeleteMasterTag: deleteMasterTag,
-    DuplicateCard: duplicateCard,
     EditSpace: editSpace,
     CreateChild: createChildAction
   },
   function: {
     CardTitleProvider: getCardTitle,
+    CardReferenceObjectProvider: cardReferenceObjectProvider,
     GetCardLink: getCardLink,
     CardCustomLinkMatch: cardCustomLinkMatch,
     CardCustomLinkEncode: cardCustomLinkEncode,
     OpenCardInSidebar: openCardInSidebar,
     CheckRelationsSectionVisibility: checkRelationsSectionVisibility,
     CheckOldMessagesSectionVisibility: checkOldMessagesSectionVisibility,
-    CheckCommunicationMessagesSectionVisibility: checkCommunicationMessagesSectionVisibility,
     CheckChildrenSectionVisibility: checkChildrenSectionVisibility,
     GetSpaceAccessPublicLink: getSpaceAccessPublicLink,
     CanGetSpaceAccessPublicLink: canGetSpaceAccessPublicLink,
     CardFactory: cardFactory,
-    FormatCardMarkdownValue: formatCardValue
+    FormatCardMarkdownValue: formatCardValue,
+    ShowAllVersions: showAllVersions
   }
 })

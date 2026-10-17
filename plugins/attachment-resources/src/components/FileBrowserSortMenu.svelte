@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { IntlString } from '@hcengineering/platform'
-  import { Label, Menu, showPopup, ModernButton, IconOptions } from '@hcengineering/ui'
+  import type { IntlString } from '@hcengineering/platform'
+  import { Label, Menu, showPopup, IconOptions } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { FileBrowserSortMode } from '..'
   import attachment from '../plugin'
 
@@ -71,12 +72,12 @@
   }
 </script>
 
-<ModernButton
+<Button
   icon={IconOptions}
-  iconSize={'small'}
+  iconSize="small"
   label={sortModeToString(selectedSort)}
-  kind={'tertiary'}
-  size={'small'}
+  kind="tertiary"
+  size="small"
   tooltip={{ label: attachment.string.FileBrowserSort }}
   on:click={(event) => showSortMenu(event)}
 />

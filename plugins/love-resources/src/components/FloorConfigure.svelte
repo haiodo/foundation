@@ -13,24 +13,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Contact } from '@hcengineering/contact'
-  import { DocumentUpdate, Ref } from '@hcengineering/core'
-  import { Floor, GRID_WIDTH, Room, getFreeSpace } from '@hcengineering/love'
+  import type { Contact } from '@hcengineering/contact'
+  import type { DocumentUpdate, Ref } from '@hcengineering/core'
+  import type { Floor, Room } from '@hcengineering/love'
+  import { GRID_WIDTH, getFreeSpace } from '@hcengineering/love'
   import { getClient } from '@hcengineering/presentation'
-  import {
-    ButtonIcon,
-    DropdownLabels,
-    Header,
-    IconAdd,
-    ModernButton,
-    Scroller,
-    eventToHTMLElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import { DropdownLabels, Header, IconAdd, Scroller, eventToHTMLElement, showPopup } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import lovePlg from '../plugin'
-  import { floors, lockedRoom, selectedFloor } from '../stores'
-  import { FloorSize, RGBAColor, ResizeInitParams, RoomSide, shadowError, shadowNormal } from '../types'
+  import { ensureOfficeDetailsLoaded, floors, lockedRoom, selectedFloor } from '../stores'
+
+  import type { FloorSize, RGBAColor, ResizeInitParams, RoomSide } from '../types'
+  import { shadowError, shadowNormal } from '../types'
   import { calculateFloorSize } from '../utils'
   import AddRoomPopup from './AddRoomPopup.svelte'
   import FloorGrid from './FloorGrid.svelte'
@@ -42,6 +37,8 @@
 
   const client = getClient()
   const dispatch = createEventDispatcher()
+
+  void ensureOfficeDetailsLoaded()
 
   let divScroll: HTMLElement
   let resizeInitParams: ResizeInitParams | undefined = undefined
@@ -272,7 +269,7 @@
   }
 
   function docMouseUp (e: MouseEvent): void {
-    if (locked) updateRoom(locked.room._id)
+    if (locked) void updateRoom(locked.room._id)
     if (dragged !== undefined) {
       divScroll.removeEventListener('mousemove', dragMouseMove)
       dragged = undefined
@@ -303,29 +300,29 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <DropdownLabels
       {items}
       selected={selected?._id}
-      size={'large'}
-      kind={'ghost'}
+      size="large"
+      kind="ghost"
       enableSearch={false}
       autoSelect={false}
       on:selected={changeFloor}
     />
     <svelte:fragment slot="actions">
-      <ButtonIcon icon={IconAdd} size={'small'} on:click={addRoom} />
+      <IconButton icon={IconAdd} size="small" tooltip={{ label: lovePlg.string.AddRoom }} on:click={addRoom} />
       <div class="hulyHeader-divider short" />
-      <ModernButton
+      <Button
         label={lovePlg.string.FinalizeEditing}
-        kind={'primary'}
-        size={'small'}
+        kind="primary"
+        size="small"
         on:click={() => dispatch('configure')}
       />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__column content">
-    <Scroller bind:divScroll padding={'1rem'} bottomPadding={'1rem'} horizontal>
+    <Scroller bind:divScroll padding="1rem" bottomPadding="1rem" horizontal>
       <FloorGrid
         bind:floorContainer
         {rows}

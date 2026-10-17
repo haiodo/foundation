@@ -13,10 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref, Space } from '@hcengineering/core'
+  import type { Class, Doc, Ref, Space } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Button, IconFilter, eventToHTMLElement, resolvedLocationStore, showPopup } from '@hcengineering/ui'
-  import { Filter, ViewOptions } from '@hcengineering/view'
+  import type { Filter, ViewOptions } from '@hcengineering/view'
   import { filterStore, getFilterKey, selectedFilterStore, setFilters } from '../../filter'
   import view from '../../plugin'
   import FilterTypePopup from './FilterTypePopup.svelte'
@@ -31,11 +31,13 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  resolvedLocationStore.subscribe(() => {
-    if ($selectedFilterStore === undefined) {
-      load(_class)
-    }
-  })
+  onDestroy(
+    resolvedLocationStore.subscribe(() => {
+      if ($selectedFilterStore === undefined) {
+        load(_class)
+      }
+    })
+  )
 
   function load (_class: Ref<Class<Doc>> | undefined): void {
     const key = getFilterKey(_class)
@@ -50,9 +52,11 @@
     localStorage.setItem(key, JSON.stringify(p))
   }
 
-  filterStore.subscribe((p) => {
-    save(_class, p)
-  })
+  onDestroy(
+    filterStore.subscribe((p) => {
+      save(_class, p)
+    })
+  )
 
   function onChange (e: Filter | undefined): void {
     if (e !== undefined) setFilters([e])
@@ -90,8 +94,8 @@
   <Button
     icon={$filterStore.length === 0 ? IconFilter : IconClose}
     label={adaptive ? undefined : $filterStore.length === 0 ? view.string.Filter : view.string.ClearFilters}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     pressed={$filterStore.length > 0}
     showTooltip={{ label: $filterStore.length === 0 ? view.string.Filter : view.string.ClearFilters }}
     on:click={(ev) => {

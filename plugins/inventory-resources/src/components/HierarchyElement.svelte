@@ -14,10 +14,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref, getObjectValue } from '@hcengineering/core'
-  import inventory, { Category } from '@hcengineering/inventory'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import { getObjectValue } from '@hcengineering/core'
+  import type { Category } from '@hcengineering/inventory'
+  import inventory from '@hcengineering/inventory'
   import { IconMoreV } from '@hcengineering/ui'
-  import { AttributeModel } from '@hcengineering/view'
+  import type { AttributeModel } from '@hcengineering/view'
   import { showMenu } from '@hcengineering/view-resources'
   import HierarchyElement from './HierarchyElement.svelte'
   import Collapse from './icons/Collapse.svelte'
@@ -58,9 +60,9 @@
                 }}
               >
                 {#if expanded.has(object._id)}
-                  <Expand size={'small'} />
+                  <Expand size="small" />
                 {:else}
-                  <Collapse size={'small'} />
+                  <Collapse size="small" />
                 {/if}
               </div>
             {/if}
@@ -77,7 +79,7 @@
                 showMenu(ev, { object })
               }}
             >
-              <IconMoreV size={'small'} />
+              <IconMoreV size="small" />
             </div>
           </div>
         </td>

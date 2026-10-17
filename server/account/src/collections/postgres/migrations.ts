@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,6 +14,7 @@
 // limitations under the License.
 //
 
+import { readOnlyGuestAccountUuid } from '@hcengineering/core'
 import { type DBFlavor } from '../../types'
 
 // Type definitions for different database flavors.
@@ -42,6 +44,14 @@ const dbTypes = {
   }
 }
 
+/**
+ * Adding a column and reading it must be two separate migrations.
+ *
+ * CockroachDB parses a multi-statement batch as a whole, so a backfill sitting next to its own
+ * ADD COLUMN fails with "column does not exist" and the migration retries forever - the workspace
+ * pod then stops processing anything. PostgreSQL runs the same batch fine, so this only shows up on
+ * the cockroach regions. See v35/v36 and v32/v33.
+ */
 export function getMigrations (ns: string, flavor: DBFlavor): [string, string][] {
   if (flavor === 'unknown') {
     throw new Error('Cannot generate migrations for an unknown database flavor.')
@@ -83,7 +93,33 @@ export function getMigrations (ns: string, flavor: DBFlavor): [string, string][]
     getV23Migration(ns, flavor),
     getV24Migration(ns, flavor),
     getV25Migration(ns, flavor),
-    getV26Migration(ns, flavor)
+    getV26Migration(ns, flavor),
+    getV27Migration(ns, flavor),
+    getV28Migration(ns, flavor),
+    getV29Migration(ns, flavor),
+    getV30Migration(ns, flavor),
+    getV31Migration(ns, flavor),
+    getV32Migration(ns, flavor),
+    getV33Migration(ns),
+    getV34Migration(ns),
+    getV35Migration(ns, flavor),
+    getV36Migration(ns),
+    getV37Migration(ns),
+    getV38Migration(ns),
+    getV39Migration(ns, flavor),
+    getV40Migration(ns),
+    getV41Migration(ns),
+    getV42Migration(ns, flavor),
+    getV43Migration(ns, flavor),
+    getV44Migration(ns, flavor),
+    getV45Migration(ns, flavor),
+    getV46Migration(ns, flavor),
+    getV47Migration(ns, flavor),
+    getV48Migration(ns, flavor),
+    getV49Migration(ns),
+    getV50Migration(ns),
+    getV51Migration(ns, flavor),
+    getV52Migration(ns)
   ]
 }
 
@@ -230,9 +266,7 @@ function getV1Migration (ns: string, flavor: DBFlavor): [string, string] {
         CONSTRAINT members_account_fk FOREIGN KEY (account_uuid) REFERENCES ${ns}.account(uuid)
     );
 
-    /* ========================================================================================== */
     /* MAIN SCHEMA ENDS HERE */
-    /* ===================== */
 
     /* ======= O T P ======= */
     CREATE TABLE IF NOT EXISTS ${ns}.otp (
@@ -811,7 +845,6 @@ function getV25Migration (ns: string, flavor: DBFlavor): [string, string] {
 
 function getV26Migration (ns: string, flavor: DBFlavor): [string, string] {
   const types = dbTypes[flavor]
-
   return [
     'account_db_v26_create_short_links_table',
     `
@@ -829,6 +862,469 @@ function getV26Migration (ns: string, flavor: DBFlavor): [string, string] {
     /* ======= I N D E X E S ======= */
     CREATE INDEX IF NOT EXISTS short_links_workspace_idx ON ${ns}.short_links (workspace_id);
     CREATE INDEX IF NOT EXISTS short_links_created_at_idx ON ${ns}.short_links (created_at);
+    `
+  ]
+}
+
+function getV27Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v28_account_workspace_badge_status',
+    `
+    /* ======= A C C O U N T   W O R K S P A C E   B A D G E   S T A T U S ======= */
+    CREATE TABLE IF NOT EXISTS ${ns}.account_workspace_badge_status (
+        account_uuid UUID NOT NULL,
+        workspace_uuid UUID NOT NULL,
+        has_unread ${types.bool} NOT NULL DEFAULT FALSE,
+        updated_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+        CONSTRAINT account_workspace_badge_status_pk PRIMARY KEY (account_uuid, workspace_uuid),
+        CONSTRAINT account_workspace_badge_status_membership_fk FOREIGN KEY (workspace_uuid, account_uuid) 
+            REFERENCES ${ns}.workspace_members(workspace_uuid, account_uuid) ON DELETE CASCADE
+    );
+    `
+  ]
+}
+
+function getV28Migration (ns: string, flavor: DBFlavor): [string, string] {
+  return [
+    'account_db_v28_subscription_limits',
+    `
+    /* Add limits column to subscription table for plan-limit snapshots */
+    ALTER TABLE ${ns}.subscription
+    ADD COLUMN IF NOT EXISTS limits JSONB;
+    `
+  ]
+}
+
+function getV29Migration (ns: string, flavor: DBFlavor): [string, string] {
+  // Add 'readonly' value to subscription_status enum (grace period expired -> read-only access).
+  const addValueSql =
+    flavor === 'postgres'
+      ? `
+    DO $$     BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum
+            WHERE enumlabel = 'readonly'
+            AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'subscription_status' AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '${ns}'))
+        ) THEN
+            ALTER TYPE ${ns}.subscription_status ADD VALUE 'readonly';
+        END IF;
+    END $$;
+    `
+      : `
+    ALTER TYPE ${ns}.subscription_status ADD VALUE IF NOT EXISTS 'readonly';
+    `
+
+  return ['account_db_v29_subscription_status_readonly', addValueSql]
+}
+
+function getV30Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v30_payment_intent_table',
+    `
+    /* ======= P A Y M E N T   I N T E N T ======= */
+    /* Atomic claim keyed by claim_key (INSERT ... ON CONFLICT DO NOTHING) across pods/replicas:
+         renew:<sub>:<periodEnd>  — one charge per subscription period
+         checkout:<ws>:<type>     — one pending checkout per (workspace, plan type)
+       order_fingerprint ('plan:seats:period') is the exact order behind a checkout claim; a loser
+       reuses the URL only on a match, else 409. No FK — a checkout claim has no subscription yet. */
+
+    CREATE TABLE IF NOT EXISTS ${ns}.payment_intent (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        claim_key ${types.string} NOT NULL,
+        provider ${types.string} NOT NULL,
+        status ${types.string} NOT NULL DEFAULT 'pending', -- pending | charged | failed
+        payment_id ${types.string}, -- provider charge id, set once the charge is issued
+        payment_url ${types.string}, -- checkout URL, reused by repeat callers of the same order
+        amount ${types.int8},
+        heartbeat_at BIGINT, -- lease: refreshed ~1s while a live pod awaits the charge response
+        subscription_id ${types.string}, -- set for renew claims; null for checkout claims
+        workspace_uuid ${types.string}, -- set for checkout claims
+        order_fingerprint ${types.string},
+
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+        updated_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+
+        CONSTRAINT payment_intent_pk PRIMARY KEY (id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS payment_intent_claim_key_unique ON ${ns}.payment_intent (claim_key);
+    CREATE INDEX IF NOT EXISTS payment_intent_payment_id_idx ON ${ns}.payment_intent (payment_id);
+    `
+  ]
+}
+
+function getV31Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v31_payment_operation_ledger',
+    `
+    /* ======= P A Y M E N T   O P E R A T I O N   L E D G E R ======= */
+    /* Append-only audit trail of every payment operation (init charge, webhook result, recurrent
+       charge, cancel, refund). Immutable — rows are inserted, never updated/deleted. raw holds the
+       full provider payload for forensics/reconciliation. No FK: an init may precede the subscription.
+       action_id groups every row a single user/system intent produced (e.g. a plan change =
+       new charge + old subscription cancel + free activation), actor says who drove that row. */
+
+    CREATE TABLE IF NOT EXISTS ${ns}.payment_operation (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        provider ${types.string} NOT NULL,
+        operation ${types.string} NOT NULL, -- init_charge | webhook | charge_recurrent | cancel | refund | update
+        status ${types.string}, -- provider/webhook status (CONFIRMED|REJECTED|...) or success/failed
+        payment_id ${types.string}, -- provider charge id
+        order_id ${types.string},
+        subscription_id ${types.string},
+        workspace_uuid ${types.string},
+        account_uuid ${types.string}, -- who/what initiated (system for scheduler)
+        action_id ${types.string}, -- correlates every row of one intent (purchase, plan change, renewal)
+        actor ${types.string}, -- user | system | provider | admin
+        amount ${types.int8}, -- minor units (kopecks)
+        raw JSONB, -- full provider request/response/notification payload
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+
+        CONSTRAINT payment_operation_pk PRIMARY KEY (id)
+    );
+
+    CREATE INDEX IF NOT EXISTS payment_operation_workspace_idx ON ${ns}.payment_operation (workspace_uuid);
+    CREATE INDEX IF NOT EXISTS payment_operation_payment_id_idx ON ${ns}.payment_operation (payment_id);
+    CREATE INDEX IF NOT EXISTS payment_operation_created_idx ON ${ns}.payment_operation (created_on);
+    CREATE INDEX IF NOT EXISTS payment_operation_action_idx ON ${ns}.payment_operation (action_id);
+    `
+  ]
+}
+
+function getV32Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v32_payment_intent_claim_key',
+    `
+    /* ======= P A Y M E N T   I N T E N T   R E A L I G N ======= */
+    /* v30 shipped twice with different DDL: an early renew-only shape (subscription_id NOT NULL,
+       UNIQUE (subscription_id, period_end), FK to subscription) and the current claim_key shape.
+       Databases that applied the early one keep the identifier marked applied, so the newer DDL
+       never runs and claimIntent fails with "column claim_key does not exist". Realign in place. */
+
+    ALTER TABLE ${ns}.payment_intent DROP CONSTRAINT IF EXISTS payment_intent_subscription_fk;
+    ${
+      // cockroach refuses DROP CONSTRAINT for a UNIQUE; it wants the backing index dropped instead.
+      flavor === 'cockroach'
+        ? `DROP INDEX IF EXISTS ${ns}.payment_intent@payment_intent_sub_period_unique CASCADE;`
+        : `ALTER TABLE ${ns}.payment_intent DROP CONSTRAINT IF EXISTS payment_intent_sub_period_unique;`
+    }
+    ALTER TABLE ${ns}.payment_intent ALTER COLUMN subscription_id DROP NOT NULL;
+
+    ALTER TABLE ${ns}.payment_intent ADD COLUMN IF NOT EXISTS claim_key ${types.string};
+    ALTER TABLE ${ns}.payment_intent ADD COLUMN IF NOT EXISTS payment_url ${types.string};
+    ALTER TABLE ${ns}.payment_intent ADD COLUMN IF NOT EXISTS workspace_uuid ${types.string};
+    ALTER TABLE ${ns}.payment_intent ADD COLUMN IF NOT EXISTS order_fingerprint ${types.string};
+
+    /* period_end is old-schema only; add it (nullable) on the current shape so the backfill in v33
+       is plain SQL — no DO block, which CockroachDB does not support. */
+    ALTER TABLE ${ns}.payment_intent ADD COLUMN IF NOT EXISTS period_end BIGINT;
+    ALTER TABLE ${ns}.payment_intent ALTER COLUMN period_end DROP NOT NULL;
+    `
+  ]
+}
+
+function getV33Migration (ns: string): [string, string] {
+  return [
+    'account_db_v33_payment_intent_claim_key_index',
+    `
+    /* Separate migration on purpose: cockroach backfills a freshly added column asynchronously and
+       rejects an index build while that is in flight ("column is being backfilled"). Splitting lets
+       v32's ADD COLUMN settle before the unique index below is created. */
+
+    /* Rebuild the renew claim key from the old shape; a table already on the current shape has no
+       such rows, so this is a no-op there. */
+    UPDATE ${ns}.payment_intent
+       SET claim_key = 'renew:' || subscription_id || ':' || period_end
+     WHERE claim_key IS NULL AND subscription_id IS NOT NULL AND period_end IS NOT NULL;
+
+    DELETE FROM ${ns}.payment_intent WHERE claim_key IS NULL;
+
+    /* claim_key stays nullable: the unique index is what enforces the claim, and every insert sets
+       it. SET NOT NULL on an existing column behaves differently across flavors. */
+    CREATE UNIQUE INDEX IF NOT EXISTS payment_intent_claim_key_unique ON ${ns}.payment_intent (claim_key);
+    CREATE INDEX IF NOT EXISTS payment_intent_payment_id_idx ON ${ns}.payment_intent (payment_id);
+    `
+  ]
+}
+
+function getV34Migration (ns: string): [string, string] {
+  return [
+    'account_db_v34_add_disabled_features_override',
+    `
+    ALTER TABLE ${ns}.workspace
+    ADD COLUMN IF NOT EXISTS disabled_features_override TEXT[];
+    `
+  ]
+}
+
+function getV35Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v35_admin_action_log',
+    `
+    /* ======= A D M I N   A C T I O N   L O G ======= */
+    /* No FK on actor/target on purpose: the log must outlive the rows it describes
+       (account deletion, person purge), and targets may be workspaces or social ids. */
+    CREATE TABLE IF NOT EXISTS ${ns}.admin_action (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        actor ${types.string} NOT NULL, -- admin account uuid from the token
+        actor_email ${types.string},
+        action ${types.string} NOT NULL,
+        target ${types.string}, -- person/workspace uuid the action was applied to
+        target_label ${types.string}, -- readable name/email/url, kept for deleted targets
+        data JSONB,
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+
+        CONSTRAINT admin_action_pk PRIMARY KEY (id)
+    );
+
+    CREATE INDEX IF NOT EXISTS admin_action_created_idx ON ${ns}.admin_action (created_on);
+    CREATE INDEX IF NOT EXISTS admin_action_target_idx ON ${ns}.admin_action (target);
+    `
+  ]
+}
+
+function getV36Migration (ns: string): [string, string] {
+  return [
+    'account_db_v36_person_phone_hint',
+    `
+    /* Existing phone social ids stay in place and are reused once SMS verification lands. */
+    ALTER TABLE ${ns}.person ADD COLUMN IF NOT EXISTS phone_hint TEXT;
+    `
+  ]
+}
+
+function getV37Migration (ns: string): [string, string] {
+  return [
+    'account_db_v37_person_phone_hint_backfill',
+    /* Separate migration on purpose: a multi-statement batch is parsed as a whole, so an UPDATE
+       reading phone_hint next to the ADD COLUMN fails with "column does not exist". Same reason
+       v33 was split off from v32. */
+    `
+    UPDATE ${ns}.person p
+       SET phone_hint = s.value
+      FROM (
+        SELECT DISTINCT ON (person_uuid) person_uuid, value
+          FROM ${ns}.social_id
+         WHERE type = 'phone'
+         ORDER BY person_uuid, created_on DESC
+      ) s
+     WHERE s.person_uuid = p.uuid AND p.phone_hint IS NULL;
+    `
+  ]
+}
+
+function getV38Migration (ns: string): [string, string] {
+  return [
+    'account_db_v38_subscription_provider_status_trial_end_idx',
+    /* Trial expiry sweeps ask for (provider, status, trial_end <= now); without this the query
+       scans every trialing row of the provider and filters by date in memory. */
+    `
+    CREATE INDEX IF NOT EXISTS subscription_provider_status_trial_end_idx
+        ON ${ns}.subscription (provider, status, trial_end);
+    `
+  ]
+}
+
+function getV39Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v39_workspace_purchase',
+    `
+    /* ======= W O R K S P A C E   P U R C H A S E ======= */
+    /* Generic one-time purchases of catalog SKUs (AI usage reset now; skins/themes later). History of
+       what a workspace bought; account stays domain-agnostic — the SKU effect (e.g. resetting the AI
+       usage window) is interpreted and applied by the owning pod (aibot), not here. Consumable purchases
+       flip to 'consumed' once that pod applied the effect; entitlements (future) stay 'active'. */
+
+    CREATE TABLE IF NOT EXISTS ${ns}.workspace_purchase (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        workspace_uuid ${types.string} NOT NULL,
+        account_uuid ${types.string} NOT NULL, -- who bought
+        sku ${types.string} NOT NULL,
+        category ${types.string},
+        status ${types.string} NOT NULL, -- pending | active | consumed | failed
+        amount ${types.int8}, -- minor units (kopecks)
+        payment_id ${types.string},
+        provider ${types.string},
+        raw JSONB,
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+        activated_on BIGINT,
+
+        CONSTRAINT workspace_purchase_pk PRIMARY KEY (id)
+    );
+
+    CREATE INDEX IF NOT EXISTS workspace_purchase_workspace_idx ON ${ns}.workspace_purchase (workspace_uuid);
+    CREATE INDEX IF NOT EXISTS workspace_purchase_payment_id_idx ON ${ns}.workspace_purchase (payment_id);
+    `
+  ]
+}
+
+function getV40Migration (ns: string): [string, string] {
+  return [
+    'account_db_v40_workspace_purchase_dedup',
+    /* Separate migration on purpose: pre-dedup (DML) has to settle before the unique index (DDL) in
+       v41 — see v32/v33 for why a schema change is kept out of the same migration as data changes. The
+       payment pod dedups purchases by (payment_id, provider) with a racy SELECT-then-INSERT (no DB
+       constraint backed it), so a real duplicate pair may already exist. Keep the oldest row per group. */
+    `
+    DELETE FROM ${ns}.workspace_purchase wp
+     WHERE wp.payment_id IS NOT NULL
+       AND wp.id NOT IN (
+         SELECT DISTINCT ON (payment_id, provider) id
+           FROM ${ns}.workspace_purchase
+          WHERE payment_id IS NOT NULL
+          ORDER BY payment_id, provider, created_on ASC, id ASC
+       );
+    `
+  ]
+}
+
+function getV41Migration (ns: string): [string, string] {
+  return [
+    'account_db_v41_workspace_purchase_unique',
+    /* Partial: payment_id is null for non-payment purchases, which must stay unconstrained. */
+    `
+    CREATE UNIQUE INDEX IF NOT EXISTS workspace_purchase_payment_provider_unique
+      ON ${ns}.workspace_purchase (payment_id, provider) WHERE payment_id IS NOT NULL;
+    `
+  ]
+}
+
+function getV42Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+
+  return [
+    'account_db_v42_add_workspace_language',
+    `
+    ALTER TABLE ${ns}.workspace
+    ADD COLUMN IF NOT EXISTS language ${types.string};
+    `
+  ]
+}
+
+function getV43Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v43_workspace_delete_on',
+    /* Deferred deletion: the moment the workspace gets purged for good. Null means not scheduled. */
+    `
+    ALTER TABLE ${ns}.workspace_status ADD COLUMN IF NOT EXISTS delete_on ${types.int8};
+    `
+  ]
+}
+
+function getV44Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v44_account_delete_on',
+    /* Separate migration on purpose: a multi-statement batch is parsed as a whole. */
+    `
+    ALTER TABLE ${ns}.account ADD COLUMN IF NOT EXISTS delete_on ${types.int8};
+    `
+  ]
+}
+
+function getV45Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v45_account_blocked_on',
+    /* Admin block: when the account was blocked. Null means not blocked. */
+    `
+    ALTER TABLE ${ns}.account ADD COLUMN IF NOT EXISTS blocked_on ${types.int8};
+    `
+  ]
+}
+
+function getV46Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v46_workspace_backup_lease_until',
+    /* Separate migration on purpose: a multi-statement batch is parsed as a whole. */
+    `
+    ALTER TABLE ${ns}.workspace_status ADD COLUMN IF NOT EXISTS backup_lease_until ${types.int8};
+    `
+  ]
+}
+
+function getV47Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v47_workspace_backup_lease_owner',
+    /* Backup pod identity holding the lease. Null means no live lease. */
+    `
+    ALTER TABLE ${ns}.workspace_status ADD COLUMN IF NOT EXISTS backup_lease_owner ${types.string};
+    `
+  ]
+}
+
+function getV48Migration (ns: string, flavor: DBFlavor): [string, string] {
+  // Enum value alone: PostgreSQL forbids using a value added in the same transaction.
+  const addValueSql =
+    flavor === 'postgres'
+      ? `
+    DO $$     BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum
+            WHERE enumlabel = 'webhook'
+            AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'social_id_type' AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '${ns}'))
+        ) THEN
+            ALTER TYPE ${ns}.social_id_type ADD VALUE 'webhook';
+        END IF;
+    END $$;
+    `
+      : `
+    ALTER TYPE ${ns}.social_id_type ADD VALUE IF NOT EXISTS 'webhook';
+    `
+
+  return ['account_db_v48_add_webhook_social_id_type', addValueSql]
+}
+
+function getV49Migration (ns: string): [string, string] {
+  return [
+    'account_db_v49_integration_secrets_kind_key_idx',
+    /* API key check hashes the presented key and looks the row up by (kind, key); the PK starts with
+       social_id, so without this every check scans the table. */
+    `
+    CREATE INDEX IF NOT EXISTS integration_secrets_kind_key_idx ON ${ns}.integration_secrets (kind, key);
+    `
+  ]
+}
+
+function getV50Migration (ns: string): [string, string] {
+  return [
+    'account_db_v50_add_workspace_max_api_keys',
+    `
+    ALTER TABLE ${ns}.workspace
+    ADD COLUMN IF NOT EXISTS max_api_keys SMALLINT;
+    `
+  ]
+}
+
+function getV51Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v51_workspace_needs_reindex',
+    /* Fulltext skipped a reindex on a version mismatch; it runs after the upgrade. No default: no backfill. */
+    `
+    ALTER TABLE ${ns}.workspace_status ADD COLUMN IF NOT EXISTS needs_reindex ${types.bool};
+    `
+  ]
+}
+
+function getV52Migration (ns: string): [string, string] {
+  return [
+    'account_db_v52_anonymous_account_read_only',
+    `
+    -- The shared anonymous account must always be ReadOnlyGuest. Joining by an invite link with the
+    -- anonymous session could raise its role (e.g. to GUEST) for every anonymous visitor.
+    UPDATE ${ns}.workspace_members
+    SET role = 'READONLYGUEST'
+    WHERE account_uuid = '${readOnlyGuestAccountUuid}' AND role <> 'READONLYGUEST';
     `
   ]
 }

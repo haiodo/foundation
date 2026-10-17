@@ -57,9 +57,9 @@ import { makeRank } from '@hcengineering/rank'
 import { getAccountBySocialId, getCurrentPerson } from '@hcengineering/server-contact'
 import serverCore, { TriggerControl } from '@hcengineering/server-core'
 import { workbenchId } from '@hcengineering/workbench'
+import { StringPresenterFn, PresenterControl, IconPresenterFn, Icon } from '@hcengineering/server-activity'
 
-import { ManageCollaboratorsTrigger } from './collaborators'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { ManageCollaboratorsTrigger, CollaboratorTitlePresenter } from './collaborators'
 
 export async function OnSpaceTypeMembers (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
@@ -143,47 +143,38 @@ export async function OnEmployeeCreate (_txes: Tx[], control: TriggerControl): P
     const account = person?.personUuid as AccountUuid
     if (account === undefined) continue
 
-    const txes = await createPersonSpace(account, mixinTx.objectId, control)
-    result.push(...txes)
+    // Serialize concurrent PersonSpace creation for the same account within this process.
+    // control.apply bypasses ApplyTxMiddleware, so TxApplyIf cannot be used here to guard
+    // the find-or-create sequence atomically.
+    await control.withScope(`person-space-${account}`, async () => {
+      const existing = (
+        await control.findAll(control.ctx, contact.class.PersonSpace, { person: mixinTx.objectId }, { limit: 1 })
+      )[0]
+      if (existing !== undefined) return
+      const txes = await createPersonSpace(account, mixinTx.objectId, control)
+      if (txes.length > 0) {
+        // needResult=true so apply awaits the actual write, keeping the scope held
+        // until the PersonSpace is persisted. Otherwise apply is fire-and-forget.
+        await control.apply(control.ctx, txes, true)
+      }
+    })
+
+    // Anonymous (read-only) guest access is granted through space membership of this account only;
+    // it must never be auto-joined anywhere, otherwise spaces would silently become public.
+    if (account === readOnlyGuestAccountUuid) continue
 
     const emp = control.hierarchy.as(person, contact.mixin.Employee)
     if (emp.role === 'GUEST') {
-      let readOnlyGuestSpaces: Space[] = []
-      const readonlyEmployees = await control.findAll(control.ctx, contact.mixin.Employee, {
-        personUuid: readOnlyGuestAccountUuid
-      })
-      if (readonlyEmployees.length !== 0) {
-        const readonlyEmployee = readonlyEmployees[0]
-        if (readonlyEmployee.active) {
-          readOnlyGuestSpaces = await control.findAll(control.ctx, core.class.Space, {
-            members: readOnlyGuestAccountUuid
-          })
-        }
-      }
-
+      // Guests join only spaces granted by the invite; spaces open for anonymous access stay anonymous-only.
       const grantSpaces = await getGrantSpaces(control, control.ctx.contextData.grant)
 
-      for (const space of [...readOnlyGuestSpaces, ...grantSpaces]) {
+      for (const space of grantSpaces) {
         if (space._class === contact.class.PersonSpace || space.members.includes(account)) continue
 
         const pushTx = systemTxFactory.createTxUpdateDoc(space._class, space.space, space._id, {
           $push: {
             members: account
           }
-        })
-        systemTxes.push(pushTx)
-      }
-
-      const collabs = await control.findAll(control.ctx, core.class.Collaborator, {
-        collaborator: readOnlyGuestAccountUuid
-      })
-
-      for (const collab of collabs) {
-        const pushTx = systemTxFactory.createTxCreateDoc(core.class.Collaborator, collab.space, {
-          attachedTo: collab.attachedTo,
-          collaborator: account,
-          attachedToClass: collab.attachedToClass,
-          collection: 'collaborators'
         })
         systemTxes.push(pushTx)
       }
@@ -243,7 +234,7 @@ export async function OnTypedSpaceCreate (_txes: Tx[], control: TriggerControl):
       const members = ctx.attributes.members
       if (members.length === 0) continue
       result.push(
-        control.txFactory.createTxUpdateDoc(ctx.objectClass, ctx.space, ctx.objectId, {
+        control.txFactory.createTxUpdateDoc(ctx.objectClass, ctx.objectSpace, ctx.objectId, {
           owners: [members[0]]
         })
       )
@@ -295,7 +286,8 @@ async function createPersonSpace (
       archived: false,
       person,
       account,
-      members: [account]
+      members: [account],
+      owners: [account]
     })
   ]
 }
@@ -360,18 +352,18 @@ export async function OnChannelUpdate (txes: Tx[], control: TriggerControl): Pro
   return result
 }
 
-const personUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const personUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${contactId}/${doc._id}`
   return concatLink(front, path)
 }
 
-const personTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const personTitlePresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const person = doc as Person
   return `${getName(control.hierarchy, person, control.branding?.lastNameFirst)}`
 }
 
-const organizationUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const organizationUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${contactId}/${doc._id}`
   return concatLink(front, path)
@@ -464,6 +456,10 @@ export async function getContactFirstName (
   }
 }
 
+export const contactIconPresenter: IconPresenterFn<Contact> = async (doc: Contact): Promise<Icon> => {
+  return { props: { _id: doc._id } }
+}
+
 export * from './collaborators/index'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -480,8 +476,10 @@ export default async () => ({
   function: {
     PersonUrlPresenter: personUrlPresenter,
     PersonTitlePresenter: personTitlePresenter,
+    CollaboratorTitlePresenter,
     OrganizationUrlPresenter: organizationUrlPresenter,
     ContactNameProvider: contactNameProvider,
+    ContactIconPresenter: contactIconPresenter,
     GetCurrentEmployeeName: getCurrentEmployeeName,
     GetCurrentEmployeeEmail: getCurrentEmployeeEmail,
     GetContactName: getContactName,

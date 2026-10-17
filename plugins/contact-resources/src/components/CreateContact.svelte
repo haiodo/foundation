@@ -2,7 +2,8 @@
   import { Doc, Ref } from '@hcengineering/core'
   import { Asset, getResource } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import { Action, closePopup, Menu, showPopup } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { closePopup, Menu, showPopup } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import contact from '../plugin'
 
@@ -21,7 +22,7 @@
 
         if (component) {
           actions.push({
-            icon: cl.icon as Asset,
+            icon: cl.icon,
             label: cl.label,
             action: async () => {
               closePopup()
@@ -31,7 +32,7 @@
         } else if (create) {
           const action = await getResource(create)
           actions.push({
-            icon: cl.icon as Asset,
+            icon: cl.icon,
             label: cl.label,
             action: async () => {
               await action()

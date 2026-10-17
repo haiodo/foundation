@@ -30,7 +30,7 @@
 
   const query = createQuery()
   const docsQuery = createQuery()
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
   const dispatch = createEventDispatcher()
 
   let object: ExportResultRecord | undefined = undefined
@@ -94,7 +94,7 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         dataId="btnMoreActions"
         on:click={(e) => {
           showMenu(e, { object, excludedActions: [view.action.Open] })

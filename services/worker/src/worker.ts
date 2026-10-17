@@ -13,57 +13,143 @@
 // limitations under the License.
 //
 
-import { MeasureMetricsContext } from '@hcengineering/core'
+import { MeasureMetricsContext, type MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import { getPlatformQueue } from '@hcengineering/kafka'
-import { QueueTopic } from '@hcengineering/server-core'
+import { DelayStrategyFactory, withRetry } from '@hcengineering/retry'
+import { QueueTopic, type PlatformQueue } from '@hcengineering/server-core'
 import { TimeMachineMessage } from '@hcengineering/server-process'
-import { TimeMachineDB } from './db'
+import { TimeMachineDB, type DelayedEventRecord } from './db'
 import { SendTimeEvent } from './activities'
 import config from './config'
 
+const SERVICE_NAME = 'time-machine'
+
+export async function handleTimeMachineMessage (
+  db: TimeMachineDB,
+  workspace: WorkspaceUuid,
+  msg: TimeMachineMessage
+): Promise<void> {
+  const { type, id, targetDate, topic, data } = msg
+  if (type === 'schedule' && targetDate != null && topic != null && data !== undefined) {
+    await db.upsertEvent({ id, workspace, target_date: targetDate, topic, data })
+  } else if (type === 'cancel') {
+    await db.removeEvents(workspace, id)
+  }
+}
+
+/** One polling pass: send expired events and drop only the ones that actually made it out. */
+export async function pollOnce (ctx: MeasureContext, db: TimeMachineDB, queue: PlatformQueue): Promise<void> {
+  try {
+    const expiredEvents = await db.getExpiredEvents()
+    const sent: DelayedEventRecord[] = []
+    for (const event of expiredEvents) {
+      try {
+        await SendTimeEvent(ctx, queue, event.workspace, event.topic, event.data)
+        sent.push(event)
+      } catch (err) {
+        // Left in the table on failure: at-least-once, retried on the next poll. A send failure here
+        // must not block the rest of the batch or cause an already-sent event to be resent.
+        ctx.error('Time Machine: failed to send event', {
+          err,
+          id: event.id,
+          workspace: event.workspace,
+          topic: event.topic
+        })
+      }
+    }
+    if (sent.length > 0) {
+      await deleteSent(ctx, db, sent)
+    }
+  } catch (err) {
+    ctx.error('Error in Time Machine polling loop:', { err })
+  }
+}
+
+const deleteAttempts = 3
+const deleteBackoff = DelayStrategyFactory.exponentialBackoff({
+  initialDelayMs: 200,
+  maxDelayMs: 2000,
+  backoffFactor: 2,
+  jitter: 0.2
+})
+
+// Events that stay after they are sent go out again on the next poll, so the delete is retried
+// here first; the last failure names what the receivers will get twice.
+async function deleteSent (ctx: MeasureContext, db: TimeMachineDB, sent: DelayedEventRecord[]): Promise<void> {
+  try {
+    await withRetry(
+      async () => {
+        await db.deleteEvents(sent)
+      },
+      { maxRetries: deleteAttempts, isRetryable: () => true, delayStrategy: deleteBackoff, logger: ctx },
+      'Time Machine: delete sent events'
+    )
+  } catch (err) {
+    ctx.error('Time Machine: sent events are not deleted, they will be sent again', {
+      err,
+      ids: sent.map((it) => it.id)
+    })
+  }
+}
+
+export interface PollingHandle {
+  stop: () => void
+}
+
+export function startPolling (
+  ctx: MeasureContext,
+  db: TimeMachineDB,
+  queue: PlatformQueue,
+  intervalMs: number
+): PollingHandle {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let stopped = false
+
+  const tick = (): void => {
+    void pollOnce(ctx, db, queue).finally(() => {
+      if (!stopped) {
+        timer = setTimeout(tick, intervalMs)
+      }
+    })
+  }
+
+  tick()
+
+  return {
+    stop: () => {
+      stopped = true
+      if (timer !== undefined) clearTimeout(timer)
+    }
+  }
+}
+
 export async function runWorker (): Promise<void> {
-  const SERVICE_NAME = 'time-machine'
   const db = await TimeMachineDB.init(config.DbUrl)
 
   const ctx = new MeasureMetricsContext(SERVICE_NAME, {})
   const queue = getPlatformQueue(SERVICE_NAME, config.QueueRegion)
+  // Producers (webhook retries, process timers) rely on this service to own the topic: brokers do not auto-create it.
+  await queue.createTopic(QueueTopic.TimeMachine, 1)
 
-  // 1. Kafka Consumer for commands
-  queue.createConsumer<TimeMachineMessage>(ctx, QueueTopic.TimeMachine, SERVICE_NAME, async (ctx, msg) => {
-    const { type, id, targetDate, topic, data } = msg.value
-    if (type === 'schedule' && targetDate != null && topic != null && data !== undefined) {
-      await db.upsertEvent({
-        id,
-        workspace: msg.workspace,
-        target_date: targetDate,
-        topic,
-        data
-      })
-    } else if (type === 'cancel') {
-      await db.removeEvents(msg.workspace, id)
+  const consumer = queue.createConsumer<TimeMachineMessage>(
+    ctx,
+    QueueTopic.TimeMachine,
+    SERVICE_NAME,
+    async (_ctx, msg) => {
+      await handleTimeMachineMessage(db, msg.workspace, msg.value)
     }
-  })
+  )
 
-  // 2. Polling loop for expired events
-  const poll = async (): Promise<void> => {
-    try {
-      const expiredEvents = await db.getExpiredEvents()
-      if (expiredEvents.length > 0) {
-        for (const event of expiredEvents) {
-          await SendTimeEvent(ctx, event.workspace, event.topic, event.data)
-        }
-        await db.deleteEvents(expiredEvents)
-      }
-    } catch (err) {
-      ctx.error('Error in Time Machine polling loop:')
-    } finally {
-      setTimeout(() => {
-        void poll()
-      }, config.PollInterval)
-    }
+  const polling = startPolling(ctx, db, queue, config.PollInterval)
+
+  const shutdown = (): void => {
+    polling.stop()
+    void Promise.allSettled([consumer.close(), queue.shutdown(), db.close()]).then(() => {
+      process.exit()
+    })
   }
-
-  void poll()
+  process.once('SIGINT', shutdown)
+  process.once('SIGTERM', shutdown)
 
   ctx.info('Time Machine worker started')
 }

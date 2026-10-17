@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { DateRangeMode, convertToDay } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
   import {
     ActionIcon,
@@ -48,7 +48,8 @@
   const rem = (n: number, fs: number): number => n * fs
   $: scrolled = docHeight < rem(39, $deviceInfo.fontSize)
 
-  let viewDate: Date = currentDate ?? today
+  $: isValidDate = (d: Date | null | undefined): d is Date => d instanceof Date && !isNaN(d.getTime())
+  $: viewDate = isValidDate(currentDate) ? currentDate : today
   let viewDateSec: Date
   let dateInput: DateInputBox
 
@@ -99,7 +100,7 @@
     <span class="fs-title overflow-label"><Label {label} /></span>
     <ActionIcon
       icon={IconClose}
-      size={'small'}
+      size="small"
       action={() => {
         dispatch('close')
       }}
@@ -115,7 +116,7 @@
       bind:currentDate
       {withTime}
       {timeZone}
-      kind={'plain'}
+      kind="plain"
       on:close={() => {
         closeDP(withTime)
       }}
@@ -133,7 +134,7 @@
             {viewDate}
             {timeZone}
             viewUpdate={false}
-            hideNavigator={'all'}
+            hideNavigator="all"
             noPadding
             on:update={(result) => {
               updateDate(result.detail)
@@ -164,7 +165,7 @@
           {viewDate}
           {timeZone}
           viewUpdate={false}
-          hideNavigator={'all'}
+          hideNavigator="all"
           noPadding
           on:update={(result) => {
             updateDate(result.detail)
@@ -191,9 +192,9 @@
   </div>
   <div class="footer">
     <Button
-      kind={'primary'}
+      kind="primary"
       label={ui.string.Save}
-      size={'large'}
+      size="large"
       on:click={() => {
         closeDP(withTime)
       }}

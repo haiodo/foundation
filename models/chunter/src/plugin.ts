@@ -18,13 +18,25 @@ import { chunterId, type Channel } from '@hcengineering/chunter'
 import chunter from '@hcengineering/chunter-resources/src/plugin'
 import { type Doc, type Ref } from '@hcengineering/core'
 import { type NotificationGroup } from '@hcengineering/notification'
+import { type ObjectSearchCategory, type ObjectSearchFactory } from '@hcengineering/model-presentation'
 import type { IntlString, Resource } from '@hcengineering/platform'
 import { mergeIds } from '@hcengineering/platform'
 import type { AnyComponent, Location } from '@hcengineering/ui/src/types'
-import type { Action, ActionCategory, ViewAction, Viewlet, ViewletDescriptor } from '@hcengineering/view'
+import type {
+  Action,
+  ActionCategory,
+  AttributeApplierFn,
+  ViewAction,
+  Viewlet,
+  ViewletDescriptor
+} from '@hcengineering/view'
 import { type WidgetTab, type LocationData } from '@hcengineering/workbench'
 
 export default mergeIds(chunterId, chunter, {
+  completion: {
+    ChannelQuery: '' as Resource<ObjectSearchFactory>,
+    ChannelCategory: '' as Ref<ObjectSearchCategory>
+  },
   component: {
     ChannelPresenter: '' as AnyComponent,
     DmPresenter: '' as AnyComponent,
@@ -37,23 +49,32 @@ export default mergeIds(chunterId, chunter, {
     JoinChannelNotificationPresenter: '' as AnyComponent,
     WorkbenchTabExtension: '' as AnyComponent,
     DirectMessageButton: '' as AnyComponent,
+    AIChatButton: '' as AnyComponent,
     EmployeePresenter: '' as AnyComponent
   },
   action: {
+    ReportMessage: '' as Ref<Action>,
+    ReportPerson: '' as Ref<Action>,
     MarkCommentUnread: '' as Ref<Action>,
     MarkUnread: '' as Ref<Action>,
     ArchiveChannel: '' as Ref<Action>,
     UnarchiveChannel: '' as Ref<Action>,
-    CopyChatMessageLink: '' as Ref<Action<Doc, any>>
+    CopyChatMessageLink: '' as Ref<Action<Doc, any>>,
+    ReplyToMessage: '' as Ref<Action>,
+    ForwardMessage: '' as Ref<Action>
   },
   actionImpl: {
+    ReportMessage: '' as ViewAction,
+    ReportPerson: '' as ViewAction,
     ArchiveChannel: '' as ViewAction,
     UnarchiveChannel: '' as ViewAction,
     DeleteChatMessage: '' as ViewAction,
     ReplyToThread: '' as ViewAction,
     TranslateMessage: '' as ViewAction,
     ShowOriginalMessage: '' as ViewAction,
-    SummarizeMessages: '' as ViewAction
+    SummarizeMessages: '' as ViewAction,
+    ReplyToMessage: '' as ViewAction,
+    ForwardMessage: '' as ViewAction
   },
   category: {
     Chunter: '' as Ref<ActionCategory>
@@ -65,7 +86,6 @@ export default mergeIds(chunterId, chunter, {
     ApplicationLabelChunter: '' as IntlString,
     MentionedIn: '' as IntlString,
     Content: '' as IntlString,
-    Comment: '' as IntlString,
     Reference: '' as IntlString,
     CreateBy: '' as IntlString,
     Create: '' as IntlString,
@@ -99,17 +119,22 @@ export default mergeIds(chunterId, chunter, {
     Random: '' as Ref<Channel>
   },
   function: {
+    CanReportMessage: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
+    CanReportPerson: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     GetLink: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<string>>,
     GetFragment: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
     CanDeleteMessage: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     CanCopyMessageLink: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     GetChunterSpaceLinkFragment: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
+    GetChunterSpaceLinkId: '' as Resource<(doc: Doc) => Promise<string>>,
+    ParseChunterSpaceLinkId: '' as Resource<(id: string) => Promise<Ref<Doc> | undefined>>,
     GetThreadLink: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
     ReplyToThread: '' as Resource<(doc: ActivityMessage, event: MouseEvent) => Promise<void>>,
     CanReplyToThread: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     GetMessageLink: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
     CloseChatWidgetTab: '' as Resource<(tab: WidgetTab) => Promise<void>>,
-    LocationDataResolver: '' as Resource<(loc: Location) => Promise<LocationData>>
+    LocationDataResolver: '' as Resource<(loc: Location) => Promise<LocationData>>,
+    CommentsApplier: '' as Resource<AttributeApplierFn>
   },
   filter: {
     ChatMessagesFilter: '' as Resource<(message: ActivityMessage, _class?: Ref<Doc>) => boolean>

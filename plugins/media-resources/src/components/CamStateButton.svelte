@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type CamState } from '@hcengineering/media'
+  import type { CamState } from '@hcengineering/media'
   import { Icon, tooltip } from '@hcengineering/ui'
 
   import media from '../plugin'
@@ -31,6 +31,6 @@
     use:tooltip={{ label: state.enabled ? media.string.TurnOffCam : media.string.TurnOnCam, direction: 'bottom' }}
     on:click={toggleCamState}
   >
-    <Icon icon={state.enabled ? IconCamOn : IconCamOff} size={'small'} />
+    <Icon icon={state.enabled ? IconCamOn : IconCamOff} size="small" />
   </button>
 {/if}

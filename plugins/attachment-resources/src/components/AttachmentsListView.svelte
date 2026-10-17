@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import attachment, { Attachment } from '@hcengineering/attachment'
-  import { Doc, getCurrentAccount, type WithLookup } from '@hcengineering/core'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
+  import type { Doc } from '@hcengineering/core'
+  import { getCurrentAccount, type WithLookup } from '@hcengineering/core'
   import { getClient, getFileUrl } from '@hcengineering/presentation'
   import { Icon, IconMoreV, Menu, showPopup } from '@hcengineering/ui'
   import { AttachmentPresenter } from '..'
@@ -57,12 +59,12 @@
       </div>
       <div class="eAttachmentRowActions" class:fixed={i === selectedFileNumber}>
         <a {href} download={attachment.name}>
-          <Icon icon={FileDownload} size={'small'} />
+          <Icon icon={FileDownload} size="small" />
         </a>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="eAttachmentRowMenu" on:click={(event) => showFileMenu(event, attachment, i)}>
-          <IconMoreV size={'small'} />
+          <IconMoreV size="small" />
         </div>
       </div>
     </div>

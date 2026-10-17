@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Context, Func, parseContext, Process } from '@hcengineering/process'
+  import type { Context, Func, Process } from '@hcengineering/process'
+  import { parseContext } from '@hcengineering/process'
   import plugin from '../../plugin'
   import ContextValuePresenter from '../attributeEditors/ContextValuePresenter.svelte'
 
@@ -28,7 +29,9 @@
     [plugin.function.Divide]: '/',
     [plugin.function.Modulo]: '%',
     [plugin.function.Power]: '^',
-    [plugin.function.Sqrt]: '√'
+    [plugin.function.Sqrt]: '√',
+    [plugin.function.Min]: 'min',
+    [plugin.function.Max]: 'max'
   }
 
   $: op = ops[value.func as keyof typeof ops]

@@ -3,18 +3,18 @@
 //
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { Ref } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import type { ButtonKind, ButtonShape, ButtonSize, LabelAndProps, SelectPopupValueType } from '@hcengineering/ui'
   import { ButtonWithDropdown, Icon, IconDropdown, SelectPopup, eventToHTMLElement, showPopup } from '@hcengineering/ui'
-  import { GithubIntegrationRepository, GithubProject } from '@hcengineering/github'
+  import type { GithubIntegrationRepository, GithubProject } from '@hcengineering/github'
   import github from '../plugin'
   import { integrationRepositories } from './utils'
 
   export let value: Ref<GithubIntegrationRepository> | null | undefined
   export let githubProject: Ref<GithubProject>
 
-  // export let shouldShowLabel: boolean = true
   export let isEditable: boolean = true
   export let onChange: ((newRepositoryId: Ref<GithubIntegrationRepository> | undefined) => void) | undefined = undefined
   export let popupPlaceholder: IntlString = github.string.Repository
@@ -103,7 +103,7 @@
   <svelte:fragment slot="content">
     {#if selectedRepository !== undefined}
       <div class="p-1">
-        <Icon icon={github.icon.Github} size={'small'} />
+        <Icon icon={github.icon.Github} size="small" />
       </div>
       {selectedRepository.name}
     {/if}

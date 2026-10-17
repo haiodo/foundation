@@ -14,7 +14,7 @@
 //
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import love, { type MeetingMinutes } from '@hcengineering/love'
   import { Icon } from '@hcengineering/ui'
 
@@ -23,9 +23,9 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <Icon icon={love.icon.MeetingMinutes} size={'medium'} />
+    <Icon icon={love.icon.MeetingMinutes} size="medium" />
   </div>
   <span class="overflow-label">
-    {value.title}
+    {value.name}
   </span>
 </div>

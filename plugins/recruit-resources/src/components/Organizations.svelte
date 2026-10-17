@@ -13,12 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Organization } from '@hcengineering/contact'
-  import core, { Doc, DocumentQuery, Ref, WithLookup } from '@hcengineering/core'
+  import type { Organization } from '@hcengineering/contact'
+  import type { Doc, DocumentQuery, Ref, WithLookup } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { Applicant, Vacancy } from '@hcengineering/recruit'
+  import type { Applicant, Vacancy } from '@hcengineering/recruit'
   import { Button, Component, IconAdd, Breadcrumb, Loading, SearchInput, showPopup, Header } from '@hcengineering/ui'
-  import view, { BuildModelKey, ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { BuildModelKey, ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { FilterBar, FilterButton, ViewletSelector, ViewletSettingButton } from '@hcengineering/view-resources'
   import recruit from '../plugin'
   import CreateOrganization from './CreateOrganization.svelte'
@@ -193,7 +195,7 @@
   $: finalConfig = createConfig(viewlet, preference, replacedKeys)
 </script>
 
-<Header adaptive={'freezeActions'}>
+<Header adaptive="freezeActions">
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector
       bind:loading
@@ -208,7 +210,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb icon={IconCompany} label={recruit.string.Organizations} size={'large'} isCurrent />
+  <Breadcrumb icon={IconCompany} label={recruit.string.Organizations} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed on:change={(e) => (search = e.detail)} />
@@ -249,7 +251,7 @@
         }
       }}
     />
-    <Button icon={IconAdd} label={recruit.string.CompanyCreateLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={recruit.string.CompanyCreateLabel} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </Header>
 <FilterBar
@@ -262,7 +264,7 @@
 
 {#if loading}
   <Loading />
-{:else if viewlet && viewlet?.$lookup?.descriptor?.component}
+{:else if viewlet?.$lookup?.descriptor?.component}
   <Component
     is={viewlet.$lookup.descriptor.component}
     props={{

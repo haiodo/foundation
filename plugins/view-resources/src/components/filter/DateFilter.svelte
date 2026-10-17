@@ -16,12 +16,10 @@
   import core from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { RangeDatePopup, SelectPopup, SimpleDatePopup, showPopup } from '@hcengineering/ui'
-  import { Filter, FilterMode } from '@hcengineering/view'
+  import type { Filter, FilterMode } from '@hcengineering/view'
   import { createEventDispatcher, onMount } from 'svelte'
   import view from '../../plugin'
 
-  // export let _class: Ref<Class<Doc>>
-  // export let space: Ref<Space> | undefined = undefined
   export let filter: Filter
   export let onChange: (e: Filter) => void
 
@@ -60,7 +58,7 @@
 
   let modes: FilterMode[] = []
 
-  client.findAll(view.class.FilterMode, { _id: { $in: filter.modes } }).then((res) => {
+  void client.findAll(view.class.FilterMode, { _id: { $in: filter.modes } }).then((res) => {
     modes = res
   })
 

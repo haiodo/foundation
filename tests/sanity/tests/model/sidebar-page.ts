@@ -16,7 +16,7 @@ export class SidebarPage extends CommonPage {
   contentHeaderByTitle = (title: string): Locator =>
     this.content().locator(`.hulyHeader-titleGroup:has-text("${title}")`)
 
-  contentCloseButton = (): Locator => this.content().locator('.hulyHeader-container button.iconOnly').last()
+  contentCloseButton = (): Locator => this.content().locator('.hulyHeader-container #btnHeaderClose')
 
   calendarSidebarButton = (): Locator => this.sidebar().locator('button[id$="Calendar"]')
   officeSidebarButton = (): Locator => this.sidebar().locator('button[id$="Office"]')
@@ -45,6 +45,16 @@ export class SidebarPage extends CommonPage {
 
   async clickVerticalTab (tabName: string): Promise<void> {
     await this.verticalTabByName(tabName).click()
+  }
+
+  async doubleClickVerticalTab (tabName: string): Promise<void> {
+    await this.verticalTabByName(tabName).dblclick()
+  }
+
+  // Preview tabs are rendered italic and are the ones replaced when a new object is opened.
+  async checkIfVerticalTabIsPreview (isPreview: boolean, tabName: string): Promise<void> {
+    const tab = this.verticalTabByName(tabName)
+    await (isPreview ? expect(tab) : expect(tab).not).toHaveClass(/italic/)
   }
 
   async closeVerticalTabByCloseButton (tabName: string): Promise<void> {

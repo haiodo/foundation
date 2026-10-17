@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { IntlString, OK, PlatformError, Status, unknownError } from '@hcengineering/platform'
+  import type { IntlString, Status } from '@hcengineering/platform'
+  import { OK, PlatformError, unknownError } from '@hcengineering/platform'
 
   import type { Field } from '../types'
   import Form from './Form.svelte'
@@ -48,8 +49,8 @@
 
 <slot name="before-form" />
 <Form {caption} {status} {proceedDisabled} {fields} object={formData} {action} ignoreInitialValidation {signUpDisabled}>
-  <div slot="after-fields" class="form-row">
-    <ConsentCheckboxes bind:agreedPersonalData bind:agreedRules />
+  <div slot="after-fields" class="form-row" let:submitAttempted>
+    <ConsentCheckboxes bind:agreedPersonalData bind:agreedRules highlight={submitAttempted} />
   </div>
 </Form>
 <slot name="after-form" />

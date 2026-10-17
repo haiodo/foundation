@@ -13,14 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentQuery, WithLookup } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { Milestone } from '@hcengineering/tracker'
-  import { Button, IconAdd, SearchInput, TabItem, Switcher, showPopup, Header, Breadcrumbs } from '@hcengineering/ui'
-  import { ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { DocumentQuery, WithLookup } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { Milestone } from '@hcengineering/tracker'
+  import type { TabItem } from '@hcengineering/ui'
+  import { Button, IconAdd, SearchInput, Switcher, showPopup, Header, Breadcrumbs } from '@hcengineering/ui'
+  import type { ViewOptions, Viewlet } from '@hcengineering/view'
   import { FilterBar, FilterButton, ViewletSelector, ViewletSettingButton } from '@hcengineering/view-resources'
   import tracker from '../../plugin'
-  import { MilestoneViewMode, getIncludedMilestoneStatuses, milestoneTitleMap } from '../../utils'
+  import type { MilestoneViewMode } from '../../utils'
+  import { getIncludedMilestoneStatuses, milestoneTitleMap } from '../../utils'
   import MilestoneContent from './MilestoneContent.svelte'
   import NewMilestone from './NewMilestone.svelte'
 
@@ -99,7 +101,7 @@
   ]
 </script>
 
-<Header adaptive={'doubleRow'}>
+<Header adaptive="doubleRow">
   <svelte:fragment slot="beforeTitle">
     <ViewletSelector viewletQuery={{ attachTo: tracker.class.Milestone }} bind:viewlet />
     <ViewletSettingButton bind:viewOptions bind:viewlet />
@@ -112,14 +114,14 @@
     <FilterButton _class={tracker.class.Milestone} {space} />
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={tracker.string.Milestone} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={tracker.string.Milestone} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
   <svelte:fragment slot="extra">
     <Switcher
-      name={'milestone-mode'}
+      name="milestone-mode"
       items={modeList}
       selected={mode}
-      kind={'subtle'}
+      kind="subtle"
       on:select={(result) => {
         if (result.detail !== undefined && result.detail.action) result.detail.action()
       }}

@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { recruitId, Vacancy } from '@hcengineering/recruit'
+  import type { Ref } from '@hcengineering/core'
+  import type { Vacancy } from '@hcengineering/recruit'
+  import { recruitId } from '@hcengineering/recruit'
   import { closeTooltip, getCurrentResolvedLocation, Icon, navigate, tooltip } from '@hcengineering/ui'
   import recruit from '../plugin'
   import VacancyApplicationsPopup from './VacancyApplicationsPopup.svelte'
@@ -46,7 +47,7 @@
     on:click|stopPropagation|preventDefault={click}
   >
     <div class="icon">
-      <Icon icon={recruit.icon.Application} size={'small'} />
+      <Icon icon={recruit.icon.Application} size="small" />
     </div>
     &nbsp;
     {applications?.get(value._id)?.count ?? 0}

@@ -13,12 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card, MasterTag } from '@hcengineering/card'
-  import { Ref } from '@hcengineering/core'
-  import { Asset, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { Card, MasterTag } from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import { AnySvelteComponent, tooltip } from '@hcengineering/ui'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { tooltip } from '@hcengineering/ui'
+  import type { ObjectPresenterType } from '@hcengineering/view'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
 
   import card from '../plugin'
@@ -55,7 +57,7 @@
   }
 
   $: _class = cardObj && (client.getHierarchy().getClass(cardObj?._class) as MasterTag)
-  $: icon = _class && _class.icon
+  $: icon = _class?.icon
 
   $: ids = getCardIds(cardObj, client.getHierarchy())
   $: version = getCardVersion(cardObj, client.getHierarchy())

@@ -19,6 +19,7 @@ import type {
   AddSessionActive,
   AddSessionResponse,
   ConnectionSocket,
+  SendMemo,
   Session,
   SessionManager
 } from '@hcengineering/server-core'
@@ -40,7 +41,7 @@ export function doSessionOp (
   msg: Buffer
 ): void {
   if (data.session instanceof Promise) {
-    // We need to copy since we will out of protected buffer area
+    // We need to copy since we out of protected buffer area
     const msgCopy = Buffer.copyBytesFrom(new Uint8Array(msg))
     void data.session
       .then((_session) => {
@@ -85,7 +86,8 @@ export function sendResponse (
   ctx: MeasureContext,
   session: Session,
   socket: ConnectionSocket,
-  resp: Response<any>
+  resp: Response<any>,
+  memo?: SendMemo
 ): Promise<void> {
-  return socket.send(ctx, resp, session.binaryMode, session.useCompression)
+  return socket.send(ctx, resp, session.binaryMode, session.useCompression, memo)
 }

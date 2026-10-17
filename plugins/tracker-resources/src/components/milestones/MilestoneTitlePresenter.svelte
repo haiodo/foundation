@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Milestone } from '@hcengineering/tracker'
+  import type { Milestone } from '@hcengineering/tracker'
   import { getMonthName, Icon } from '@hcengineering/ui'
   import tracker from '../../plugin'
   export let value: Milestone | undefined
@@ -21,7 +21,7 @@
 
 {#if value}
   <span class="overflow-label flex-row-center flex-grow">
-    <Icon icon={tracker.icon.Milestone} size={'small'} />
+    <Icon icon={tracker.icon.Milestone} size="small" />
     <div class="ml-2 mr-2">
       {value.label}
     </div>

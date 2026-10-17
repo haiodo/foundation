@@ -13,13 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { Room } from '@hcengineering/love'
-  import { Button, CheckBox } from '@hcengineering/ui'
-  import { Writable } from 'svelte/store'
+  import type { Ref } from '@hcengineering/core'
+  import type { Room } from '@hcengineering/love'
+  import { Button, CheckBox, Label } from '@hcengineering/ui'
+  import type { Writable } from 'svelte/store'
   import love from '../plugin'
   import RoomSelector from './RoomSelector.svelte'
-  import { myOffice } from '../stores'
+  import { myOffice, rooms } from '../stores'
 
   export let state: Writable<Record<string, any>>
 
@@ -32,21 +32,24 @@
   }
 
   let isMeeting = false
+
+  $: selectedRoom = $rooms.find((r) => r._id === $state.room)
+  $: isPrivateRoom = selectedRoom?.startPrivate ?? false
 </script>
 
 <div class="flex-row-center gap-1-5 mt-1">
   <CheckBox
     bind:checked={isMeeting}
-    kind={'primary'}
+    kind="primary"
     on:value={(ev) => {
       changeIsMeeting(ev.detail)
     }}
   />
   <Button
     label={love.string.CreateMeeting}
-    kind={'ghost'}
-    padding={'0 .5rem'}
-    justify={'left'}
+    kind="ghost"
+    padding="0 .5rem"
+    justify="left"
     flex="1"
     on:click={() => {
       isMeeting = !isMeeting
@@ -64,4 +67,9 @@
       changeRoom(ev.detail)
     }}
   />
+  {#if isPrivateRoom}
+    <div class="text-sm mt-1 ml-4 text-content-color">
+      <Label label={love.string.Private} />
+    </div>
+  {/if}
 {/if}

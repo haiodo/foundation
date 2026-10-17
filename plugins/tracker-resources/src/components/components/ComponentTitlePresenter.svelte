@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Component } from '@hcengineering/tracker'
+  import type { Component } from '@hcengineering/tracker'
   import { Icon } from '@hcengineering/ui'
   import tracker from '../../plugin'
 
@@ -22,7 +22,7 @@
 
 {#if value}
   <span class="overflow-label flex">
-    <Icon icon={tracker.icon.Component} size={'small'} />
+    <Icon icon={tracker.icon.Component} size="small" />
     <div class="ml-2 mr-2">
       {value.label}
     </div></span

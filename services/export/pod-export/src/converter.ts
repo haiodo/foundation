@@ -173,7 +173,6 @@ export class UnifiedConverter {
 
     if (type._class === core.class.TypeMarkup) {
       markdownFields.push(key)
-      // const markdown = await markupToMarkdown(value as Markup, '', '')
       return value // todo: test
     }
 
@@ -330,8 +329,7 @@ export class UnifiedConverter {
         return ''
       }
 
-      const markup = Buffer.concat(buffer as any).toString()
-      // const markdown = await markupToMarkdown(markup, '', '')
+      const markup = Buffer.concat(buffer).toString()
       return markup // todo: test it is a markdown
     } catch (err) {
       this.context.error(`Failed to resolve markup content: ${blobRef}`, {
@@ -378,7 +376,7 @@ export class UnifiedConverter {
             return Buffer.from([])
           }
 
-          return Buffer.concat(buffer as any)
+          return Buffer.concat(buffer)
         }
       })
     )

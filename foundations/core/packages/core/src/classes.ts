@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -125,7 +126,7 @@ export type PropertyType = any
 export interface UXObject extends Obj {
   label: IntlString
   icon?: Asset
-  color?: number
+  color?: number | number[] | Ref<Blob>
   hidden?: boolean
   readonly?: boolean
 }
@@ -183,7 +184,7 @@ export interface AttachedDoc<
  * @public
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface Type<T extends PropertyType> extends UXObject {}
+export type Type<T extends PropertyType> = UXObject
 
 /**
  * @public
@@ -233,6 +234,8 @@ export interface Attribute<T extends PropertyType> extends Doc, UXObject {
   defaultValue?: any
   automationOnly?: boolean
   rank?: Rank
+  required?: boolean
+  activity?: { set?: IntlString, unset?: IntlString }
 
   // Extra customization properties
   [key: string]: any
@@ -322,6 +325,7 @@ export interface PluginConfiguration extends Doc {
   // If defined, will only remove classes in list.
   classFilter?: Ref<Class<Obj>>[]
   mixinFilter?: Ref<Mixin<Doc>>[]
+  objectIdFilter?: Ref<Doc>[]
 }
 
 /**
@@ -421,7 +425,7 @@ export interface EnumOf extends Type<string> {
 /**
  * @public
  */
-export interface TypeHyperlink extends Type<Hyperlink> {}
+export type TypeHyperlink = Type<Hyperlink>
 
 /**
  * @public
@@ -518,7 +522,7 @@ export interface Space extends Doc {
 /**
  * @public
  */
-export interface SystemSpace extends Space {}
+export type SystemSpace = Space
 
 /**
  * @public
@@ -637,10 +641,13 @@ export interface Person {
   uuid: PersonUuid
   firstName: string
   lastName: string
+  // No SMS verification yet, so a phone cannot be a social id.
+  phoneHint?: string
 }
 
 export interface PersonInfo extends BasePerson {
   socialIds: SocialId[]
+  phoneHint?: string
 }
 
 /**
@@ -649,8 +656,17 @@ export interface PersonInfo extends BasePerson {
 // TODO: move to contact
 export interface UserStatus extends Doc {
   online: boolean
+  away?: boolean
   user: AccountUuid
 }
+
+/**
+ * Where a connection comes from; every client declares it in the hello. Presence counts a person as
+ * "at the computer" through web and desktop sessions only: a phone never keeps them there, and
+ * neither does a terminal (cli), which reports no idleness and may be left open for days.
+ * @public
+ */
+export type ClientKind = 'web' | 'desktop' | 'mobile' | 'cli'
 
 /**
  * @public
@@ -842,7 +858,14 @@ export type WorkspaceMode =
   | 'pending-restore' // -> 'restoring'
   | 'restoring' // -> 'active'
 
-export type WorkspaceUserOperation = 'archive' | 'migrate-to' | 'unarchive' | 'delete' | 'reset-attempts'
+export type WorkspaceUserOperation =
+  | 'archive'
+  | 'migrate-to'
+  | 'unarchive'
+  | 'delete'
+  | 'delete-now'
+  | 'cancel-delete'
+  | 'reset-attempts'
 
 export function isActiveMode (mode?: WorkspaceMode): boolean {
   return mode === 'active'
@@ -909,7 +932,10 @@ export interface WorkspaceInfo {
   billingAccount?: PersonUuid // Should always be set for NEW workspaces
   allowReadOnlyGuest?: boolean // Should always be set for NEW workspaces
   allowGuestSignUp?: boolean // Should always be set for NEW workspaces
-  passwordAgingRule?: number // in days
+  passwordAgingRule?: number | null // in days, null disables the rule
+  disabledFeaturesOverride?: string[] // Features from DISABLED_FEATURES to re-enable for this workspace
+  language?: string
+  maxApiKeys?: number | null // Admin override for the active-API-key quota, null uses the server default
 }
 
 export interface BackupStatus {
@@ -936,9 +962,19 @@ export interface WorkspaceInfoWithStatus extends WorkspaceInfo {
   lastVisit?: number
   mode: WorkspaceMode
   processingProgress?: number
+  // Stamped by every mode transition, so for a workspace left in a terminal mode it reads as
+  // "when it got there" - `deleted` included.
+  lastProcessingTime?: number
   backupInfo?: BackupStatus
   usageInfo?: UsageStatus
+  // Deferred deletion: when the workspace gets purged for good. Absent means not scheduled.
+  deleteOn?: Timestamp
+  // Fulltext skipped a reindex on a version mismatch; it runs once the workspace is upgraded.
+  needsReindex?: boolean
   processingAttemps: number
+  // Self-host edition of this deployment (dev|community|licensed) — same for every workspace, carried
+  // here so the workspace-select screen can show a "Community" badge. Absent on older servers.
+  licenseEdition?: string
 }
 
 export interface WorkspaceMemberInfo {
@@ -955,7 +991,9 @@ export enum SocialIdType {
   HULY = 'huly',
   TELEGRAM = 'telegram',
   HULY_ASSISTANT = 'huly-assistant',
-  LOVE = 'office'
+  LOVE = 'office',
+  // Integration API key. Value is the key id, so the social key reads webhook:<keyId>
+  WEBHOOK = 'webhook'
 }
 
 export interface SocialId {

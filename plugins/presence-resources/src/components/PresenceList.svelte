@@ -13,16 +13,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person, formatName } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import { formatName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import { IconSize, Scroller } from '@hcengineering/ui'
+  import type { IconSize } from '@hcengineering/ui'
+  import { Scroller } from '@hcengineering/ui'
   import { followee, toggleFollowee } from '../store'
 
   export let persons: Person[]
   export let size: IconSize
 </script>
 
-<Scroller padding={'.25rem'} gap={'flex-gap-2'}>
+<Scroller padding=".25rem" gap="flex-gap-2">
   {#each persons as person}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->

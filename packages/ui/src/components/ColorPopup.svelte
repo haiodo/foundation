@@ -57,7 +57,7 @@
     if (key.code === 'Enter') {
       key.preventDefault()
       key.stopPropagation()
-      handleSelection(key, selection)
+      void handleSelection(key, selection)
     }
   }
 </script>
@@ -74,8 +74,8 @@
     <div class="header">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         {placeholder}
@@ -107,7 +107,7 @@
             <span class="label" style:color={color.title}>{itemValue.label}</span>
             <div class="check">
               {#if itemValue.id === selected}
-                <Icon icon={IconCheck} size={'small'} />
+                <Icon icon={IconCheck} size="small" />
               {/if}
             </div>
           </button>

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from './fixtures'
 import { generateId, PlatformSetting, PlatformURI } from './utils'
 import { TalentsPage } from './model/recruiting/talents-page'
 import { faker } from '@faker-js/faker'
@@ -24,8 +24,7 @@ test.describe('recruit tests', () => {
     await talentPage.selectTalentsSection(platformUri + '/recruit/talents')
     await talentPage.inputNewTallent('Petr', 'Dooliutl')
     await talentPage.addSkill(randomSkill)
-    await talentPage.clickOpenOtherSkills()
-    await talentPage.selectSkill(randomSkill)
+    await talentPage.checkSkillAdded(randomSkill)
     await talentPage.createCandidate()
   })
 

@@ -18,20 +18,17 @@
   import { Analytics } from '@hcengineering/analytics'
   import { AttachmentStyledBox } from '@hcengineering/attachment-resources'
   import { ActionContext, getClient } from '@hcengineering/presentation'
-  import core, { Data, Ref, generateId, getCurrentAccount } from '@hcengineering/core'
-  import testManagement, {
-    TestProject,
-    TestPlan,
-    TestCase,
-    TestPlanItem,
-    TestManagementEvents
-  } from '@hcengineering/test-management'
+  import type { Data, Ref } from '@hcengineering/core'
+  import core, { generateId, getCurrentAccount } from '@hcengineering/core'
+  import type { TestProject, TestPlan, TestCase, TestPlanItem } from '@hcengineering/test-management'
+  import testManagement, { TestManagementEvents } from '@hcengineering/test-management'
   import { Panel } from '@hcengineering/panel'
-  import { ModernButton, EditBox, Label } from '@hcengineering/ui'
+  import { EditBox, Label } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { EmptyMarkup } from '@hcengineering/text'
   import { IntlString } from '@hcengineering/platform'
-  import { Attachment } from '@hcengineering/attachment'
-  import { Employee } from '@hcengineering/contact'
+  import type { Attachment } from '@hcengineering/attachment'
+  import type { Employee } from '@hcengineering/contact'
 
   import NewTestPlanAside from './NewTestPlanAside.svelte'
   import TestCaseSelector from '../test-case/TestCaseSelector.svelte'
@@ -44,7 +41,7 @@
   const me = getCurrentAccount()
 
   const object: Data<TestPlan> = {
-    name: '' as IntlString,
+    name: '',
     description: null
   }
   const newDoc: TestPlan = {
@@ -115,7 +112,7 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'disabled'}
+    adaptive="disabled"
     withoutActivity={true}
     on:open
     on:close={() => dispatch('close')}
@@ -123,12 +120,7 @@
     <svelte:fragment slot="title">
       <Label label={testManagement.string.CreateTestPlan} />
     </svelte:fragment>
-    <EditBox
-      bind:value={object.name}
-      placeholder={testManagement.string.TestPlanTitle}
-      kind={'large-style'}
-      autoFocus
-    />
+    <EditBox bind:value={object.name} placeholder={testManagement.string.TestPlanTitle} kind="large-style" autoFocus />
 
     <AttachmentStyledBox
       bind:this={descriptionBox}
@@ -157,10 +149,10 @@
       <div id="test-cases-selector">
         <TestCaseSelector bind:objects={testCases} />
       </div>
-      <ModernButton
+      <Button
         label={testManagement.string.Save}
         size="medium"
-        kind={'primary'}
+        kind="primary"
         disabled={object?.name.trim().length === 0 || testCases?.length === 0}
         on:click={onSave}
       />

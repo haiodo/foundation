@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import attachment, { Attachment } from '@hcengineering/attachment'
-  import { Doc, getCurrentAccount, type WithLookup } from '@hcengineering/core'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
+  import type { Doc } from '@hcengineering/core'
+  import { getCurrentAccount, type WithLookup } from '@hcengineering/core'
   import { getClient, getFileUrl } from '@hcengineering/presentation'
   import { Icon, IconMoreV, Menu, showPopup } from '@hcengineering/ui'
   import { AttachmentGalleryPresenter } from '..'
@@ -58,10 +60,10 @@
           {@const href = getFileUrl(attachment.file, attachment.name)}
           <div class="eAttachmentCellActions" class:fixed={i === selectedFileNumber}>
             <a {href} download={attachment.name}>
-              <Icon icon={FileDownload} size={'small'} />
+              <Icon icon={FileDownload} size="small" />
             </a>
             <div class="eAttachmentCellMenu" on:click={(event) => showFileMenu(event, attachment, i)}>
-              <IconMoreV size={'small'} />
+              <IconMoreV size="small" />
             </div>
           </div>
         </svelte:fragment>

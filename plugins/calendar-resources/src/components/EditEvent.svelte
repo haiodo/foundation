@@ -13,9 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Event, ReccuringEvent, ReccuringInstance, RecurringRule } from '@hcengineering/calendar'
-  import { Person } from '@hcengineering/contact'
-  import { DocumentUpdate, Ref } from '@hcengineering/core'
+  import type { Event, ReccuringEvent, ReccuringInstance, RecurringRule } from '@hcengineering/calendar'
+  import type { Person } from '@hcengineering/contact'
+  import type { DocumentUpdate, Ref } from '@hcengineering/core'
   import presentation, { ComponentExtensions, getClient } from '@hcengineering/presentation'
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
   import {
@@ -35,6 +35,7 @@
   import { isReadOnly, saveUTC, updateReccuringInstance } from '../utils'
   import CalendarSelector from './CalendarSelector.svelte'
   import EventParticipants from './EventParticipants.svelte'
+  import ParticipantsBusy from './ParticipantsBusy.svelte'
   import EventReminders from './EventReminders.svelte'
   import EventTimeEditor from './EventTimeEditor.svelte'
   import EventTimeExtraButton from './EventTimeExtraButton.svelte'
@@ -49,6 +50,10 @@
 
   const defaultDuration = 60 * 60 * 1000
   const allDayDuration = 24 * 60 * 60 * 1000 - 1
+
+  let busyPersons = new Set<Ref<Person>>()
+  // Slots of a recurring series belong to its master event, an instance has an id of its own.
+  $: ignoreEventId = (object as ReccuringInstance).recurringEventId ?? object.eventId
 
   let startDate = object.date
   const duration = object.dueDate - object.date
@@ -71,7 +76,7 @@
   const client = getClient()
 
   export function canClose (): boolean {
-    return title !== undefined && title.trim().length === 0 && participants.length === 0
+    return title?.trim().length === 0 && participants.length === 0
   }
 
   async function saveEvent () {
@@ -164,7 +169,7 @@
       bind:value={title}
       placeholder={calendar.string.EventTitlePlaceholder}
       disabled={readOnly}
-      kind={'ghost-large'}
+      kind="ghost-large"
       fullSize
       focusable
       autoFocus
@@ -175,8 +180,8 @@
         id="card-close"
         focusIndex={10003}
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -198,18 +203,25 @@
     </div>
     <div class="block rightCropPadding">
       <LocationEditor bind:value={location} focusIndex={10005} {readOnly} />
-      <EventParticipants bind:participants bind:externalParticipants disabled={readOnly} focusIndex={10006} />
+      <EventParticipants
+        bind:participants
+        bind:externalParticipants
+        disabled={readOnly}
+        focusIndex={10006}
+        {busyPersons}
+      />
+      <ParticipantsBusy {participants} date={startDate} {dueDate} {ignoreEventId} bind:busyPersons />
       <ComponentExtensions extension={calendar.extensions.EditEventExtensions} props={{ readOnly, value: object }} />
     </div>
     <div class="block description">
       <div class="top-icon" class:disabled={readOnly}>
-        <Icon icon={calendar.icon.Description} size={'small'} />
+        <Icon icon={calendar.icon.Description} size="small" />
       </div>
       <StyledTextBox
         alwaysEdit={true}
         isScrollable={false}
         focusIndex={10007}
-        kind={'indented'}
+        kind="indented"
         showButtons={false}
         readonly={readOnly}
         placeholder={calendar.string.Description}
@@ -220,7 +232,7 @@
     <div class="block rightCropPadding">
       <CalendarSelector bind:value={_calendar} focusIndex={10008} />
       <div class="flex-row-center flex-gap-1">
-        <Icon icon={calendar.icon.Hidden} size={'small'} />
+        <Icon icon={calendar.icon.Hidden} size="small" />
         <VisibilityEditor bind:value={visibility} kind="inline" disabled={readOnly} withoutIcon focusIndex={10009} />
       </div>
       <EventReminders bind:reminders focusIndex={10010} disabled={readOnly} />

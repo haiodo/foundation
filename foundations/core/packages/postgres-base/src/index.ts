@@ -17,6 +17,34 @@ import postgres, { type Options, type ParameterOrJSON } from 'postgres'
 
 const clientRefs = new Map<number, ClientRef>()
 
+export type DBFlavor = 'postgres' | 'cockroach' | 'unknown'
+
+const dbFlavors = new Map<string, DBFlavor>()
+
+export async function getDBFlavor (client: postgres.Sql, cacheKey?: string): Promise<DBFlavor> {
+  if (cacheKey !== undefined) {
+    const cached = dbFlavors.get(cacheKey)
+    if (cached !== undefined) {
+      return cached
+    }
+  }
+
+  // The version string is the only reliable way to tell the two apart.
+  const [{ version }] = await client`SELECT version()`
+
+  let flavor: DBFlavor = 'unknown'
+  if (/cockroach/i.test(version)) {
+    flavor = 'cockroach'
+  } else if (/postgresql/i.test(version)) {
+    flavor = 'postgres'
+  }
+
+  if (cacheKey !== undefined) {
+    dbFlavors.set(cacheKey, flavor)
+  }
+  return flavor
+}
+
 let clId = 0
 
 export type DBResult = any[] & { count: number }
@@ -183,11 +211,8 @@ export function setDBExtraOptions (options: Partial<Options<any>>): void {
 }
 
 /**
- * Parse POSTGRES_OPTIONS and cache it for subsequent calls.
- * Priority for determining `prepare`:
- * 1. POSTGRES_OPTIONS.prepare (if set)
- * 2. dbExtraOptions.prepare (if set via setDBExtraOptions)
- * 3. false (default)
+ * Parse POSTGRES_OPTIONS and cache. `prepare` falls back: POSTGRES_OPTIONS.prepare,
+ * then dbExtraOptions.prepare, then false.
  */
 let cachedPostgresOptions: Partial<Options<any>> | undefined
 
@@ -285,7 +310,7 @@ class ConnectionInfo {
         reserved = await this.client.reserve()
       }
     } else {
-      reserved = this.available.shift() as DBClient
+      reserved = this.available.shift()
     }
 
     try {
@@ -443,9 +468,7 @@ export class ConnectionMgr {
 
   getConnection (id: string, mgrId: string, managed: boolean = true): ConnectionInfo {
     let conn = this.connections.get(id)
-    if (conn === undefined) {
-      conn = new ConnectionInfo(id, this.client, managed, mgrId)
-    }
+    conn ??= new ConnectionInfo(id, this.client, managed, mgrId)
     if (managed) {
       this.connections.set(id, conn)
     }

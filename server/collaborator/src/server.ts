@@ -1,5 +1,6 @@
 //
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -50,6 +51,7 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
   ctx.info('Starting collaborator server', { config })
 
   const app = express()
+  app.disable('x-powered-by')
   app.use(cors())
   app.use(express.json({ limit: '10mb' }))
   app.use(bp.json({ limit: '10mb' }))
@@ -78,7 +80,7 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
      * options to pass to the ydoc document
      */
     yDocOptions: {
-      // we intentionally disable gc in order to make snapshots working
+      // Intentionally disable GC so snapshots work
       // see https://github.com/yjs/yjs/blob/v13.5.52/src/utils/Snapshot.js#L162
       gc: false,
       gcFilter: () => false
@@ -98,7 +100,11 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
       }),
       new StorageExtension({
         ctx: extensionsCtx.newChild('storage', {}, { span: false }),
-        adapter: new PlatformStorageAdapter(storageAdapter, { retryCount, retryInterval }),
+        adapter: new PlatformStorageAdapter(storageAdapter, {
+          retryCount,
+          retryInterval,
+          activityAggregationDelay: config.ActivityAggregationDelay
+        }),
         transformer
       })
     ]
@@ -106,13 +112,14 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
 
   const rpcCtx = ctx.newChild('rpc', {}, { span: false })
 
-  const getContext = async (rawToken: string, token: Token): Promise<Context> => {
+  const getContext = async (rawToken: string, token: Token, silent?: boolean): Promise<Context> => {
     const wsIds = await getWorkspaceIds(rawToken)
 
     return {
       connectionId: generateId(),
       wsIds,
-      clientFactory: simpleClientFactory(token)
+      clientFactory: simpleClientFactory(token),
+      ...(silent === true ? { meta: { silent: true } } : {})
     }
   }
 
@@ -183,7 +190,8 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
       return
     }
 
-    const context = await getContext(rawToken, token)
+    const isSilent = req.query.silent === 'true'
+    const context = await getContext(rawToken, token, isSilent)
 
     rpcCtx.info('rpc', { method: request.method, connectionId: context.connectionId, mode: token.extra?.mode ?? '' })
     await rpcCtx.with(

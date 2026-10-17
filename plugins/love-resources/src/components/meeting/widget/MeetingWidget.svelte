@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { closeWidget, minimizeSidebar, WidgetState } from '@hcengineering/workbench-resources'
-  import { Room } from '@hcengineering/love'
+  import type { WidgetState } from '@hcengineering/workbench-resources'
+  import { closeWidget, minimizeSidebar } from '@hcengineering/workbench-resources'
+  import type { Room } from '@hcengineering/love'
   import { Loading } from '@hcengineering/ui'
 
   import love from '../../../plugin'
@@ -28,6 +29,7 @@
   import SendReactionButton from '../controls/SendReactionButton.svelte'
   import MeetingWidgetHeader from './MeetingWidgetHeader.svelte'
   import InviteEmployeeButton from '../invites/InviteEmployeeButton.svelte'
+  import KnockingList from '../invites/KnockingList.svelte'
   import MicrophoneButton from '../controls/MicrophoneButton.svelte'
   import CameraButton from '../controls/CameraButton.svelte'
   import ShareScreenButton from '../controls/ShareScreenButton.svelte'
@@ -59,9 +61,10 @@
 </script>
 
 {#if widgetState !== undefined && room}
-  <div>
+  <div data-id="meeting-widget">
     <MeetingWidgetHeader doc={meetingMinutes} {room} on:close={handleClose} />
   </div>
+  <div style="padding: 0.5rem;"><KnockingList compact /></div>
   <div style="height: 100%; overflow: scroll" bind:clientHeight={contentHeight}>
     {#if widgetState.tab === 'video'}
       <VideoTab {room} doc={meetingMinutes} on:close={handleClose} />

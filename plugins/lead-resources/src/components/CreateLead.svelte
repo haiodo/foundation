@@ -14,22 +14,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Contact } from '@hcengineering/contact'
+  import type { Contact } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import { UserBox } from '@hcengineering/contact-resources'
-  import core, {
-    AccountRole,
-    AttachedData,
-    AttachedDoc,
-    generateId,
-    getCurrentAccount,
-    hasAccountRole,
-    Ref,
-    Status as TaskStatus
-  } from '@hcengineering/core'
-  import { Customer, Funnel, Lead, LeadEvents } from '@hcengineering/lead'
-  import { OK, Status } from '@hcengineering/platform'
+  import type { AttachedData, AttachedDoc, Ref, Status as TaskStatus } from '@hcengineering/core'
+  import core, { AccountRole, generateId, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import type { Customer, Funnel, Lead } from '@hcengineering/lead'
+  import { LeadEvents } from '@hcengineering/lead'
+  import type { Status } from '@hcengineering/platform'
+  import { OK } from '@hcengineering/platform'
   import { Card, createQuery, getClient, InlineAttributeBar, SpaceSelector } from '@hcengineering/presentation'
-  import task, { getStates, TaskType } from '@hcengineering/task'
+  import type { TaskType } from '@hcengineering/task'
+  import task, { getStates } from '@hcengineering/task'
   import { TaskKindSelector, typeStore } from '@hcengineering/task-resources'
   import { Button, createFocusManager, EditBox, FocusHandler, Label, Status as StatusControl } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
@@ -147,8 +143,8 @@
     <SpaceSelector
       _class={lead.class.Funnel}
       label={lead.string.FunnelName}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       bind:space={_space}
       create={hasAccountRole(getCurrentAccount(), AccountRole.User)
         ? {
@@ -170,8 +166,8 @@
           label={lead.string.Leads}
           placeholder={lead.string.Leads}
           bind:value={customer}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       {/if}
       <Label label={lead.string.CreateLead} />
@@ -181,15 +177,9 @@
   <StatusControl slot="error" {status} />
   <div class="flex-row-center clear-mins">
     <div class="mr-3">
-      <Button focusIndex={1} icon={lead.icon.Lead} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button focusIndex={1} icon={lead.icon.Lead} size="medium" kind="link-bordered" noFocus />
     </div>
-    <EditBox
-      focusIndex={1}
-      bind:value={title}
-      placeholder={lead.string.LeadPlaceholder}
-      kind={'large-style'}
-      autoFocus
-    />
+    <EditBox focusIndex={1} bind:value={title} placeholder={lead.string.LeadPlaceholder} kind="large-style" autoFocus />
   </div>
 
   <svelte:fragment slot="pool">
@@ -200,8 +190,8 @@
         label={lead.string.Customer}
         placeholder={lead.string.SelectCustomer}
         bind:value={customer}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         create={{ component: lead.component.CreateCustomer, label: lead.string.CreateCustomer }}
       />
     {/if}

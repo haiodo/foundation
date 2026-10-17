@@ -15,9 +15,10 @@
 -->
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import recruit, { Applicant } from '@hcengineering/recruit'
+  import type { Applicant } from '@hcengineering/recruit'
+  import recruit from '@hcengineering/recruit'
   import { Icon, tooltip } from '@hcengineering/ui'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { ObjectPresenterType } from '@hcengineering/view'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
 
   export let value: Applicant
@@ -33,7 +34,7 @@
   const shortLabel = clazz?.shortLabel
 </script>
 
-{#if value && shortLabel}
+{#if value}
   {#if inline}
     <ObjectMention object={value} {disabled} />
   {:else if type === 'link'}
@@ -41,17 +42,17 @@
       <div class="flex-presenter">
         {#if shouldShowAvatar}
           <div class="icon">
-            <Icon icon={recruit.icon.Application} size={'small'} />
+            <Icon icon={recruit.icon.Application} size="small" />
           </div>
         {/if}
-        <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>
-          {#if shortLabel}{shortLabel}-{/if}{value.number}
-        </span>
+        <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}
+          >{#if shortLabel}{shortLabel}-{value.number}{:else}{value.identifier}{/if}</span
+        >
       </div>
     </DocNavLink>
   {:else if type === 'text'}
-    <span class="overflow-label" use:tooltip={{ label: clazz.label }}>
-      {#if shortLabel}{shortLabel}-{/if}{value.number}
-    </span>
+    <span class="overflow-label" use:tooltip={{ label: clazz.label }}
+      >{#if shortLabel}{shortLabel}-{value.number}{:else}{value.identifier}{/if}</span
+    >
   {/if}
 {/if}

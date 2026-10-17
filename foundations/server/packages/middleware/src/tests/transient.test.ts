@@ -91,7 +91,7 @@ async function createMiddleware (ttl: number): Promise<{
     workspace: { uuid: 'test-ws' as any, url: 'test', dataId: 'test' as any },
     hierarchy,
     modelDb,
-    branding: null as any,
+    branding: null,
     adapterManager: {
       getAdapter: (_domain: string, _required: boolean): DbAdapter => adapter as unknown as DbAdapter
     } as any,
@@ -206,8 +206,8 @@ describe('TransientMiddleware.checkTTL', () => {
   })
 
   it('resolves dbProvider lazily when adapterManager is not yet initialized at construction time', async () => {
-    // Reproduces production wiring: DBAdapterMiddleware is created AFTER TransientMiddleware
-    // in the pipeline, so context.adapterManager is undefined when TransientMiddleware is constructed.
+    // Reproduces production wiring: DBAdapterMiddleware is created after TransientMiddleware, so
+    // context.adapterManager is undefined when TransientMiddleware is constructed.
     const ctx = new MeasureMetricsContext('test', {})
     const hierarchy = new Hierarchy()
     const modelDb = new ModelDb(hierarchy)
@@ -220,7 +220,7 @@ describe('TransientMiddleware.checkTTL', () => {
       workspace: { uuid: 'test-ws' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb,
-      branding: null as any,
+      branding: null,
       // Not set yet — mimics real pipeline order.
       adapterManager: undefined,
       storageAdapter: {} as any,
@@ -290,7 +290,7 @@ describe('TransientMiddleware.checkTTL', () => {
       core.class.Class,
       core.space.Model,
       { label: 'Transient' as IntlString, extends: core.class.Doc, kind: ClassifierKind.CLASS },
-      transientClass as Ref<Class<Doc>>
+      transientClass
     )
     hierarchy.tx(objTx)
     hierarchy.tx(docTx)
@@ -308,7 +308,7 @@ describe('TransientMiddleware.checkTTL', () => {
       workspace: { uuid: 'test-ws' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb,
-      branding: null as any,
+      branding: null,
       adapterManager: {
         getAdapter: (_domain: string, _required: boolean): DbAdapter => adapter
       } as any,
@@ -359,7 +359,7 @@ describe('TransientMiddleware.checkTTL', () => {
       workspace: { uuid: 'test-ws' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb,
-      branding: null as any,
+      branding: null,
       adapterManager: undefined,
       storageAdapter: {} as any,
       contextVars: {},

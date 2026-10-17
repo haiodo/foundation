@@ -1,6 +1,7 @@
 <!--
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2022, 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -23,7 +24,8 @@
   import StatusControl from './StatusControl.svelte'
 
   import { onMount } from 'svelte'
-  import { BottomAction, loginTheme } from '..'
+  import type { BottomAction } from '..'
+  import { loginTheme } from '..'
   import { makeSequential } from '../mutex'
   import type { Field } from '../types'
   import login from '../plugin'
@@ -96,14 +98,24 @@
     void validate($themeStore.language)
   }
 
-  $: if ($themeStore.language != null && $themeStore.language !== '') {
+  // A theme update with the same language would reset the status and wipe an action error
+  // such as wrong credentials, so re-validate only on a language change.
+  let validatedLanguage: string | undefined
+  $: if ($themeStore.language != null && $themeStore.language !== '' && $themeStore.language !== validatedLanguage) {
+    validatedLanguage = $themeStore.language
     void validate($themeStore.language)
   }
 
   let inAction = false
+  let submitAttempted = false
 
   function performAction (action: Action): void {
     if (inAction) return
+    // Enter submits the form even while the button is disabled.
+    if (proceedDisabled) {
+      submitAttempted = true
+      return
+    }
 
     for (const field of fields) {
       trim(field.name)
@@ -119,6 +131,42 @@
     object[field] = (object[field] as string).trim()
   }
 
+  /**
+   * Функция для форматирования телефона к виду +7-XXX-XXX-XX-XX
+   */
+  function formatPhone (value: string): string {
+    if (value == null || value === '' || value === '+7' || value === '+7-') {
+      return ''
+    }
+
+    const digits = value.replace(/\D/g, '')
+
+    if (digits.length === 0) {
+      return ''
+    }
+
+    const clean = digits.replace(/^[87]/, '')
+    let formatted = '+7'
+
+    if (clean.length > 0) {
+      formatted += `-${clean.slice(0, 3)}`
+    }
+
+    if (clean.length > 3) {
+      formatted += `-${clean.slice(3, 6)}`
+    }
+
+    if (clean.length > 6) {
+      formatted += `-${clean.slice(6, 8)}`
+    }
+
+    if (clean.length > 8) {
+      formatted += `-${clean.slice(8, 10)}`
+    }
+
+    return formatted
+  }
+
   let loginState: 'login' | 'signup' | 'none' = 'none'
   $: loginState = caption === login.string.LogIn ? 'login' : caption === login.string.SignUp ? 'signup' : 'none'
 </script>
@@ -126,7 +174,7 @@
 <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <form
   class="container"
-  style:padding={$deviceInfo.docWidth <= 480 ? '.25rem 1.25rem' : '2rem 2rem'}
+  style:padding={$deviceInfo.docWidth <= 480 ? '1.25rem 1rem' : '2rem 2rem'}
   on:keydown={(evt) => {
     if (evt.key === 'Enter') {
       evt.preventDefault()
@@ -168,16 +216,23 @@
           label={field.i18n}
           name={field.idOverride ?? field.id}
           password={field.password}
+          inputmode={field.inputmode}
           disabled={inAction || field.disabled}
           bind:value={object[field.name]}
-          on:input={() => validate($themeStore.language)}
+          on:input={() => {
+            if (field.name === 'phone') {
+              object[field.name] = formatPhone(object[field.name] ?? '')
+            }
+
+            void validate($themeStore.language)
+          }}
           on:blur={() => {
             trim(field.name)
           }}
         />
       </div>
     {/each}
-    <slot name="after-fields" />
+    <slot name="after-fields" {submitAttempted} />
     <div class="status">
       <StatusControl {status} />
     </div>
@@ -185,9 +240,9 @@
     <div class="form-row send">
       <FormButton
         label={action.i18n}
-        kind={'contrast'}
-        shape={'round'}
-        size={'x-large'}
+        kind="contrast"
+        shape="round"
+        size="x-large"
         width="100%"
         loading={inAction}
         disabled={proceedDisabled || (status.severity !== Severity.OK && status.severity !== Severity.ERROR)}
@@ -204,6 +259,7 @@
       />
     </div>
     {#if secondaryButtonLabel !== undefined && secondaryButtonAction}
+      <slot name="before-secondary" />
       <div class="form-row">
         <FormButton
           label={secondaryButtonLabel}
@@ -233,6 +289,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    max-width: 100%;
 
     .fs-title {
       color: var(--login-content-color, var(--theme-content-color));
@@ -258,8 +315,9 @@
       justify-content: center;
       align-items: flex-end;
       padding: 0 0 16px;
-      width: 412px;
-      height: 36px;
+      max-width: 412px;
+      width: 100%;
+      min-height: 36px;
       font-family: 'Open Sans', sans-serif;
       font-style: normal;
       font-weight: var(--login-main-heading-font-weight, 700);
@@ -317,6 +375,31 @@
         font-weight: 500;
         text-decoration: underline;
         color: var(--login-label-color, var(--login-content-color, var(--theme-content-color)));
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    .container {
+      // The page scrolls as a whole; clipping here would hide tall forms.
+      overflow: visible;
+
+      .main-heading {
+        font-size: 1.5rem;
+      }
+
+      /* Grid stays 2-column: slotted content elsewhere hardcodes a 1/3 span. */
+      .form {
+        row-gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .status {
+        padding-top: 0.5rem;
+      }
+
+      .footer {
+        margin-top: 1.25rem;
       }
     }
   }

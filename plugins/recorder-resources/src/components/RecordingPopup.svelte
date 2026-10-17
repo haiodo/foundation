@@ -19,19 +19,19 @@
   import { micAccess, camAccess } from '@hcengineering/media-resources'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { FilePreview, getClient, MessageBox, SpaceSelector } from '@hcengineering/presentation'
+  import type { PopupResult } from '@hcengineering/ui'
   import {
     EditBox,
     IconUpOutline,
     Label,
     Modal,
-    ModernButton,
-    PopupResult,
     SelectPopup,
     SplitButton,
     eventToHTMLElement,
     resizeObserver,
     showPopup
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
 
@@ -342,30 +342,30 @@
     <div class="hulyModal-footer px-2">
       {#if state.state === 'ready'}
         <!-- Recording not started -->
-        <ModernButton
-          size={'small'}
+        <Button
+          size="small"
           kind={mainStream === null ? 'secondary' : 'negative'}
           icon={plugin.icon.Record}
           iconProps={{ size: 'small' }}
           label={plugin.string.Record}
           disabled={mainStream === null}
-          noFocus
           on:click={startRecording}
         />
 
         <div class="flex-grow" />
 
-        <ModernButton
-          size={'small'}
-          kind={'secondary'}
+        <IconButton
+          iconSize="medium"
+          size="small"
+          kind="secondary"
           icon={IconSettings}
           iconProps={{ size: 'small' }}
-          noFocus
+          tooltip={{ label: plugin.string.Settings }}
           on:click={handleSettingsClick}
         />
 
         <SplitButton
-          size={'small'}
+          size="small"
           icon={IconShare}
           iconProps={{
             size: 'small'
@@ -382,7 +382,7 @@
         />
 
         <SplitButton
-          size={'small'}
+          size="small"
           icon={$micEnabled ? IconMicOn : IconMicOff}
           iconProps={{
             size: 'small',
@@ -402,7 +402,7 @@
         />
 
         <SplitButton
-          size={'small'}
+          size="small"
           icon={$camEnabled ? IconCamOn : IconCamOff}
           iconProps={{
             size: 'small',
@@ -421,26 +421,25 @@
           noFocus
         />
       {:else if state.state === 'stopped'}
-        <ModernButton
-          size={'small'}
-          kind={'primary'}
+        <Button
+          size="small"
+          kind="primary"
           label={view.string.Save}
-          noFocus
           on:click={handleCompleteRecording}
           disabled={name.length === 0 || space == null}
         />
 
         <div class="flex-grow" />
 
-        <EditBox bind:value={name} placeholder={core.string.Name} kind={'default'} autoFocus />
+        <EditBox bind:value={name} placeholder={core.string.Name} kind="default" autoFocus />
 
         {#if state.config.target === undefined}
           <SpaceSelector
             bind:space
             _class={drive.class.Drive}
             label={drive.string.Drive}
-            kind={'regular'}
-            size={'medium'}
+            kind="regular"
+            size="medium"
             iconWithEmoji={view.ids.IconWithEmoji}
             defaultIcon={drive.icon.Drive}
             focus={false}
@@ -450,49 +449,45 @@
         <!-- Stop Button -->
         {#if state.state === 'stopping'}
           <!-- Recording is stopping -->
-          <ModernButton
-            size={'small'}
-            kind={'negative'}
+          <Button
+            size="small"
+            kind="negative"
             icon={IconStop}
             iconProps={{ size: 'small' }}
             label={plugin.string.Stop}
             disabled
             loading
-            noFocus
             on:click={stopRecording}
           />
         {:else if state.state === 'recording'}
           <!-- Recording in progress -->
-          <ModernButton
-            size={'small'}
-            kind={'negative'}
+          <Button
+            size="small"
+            kind="negative"
             icon={IconStop}
             iconProps={{ size: 'small' }}
             label={plugin.string.Stop}
-            noFocus
             on:click={stopRecording}
           />
         {/if}
 
         <!-- Pause Button -->
         {#if state.state === 'recording'}
-          <ModernButton
-            size={'small'}
-            kind={'secondary'}
+          <Button
+            size="small"
+            kind="secondary"
             icon={IconPause}
             iconProps={{ size: 'small' }}
             label={plugin.string.Pause}
-            noFocus
             on:click={pauseRecording}
           />
         {:else if state.state === 'paused'}
-          <ModernButton
-            size={'small'}
-            kind={'secondary'}
+          <Button
+            size="small"
+            kind="secondary"
             icon={IconPlay}
             iconProps={{ size: 'small' }}
             label={plugin.string.Resume}
-            noFocus
             on:click={resumeRecording}
           />
         {/if}

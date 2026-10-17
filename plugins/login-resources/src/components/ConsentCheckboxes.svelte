@@ -5,6 +5,7 @@
 
   export let agreedPersonalData: boolean = false
   export let agreedRules: boolean = false
+  export let highlight: boolean = false
 
   let personalDatalabel = ''
   $: void translate(
@@ -56,14 +57,24 @@
 </script>
 
 <label class="check-label">
-  <input type="checkbox" data-testid="checkbox-personal-data" bind:checked={agreedPersonalData} />
+  <input
+    type="checkbox"
+    data-testid="checkbox-personal-data"
+    class:invalid={highlight && !agreedPersonalData}
+    bind:checked={agreedPersonalData}
+  />
   <span class="consent-link" role="presentation" on:click={handleLinkClick} on:keydown={handleLinkKeyDown}>
     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     {@html personalDatalabel}
   </span>
 </label>
 <label class="check-label">
-  <input type="checkbox" data-testid="checkbox-rules" bind:checked={agreedRules} />
+  <input
+    type="checkbox"
+    data-testid="checkbox-rules"
+    class:invalid={highlight && !agreedRules}
+    bind:checked={agreedRules}
+  />
   <span class="consent-link" role="presentation" on:click={handleLinkClick} on:keydown={handleLinkKeyDown}>
     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     {@html rulesLabel}
@@ -104,6 +115,10 @@
     box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
   }
 
+  .check-label input[type='checkbox'].invalid {
+    border-color: var(--system-error-color);
+  }
+
   .check-label input[type='checkbox']:checked {
     background: var(--login-primary-button-default, var(--primary-button-default, #cf13a2));
     border-color: var(--login-primary-button-default, var(--primary-button-default));
@@ -119,5 +134,19 @@
     border: solid var(--login-button-text-color, var(--primary-button-color, #ffffff));
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
+  }
+
+  @media (max-width: 600px) {
+    .check-label {
+      align-items: flex-start;
+      font-size: 0.875rem;
+      line-height: 1.35;
+    }
+
+    /* Larger hit area on touch screens without changing the visual box size. */
+    .check-label input[type='checkbox'] {
+      margin: 0.15rem 0;
+      outline-offset: 0.5rem;
+    }
   }
 </style>

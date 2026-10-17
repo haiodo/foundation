@@ -13,13 +13,6 @@
 // limitations under the License.
 //
 
-/**
- * Test for TxOrderingMiddleware
- *
- * This test verifies that the middleware ensures transactions for the same document
- * are processed sequentially by waiting in the tx() method.
- */
-
 import core, {
   type Class,
   type Doc,
@@ -88,7 +81,7 @@ describe('TxOrderingMiddleware', () => {
       workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb: model,
-      branding: null as any,
+      branding: null,
       adapterManager: {} as any,
       storageAdapter: {} as any,
       contextVars: {},
@@ -222,7 +215,7 @@ describe('TxOrderingMiddleware', () => {
       workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
       hierarchy: new Hierarchy(),
       modelDb: new ModelDb(new Hierarchy()),
-      branding: null as any,
+      branding: null,
       adapterManager: {} as any,
       storageAdapter: {} as any,
       contextVars: {},
@@ -324,7 +317,7 @@ describe('TxOrderingMiddleware', () => {
       workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
       hierarchy: new Hierarchy(),
       modelDb: new ModelDb(new Hierarchy()),
-      branding: null as any,
+      branding: null,
       adapterManager: {} as any,
       storageAdapter: {} as any,
       contextVars: {},
@@ -353,7 +346,7 @@ describe('TxOrderingMiddleware', () => {
 describe('TxOrderingMiddleware Integration', () => {
   it('should work with provideTx flow', async () => {
     const ctx = new MeasureMetricsContext('test', {})
-    ctx.contextData = { broadcast: { txes: [], queue: [], sessions: {} } } as any
+    ctx.contextData = { broadcast: { txes: [], queue: [], sessions: {} } }
 
     const hierarchy = new Hierarchy()
     const model = new ModelDb(hierarchy)
@@ -375,7 +368,7 @@ describe('TxOrderingMiddleware Integration', () => {
       workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb: model,
-      branding: null as any,
+      branding: null,
       adapterManager: {} as any,
       storageAdapter: {} as any,
       contextVars: {},
@@ -392,10 +385,10 @@ describe('TxOrderingMiddleware Integration', () => {
     const txFactory = new TxFactory(core.account.System)
 
     const docId = generateId()
-    const tx1 = txFactory.createTxUpdateDoc('test:class' as any, 'test:space' as any, docId as any, {} as any)
+    const tx1 = txFactory.createTxUpdateDoc('test:class' as any, 'test:space' as any, docId, {})
     tx1.modifiedOn = 102
 
-    const tx2 = txFactory.createTxUpdateDoc('test:class' as any, 'test:space' as any, docId as any, {} as any)
+    const tx2 = txFactory.createTxUpdateDoc('test:class' as any, 'test:space' as any, docId, {})
     tx2.modifiedOn = 101
 
     // Process in parallel - they should be serialized

@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IntlString, Asset } from '@hcengineering/platform'
+  import type { IntlString, Asset } from '@hcengineering/platform'
   import type { AnySvelteComponent, DropdownTextItem, TooltipAlignment, ButtonKind, ButtonSize } from '../types'
   import { createEventDispatcher } from 'svelte'
   import ui from '../plugin'
@@ -52,7 +52,7 @@
   let opened: boolean = false
 
   $: selectedItem = multiselect
-    ? (items ?? []).filter((p) => selected?.includes(p.id))
+    ? (items ?? []).filter((p) => (Array.isArray(selected) ? selected?.includes(p.id) : selected === p.id))
     : (items ?? []).find((x) => x.id === selected)
   $: if (autoSelect && selected === undefined && items?.[0] !== undefined) {
     selected = multiselect ? [items?.[0]?.id] : items?.[0]?.id
@@ -130,7 +130,7 @@
     <svelte:fragment slot="iconRight">
       {#if showDropdownIcon}
         <DropdownIcon
-          size={'small'}
+          size="small"
           fill={kind === 'primary' && !disabled ? 'var(--primary-button-content-color)' : 'var(--theme-dark-color)'}
         />
       {/if}

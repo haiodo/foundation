@@ -14,10 +14,14 @@
 //
 
 import { type MeasureContext, type WorkspaceUuid, concatLink } from '@hcengineering/core'
+import { withRetry, DelayStrategyFactory } from '@hcengineering/retry'
 import { Readable } from 'stream'
 
 import { DatalakeError, NetworkError, NotFoundError } from './error'
 import { unwrapETag } from './utils'
+
+/** Objects below this size, or of unknown size, go in one request read fully into memory. */
+export const directUploadLimit = 64 * 1024 * 1024
 
 /** @public */
 export interface ObjectMetadata {
@@ -80,6 +84,9 @@ export interface R2UploadParams {
 export interface WorkspaceStats {
   count: number
   size: number
+  // Subset of the above produced by transcoding, not uploaded by a user.
+  derivedCount: number
+  derivedSize: number
 }
 
 /** @public */
@@ -87,6 +94,8 @@ export interface WorkspaceStatsByType {
   type: string
   count: number
   size: number
+  derivedCount: number
+  derivedSize: number
 }
 
 /** @public */
@@ -123,13 +132,17 @@ export class DatalakeClient {
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
     cursor: string | undefined,
-    limit: number = 100
+    limit: number = 100,
+    prefix?: string
   ): Promise<ListObjectOutput> {
     const path = `/blob/${workspace}`
     const url = new URL(concatLink(this.endpoint, path))
     url.searchParams.append('limit', String(limit))
     if (cursor !== undefined) {
       url.searchParams.append('cursor', cursor)
+    }
+    if (prefix !== undefined && prefix !== '') {
+      url.searchParams.append('prefix', prefix)
     }
 
     const response = await fetchSafe(ctx, url, { headers: { ...this.headers } })
@@ -167,7 +180,7 @@ export class DatalakeClient {
     const url = this.getObjectUrl(ctx, workspace, objectName)
     const headers = {
       ...this.headers,
-      Range: length !== undefined ? `bytes=${offset}-${offset + length - 1}` : `bytes=${offset}`
+      Range: length !== undefined ? `bytes=${offset}-${offset + length - 1}` : `bytes=${offset}-`
     }
 
     let response
@@ -253,7 +266,7 @@ export class DatalakeClient {
       }
     }
 
-    if (size === undefined || size < 64 * 1024 * 1024) {
+    if (size === undefined || size < directUploadLimit) {
       return await ctx.with(
         'direct-upload',
         {},
@@ -299,7 +312,7 @@ export class DatalakeClient {
 
     const result = (await response.json()) as BlobUploadResult[]
     if (result.length !== 1) {
-      throw new DatalakeError('Bad datalake response: ' + result.toString())
+      throw new DatalakeError('Bad datalake response: ' + JSON.stringify(result))
     }
 
     const uploadResult = result[0]
@@ -320,21 +333,24 @@ export class DatalakeClient {
   ): Promise<ObjectMetadata> {
     const chunkSize = 10 * 1024 * 1024
 
-    const multipart = await this.multipartUploadStart(ctx, workspace, objectName, params)
+    // Retry each stage on transient errors. Start yields a fresh uploadId per attempt;
+    // part/complete reuse it and are idempotent by partNumber.
+    const multipart = await retryStage(() => this.multipartUploadStart(ctx, workspace, objectName, params))
 
     try {
       const parts: MultipartUploadPart[] = []
 
       let partNumber = 1
       for await (const chunk of getChunks(stream, chunkSize)) {
-        const part = await this.multipartUploadPart(ctx, workspace, objectName, multipart, partNumber, chunk)
+        const n = partNumber
+        const part = await retryStage(() => this.multipartUploadPart(ctx, workspace, objectName, multipart, n, chunk))
         parts.push(part)
         partNumber++
       }
 
-      return await this.multipartUploadComplete(ctx, workspace, objectName, multipart, parts)
+      return await retryStage(() => this.multipartUploadComplete(ctx, workspace, objectName, multipart, parts))
     } catch (err: any) {
-      await this.multipartUploadAbort(ctx, workspace, objectName, multipart)
+      await this.multipartUploadAbort(ctx, workspace, objectName, multipart).catch(() => {})
       throw err
     }
   }
@@ -504,10 +520,25 @@ async function toBuffer (data: Buffer | string | Readable): Promise<Buffer> {
     for await (const chunk of data) {
       chunks.push(chunk)
     }
-    return Buffer.concat(chunks as any)
+    return Buffer.concat(chunks)
   } else {
     throw new TypeError('Unsupported data type')
   }
+}
+
+// Retry one multipart stage with backoff, so a transient error does not abort the whole upload.
+async function retryStage<T> (op: () => Promise<T>): Promise<T> {
+  return await withRetry(op, {
+    maxRetries: 5,
+    // 404 is permanent for these endpoints; retrying only adds delay.
+    isRetryable: (err) => !(err instanceof NotFoundError) && (err as any)?.name !== 'NotFoundError',
+    delayStrategy: DelayStrategyFactory.exponentialBackoff({
+      initialDelayMs: 200,
+      maxDelayMs: 5000,
+      backoffFactor: 2,
+      jitter: 0.2
+    })
+  })
 }
 
 async function * getChunks (data: Buffer | string | Readable, chunkSize: number): AsyncGenerator<Buffer> {
@@ -542,7 +573,7 @@ async function fetchSafe (ctx: MeasureContext, url: string | URL, init?: Request
   try {
     response = await ctx.with('fetch', {}, () => fetch(url, init), { url: url.toString() }, { span: 'disable' })
   } catch (err: any) {
-    ctx.error('network error', { err })
+    ctx.error('network error', { err, url: url.toString(), method: init?.method ?? 'GET' })
     throw new NetworkError(`Network error ${err}`)
   }
 

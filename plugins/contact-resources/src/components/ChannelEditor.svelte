@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Channel } from '@hcengineering/contact'
-  import { Data } from '@hcengineering/core'
-  import { translateCB, IntlString } from '@hcengineering/platform'
+  import type { Channel } from '@hcengineering/contact'
+  import type { Data } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { translateCB } from '@hcengineering/platform'
   import { copyTextToClipboard, isDisabled } from '@hcengineering/presentation'
+  import type { PopupOptions } from '@hcengineering/ui'
   import {
     Button,
     FocusHandler,
@@ -24,7 +26,6 @@
     IconBlueCheck,
     IconClose,
     IconMoreV,
-    PopupOptions,
     createFocusManager,
     getEventPopupPositionElement,
     registerFocus,
@@ -54,7 +55,7 @@
 
   const copyChannel = (): void => {
     if (label === plugin.string.CopyToClipboard) {
-      copyTextToClipboard(value).then(() => (label = view.string.Copied))
+      void copyTextToClipboard(value).then(() => (label = view.string.Copied))
       setTimeout(() => {
         label = plugin.string.CopyToClipboard
       }, 3000)
@@ -117,8 +118,8 @@
     </div>
     <Button
       focusIndex={2}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       icon={IconClose}
       disabled={value === ''}
       on:click={() => {
@@ -131,8 +132,8 @@
     <Button
       id="channel-ok"
       focusIndex={3}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       icon={IconBlueCheck}
       on:click={() => {
         dispatch('close', value)
@@ -141,8 +142,8 @@
     {#if openable && !isDisabled('integration') && !isDisabled('integrations')}
       <Button
         focusIndex={4}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         icon={IconArrowRight}
         on:click={() => {
           dispatch('update', value)
@@ -152,8 +153,8 @@
     {/if}
     {#if '_id' in channel}
       <Button
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         icon={IconMoreV}
         on:click={(evt) => {
           showPopup(
@@ -191,8 +192,8 @@
     </span>
     <Button
       focusIndex={3}
-      kind={'ghost'}
-      size={'small'}
+      kind="ghost"
+      size="small"
       icon={IconCopy}
       on:mousemove={() => {
         show = true
@@ -213,8 +214,8 @@
     {#if openable}
       <Button
         focusIndex={5}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         icon={IconArrowRight}
         on:click={() => {
           dispatch('update', 'open')

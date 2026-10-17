@@ -16,19 +16,10 @@
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher } from 'svelte'
   import { AccountArrayEditor, employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
-  import core, {
-    Data,
-    RolesAssignment,
-    Ref,
-    Role,
-    SpaceType,
-    generateId,
-    getCurrentAccount,
-    WithLookup,
-    notEmpty,
-    AccountUuid
-  } from '@hcengineering/core'
-  import { Drive, DriveEvents } from '@hcengineering/drive'
+  import type { Data, RolesAssignment, Ref, Role, SpaceType, WithLookup, AccountUuid } from '@hcengineering/core'
+  import core, { generateId, getCurrentAccount, notEmpty } from '@hcengineering/core'
+  import type { Drive } from '@hcengineering/drive'
+  import { DriveEvents } from '@hcengineering/drive'
   import presentation, { Card, getClient, reduceCalls } from '@hcengineering/presentation'
   import { EditBox, Label, Toggle } from '@hcengineering/ui'
   import { SpaceTypeSelector } from '@hcengineering/view-resources'
@@ -200,8 +191,8 @@
   okAction={handleSave}
   {canSave}
   accentHeader
-  width={'medium'}
-  gap={'gapV-6'}
+  width="medium"
+  gap="gapV-6"
   onCancel={close}
   on:changeContent
 >
@@ -227,7 +218,7 @@
         <Label label={core.string.Name} />
       </div>
       <div class="padding">
-        <EditBox id="teamspace-title" bind:value={name} placeholder={core.string.Name} kind={'large-style'} autoFocus />
+        <EditBox id="teamspace-title" bind:value={name} placeholder={core.string.Name} kind="large-style" autoFocus />
       </div>
     </div>
 
@@ -250,8 +241,8 @@
         value={owners}
         label={core.string.Owners}
         onChange={handleOwnersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
       />
     </div>
 
@@ -271,8 +262,8 @@
         value={members}
         label={core.string.Members}
         onChange={handleMembersChanged}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         allowGuests
       />
     </div>
@@ -282,7 +273,7 @@
         <Label label={core.string.AutoJoin} />
         <span><Label label={core.string.AutoJoinDescr} /></span>
       </div>
-      <Toggle id={'space-autoJoin'} bind:on={autoJoin} />
+      <Toggle id="space-autoJoin" bind:on={autoJoin} />
     </div>
 
     <div class="antiGrid-row">
@@ -290,7 +281,7 @@
         <Label label={core.string.RBAC} />
         <span><Label label={core.string.RBACDescr} /></span>
       </div>
-      <Toggle id={'space-restricted'} bind:on={restricted} />
+      <Toggle id="space-restricted" bind:on={restricted} />
     </div>
 
     {#each roles as role}
@@ -306,8 +297,8 @@
           onChange={(refs) => {
             handleRoleAssignmentChanged(role._id, refs)
           }}
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
         />
       </div>
     {/each}

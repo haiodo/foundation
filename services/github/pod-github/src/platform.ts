@@ -191,9 +191,7 @@ export class PlatformWorker {
     })
 
     this.periodicTimer = setInterval(() => {
-      if (this.periodicSyncPromise === undefined) {
-        this.periodicSyncPromise = this.performPeriodicSync()
-      }
+      this.periodicSyncPromise ??= this.performPeriodicSync()
     }, this.periodicSyncInterval)
   }
 
@@ -267,8 +265,7 @@ export class PlatformWorker {
     const oldInstallation = this.integrations.filter((it) => it.installationId.includes(installationId))
     if (oldInstallation.length > 0) {
       ctx.info('update integrations', { workspace, installationId, accountId })
-      // What to do with installation in different workspace?
-      // Let's remove it and sync to new one.
+      // Installation in a different workspace: remove it and sync to the new one.
       const oldWorkspaces = oldInstallation.filter((it) => it.workspace !== workspace)
       if (oldWorkspaces.length > 0) {
         const oldWorkspace = oldWorkspaces[0].workspace
@@ -492,7 +489,7 @@ export class PlatformWorker {
         if (existingUser == null) {
           await this.userManager.insertUser(dta)
         } else {
-          dta.accounts = { ...existingUser.accounts, [payload.workspace]: payload.accountId } // Put primary socialId for now.
+          dta.accounts = { ...existingUser.accounts, [payload.workspace]: payload.accountId } // Primary socialId
           await this.userManager.updateUser(dta)
         }
 
@@ -738,7 +735,8 @@ export class PlatformWorker {
   }
 
   async checkRefreshToken (ctx: MeasureContext, auth: GithubUserRecord, force: boolean = false): Promise<boolean> {
-    if (auth.refreshToken != null && auth.expiresIn != null && auth.expiresIn < Date.now() / 1000) {
+    const expired = auth.expiresIn != null && auth.expiresIn < Date.now() / 1000
+    if (auth.refreshToken != null && (force || expired)) {
       const uri =
         'https://github.com/login/oauth/access_token?' +
         makeQuery({
@@ -995,11 +993,11 @@ export class PlatformWorker {
     const rechecks: string[] = []
     let idx = 0
     const connecting = new Map<
-    string,
-    {
-      time: number
-      version: string
-    }
+      string,
+      {
+        time: number
+        version: string
+      }
     >()
     const st = Date.now()
     const connectingInfo = setInterval(() => {
@@ -1094,7 +1092,7 @@ export class PlatformWorker {
               })
               this.clients.set(workspace, worker)
             } else {
-              // No if no integration, we will try connect one more time in a time period
+              // No integration; will retry
               workerCtx.info(
                 '************************* Failed Register worker, timeout or integrations removed *************************',
                 {

@@ -15,7 +15,7 @@
 <script lang="ts">
   import type { Doc, Ref } from '@hcengineering/core'
   import { Button, IconAdd, Label, Scroller, Section, showPopup } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { Table, ViewletsSettingButton } from '@hcengineering/view-resources'
   import recruit from '../plugin'
   import CreateApplication from './CreateApplication.svelte'
@@ -41,13 +41,13 @@
     <div class="flex-row-center gap-2 reverse">
       <ViewletsSettingButton
         viewletQuery={{ _id: recruit.viewlet.VacancyApplicationsEmbeddeed }}
-        kind={'tertiary'}
+        kind="tertiary"
         bind:viewlet
         bind:loading
         bind:preference
       />
       {#if !readonly}
-        <Button id="appls.add" icon={IconAdd} kind={'ghost'} on:click={createApp} />
+        <Button id="appls.add" icon={IconAdd} kind="ghost" on:click={createApp} />
       {/if}
     </div>
   </svelte:fragment>

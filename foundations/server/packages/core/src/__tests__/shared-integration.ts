@@ -14,23 +14,8 @@
 //
 
 /**
- * Shared integration test suite for database adapters (MongoDB and PostgreSQL)
- * These tests verify that both adapters work correctly against real database instances
- *
- * Usage in your adapter test file:
- * ```typescript
- * import { runSharedIntegrationTests } from '@hcengineering/server-core/src/__tests__/shared-integration.test'
- *
- * describe('My Adapter Tests', () => {
- *   // ... setup code ...
- *
- *   runSharedIntegrationTests('PostgreSQL', () => ({
- *     client,
- *     operations,
- *     taskPlugin
- *   }))
- * })
- * ```
+ * Shared integration test suite for DB adapters (MongoDB and PostgreSQL); call
+ * runSharedIntegrationTests from an adapter's own test file to run it against a real instance.
  */
 
 import core, { type Client, type Ref, SortingOrder, type Space, type TxOperations } from '@hcengineering/core'
@@ -135,14 +120,14 @@ export function runSharedIntegrationTests (adapterName: string, getContext: () =
 
         await operations.updateDoc(taskPlugin.class.Task, '' as Ref<Space>, taskId, {
           $push: { arr: 10 }
-        } as any)
+        })
 
         let task: any = await client.findOne(taskPlugin.class.Task, { _id: taskId })
         expect(task?.arr).toEqual([10])
 
         await operations.updateDoc(taskPlugin.class.Task, '' as Ref<Space>, taskId, {
           $push: { arr: 20 }
-        } as any)
+        })
 
         task = await client.findOne(taskPlugin.class.Task, { _id: taskId })
         expect(task?.arr).toEqual([10, 20])
@@ -160,7 +145,7 @@ export function runSharedIntegrationTests (adapterName: string, getContext: () =
 
         await operations.updateDoc(taskPlugin.class.Task, '' as Ref<Space>, taskId, {
           $pull: { arr: 3 }
-        } as any)
+        })
 
         const task: any = await client.findOne(taskPlugin.class.Task, { _id: taskId })
         expect(task?.arr).toEqual([1, 2, 4, 5])
@@ -253,7 +238,7 @@ export function runSharedIntegrationTests (adapterName: string, getContext: () =
           name: { $like: '%0' }
         })
         expect(tasks.length).toBeGreaterThanOrEqual(1)
-        expect(tasks.every((t: any) => t.name.endsWith('0'))).toBe(true)
+        expect(tasks.every((t: any) => t.name.endsWith('0') === true)).toBe(true)
       })
 
       it('should filter using $in operator', async () => {

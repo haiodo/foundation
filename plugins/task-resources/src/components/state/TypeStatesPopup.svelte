@@ -13,15 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, Status, StatusCategory, toIdMap } from '@hcengineering/core'
+  import type { IdMap, Ref, Status, StatusCategory } from '@hcengineering/core'
+  import core, { toIdMap } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { ProjectType, TaskType } from '@hcengineering/task'
+  import type { ProjectType, TaskType } from '@hcengineering/task'
+  import type { ColorDefinition } from '@hcengineering/ui'
   import {
-    ColorDefinition,
     getColorNumberByText,
     getPlatformColorDef,
     resizeObserver,
-    themeStore
+    themeStore,
+    resolvePaletteColor
   } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -51,9 +53,10 @@
   function getColor (state: Status, type: ProjectType | undefined, categories: IdMap<StatusCategory>): ColorDefinition {
     const category = state.category ? categories.get(state.category) : undefined
     const statusColor = type?.statuses?.find((p) => p._id === state._id)?.color
-    const targetColor =
-      statusColor === undefined || typeof statusColor !== 'string' ? statusColor : (state.color ?? category?.color)
-    return getPlatformColorDef(targetColor ?? getColorNumberByText(state.name), $themeStore.dark)
+    return getPlatformColorDef(
+      resolvePaletteColor(statusColor, state.color, category?.color) ?? getColorNumberByText(state.name),
+      $themeStore.dark
+    )
   }
 
   let categories: IdMap<StatusCategory> = new Map()

@@ -34,6 +34,7 @@ import tippy, { type Instance } from 'tippy.js'
 import 'tippy.js/animations/shift-toward.css'
 import { type Doc as YDoc, type Map as YMap } from 'yjs'
 import { SvelteRenderer } from '../node-view'
+import { hideTextEditorToolbar } from './toolbar/toolbar'
 
 export interface InlineCommentExtensionOptions {
   boundary?: HTMLElement
@@ -284,13 +285,8 @@ function buildCommentDecoratorState (
   const isUpdateRequested = meta !== undefined
 
   const pointer: PointerState = {
-    focus:
-      meta?.pointer?.focus !== undefined
-        ? meta.pointer.focus
-        : !isSelectionChanged
-            ? prev.pointer.focus
-            : new Set<string>(),
-    hover: meta?.pointer?.hover !== undefined ? meta.pointer.hover : prev.pointer.hover
+    focus: meta?.pointer?.focus ?? (!isSelectionChanged ? prev.pointer.focus : new Set<string>()),
+    hover: meta?.pointer?.hover ?? prev.pointer.hover
   }
 
   let pendingComment: InlineCommentDecoratorState['pendingComment'] = isNewCommentRequested
@@ -534,14 +530,12 @@ class InlineCommentView {
     const prevprops = this.props
     if (props !== undefined) this.props = props
 
-    if (this.handlers === null) {
-      this.handlers = {
-        handleResolveThread: () => {
-          resolveThread(this.pluginOptions, view, this.props.thread._id)
-        },
-        handleSubmit: (text: string, _id?: string) => {
-          updateThreadComment(this.pluginOptions, view, { _id, thread: this.props.thread._id, message: text })
-        }
+    this.handlers ??= {
+      handleResolveThread: () => {
+        resolveThread(this.pluginOptions, view, this.props.thread._id)
+      },
+      handleSubmit: (text: string, _id?: string) => {
+        updateThreadComment(this.pluginOptions, view, { _id, thread: this.props.thread._id, message: text })
       }
     }
 
@@ -952,6 +946,7 @@ function getReferenceRect (view: EditorView, from: number, to: number): DOMRect 
 }
 
 export async function createInlineComment (editor: Editor, event: MouseEvent): Promise<void> {
+  hideTextEditorToolbar(editor)
   editor.view.dispatch(setMeta(editor.state.tr, { newCommentRequested: true }))
 }
 

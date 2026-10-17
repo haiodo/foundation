@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Class, PropertyType, Ref, Type } from '@hcengineering/core'
+  import type { Class, PropertyType, Ref, Type } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting-resources/src/plugin'
-  import { AnyComponent, Component, DropdownIntlItem, DropdownLabelsIntl, Label } from '@hcengineering/ui'
+  import type { AnyComponent, DropdownIntlItem } from '@hcengineering/ui'
+  import { Component, DropdownLabelsIntl, Label } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher } from 'svelte'
@@ -72,8 +74,8 @@
 <DropdownLabelsIntl
   label={setting.string.Type}
   {items}
-  size={'large'}
-  width={'100%'}
+  size="large"
+  width="100%"
   bind:selected={selectedType}
   on:selected={handleSelection}
 />

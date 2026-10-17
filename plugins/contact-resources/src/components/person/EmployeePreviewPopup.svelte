@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Employee, Person } from '@hcengineering/contact'
-  import { AccountUuid, Class, Doc, Ref } from '@hcengineering/core'
+  import type { Employee, Person } from '@hcengineering/contact'
+  import type { AccountUuid, Ref } from '@hcengineering/core'
+  import { Class, Doc } from '@hcengineering/core'
   import { ComponentExtensions, createQuery, getClient, hasResource } from '@hcengineering/presentation'
-  import { ButtonIcon, Component, navigate } from '@hcengineering/ui'
+  import { Component, navigate } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { getObjectLinkFragment } from '@hcengineering/view-resources'
 
@@ -28,7 +30,6 @@
   import DeactivatedHeader from './DeactivatedHeader.svelte'
   import ModernProfilePopup from './ModernProfilePopup.svelte'
   import TimePresenter from './TimePresenter.svelte'
-  import { getPersonTimezone } from './utils'
 
   export let _id: Ref<Employee>
   export let disabled: boolean = false
@@ -39,13 +40,14 @@
   const hierarchy = client.getHierarchy()
 
   let employee: Employee | Person | undefined = undefined
-  let timezone: string | undefined = undefined
   let isEmployee: boolean = false
 
   $: personByRefStore = getPersonByPersonRefStore([_id])
   $: employee = $employeeByIdStore.get(_id) ?? $personByRefStore.get(_id)
   $: isEmployee = $employeeByIdStore.has(_id)
-  $: void loadPersonTimezone(employee)
+  // Read the timezone off the Employee mixin - fetching it via getAccountInfo let any client
+  // pull account data for an arbitrary person (#10874).
+  $: timezone = isEmployee ? (employee as Employee | undefined)?.timezone : undefined
 
   const levelQuery = createQuery()
 
@@ -62,16 +64,10 @@
 
   async function viewProfile (): Promise<void> {
     if (employee === undefined) return
-    const panelComponent = hierarchy.classHierarchyMixin(employee._class as Ref<Class<Doc>>, view.mixin.ObjectPanel)
+    const panelComponent = hierarchy.classHierarchyMixin(employee._class, view.mixin.ObjectPanel)
     const comp = panelComponent?.component ?? view.component.EditDoc
     const loc = await getObjectLinkFragment(hierarchy, employee, {}, comp)
     navigate(loc)
-  }
-
-  async function loadPersonTimezone (person: Employee | Person | undefined): Promise<void> {
-    if (person?.personUuid !== undefined && isEmployee) {
-      timezone = await getPersonTimezone(person?.personUuid as AccountUuid)
-    }
   }
 </script>
 
@@ -86,7 +82,13 @@
                 extension={contact.extension.EmployeePopupActions}
                 props={{ employee, icon: contact.icon.Chat, type: 'type-button-icon' }}
               />
-              <ButtonIcon icon={contact.icon.User} size="small" iconSize="small" on:click={viewProfile} />
+              <IconButton
+                icon={contact.icon.User}
+                size="small"
+                iconSize="small"
+                tooltip={{ label: contact.string.ViewProfile }}
+                on:click={viewProfile}
+              />
             </div>
           </div>
         </DeactivatedHeader>
@@ -162,7 +164,13 @@
           props={{ employee, icon: contact.icon.Chat, type: 'type-button-icon', class: 'button-container' }}
         />
         <div class="button-container">
-          <ButtonIcon icon={contact.icon.User} size="small" iconSize="small" on:click={viewProfile} />
+          <IconButton
+            icon={contact.icon.User}
+            size="small"
+            iconSize="small"
+            tooltip={{ label: contact.string.ViewProfile }}
+            on:click={viewProfile}
+          />
         </div>
       </div>
     {/if}

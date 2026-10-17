@@ -16,7 +16,8 @@
   import { createEventDispatcher } from 'svelte'
   import { copyTextToClipboard } from '@hcengineering/presentation'
   import { Button, Chevron, IconCheck, IconCopy } from '@hcengineering/ui'
-  import diffview, { DiffFile } from '@hcengineering/diffview'
+  import type { DiffFile } from '@hcengineering/diffview'
+  import diffview from '@hcengineering/diffview'
 
   import { formatFileName, isDevNullName } from '../utils'
 
@@ -44,14 +45,14 @@
       <Button
         width="min-content"
         kind="ghost"
-        padding={'0 .375rem'}
+        padding="0 .375rem"
         noFocus
         on:click={() => {
           dispatch('expand')
         }}
       >
         <svelte:fragment slot="content">
-          <Chevron size={'small'} {expanded} outline fill={'var(--caption-color)'} />
+          <Chevron size="small" {expanded} outline fill="var(--caption-color)" />
         </svelte:fragment>
       </Button>
     {/if}
@@ -62,7 +63,7 @@
 
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="hover-trans" on:click={() => copyFileNameToClipboard()}>
-      <IconCopy size={'small'} />
+      <IconCopy size="small" />
     </div>
   </div>
 
@@ -84,7 +85,7 @@
       <div class="mr-2">
         <Button
           icon={IconCheck}
-          kind={'ghost'}
+          kind="ghost"
           showTooltip={{ label: diffview.string.Viewed }}
           highlight={viewed}
           noFocus

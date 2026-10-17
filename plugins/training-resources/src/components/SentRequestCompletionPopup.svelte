@@ -66,7 +66,7 @@
   <svelte:fragment slot="item" let:item>
     <div class="flex-row-center flex-gap-4">
       <div class="flex-grow overflow-label">
-        <UserInfo size={'smaller'} value={item} />
+        <UserInfo size="smaller" value={item} />
       </div>
       <div>
         {#if item.completion.state === CompletionMapValueState.Passed}

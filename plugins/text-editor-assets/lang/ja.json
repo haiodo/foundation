@@ -1,4 +1,7 @@
 {
+  "status": {
+    "ImagePasteNotSupported": "ここには画像を貼り付けできません。コピーした内容から画像を削除して、もう一度お試しください。"
+  },
   "string": {
     "TableOfContents": "目次",
     "Suggested": "候補",
@@ -81,6 +84,7 @@
     "UnableToLoadEmbeddedContent": "リンクのプレビューを読み込めません。権限設定または非対応のコンテンツが原因です",
     "CannotConnectToCollaborationService": "コラボレーションサービスに接続できません",
     "SourceURL": "ソースURL",
-    "SelectedDocuments": "選択されたドキュメント ({count, plural, =1 {1 項目} other {# 項目}})"
+    "SelectedDocuments": "選択されたドキュメント ({count, plural, =1 {1 項目} other {# 項目}})",
+    "LatestVersion": "最新"
   }
 }

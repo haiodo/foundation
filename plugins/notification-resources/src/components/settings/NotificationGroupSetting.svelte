@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, toIdMap, groupByArray } from '@hcengineering/core'
-  import {
+  import type { IdMap, Ref } from '@hcengineering/core'
+  import core, { toIdMap, groupByArray, reduceCalls } from '@hcengineering/core'
+  import type {
     NotificationType,
     NotificationProvider,
     NotificationGroup,
@@ -27,7 +28,7 @@
   import { DropdownLabelsIntl, Grid, Label, ModernToggle } from '@hcengineering/ui'
 
   import notification from '../../plugin'
-  import { providersSettings } from '../../utils'
+  import { providersSettings } from '../../stores'
 
   export let group: Ref<NotificationGroup>
   export let settings: Map<Ref<NotificationType>, NotificationTypeSetting[]>
@@ -55,12 +56,16 @@
     prevGroup = group
   }
 
-  $: void client.findAll(notification.class.NotificationGroup, { parent: group }).then((result) => {
-    subGroups = result
+  const loadSubGroups = reduceCalls(async (g: Ref<NotificationGroup>): Promise<void> => {
+    subGroups = await client.findAll(notification.class.NotificationGroup, { parent: g })
   })
-  $: void client.findAll(notification.class.NotificationType, { group, hidden: { $ne: true } }).then((result) => {
-    allTypes = result
+
+  const loadAllTypes = reduceCalls(async (g: Ref<NotificationGroup>): Promise<void> => {
+    allTypes = await client.findAll(notification.class.NotificationType, { group: g, hidden: { $ne: true } })
   })
+
+  $: void loadSubGroups(group)
+  $: void loadAllTypes(group)
 
   $: typesMap = groupByArray(allTypes, (it) => it.subGroup ?? group)
   $: typesById = toIdMap(allTypes)
@@ -132,9 +137,7 @@
     if (ignored) return true
 
     if (provider.ignoreAll === true) {
-      return !providerDefaults.some(
-        (it) => provider._id === it.provider && it.excludeIgnore !== undefined && it.excludeIgnore.includes(type)
-      )
+      return !providerDefaults.some((it) => provider._id === it.provider && it.excludeIgnore?.includes(type) === true)
     }
 
     return false

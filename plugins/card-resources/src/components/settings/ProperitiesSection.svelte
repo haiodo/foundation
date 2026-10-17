@@ -13,12 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { MasterTag } from '@hcengineering/card'
-  import { ClassPermission, Ref } from '@hcengineering/core'
+  import type { MasterTag } from '@hcengineering/card'
+  import type { ClassPermission, Ref } from '@hcengineering/core'
   import { getClient, MessageBox } from '@hcengineering/presentation'
   import { ClassAttributes } from '@hcengineering/setting-resources'
   import setting from '@hcengineering/setting-resources/src/plugin'
-  import { ButtonIcon, showPopup } from '@hcengineering/ui'
+  import { showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import card from '../../plugin'
   import { createTypePermissions } from '../../utils'
 
@@ -62,12 +63,13 @@
   showHeader={false}
   disabled={false}
   isCard
+  showAll
 >
   <div slot="header">
-    <ButtonIcon
-      kind={'secondary'}
+    <IconButton
+      kind="secondary"
       icon={card.icon.Lock}
-      size={'small'}
+      size="small"
       tooltip={{
         label: setting.string.Restricted
       }}

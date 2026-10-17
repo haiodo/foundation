@@ -16,8 +16,8 @@
   import { createEventDispatcher, onMount } from 'svelte'
   import { Button, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import { ActivityMessagesFilter } from '@hcengineering/activity'
-  import { Ref } from '@hcengineering/core'
+  import type { ActivityMessagesFilter } from '@hcengineering/activity'
+  import type { Ref } from '@hcengineering/core'
 
   import ActivityFilterPopup from './ActivityFilterPopup.svelte'
 
@@ -59,7 +59,7 @@
 </script>
 
 <div class="buttons-group small-gap pr-2 relative">
-  <Button icon={view.icon.Configure} size={'small'} kind={'ghost'} on:click={handleOptions}>
+  <Button icon={view.icon.Configure} size="small" kind="ghost" on:click={handleOptions}>
     <svelte:fragment slot="iconRight">
       {#if enabledFilters != null && !filters.every((it) => enabledFilters?.includes(it._id))}
         <span class="marker" />

@@ -15,19 +15,17 @@
 
 import {
   AccountUuid,
-  Doc,
   isActiveMode,
   isArchivingMode,
   isDeletingMode,
   MeasureContext,
   RateLimiter,
-  TxCUD,
   WorkspaceInfoWithStatus,
   WorkspaceUuid,
   type PersonId
 } from '@hcengineering/core'
-import { toMessageEvent, normalizeEmail } from '@hcengineering/mail-common'
-import { ConsumerHandle, PlatformQueue, QueueTopic, type StorageAdapter } from '@hcengineering/server-core'
+import { normalizeEmail } from '@hcengineering/mail-common'
+import { PlatformQueue, QueueTopic, type StorageAdapter } from '@hcengineering/server-core'
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { getAccountClient } from '@hcengineering/server-client'
 
@@ -49,15 +47,14 @@ import { getIntegrationClient } from './integrations'
 
 import { AuthProvider } from './gmail/auth'
 import { AccountClient } from '@hcengineering/account-client'
-import { CreateMessageEvent } from '@hcengineering/communication-sdk-types'
 
 export class GmailController {
   private readonly workspaces: Map<string, WorkspaceClient> = new Map<string, WorkspaceClient>()
 
   private readonly credentials: ProjectCredentials
   private readonly clients: Map<PersonId, Map<WorkspaceUuid, GmailClient>> = new Map<
-  PersonId,
-  Map<WorkspaceUuid, GmailClient>
+    PersonId,
+    Map<WorkspaceUuid, GmailClient>
   >()
 
   private readonly personIdByEmail = new Map<string, PersonId>()
@@ -65,7 +62,7 @@ export class GmailController {
   private readonly initLimitter = new RateLimiter(config.InitLimit)
   private readonly authProvider
   private queue: PlatformQueue | undefined
-  private txConsumer: ConsumerHandle | undefined
+  // private txConsumer: ConsumerHandle | undefined
 
   protected static _instance: GmailController
 
@@ -136,34 +133,10 @@ export class GmailController {
         this.ctx.error('Queue not found')
         return
       }
-      this.txConsumer = this.queue.createConsumer<TxCUD<Doc>>(
-        this.ctx,
-        QueueTopic.Tx,
-        this.queue.getClientId(),
-        async (ctx, msg) => {
-          const workspaceUuid = msg.workspace
-
-          const messageEvent = toMessageEvent(msg.value)
-          if (messageEvent !== undefined) {
-            await this.handleNewMessage(workspaceUuid, messageEvent)
-          }
-        },
-        {
-          fromBegining: false // Set to true to process all historical messages
-        }
-      )
       this.ctx.info('Queue consumer started', { topic: QueueTopic.Tx })
     } catch (err: any) {
       this.ctx.error('Failed to start queue consumer', { topic: QueueTopic.Tx })
     }
-  }
-
-  async handleNewMessage (workspaceUuid: WorkspaceUuid, message: CreateMessageEvent): Promise<void> {
-    const client = this.workspaces.get(workspaceUuid)
-    if (client === undefined) {
-      return
-    }
-    await client.handleNewMessage(message)
   }
 
   async checkPendingWorkspaces (workspaceIds: Set<WorkspaceUuid>, sysClient: AccountClient): Promise<void> {
@@ -213,7 +186,7 @@ export class GmailController {
           continue
         }
 
-        // So we will not start it one more time.
+        // So it is not started again.
         unprocessedWorkspaces.delete(workspace)
 
         const tokens = allTokens.get(workspace) ?? []
@@ -352,9 +325,6 @@ export class GmailController {
       await workspace.close()
     }
     this.workspaces.clear()
-    if (this.txConsumer !== undefined) {
-      await this.txConsumer.close()
-    }
     if (this.queue !== undefined) {
       await this.queue.shutdown()
     }

@@ -64,7 +64,9 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
       return
     }
     if (this.wasInit === false) {
-      this.wasInit = (async () => {
+      this.wasInit = ctx.with('init-space-permissions', {}, async (ctx) => {
+        // System context: the first request's user must not filter what is loaded
+        ctx.contextData = undefined
         const spaces: Space[] = (await this.next?.findAll(ctx, core.class.Space, {})) ?? []
 
         for (const space of spaces) {
@@ -74,10 +76,15 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
         }
 
         this.whitelistSpaces = new Set(spaces.filter((s) => !this.isTypedSpaceClass(s._class)).map((p) => p._id))
-      })()
+      })
     }
     if (this.wasInit instanceof Promise) {
-      await this.wasInit
+      try {
+        await this.wasInit
+      } catch (err: any) {
+        this.wasInit = false
+        throw err
+      }
       this.wasInit = true
     }
   }
@@ -100,9 +107,7 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
       const roleMembers: AccountUuid[] = assignment[role._id] ?? []
 
       for (const member of roleMembers) {
-        if (this.permissionsBySpace[spaceId][member] === undefined) {
-          this.permissionsBySpace[spaceId][member] = new Set()
-        }
+        this.permissionsBySpace[spaceId][member] ??= new Set()
 
         for (const permission of role.permissions) {
           const p = permissions.find((p) => p._id === permission)
@@ -307,7 +312,7 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
   private handleRemove (tx: TxCUD<Space>): void {
     const removeTx = tx as TxRemoveDoc<Space>
     if (!this.context.hierarchy.isDerived(removeTx.objectClass, core.class.Space)) return
-    if (removeTx._class !== core.class.TxCreateDoc) return
+    if (removeTx._class !== core.class.TxRemoveDoc) return
     // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete this.permissionsBySpace[tx.objectId]
     // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
@@ -346,7 +351,8 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
     // And it's not currently possible to delete a role
     const updateTx = actualTx as TxUpdateDoc<Role>
 
-    if (updateTx.operations.permissions === undefined) {
+    const newPermissions = updateTx.operations.permissions
+    if (newPermissions === undefined) {
       return
     }
 
@@ -363,14 +369,13 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
       }
 
       const assignment: RolesAssignment = this.assignmentBySpace[spaceId]
-      const roles = this.getRoles(spaceTypeId)
-      const targetRole = roles.find((r) => r._id === updateTx.objectId)
+      const allRoles = this.getRoles(spaceTypeId)
 
-      if (targetRole === undefined) {
+      if (!allRoles.some((r) => r._id === updateTx.objectId)) {
         continue
       }
-
-      targetRole.permissions = updateTx.operations.permissions
+      // The role belongs to a model shared across workspaces, patch a copy instead of writing into it.
+      const roles = allRoles.map((r) => (r._id === updateTx.objectId ? { ...r, permissions: newPermissions } : r))
 
       this.permissionsBySpace[spaceId] = {}
       this.setPermissions(spaceId, roles, assignment, this.getPermissions())

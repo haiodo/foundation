@@ -14,12 +14,8 @@
 // limitations under the License.
 //
 
-// Disconnect/recovery tests for server-initiated binary requests.
-// Reproduces hangs that happen when a worker dies silently and verifies that
-// round-robin retry / reconnect-resend keep tasks flowing without manual restart.
-//
-// To keep tests fast we shrink ping/reconnect/hang thresholds on the server instance
-// instead of waiting for production-sized timeouts.
+// Reproduces hangs when a worker dies silently mid-request; retry/reconnect-resend keeps tasks
+// flowing without a restart. Thresholds are shrunk, not production-sized, for test speed.
 
 import WebSocket from 'ws'
 import { ClisrServer } from '../server'
@@ -364,7 +360,7 @@ describe('binary request disconnect/recovery', () => {
         undefined,
         (s) => s.clientHost === 'silent'
       )
-      // Start a guard observer: when the promise rejects (round-robin retries), we will
+      // Start a guard observer: when the promise rejects (round-robin retries), we
       // exit the inner round-robin via a fake healthy client matching the same filter.
       void reqP.catch(() => {})
 
@@ -374,8 +370,11 @@ describe('binary request disconnect/recovery', () => {
       const sess = Array.from((server as any).sessions.values())[0] as any
       sess.lastPing = Date.now() - (server.pingTimeout + 100)
       await (server as any).handleTick()
+      // A dead worker does not come back. Left open, this one reconnects at once and, if the
+      // healthy client is slower to connect, takes the retried request and never answers it.
+      await client.close()
       expect((server as any).sessions.size).toBe(0)
-      expect((server as any).reconnectQueue.size).toBe(1)
+      expect((server as any).reconnectQueue.has(sess.sessionId)).toBe(true)
 
       // Watch the inner per-session request reject. We tap into requests map BEFORE second
       // handleTick clears it.
@@ -389,13 +388,13 @@ describe('binary request disconnect/recovery', () => {
       })
 
       // Force reconnect window to elapse and tick again.
-      const queued = Array.from((server as any).reconnectQueue.values())[0] as any
+      const queued = (server as any).reconnectQueue.get(sess.sessionId)
       queued.lastPing = Date.now() - (server.reconnectTimeout + 100)
       await (server as any).handleTick()
       // Allow the rejection callback to flush.
       await new Promise((resolve) => setTimeout(resolve, 10))
 
-      expect((server as any).reconnectQueue.size).toBe(0)
+      expect((server as any).reconnectQueue.has(sess.sessionId)).toBe(false)
       expect(rejected).toBe(true)
       expect(rejectError ?? '').toContain('Session reconnect timeout')
 
@@ -422,6 +421,35 @@ describe('binary request disconnect/recovery', () => {
       try {
         await client.close()
       } catch (_e) {}
+      await server.close()
+    }
+  })
+
+  it('late socket close after a ping timeout does not bring the expired session back', async () => {
+    const { server, port, ctx } = await startServer()
+    const events: string[] = []
+    server.eventHandlers.push(async (_sid, event) => {
+      events.push(event)
+    })
+    const client = await makeClient(ctx, port, async (data) => data, 'dead')
+    await waitFor(() => (server as any).sessions.size === 1)
+
+    try {
+      const sess = Array.from((server as any).sessions.values())[0] as any
+      sess.lastPing = Date.now() - (server.pingTimeout + 100)
+      await (server as any).handleTick()
+      await client.close()
+      const queued = (server as any).reconnectQueue.get(sess.sessionId)
+      queued.lastPing = Date.now() - (server.reconnectTimeout + 100)
+      await (server as any).handleTick()
+      expect(events.filter((e) => e === 'disconnect')).toHaveLength(1)
+
+      // The ws 'close' of the timed-out socket lands after both ticks. Requeued, the session would
+      // expire again on the background tick within reconnectTimeout and report a second disconnect.
+      await new Promise((resolve) => setTimeout(resolve, server.reconnectTimeout * 3))
+      expect((server as any).reconnectQueue.has(sess.sessionId)).toBe(false)
+      expect(events.filter((e) => e === 'disconnect')).toHaveLength(1)
+    } finally {
       await server.close()
     }
   })

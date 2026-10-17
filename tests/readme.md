@@ -7,11 +7,19 @@ Two variants, first use a local build and use an already build version.
 ### A local build
 
 ```bash
-rush update
-rush build
-rush bundle
-rush docker:build
+pnpm install
+pnpm build
+pnpm bundle
+pnpm docker:build
 ./prepare.sh
+```
+
+To try a code change on a running stand without losing its data, rebuild the images and recreate only the service containers and nginx - postgres, minio, redpanda and elastic keep running with their volumes:
+
+```bash
+pnpm docker:build
+./reload-pg.sh             # every service built from local images
+./reload-pg.sh front0      # only the listed services
 ```
 
 ### An already build version
@@ -22,6 +30,17 @@ rush docker:build
 ./reset-version.sh # To go back to local build
 
 # open http://localhost:8083
+```
+
+### Custom image for a single service
+
+Every platform service image can be replaced through `<IMAGE_NAME>_IMAGE`, where the name is the
+image name in upper case with `-` turned into `_` (`transactor` -> `TRANSACTOR_IMAGE`,
+`rekoni-service` -> `REKONI_SERVICE_IMAGE`). Unset variables keep the default image. The version
+override file from `create-version-override.sh` pins every image and takes precedence.
+
+```bash
+TRANSACTOR_IMAGE=my-registry/transactor:dev ./prepare-pg.sh
 ```
 
 ### Restore to pure DB
@@ -35,9 +54,9 @@ To purge content of sanity workspace following command could be used.
 ## Prepare local dev environment
 
 ```bash
-rush update
-rush build
-rush bundle
+pnpm install
+pnpm build
+pnpm bundle
 ./create-local.sh
 ```
 
@@ -53,28 +72,88 @@ To purge content of sanity workspace following command could be used.
 
 ```bash
 cd ./sanity
-rushx uitest # for docker setup
-rushx dev-uitest # for dev setup
+pnpm run uitest # for docker setup
+pnpm run dev-uitest # for dev setup
 ```
 
 ## Debugging UI tests
 
 ```bash
 cd ./sanity
-rushx debug -g test-name # for docker setup
-rushx dev-debug -g test-name # for local setup
+pnpm run debug -g test-name # for docker setup
+pnpm run dev-debug -g test-name # for local setup
 ```
 
 ## Capturing new testing scenarios
 
 ```bash
-rushx codegen # for docker setup
-rushx dev-codegen # for local setup
+pnpm run codegen # for docker setup
+pnpm run dev-codegen # for local setup
 ```
+
+## AI bot tests
+
+Two levels are configured in `tests/config-aibot.yaml`:
+
+- **`low`** (default) — mock provider in echo mode: replies with the whole received context as
+  markdown, so tests assert what actually reached the model. Offline, runs in CI.
+- **`middle`** — a real local model via the `aibot_client_llm` clisr worker. Only the `@llm`
+  suite uses it; without a model server the level simply has no worker.
+
+Base tests need nothing extra — they are part of `pnpm run uitest`.
+
+### Real-LLM suite (@llm)
+
+1. Serve a mid-size model on the host over an OpenAI-compatible API at
+   `http://localhost:8000/v1` (LM Studio, llama.cpp, vLLM). Override with `LLM_TEST_ENDPOINT`,
+   `LLM_TEST_MODEL`, `LLM_TEST_API_KEY`.
+2. The stand already runs `aibot_client_llm`; it idles until the endpoint answers.
+3. Run:
+
+```bash
+cd tests/sanity
+pnpm run run-uitests                 # whole @llm suite
+pnpm run run-uitests -g 'factual'    # single test
+```
+
+Tests switch the workspace to `middle` through the ai-bot API (`POST /levels/workspace`,
+owner or system token). Replies are not deterministic, so they assert behaviour (an answer
+arrives, a fact is carried across turns), not exact text.
+
+### Real transcription (ASR)
+
+The default stand has no ASR: the `asr:` provider in `config-aibot.yaml` is off and nothing is transcribed. Two opt-in modes add a clisr STT worker (`aibot_client_asr`, `docker-compose.asr.yaml`) and turn the provider on:
+
+```bash
+./prepare-pg.sh --asr        # oaitt container (intabiafusion/oaitt-onnx, GigaAM ONNX on CPU), docker-compose.oaitt.yaml
+./prepare-pg.sh --asr-local  # a transcriber already running on the host at :9007 (override: ASR_LOCAL_URL)
+```
+
+The worker calls the OpenAI-compatible `/v1/audio/transcriptions`; its registry is `config-aibot-asr.yaml`.
 
 ## Test authoring.
 
 Please update all navigation with using PlatformURI for CI and dev environment compatible testing.
+
+## Time-machine + webhook
+
+`time-machine` (delayed-event scheduler) and `webhook` (inbound webhook API) run as part of this
+stand (`docker-compose.yaml`). `time-machine`'s `POLL_INTERVAL` is set to 2s here (vs. the 20s
+prod default) so a scheduled-retry test doesn't have to wait.
+
+Check it's alive:
+
+```bash
+docker compose logs time-machine | grep 'Time Machine worker started'
+curl http://localhost:8083/_webhook/health   # {"status":"ok"}
+```
+
+Inspect the delayed-events table (`time_machine.delayed_events`, schema created by the service
+itself on start):
+
+```bash
+docker compose exec postgres psql -U postgres -p 5433 -c 'select * from time_machine.delayed_events;'
+```
 
 ## Generate Allure
 

@@ -13,9 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, IntlString } from '@hcengineering/platform'
-  import { AnySvelteComponent, Icon, IconCheck, IconChevronRight, Label, tooltip } from '@hcengineering/ui'
-  import { ComponentType, createEventDispatcher } from 'svelte'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { Icon, IconCheck, IconChevronRight, Label, tooltip } from '@hcengineering/ui'
+  import type { ComponentType } from 'svelte'
+  import { createEventDispatcher } from 'svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -48,7 +50,7 @@
   <button class="mediaPopupItem-header" on:click={handleClick}>
     <div class="mediaPopupItem-header__icon">
       {#if icon !== undefined}
-        <Icon {icon} {iconProps} size={'small'} />
+        <Icon {icon} {iconProps} size="small" />
       {/if}
     </div>
 
@@ -66,14 +68,14 @@
     {#if selectable}
       <div class="mediaPopupItem-header__check">
         {#if selected}
-          <IconCheck size={'small'} />
+          <IconCheck size="small" />
         {/if}
       </div>
     {/if}
 
     {#if expandable && !disabled}
       <div class="mediaPopupItem-header__chevron">
-        <Icon icon={IconChevronRight} size={'small'} />
+        <Icon icon={IconChevronRight} size="small" />
       </div>
     {/if}
   </button>

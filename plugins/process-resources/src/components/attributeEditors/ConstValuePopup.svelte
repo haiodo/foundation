@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AnyAttribute } from '@hcengineering/core'
+  import type { AnyAttribute } from '@hcengineering/core'
   import { Card, findAttributeEditor, getClient } from '@hcengineering/presentation'
   import { Component } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -36,7 +36,7 @@
   let value: any | undefined = undefined
 </script>
 
-<Card width={'menu'} label={attribute.label} canSave={value != null} on:close okAction={save}>
+<Card width="menu" label={attribute.label} canSave={value != null} on:close okAction={save}>
   {#if editor != null}
     <Component
       is={editor}

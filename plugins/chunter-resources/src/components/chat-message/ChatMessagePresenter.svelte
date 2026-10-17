@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,33 +14,35 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import activity, { ActivityMessage, ActivityMessageViewType } from '@hcengineering/activity'
-  import {
-    ActivityDocLink,
-    ActivityMessageTemplate,
-    MessageInlineAction,
-    editingMessageStore
-  } from '@hcengineering/activity-resources'
-  import { Attachment } from '@hcengineering/attachment'
-  import { AttachmentDocList, AttachmentImageSize } from '@hcengineering/attachment-resources'
-  import chunter, { ChatMessage } from '@hcengineering/chunter'
-  import contact, { Employee, getCurrentEmployee, Person, SocialIdentity } from '@hcengineering/contact'
+  import type { ActivityMessage, ActivityMessageViewType } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
+  import type { MessageInlineAction } from '@hcengineering/activity-resources'
+  import { ActivityDocLink, ActivityMessageTemplate, editingMessageStore } from '@hcengineering/activity-resources'
+  import type { Attachment } from '@hcengineering/attachment'
+  import type { AttachmentImageSize } from '@hcengineering/attachment-resources'
+  import { AttachmentDocList } from '@hcengineering/attachment-resources'
+  import type { ChatMessage } from '@hcengineering/chunter'
+  import chunter from '@hcengineering/chunter'
+  import type { Employee, Person, SocialIdentity } from '@hcengineering/contact'
+  import contact, { getCurrentEmployee } from '@hcengineering/contact'
   import { CombineAvatars, getPersonByPersonIdCb, getSocialIdByPersonIdCb } from '@hcengineering/contact-resources'
-  import { AccountUuid, Class, Doc, Markup, Ref, Space, WithLookup } from '@hcengineering/core'
+  import type { AccountUuid, Class, Doc, Markup, Ref, Space, WithLookup } from '@hcengineering/core'
   import { getClient, MessageViewer, pendingCreatedDocs } from '@hcengineering/presentation'
   import { EmptyMarkup } from '@hcengineering/text'
-  import { Action, Button, IconEdit, languageStore, ShowMore } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { Button, IconEdit, languageStore, deviceOptionsStore } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { getDocLinkTitle } from '@hcengineering/view-resources'
-  import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
 
   import { shownTranslatedMessagesStore, translatedMessagesStore, translatingMessagesStore } from '../../stores'
-  import ChatMessageHeader from './ChatMessageHeader.svelte'
   import ChatMessageInput from './ChatMessageInput.svelte'
   import DoubleCheck from '../icons/DoubleCheck.svelte'
   import MessageReadMarker from './MessageReadMarker.svelte'
+  import MessageChannelLabel from './MessageChannelLabel.svelte'
   import MessageReadPopup from './MessageReadPopup.svelte'
+  import ForwardedMessagePresenter from '../ForwardedMessagePresenter.svelte'
+  import { replyToMessage } from '../../utils'
 
   export let value: WithLookup<ChatMessage> | undefined
   export let doc: Doc | undefined = undefined
@@ -56,14 +59,13 @@
   export let hoverable = true
   export let inline = false
   export let hoverStyles: 'filledHover' = 'filledHover'
-  export let withShowMore: boolean = true
   export let attachmentImageSize: AttachmentImageSize = 'x-large'
   export let videoPreload = false
-  export let hideLink = false
-  export let compact = false
   export let readonly = false
   export let type: ActivityMessageViewType = 'default'
   export let padding: string | null = null
+  export let timeFormat: 'time' | 'full' = 'time'
+  export let showChannel: boolean = false
   export let onClick: (() => void) | undefined = undefined
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
 
@@ -112,10 +114,12 @@
     originalText = value?.message
   }
 
-  $: value !== undefined &&
+  $: void (
+    value !== undefined &&
     getParentMessage(value.attachedToClass, value.attachedTo, value.space).then((res) => {
-      parentMessage = res as ActivityMessage
+      parentMessage = res
     })
+  )
 
   $: if (doc !== undefined && value?.attachedTo === doc._id) {
     object = doc
@@ -126,7 +130,7 @@
   }
 
   let stale = false
-  let markStaleId: NodeJS.Timeout | undefined
+  let markStaleId: ReturnType<typeof setTimeout> | undefined
   $: pending = value?._id !== undefined && $pendingCreatedDocs[value._id]
   $: if (pending) {
     markStaleId = setTimeout(() => {
@@ -155,7 +159,7 @@
     editingMessageStore.set(value._id)
   }
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
   const readStateByDocStore = inboxClient.readStateByDoc
 
   $: if (value != null) {
@@ -170,7 +174,7 @@
   $: isEditing = $editingMessageStore === value?._id
   let additionalActions: Action[] = []
 
-  $: isOwn = person !== undefined && person._id === me
+  $: isOwn = person?._id === me
 
   $: additionalActions = [
     ...(isOwn
@@ -179,7 +183,8 @@
             label: activity.string.Edit,
             icon: IconEdit,
             group: 'edit',
-            action: handleEditAction
+            action: handleEditAction,
+            order: 1
           }
         ]
       : []),
@@ -254,6 +259,37 @@
   } else {
     displayText = value?.message ?? EmptyMarkup
   }
+
+  async function handleDbClick (e: MouseEvent): Promise<void> {
+    if ($deviceOptionsStore.isMobile) return
+    if (isEditing || value == null) return
+
+    const target = e.target as HTMLElement | null
+    if (
+      target?.closest(
+        '.replies-container, .replies, .hulyReactions-container, .reactions, .actions, .gallery, .attachment-preview, .forwarded-message, .read-marker, .avatar, .socialIcon, .saveMarker, .header, button, input, textarea, img, [role="button"]'
+      )
+    ) {
+      return
+    }
+    // Double click on a word selects it; reply only on empty space
+    if (isOverText(e.clientX, e.clientY)) return
+
+    e.preventDefault()
+    e.stopPropagation()
+    window.getSelection()?.removeAllRanges()
+
+    await replyToMessage(value)
+  }
+
+  function isOverText (x: number, y: number): boolean {
+    const node =
+      document.caretPositionFromPoint?.(x, y)?.offsetNode ?? document.caretRangeFromPoint?.(x, y)?.startContainer
+    if (node?.nodeType !== Node.TEXT_NODE) return false
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    return Array.from(range.getClientRects()).some((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
+  }
 </script>
 
 {#if inline && object}
@@ -290,44 +326,36 @@
       ? [chunter.action.TranslateMessage]
       : [chunter.action.ShowOriginalMessage]}
     socialIcon={socialProvider?.icon}
-    showDatePreposition={hideLink}
     {inlineActions}
     {type}
     {padding}
+    {timeFormat}
     {onClick}
     {onReply}
+    on:dblclick={handleDbClick}
   >
     <svelte:fragment slot="header">
-      <ChatMessageHeader label={chunter.string.LeftComment} />
+      {#if showChannel}
+        <MessageChannelLabel message={value} />
+      {/if}
     </svelte:fragment>
     <svelte:fragment slot="afterTime">
       {#if !pending && isOwn && readState}
-        <div class="read-marker">
+        <div class="read-marker" class:center={type !== 'short'}>
           <MessageReadMarker bind:readEmployees createdOn={value.createdOn ?? value.modifiedOn} {readState} />
         </div>
       {/if}
     </svelte:fragment>
     <svelte:fragment slot="content">
       {#if !isEditing}
-        {#if withShowMore}
-          <ShowMore limit={compact ? 80 : undefined}>
-            <div class="clear-mins" {...!pending && { 'data-delivered': true }}>
-              <MessageViewer message={displayText} />
-              {#if (value.attachments ?? 0) > 0}
-                <div class="mt-2" />
-              {/if}
-              <AttachmentDocList {value} {attachments} imageSize={attachmentImageSize} {videoPreload} {isOwn} />
-            </div>
-          </ShowMore>
-        {:else}
-          <div class="clear-mins" {...!pending && { 'data-delivered': true }}>
-            <MessageViewer message={displayText} />
-            {#if (value.attachments ?? 0) > 0}
-              <div class="mt-2" />
-            {/if}
-            <AttachmentDocList {value} {attachments} imageSize={attachmentImageSize} {videoPreload} {isOwn} />
-          </div>
-        {/if}
+        <div class="clear-mins" {...!pending && { 'data-delivered': true }}>
+          <MessageViewer message={displayText} />
+          {#if (value.attachments ?? 0) > 0}
+            <div class="mt-2" />
+          {/if}
+          <AttachmentDocList {value} {attachments} imageSize={attachmentImageSize} {videoPreload} {isOwn} />
+          <ForwardedMessagePresenter parent={value} {object} />
+        </div>
       {:else if object}
         <ChatMessageInput
           bind:this={refInput}
@@ -358,6 +386,39 @@
   .read-marker {
     display: flex;
     margin-left: 0.25rem;
+    max-height: 1.25rem;
+
+    &.center {
+      margin-bottom: 0.125rem;
+      align-items: center;
+    }
+  }
+  .forwarded-header {
+    display: flex;
     align-items: center;
+    gap: 4px;
+    font-size: 0.85em;
+    color: var(--global-subtle-ui-Color);
+    margin-bottom: 4px;
+  }
+  .reply-block {
+    border-left: 2px solid var(--global-brand-BackgroundColor);
+    background: var(--global-surface-01-BackgroundColor);
+    padding: 4px 8px;
+    margin-bottom: 6px;
+    border-radius: 4px;
+  }
+  .reply-author {
+    font-weight: 500;
+    font-size: 0.85em;
+    margin-bottom: 2px;
+  }
+  .reply-text {
+    font-size: 0.85em;
+    color: var(--global-subtle-ui-Color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-height: 2em;
   }
 </style>

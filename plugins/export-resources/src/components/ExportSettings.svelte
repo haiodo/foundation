@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import { getMetadata } from '@hcengineering/platform'
   import presentation, { MessageBox } from '@hcengineering/presentation'
   import { Breadcrumb, Button, DropdownLabelsIntl, Header, Label, Scroller, showPopup } from '@hcengineering/ui'
@@ -87,11 +87,11 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={plugin.icon.Export} label={plugin.string.Export} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={plugin.icon.Export} label={plugin.string.Export} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
-    <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+    <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
       <div class="hulyComponent-content">
         <div class="flex-row-center p-2 flex-no-shrink">
           <div class="p-1 min-w-80">
@@ -124,8 +124,8 @@
         <div class="flex-row-center p-2">
           <Button
             label={plugin.string.Export}
-            kind={'primary'}
-            size={'medium'}
+            kind="primary"
+            size="medium"
             disabled={isExporting}
             on:click={exportData}
           />

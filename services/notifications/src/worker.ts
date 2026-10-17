@@ -14,7 +14,8 @@
 //
 
 import core, {
-  type Branding,
+  AccountUuid,
+  Branding,
   Class,
   Doc,
   Hierarchy,
@@ -23,21 +24,54 @@ import core, {
   Ref,
   systemAccountUuid,
   Tx,
+  TxCreateDoc,
   TxCUD,
   TxProcessor,
+  TxRemoveDoc,
+  TxUpdateDoc,
+  UserStatus,
   WorkspaceUuid
 } from '@hcengineering/core'
 import activity from '@hcengineering/activity'
 import { generateToken } from '@hcengineering/server-token'
 import { createRestClient } from '@hcengineering/api-client'
 import { StorageAdapter } from '@hcengineering/storage'
-import notification, { TxNotificationType } from '@hcengineering/notification'
+import {
+  loadBrandingMap,
+  type PlatformQueue,
+  type PlatformQueueProducer,
+  QueueTopic,
+  type QueueUserMessage,
+  userEvents
+} from '@hcengineering/server-core'
+import { getAccountClient } from '@hcengineering/server-client'
+import { aiBotEmailSocialKey } from '@hcengineering/ai-bot'
+import platform from '@hcengineering/platform'
+import notification, {
+  TxNotificationType,
+  QueueNotificationMessage,
+  DocNotifyContext,
+  ReadAllNotificationAction,
+  ReadState
+} from '@hcengineering/notification'
 import { buildStorageFromConfig, storageConfigFrom } from '@hcengineering/server-storage'
-import { loadBrandingMap } from '@hcengineering/server-core'
+import { sharedSystemModel } from '@hcengineering/middleware'
+import { PersonSpace } from '@hcengineering/contact'
+import { LRUCache } from 'lru-cache'
 
 import Workspace from './workspace'
-import { getTransactorApiEndpoint, getWorkspaceInfo, isTxTrigger, MAX_NOTIFICATION_TYPE_PRIORITY } from './utils'
+import type { HeldPush } from './pendingPush'
+import type { TimeMachineMessage } from './types'
+import { getTransactorApiEndpoint, getWorkspaceInfo, isTxTrigger, MAX_NOTIFICATION_TYPE_PRIORITY } from './utils/utils'
 import config from './config'
+import { readPositions } from './module/read'
+
+// The bot can be created after the service starts, so an unresolved lookup is repeated.
+const AI_BOT_LOOKUP_INTERVAL_MS = 60 * 1000
+// A cross-workspace flag is re-checked at most this often per account; real changes go by the contexts.
+const RECHECK_MS = 60 * 1000
+// A re-check resends an unchanged flag only this long after the last send: a write around the service heals.
+const SENT_FLAG_TTL_MS = 10 * 60 * 1000
 
 export class Worker {
   private readonly sysHierarchy = new Hierarchy()
@@ -50,18 +84,41 @@ export class Worker {
 
   private readonly storage: StorageAdapter
 
-  private readonly interval: NodeJS.Timeout | undefined = undefined
+  private readonly clearInterval: NodeJS.Timeout | undefined = undefined
+  private readonly flushInterval: NodeJS.Timeout | undefined = undefined
+
+  private readonly pendingStatusUpdates = new Map<AccountUuid, Record<WorkspaceUuid, boolean>>()
+  private flushing: Promise<void> | undefined
+  private readonly rechecked = new LRUCache<string, true>({ max: 10000, ttl: RECHECK_MS })
+  private readonly sentFlags = new LRUCache<string, boolean>({ max: 10000, ttl: SENT_FLAG_TTL_MS })
+
+  private readonly pendingWorkspaces = new Map<WorkspaceUuid, Promise<Workspace | undefined>>()
+  private readonly userEventProducer: PlatformQueueProducer<QueueUserMessage>
+  private readonly producer: PlatformQueueProducer<QueueNotificationMessage>
+  private readonly timeMachine: PlatformQueueProducer<TimeMachineMessage>
+
+  private aiBotAccountUuid?: AccountUuid
+  private aiBotLookup?: Promise<void>
+  private aiBotInitialLookup?: Promise<void>
+  private aiBotLookupAt = 0
 
   private readonly brandingMap = loadBrandingMap(config.BrandingPath)
 
   constructor (
-    ctx: MeasureContext,
-    private readonly modelTxes: Tx[]
+    private readonly ctx: MeasureContext,
+    private readonly modelTxes: Tx[],
+    private readonly queue: PlatformQueue
   ) {
-    for (const tx of modelTxes) {
-      this.sysHierarchy.tx(tx)
-    }
+    // addTxes feeds sysHierarchy itself, a separate pass would just deserialize everything twice.
     this.sysModel.addTxes(ctx, modelTxes, true)
+
+    this.userEventProducer = this.queue.getProducer(
+      ctx.newChild('user-event-producer', {}, { span: false }),
+      QueueTopic.Users
+    )
+
+    this.producer = queue.getProducer<QueueNotificationMessage>(ctx, QueueTopic.UserNotifications)
+    this.timeMachine = queue.getProducer<TimeMachineMessage>(ctx, QueueTopic.TimeMachine)
 
     this.storage = buildStorageFromConfig(storageConfigFrom(config.StorageConfig))
     this.txTypes = this.sysModel
@@ -70,10 +127,20 @@ export class Worker {
     this.triggerClasses = [
       notification.class.ReadState,
       activity.class.ActivityMessage,
+      activity.class.Reaction,
+      notification.class.ReadNotificationAction,
+      notification.class.ReadAllNotificationAction,
+      notification.class.ClearAllNotificationAction,
+      notification.class.CreateNotificationAction,
       ...this.txTypes.map((it) => it.objectClass)
     ].filter((it) => it !== core.class.Doc)
 
-    this.interval = setInterval(
+    // Shared with every workspace: frozen, a stray direct write throws instead of corrupting neighbours.
+    if (sharedSystemModel) {
+      this.sysModel.freeze()
+    }
+
+    this.clearInterval = setInterval(
       () => {
         const now = Date.now()
         for (const [uuid, workspace] of this.workspaces.entries()) {
@@ -85,8 +152,94 @@ export class Worker {
           this.workspaces.delete(uuid)
         }
       },
-      5 * 60 * 1000
+      5 * 60 * 1000 // 5 minutes
     )
+
+    this.flushInterval = setInterval(() => {
+      void this.flushPendingUpdates()
+    }, 1000)
+  }
+
+  private async flushPendingUpdates (): Promise<void> {
+    // One flush at a time: an overlapping one could overtake an older value of the same user and workspace.
+    if (this.flushing !== undefined || this.pendingStatusUpdates.size === 0) return
+    this.flushing = this.sendPendingUpdates().finally(() => {
+      this.flushing = undefined
+    })
+    await this.flushing
+  }
+
+  private async sendPendingUpdates (): Promise<void> {
+    const updates = Array.from(this.pendingStatusUpdates.entries())
+    this.pendingStatusUpdates.clear()
+    const timestamp = Date.now()
+
+    const pending: { user: AccountUuid, wsUuid: WorkspaceUuid, hasUnread: boolean }[] = []
+    for (const [user, statuses] of updates) {
+      for (const [wsUuid, hasUnread] of Object.entries(statuses)) {
+        pending.push({ user, wsUuid: wsUuid as WorkspaceUuid, hasUnread })
+      }
+    }
+
+    const batchSize = 25
+    while (pending.length > 0) {
+      const batch = pending.splice(0, batchSize)
+      const results = await Promise.allSettled(
+        batch.map(({ user, wsUuid, hasUnread }) =>
+          this.userEventProducer.send(
+            this.ctx,
+            wsUuid,
+            [userEvents.notifyStatusChanged({ user, hasUnread, timestamp })],
+            user
+          )
+        )
+      )
+      results.forEach((res, index) => {
+        const { user, wsUuid, hasUnread } = batch[index]
+        if (res.status !== 'rejected') {
+          this.sentFlags.set(`${user}:${wsUuid}`, hasUnread)
+          return
+        }
+        this.ctx.error('Failed to send notifyStatusChanged to queue', { e: res.reason, user, wsUuid, hasUnread })
+
+        // Keep the failed flag for the next tick unless a newer one arrived meanwhile.
+        const currentMap = this.pendingStatusUpdates.get(user) ?? {}
+        this.pendingStatusUpdates.set(user, currentMap)
+        currentMap[wsUuid] ??= hasUnread
+      })
+    }
+  }
+
+  public async getAiBotAccount (): Promise<AccountUuid | undefined> {
+    if (
+      this.aiBotAccountUuid == null &&
+      this.aiBotLookup == null &&
+      Date.now() - this.aiBotLookupAt >= AI_BOT_LOOKUP_INTERVAL_MS
+    ) {
+      this.aiBotLookupAt = Date.now()
+      this.aiBotLookup = this.resolveAiBotAccount().finally(() => {
+        this.aiBotLookup = undefined
+      })
+      this.aiBotInitialLookup ??= this.aiBotLookup
+    }
+    // Only the first lookup is awaited; later ones run in the background so a slow account
+    // service never stalls tx processing while the bot does not exist.
+    await this.aiBotInitialLookup
+    return this.aiBotAccountUuid
+  }
+
+  private async resolveAiBotAccount (): Promise<void> {
+    if (this.aiBotAccountUuid != null) return
+    try {
+      const token = generateToken(systemAccountUuid, undefined, { service: config.ServiceId })
+      const client = getAccountClient(token)
+      const socialId = await client.findFullSocialIdBySocialKey(aiBotEmailSocialKey)
+      if (socialId != null) {
+        this.aiBotAccountUuid = socialId.personUuid as AccountUuid
+      }
+    } catch (e) {
+      this.ctx.error('Failed to resolve AI bot account', { e })
+    }
   }
 
   async tx (ctx: MeasureContext, ws: WorkspaceUuid, _tx: Tx): Promise<void> {
@@ -94,49 +247,268 @@ export class Worker {
 
     const tx = _tx as TxCUD<Doc>
 
+    if (this.sysHierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) {
+      await this.updateUserNotifyStatus(ctx, ws, tx as TxCUD<DocNotifyContext>)
+    }
+
     const exists = this.workspaces.get(ws)
 
-    if (exists !== undefined) {
-      await exists.tx(tx)
+    if (tx.meta?.silent === true && exists === undefined) {
       return
     }
 
-    if (!isTxTrigger(this.sysHierarchy, tx, this.triggerClasses, this.txTypes)) {
+    const isTrigger = isTxTrigger(this.sysHierarchy, tx, this.triggerClasses, this.txTypes)
+
+    if (exists === undefined && !isTrigger) {
       return
     }
 
-    const token = generateToken(systemAccountUuid, ws, { service: config.ServiceId })
-    const wsInfo = await getWorkspaceInfo(token)
-    if (wsInfo === undefined) return
-
-    const endpoint = getTransactorApiEndpoint(wsInfo)
-    if (endpoint === undefined) return
-
-    const client = createRestClient(endpoint, ws, token)
-
-    const { model, hierarchy } = await client.getModel(true)
-    const branding: Branding | undefined =
-      wsInfo.branding !== undefined && wsInfo.branding !== ''
-        ? (this.brandingMap[wsInfo.branding] ?? this.brandingMap[Object.keys(this.brandingMap)[0]])
-        : this.brandingMap[Object.keys(this.brandingMap)[0]]
-    const workspace = await Workspace.create(
-      ctx.newChild(ws, {}),
-      wsInfo,
-      hierarchy,
-      model,
-      this.modelTxes,
-      this.storage,
-      client,
-      branding,
-      this.txTypes
-    )
-
-    this.workspaces.set(ws, workspace)
+    const workspace = await this.getWorkspaceClient(ctx, ws)
+    if (workspace == null) return
 
     await workspace.tx(tx)
+
+    if (
+      this.sysHierarchy.isDerived(tx.objectClass, notification.class.ReadAllNotificationAction) ||
+      this.sysHierarchy.isDerived(tx.objectClass, notification.class.ClearAllNotificationAction)
+    ) {
+      await this.recheckUserNotifyStatus(ws, workspace, tx as TxCreateDoc<ReadAllNotificationAction>)
+    }
+    // A read changes no counter when nothing it read had notified, so a stale flag heals on it.
+    if (
+      tx._class === core.class.TxUpdateDoc &&
+      this.sysHierarchy.isDerived(tx.objectClass, notification.class.ReadState)
+    ) {
+      for (const [user] of readPositions(tx as TxUpdateDoc<ReadState>)) {
+        await this.recheck(ws, workspace, user)
+      }
+    }
+    // Reached only for a workspace open here: UserStatus is no trigger, so nothing is loaded for it.
+    if (this.sysHierarchy.isDerived(tx.objectClass, core.class.UserStatus)) {
+      const user = await this.cameOnline(workspace, tx as TxCUD<UserStatus>)
+      if (user !== undefined) await this.recheck(ws, workspace, user)
+    }
   }
 
-  public close (): void {
-    clearInterval(this.interval)
+  private async getTxUser (
+    ctx: MeasureContext,
+    wsUuid: WorkspaceUuid,
+    _tx: TxCUD<DocNotifyContext>
+  ): Promise<AccountUuid | undefined> {
+    if (_tx._class === core.class.TxCreateDoc) {
+      return TxProcessor.createDoc2Doc(_tx as TxCreateDoc<DocNotifyContext>).user
+    } else if (_tx._class === core.class.TxRemoveDoc) {
+      const tx = _tx as TxRemoveDoc<DocNotifyContext>
+      const wsClient = await this.getWorkspaceClient(ctx, wsUuid)
+      const space = await wsClient?.cache.findPersonSpace(tx.objectSpace as Ref<PersonSpace>)
+      return space?.account
+    } else if (_tx._class === core.class.TxUpdateDoc) {
+      const tx = _tx as TxUpdateDoc<DocNotifyContext>
+      if (tx.operations.unreadCount == null && tx.operations.$inc?.unreadCount == null) return undefined
+      const wsClient = await this.getWorkspaceClient(ctx, wsUuid)
+      const space = await wsClient?.cache.findPersonSpace(tx.objectSpace as Ref<PersonSpace>)
+      return space?.account
+    }
+    return undefined
+  }
+
+  private async updateUserNotifyStatus (
+    ctx: MeasureContext,
+    wsUuid: WorkspaceUuid,
+    _tx: TxCUD<DocNotifyContext>
+  ): Promise<void> {
+    const user = await this.getTxUser(ctx, wsUuid, _tx)
+    if (user == null || user === systemAccountUuid || user === (await this.getAiBotAccount())) return
+
+    if (_tx._class === core.class.TxCreateDoc) {
+      if (((_tx as TxCreateDoc<DocNotifyContext>).attributes.unreadCount ?? 0) > 0) {
+        this.scheduleStatusUpdate(user, wsUuid, true)
+      }
+    } else {
+      let unread = false
+      if (_tx._class === core.class.TxUpdateDoc) {
+        const tx = _tx as TxUpdateDoc<DocNotifyContext>
+        if (tx.operations.unreadCount == null && tx.operations.$inc?.unreadCount == null) return
+        if (tx.operations.unreadCount != null && tx.operations.unreadCount > 0) {
+          unread = true
+        }
+        if (tx.operations.$inc?.unreadCount != null && tx.operations.$inc.unreadCount > 0) {
+          unread = true
+        }
+      }
+
+      const wsClient = await this.getWorkspaceClient(ctx, wsUuid)
+      if (wsClient == null) return
+
+      unread = unread || (await this.hasUnread(wsClient, user))
+
+      this.scheduleStatusUpdate(user, wsUuid, unread)
+    }
+  }
+
+  private async hasUnread (workspace: Workspace, user: AccountUuid): Promise<boolean> {
+    return (
+      (await workspace.client.findOne(
+        notification.class.DocNotifyContext,
+        { user, unreadCount: { $gt: 0 } },
+        { limit: 1, projection: { _id: 1, unreadCount: 1, user: 1 } }
+      )) != null
+    )
+  }
+
+  private async recheck (wsUuid: WorkspaceUuid, workspace: Workspace, user: AccountUuid): Promise<void> {
+    if (user === systemAccountUuid || user === (await this.getAiBotAccount())) return
+    const key = `${user}:${wsUuid}`
+    if (this.rechecked.has(key)) return
+    this.rechecked.set(key, true)
+    try {
+      const unread = await this.hasUnread(workspace, user)
+      // Every flag sent costs a write and a fan-out to the account's sessions: an unchanged one stays home.
+      const pending = this.pendingStatusUpdates.get(user)?.[wsUuid]
+      if (pending === undefined && this.sentFlags.get(key) === unread) return
+      this.scheduleStatusUpdate(user, wsUuid, unread)
+    } catch (e: any) {
+      // A healing pass only: it must not fail the tx it rides on.
+      this.rechecked.delete(key)
+      this.ctx.warn('Failed to re-check the cross-workspace unread flag', {
+        user,
+        wsUuid,
+        error: e?.message ?? String(e)
+      })
+    }
+  }
+
+  // An update names no user: the status is looked up in the cache, which the tx has just updated.
+  private async cameOnline (workspace: Workspace, tx: TxCUD<UserStatus>): Promise<AccountUuid | undefined> {
+    if (tx._class === core.class.TxCreateDoc) {
+      const status = (tx as TxCreateDoc<UserStatus>).attributes
+      return status.online ? status.user : undefined
+    }
+    if (tx._class !== core.class.TxUpdateDoc || (tx as TxUpdateDoc<UserStatus>).operations.online !== true) {
+      return undefined
+    }
+    return (await workspace.cache.getUserStatuses()).find((it) => it._id === tx.objectId)?.user
+  }
+
+  private async recheckUserNotifyStatus (
+    wsUuid: WorkspaceUuid,
+    workspace: Workspace,
+    tx: TxCreateDoc<ReadAllNotificationAction>
+  ): Promise<void> {
+    const user = tx.attributes?.account
+    if (user == null || user === systemAccountUuid) return
+    // Asked from the database, not taken from the action: an action for a foreign account is ignored.
+    this.scheduleStatusUpdate(user, wsUuid, await this.hasUnread(workspace, user))
+  }
+
+  private scheduleStatusUpdate (user: AccountUuid, wsUuid: WorkspaceUuid, hasUnread: boolean): void {
+    let userMap = this.pendingStatusUpdates.get(user)
+    if (userMap === undefined) {
+      userMap = {}
+      this.pendingStatusUpdates.set(user, userMap)
+    }
+    userMap[wsUuid] = hasUnread
+  }
+
+  private async getWorkspaceClient (ctx: MeasureContext, ws: WorkspaceUuid): Promise<Workspace | undefined> {
+    const exists = this.workspaces.get(ws)
+    if (exists !== undefined) return exists
+
+    const pending = this.pendingWorkspaces.get(ws)
+    if (pending !== undefined) return await pending
+
+    const promise = (async () => {
+      try {
+        const token = generateToken(systemAccountUuid, ws, { service: config.ServiceId })
+        const wsInfo = await getWorkspaceInfo(token)
+        if (wsInfo === undefined) {
+          ctx.warn('Workspace info not found, dropping workspace client initialization', { wsUuid: ws })
+          return undefined
+        }
+
+        const endpoint = getTransactorApiEndpoint(wsInfo)
+        if (endpoint === undefined) {
+          ctx.warn('Transactor API endpoint not found in workspace info, dropping workspace client initialization', {
+            wsUuid: ws,
+            wsInfo
+          })
+          return undefined
+        }
+
+        const client = createRestClient(endpoint, ws, token)
+
+        const branding: Branding | undefined =
+          wsInfo.branding !== undefined && wsInfo.branding !== ''
+            ? (this.brandingMap[wsInfo.branding] ?? this.brandingMap[Object.keys(this.brandingMap)[0]])
+            : this.brandingMap[Object.keys(this.brandingMap)[0]]
+        const workspace = await Workspace.create(
+          ctx.newChild(ws, {}),
+          wsInfo,
+          sharedSystemModel ? this.sysHierarchy : undefined,
+          sharedSystemModel ? this.sysModel : undefined,
+          this.modelTxes,
+          this.storage,
+          client,
+          branding,
+          this.txTypes,
+          this.producer,
+          this.timeMachine,
+          async () => await this.getAiBotAccount()
+        )
+
+        this.workspaces.set(ws, workspace)
+        return workspace
+      } catch (e: any) {
+        if (e?.status?.code === platform.status.Forbidden || e?.status?.code === platform.status.WorkspaceNotFound) {
+          // A deleted workspace still has txes in the queue; retrying them can never succeed.
+          ctx.error('Workspace is forbidden or gone, dropping workspace initialization', { e, wsUuid: ws })
+          return undefined
+        }
+        ctx.error('Failed to initialize workspace client', { e, wsUuid: ws })
+        throw e
+      } finally {
+        this.pendingWorkspaces.delete(ws)
+      }
+    })()
+
+    this.pendingWorkspaces.set(ws, promise)
+    return await promise
+  }
+
+  // Restore and upgrade rewrite the model and documents in the DB without txes; the next tx loads the workspace afresh.
+  async dropWorkspace (ws: WorkspaceUuid): Promise<void> {
+    // A load started before the event would cache the stale state; the tx consumer reports its errors.
+    await this.pendingWorkspaces.get(ws)?.catch(() => undefined)
+    const workspace = this.workspaces.get(ws)
+    if (workspace === undefined) return
+    this.workspaces.delete(ws)
+    await workspace.close()
+  }
+
+  // Every open workspace closes first: its held pushes are published from `close()`, and that
+  // needs the producer still up. Only then do the producers go.
+  public async close (): Promise<void> {
+    clearInterval(this.clearInterval)
+    clearInterval(this.flushInterval)
+    const open = Array.from(this.workspaces.values())
+    this.workspaces.clear()
+    await Promise.allSettled([
+      // The consumers are stopped by now: what is pending is final, and a dropped "read" would stick.
+      (async () => {
+        await this.flushing
+        await this.flushPendingUpdates()
+      })(),
+      ...open.map(async (workspace) => {
+        await workspace.close()
+      })
+    ])
+    await Promise.allSettled([this.userEventProducer.close(), this.producer.close(), this.timeMachine.close()])
+  }
+
+  // A letter the time machine fired: the workspace checks it was not read and publishes it.
+  async heldNotification (ctx: MeasureContext, ws: WorkspaceUuid, held: HeldPush): Promise<void> {
+    const workspace = await this.getWorkspaceClient(ctx, ws)
+    if (workspace == null) return
+    await workspace.releaseHeld(held)
   }
 }

@@ -13,18 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Data, DocumentUpdate } from '@hcengineering/core'
+  import type { Data, DocumentUpdate } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { Card, createQuery, getClient } from '@hcengineering/presentation'
-  import { TagElement, TagReference } from '@hcengineering/tags'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
   import {
     DropdownLabels,
     EditBox,
+    TextArea,
     eventToHTMLElement,
     getPlatformColorDef,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
-  import { DropdownTextItem } from '@hcengineering/ui/src/types'
+  import type { DropdownTextItem } from '@hcengineering/ui/src/types'
   import { ColorsPopup } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import tags from '../plugin'
@@ -131,14 +133,14 @@
       </div>
 
       <div class="fs-title mt-4 flex-grow">
-        <EditBox placeholder={tags.string.TagDescriptionPlaceholder} bind:value={data.description} />
+        <TextArea placeholder={tags.string.TagDescriptionPlaceholder} bind:value={data.description} height="10rem" />
       </div>
 
       {#if categoryItems.length > 1}
         <div class="text-sm mt-4">
           <DropdownLabels
             label={tags.string.CategoryLabel}
-            kind={'regular'}
+            kind="regular"
             bind:selected={data.category}
             items={categoryItems}
           />

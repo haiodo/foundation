@@ -2,7 +2,8 @@ import { Employee, Person } from '@hcengineering/contact'
 import { Data, generateId, Ref, WorkspaceUuid } from '@hcengineering/core'
 
 import love from './plugin'
-import { MeetingMinutes, Office, ParticipantInfo, Room, RoomAccess, RoomType } from './types'
+import { MeetingMinutes, MeetingStatus, Office, ParticipantInfo, Room, RoomType } from './types'
+import { translate } from '@hcengineering/platform'
 
 /**
  * Parsed LiveKit room name components
@@ -13,25 +14,16 @@ export interface ParsedRoomName {
 }
 
 /**
- * Parse LiveKit room name to extract workspace and meeting ID.
- * Room name format: workspaceUuid_meetingMinutesId (2 non-empty parts separated by underscore)
- *
- * @param roomName - The LiveKit room name string
- * @returns ParsedRoomName if valid, undefined otherwise
+ * Splits `${workspaceUuid}_${meetingMinutesId}` from `getRoomName`. Neither id ever contains
+ * `_`, so the first one is always the separator.
  */
 export function parseRoomName (roomName: string): ParsedRoomName | undefined {
-  const parts = roomName.split('_')
-  if (parts.length < 2) return undefined
-
-  const workspace = parts[0]
-  const meetingId = parts[parts.length - 1]
-
-  // Both parts must be non-empty
-  if (workspace === '' || meetingId === '') return undefined
+  const sepIdx = roomName.indexOf('_')
+  if (sepIdx <= 0 || sepIdx === roomName.length - 1) return undefined
 
   return {
-    workspace: workspace as WorkspaceUuid,
-    meetingId: meetingId as Ref<MeetingMinutes>
+    workspace: roomName.slice(0, sepIdx) as WorkspaceUuid,
+    meetingId: roomName.slice(sepIdx + 1) as Ref<MeetingMinutes>
   }
 }
 
@@ -49,12 +41,22 @@ export function isOffice (room: Data<Room>): room is Office {
   return (room as Office).person !== undefined
 }
 
-export function createDefaultRooms (
+export async function createDefaultRooms (
   employees: Ref<Employee>[],
   defaultTranscription: boolean = false,
-  defaultRecording: boolean = false
-): (Data<Room | Office> & { _id: Ref<Room> })[] {
+  defaultRecording: boolean = false,
+  defaultPrivate: boolean = false,
+  language?: string
+): Promise<(Data<Room | Office> & { _id: Ref<Room> })[]> {
   const res: (Data<Room | Office> & { _id: Ref<Room> })[] = []
+  const [allHandsName, meetingRoom1Name, meetingRoom2Name, voiceRoom1Name, voiceRoom2Name] = await Promise.all([
+    translate(love.string.AllHands, {}, language),
+    translate(love.string.MeetingRoomNum, { number: 1 }, language),
+    translate(love.string.MeetingRoomNum, { number: 2 }, language),
+    translate(love.string.VoiceRoomNum, { number: 1 }, language),
+    translate(love.string.VoiceRoomNum, { number: 2 }, language)
+  ])
+
   // create 12 offices
   for (let index = 0; index < 12; index++) {
     const _id = generateId<Office>()
@@ -62,7 +64,6 @@ export function createDefaultRooms (
       _id,
       name: '',
       type: RoomType.Video,
-      access: RoomAccess.Knock,
       floor: love.ids.MainFloor,
       width: 2,
       height: 1,
@@ -72,6 +73,7 @@ export function createDefaultRooms (
       language: 'en',
       startWithTranscription: false,
       startWithRecording: false,
+      startPrivate: true,
       description: null
     }
     res.push(office)
@@ -80,9 +82,8 @@ export function createDefaultRooms (
 
   res.push({
     _id: allHands,
-    name: 'All hands',
+    name: allHandsName,
     type: RoomType.Video,
-    access: RoomAccess.Open,
     floor: love.ids.MainFloor,
     width: 9,
     height: 3,
@@ -91,15 +92,15 @@ export function createDefaultRooms (
     language: 'en',
     startWithTranscription: defaultTranscription,
     startWithRecording: defaultRecording,
+    startPrivate: defaultPrivate,
     description: null
   })
 
   const meetingRoom1 = generateId<Room>()
   res.push({
     _id: meetingRoom1,
-    name: 'Meeting Room 1',
+    name: meetingRoom1Name,
     type: RoomType.Video,
-    access: RoomAccess.Open,
     floor: love.ids.MainFloor,
     width: 4,
     height: 3,
@@ -108,14 +109,14 @@ export function createDefaultRooms (
     language: 'en',
     startWithTranscription: defaultTranscription,
     startWithRecording: defaultRecording,
+    startPrivate: defaultPrivate,
     description: null
   })
   const meetingRoom2 = generateId<Room>()
   res.push({
     _id: meetingRoom2,
-    name: 'Meeting Room 2',
+    name: meetingRoom2Name,
     type: RoomType.Video,
-    access: RoomAccess.Open,
     floor: love.ids.MainFloor,
     width: 4,
     height: 3,
@@ -124,14 +125,14 @@ export function createDefaultRooms (
     language: 'en',
     startWithTranscription: defaultTranscription,
     startWithRecording: defaultRecording,
+    startPrivate: defaultPrivate,
     description: null
   })
   const voiceRoom1 = generateId<Room>()
   res.push({
     _id: voiceRoom1,
-    name: 'Voice Room 1',
+    name: voiceRoom1Name,
     type: RoomType.Audio,
-    access: RoomAccess.Open,
     floor: love.ids.MainFloor,
     width: 4,
     height: 3,
@@ -140,14 +141,14 @@ export function createDefaultRooms (
     language: 'en',
     startWithTranscription: false,
     startWithRecording: false,
+    startPrivate: false,
     description: null
   })
   const voiceRoom2 = generateId<Room>()
   res.push({
     _id: voiceRoom2,
-    name: 'Voice Room 2',
+    name: voiceRoom2Name,
     type: RoomType.Audio,
-    access: RoomAccess.Open,
     floor: love.ids.MainFloor,
     width: 4,
     height: 3,
@@ -156,6 +157,7 @@ export function createDefaultRooms (
     language: 'en',
     startWithTranscription: false,
     startWithRecording: false,
+    startPrivate: false,
     description: null
   })
   return res
@@ -176,9 +178,7 @@ export function getFreeSpace (rooms: Slot[], exclude?: Slot, completeExclusion?:
       y < room.y + room.height + (excluded ? 0 : 1);
       y++
     ) {
-      if (map[y] === undefined) {
-        map[y] = new Array(GRID_WIDTH).fill(true)
-      }
+      map[y] ??= new Array(GRID_WIDTH).fill(true)
       for (
         let x = room.x === 0 ? 0 : excluded ? room.x : room.x - 1;
         x <
@@ -209,9 +209,7 @@ export function getFreePosition (
   const map: boolean[][] = getFreeSpace(rooms)
 
   for (let y = 0; y <= map.length; y++) {
-    if (map[y] === undefined) {
-      map[y] = new Array(GRID_WIDTH).fill(true)
-    }
+    map[y] ??= new Array(GRID_WIDTH).fill(true)
     for (let x = 0; x < map[y].length; x++) {
       if (map[y][x]) {
         let matched = true
@@ -258,34 +256,56 @@ export interface ScreenSource {
   appIconURL: string
 }
 
+// A scheduled meeting keeps its identity for a plausible session length: an empty room in the
+// middle of it is a dropout, not the end. Joining opens 15 minutes before the start.
+export const SCHEDULED_MEETING_WINDOW_MS = 4 * 60 * 60 * 1000
+export const SCHEDULED_JOIN_LEAD_MS = 15 * 60 * 1000
+
+// A Scheduled meeting owns its room only inside that window; next week's one must not swallow
+// an ad-hoc Connect. Without a date there is no window, so it owns nothing.
+export function isScheduledJoinable (
+  mm: Pick<MeetingMinutes, 'status' | 'meetingScheduledDate'>,
+  now: number = Date.now()
+): boolean {
+  if (mm.status !== MeetingStatus.Scheduled) return false
+  const date = mm.meetingScheduledDate
+  if (date == null) return false
+  return now >= date - SCHEDULED_JOIN_LEAD_MS && now < date + SCHEDULED_MEETING_WINDOW_MS
+}
+
 export function getFreeRoomPlace (
   room: Room,
   info: ParticipantInfo[],
   person: Ref<Person>,
   pref?: { x: number, y: number }
 ): { x: number, y: number } {
-  let y = 0
+  const taken = (x: number, y: number): boolean => info.some((p) => p.x === x && p.y === y)
+
   if (pref !== undefined) {
     if (isOffice(room) && room.person === person) {
       return { x: 0, y: 0 }
     }
-    if (!info.some((it) => it.x === pref.x && it.y === pref.y)) {
-      // Place is free, use it.
+    // Only honour a preference that the floor grid can actually render.
+    const inGrid = pref.x >= 0 && pref.y >= 0 && pref.x < room.width && pref.y < room.height
+    // (0,0) of an office belongs to its owner, who already returned above.
+    const ownerSeat = isOffice(room) && pref.x === 0 && pref.y === 0
+    if (inGrid && !ownerSeat && !taken(pref.x, pref.y)) {
       return pref
     }
   }
-  while (true) {
+  for (let y = 0; y < room.height; y++) {
     for (let x = 0; x < room.width; x++) {
-      if (info.find((p) => p.x === x && p.y === y) === undefined) {
-        if (x === 0 && y === 0 && isOffice(room)) {
-          if (room.person === person) {
-            return { x: 0, y: 0 }
-          }
-        } else {
-          return { x, y }
-        }
+      if (taken(x, y)) continue
+      // (0,0) of an office belongs to its owner.
+      if (x === 0 && y === 0 && isOffice(room)) {
+        if (room.person === person) return { x: 0, y: 0 }
+        continue
       }
+      return { x, y }
     }
-    y++
+  }
+  // Room full: overflow along x - RoomPreview adds extra columns, never rows.
+  for (let x = room.width; ; x++) {
+    if (!taken(x, 0)) return { x, y: 0 }
   }
 }

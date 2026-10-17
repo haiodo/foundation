@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { NewIssue } from '../model/tracker/types'
@@ -51,15 +51,17 @@ test.describe('Tracker duplicate issue tests', () => {
 
     await issuesPage.checkIssuesCount(secondIssue.title, 2, 30)
 
-    const secondIssueId = await issuesPage.getIssueId(secondIssue.title, 0)
-
-    expect(firstIssueId).not.toEqual(secondIssueId)
+    // Both issues carry the same title, so a position says nothing about which one it is - the
+    // list does not always put the newer one first, and index 0 then returns the first issue again.
+    const otherId = (await issuesPage.getIssueIds(secondIssue.title)).find((id) => id !== firstIssueId)
+    expect(otherId).toBeDefined()
+    const secondIssueId = otherId as string
     await issuesPage.checkIssuesCount(firstIssue.title, 2, 30)
 
     await test.step('Update the first issue title', async () => {
       const newIssueTitle = `Duplicate Update issue-${generateId()}`
       await issuesPage.openIssueById(firstIssueId)
-      await issuesDetailsPage.inputTitle().fill(newIssueTitle)
+      await issuesDetailsPage.setTitle(newIssueTitle)
       await issuesDetailsPage.checkIssue({
         ...firstIssue,
         title: newIssueTitle

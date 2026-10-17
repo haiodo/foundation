@@ -1,5 +1,6 @@
 import { type Locator, type Page, expect } from '@playwright/test'
 import { DateDivided } from './types'
+import { retry, retryIntervals, waitStable } from '../retry'
 
 export class CommonPage {
   readonly page: Page
@@ -30,7 +31,7 @@ export class CommonPage {
     this.page.locator('form[id="view:string:DeleteObject"] button.primary')
 
   tagsStringAddTagForm = (field: string): Locator =>
-    this.page.locator(`div.popup form[id="tags:string:AddTag"] input[placeholder$="${field}"]`)
+    this.page.locator(`div.popup form[id="tags:string:AddTag"] :is(input, textarea)[placeholder$="${field}"]`)
 
   tagsStringAddTagButtonSubmit = (): Locator =>
     this.page.locator('div.popup form[id="tags:string:AddTag"] button[type="submit"]')
@@ -106,12 +107,59 @@ export class CommonPage {
     if (needOpenNavigator) await this.appsShowMenuButton().click()
   }
 
+  /**
+   * ListCategory folds categories over 20 items when localStorage has no state - true for
+   * fresh context. Rows aren't in the DOM, so lookup hangs. Known: Backlog, no-lead items.
+   */
+  async expandCollapsedCategories (): Promise<void> {
+    // Empty categories carry the same class and clicking them changes nothing - skipping them
+    // keeps the retry below able to reach zero.
+    const collapsed = this.page.locator('.categoryHeader.collapsed:not(:has(.chevron.empty))')
+    await expect(async () => {
+      if ((await collapsed.count()) === 0) return
+      // Click them in one pass rather than counting down from the previous total: expanding one
+      // category loads rows that can turn another one from empty into collapsed.
+      await collapsed.evaluateAll((els) => {
+        els.forEach((el) => {
+          ;(el as HTMLElement).click()
+        })
+      })
+      await expect(collapsed).toHaveCount(0, { timeout: 2000 })
+    }).toPass({ intervals: retryIntervals, timeout: 15000 })
+  }
+
   async selectMenuItem (page: Page, name: string, fullWordFilter: boolean = false): Promise<void> {
     if (name !== 'first') {
       const filterText = fullWordFilter ? name : name.split(' ')[0]
       await this.selectPopupInput().fill(filterText)
-      // TODO need to remove after fixed UBERF-4968
-      await page.waitForTimeout(300)
+      // Wait for the list to actually re-filter: a fixed delay lets the stale first item be
+      // clicked under load. Items whose text does not carry the filter fall back to the delay.
+      await expect(this.selectPopupListItemFirst().first())
+        .toContainText(filterText, { timeout: 5000, ignoreCase: true })
+        .catch(async () => {
+          await page.waitForTimeout(300)
+        })
+      // The filter is only the first word, so concurrent objects sharing it stay listed too -
+      // prefer the full-name item. Bug seen: "first" grabbed a parallel test's teamspace.
+      const exact = this.selectPopupListItemFirst().filter({ hasText: name })
+      // Ambiguous list: an employee that just joined arrives late, and the first row was another
+      // person sharing the filtered word.
+      if ((await exact.count()) === 0 && (await this.selectPopupListItemFirst().count()) > 1) {
+        await exact
+          .first()
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .catch(() => undefined)
+      }
+      if ((await exact.count()) > 0) {
+        await exact.first().click()
+        return
+      }
+      // None of the rows is the one asked for: picking the first silently assigns a stranger and
+      // the test fails somewhere else.
+      const rows = await this.selectPopupListItemFirst().allInnerTexts()
+      if (rows.length > 1) {
+        throw new Error(`"${name}" is not in the list filtered by "${filterText}": ${JSON.stringify(rows)}`)
+      }
     }
     await this.selectPopupListItemFirst().first().click()
   }
@@ -126,6 +174,21 @@ export class CommonPage {
 
   async selectFromDropdown (page: Page, point: string): Promise<void> {
     await this.popupSpanLabel(point).click()
+  }
+
+  // Opens a submenu: MouseSpeedTracker enables it only after the mouse moves slowly.
+  async openSubmenu (point: string): Promise<void> {
+    const item = this.popupSpanLabel(point)
+    // Park first: a hover where the pointer already rests fires no mousemove.
+    await this.page.mouse.move(0, 0)
+    await item.hover()
+    const box = await item.boundingBox()
+    if (box != null) {
+      for (let i = 1; i <= 3; i++) {
+        await this.page.mouse.move(box.x + box.width / 2 + i * 2, box.y + box.height / 2)
+        await this.page.waitForTimeout(100)
+      }
+    }
   }
 
   async checkDropdownHasNo (page: Page, item: string): Promise<void> {
@@ -143,13 +206,34 @@ export class CommonPage {
     await this.selectPopupButton().click()
   }
 
+  async fillEstimationPopup (page: Page, input: string): Promise<void> {
+    const form = page.locator('form[id="tracker\\:string\\:Estimation"]')
+    await expect(form.locator('input').first()).toBeVisible()
+    await form.locator('input').first().fill(input)
+    await form.locator('button', { hasText: 'Save' }).click()
+    // Save stays disabled while the popup holds an unparsed value, and a click on it changes
+    // nothing - the form left on screen says so instead of a wrong estimation minutes later.
+    await expect(form).toBeHidden({ timeout: 5000 })
+  }
+
   async checkFromDropdown (page: Page, point: string): Promise<void> {
-    await this.selectPopupSpanLines(point).first().click()
+    const item = this.selectPopupSpanLines(point).first()
+    // A newly created tag may be missing from the popup's rendered list; filtering re-runs the
+    // query. Only the wait retries - the click toggles selection and must happen once.
+    await expect(async () => {
+      if ((await item.count()) === 0) {
+        await this.selectPopupInput().fill(point)
+      }
+      await expect(item).toBeVisible({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+    await item.click()
   }
 
   async pressYesDeletePopup (page: Page): Promise<void> {
     await this.viewStringDeleteObjectButtonPrimary().click()
-    await expect(this.viewStringDeleteObjectButtonPrimary()).not.toBeVisible({ timeout: 1000 })
+    // The button turns disabled while the removal is in flight and the form closes only once it
+    // resolves - deleting a component cascades over its issues, which takes longer than a second.
+    await expect(this.viewStringDeleteObjectButtonPrimary()).not.toBeVisible({ timeout: 10000 })
   }
 
   async addNewTagPopup (page: Page, title: string, description: string): Promise<void> {
@@ -160,11 +244,9 @@ export class CommonPage {
   }
 
   async selectAssignee (page: Page, name: string): Promise<void> {
-    if (name !== 'first') {
-      await this.selectPopupInput().fill(name.split(' ')[0])
-      await expect(this.selectPopupListItemFirst()).toHaveCount(1)
-    }
-    await this.selectPopupListItemFirst().first().click()
+    // Same popup and same trap as selectMenuItem: the filter is only the first word, so a member
+    // sharing it leaves two rows and demanding exactly one just fails.
+    await this.selectMenuItem(page, name)
   }
 
   async checkExistNewNotification (): Promise<void> {
@@ -174,6 +256,7 @@ export class CommonPage {
   async pressYesForPopup (page: Page): Promise<void> {
     await expect(this.popupSubmitButton()).toBeVisible()
     await this.popupSubmitButton().click()
+    await expect(this.popupSubmitButton()).not.toBeVisible({ timeout: 5000 })
   }
 
   async pressButtonBack (page: Page): Promise<void> {
@@ -182,7 +265,27 @@ export class CommonPage {
 
   async checkFromDropdownWithSearch (page: Page, point: string): Promise<void> {
     await this.selectPopupInput().fill(point)
-    await this.selectPopupSpanLines(point).click()
+    const item = this.selectPopupSpanLines(point)
+    // The popup re-renders while the query narrows; an early click chases a moving element and
+    // burns the timeout. Settle first - a second click would just re-toggle the row.
+    await expect(item).toHaveCount(1, { timeout: 15000 })
+    await item.click()
+  }
+
+  // Escape is swallowed while a popup re-renders and ignored outright by one holding its editor
+  // focused, so press until no overlay is left and fall back to a click outside.
+  async closePopups (): Promise<void> {
+    const overlay = this.page.locator('div.modal-overlay')
+    await expect(async () => {
+      while ((await overlay.count()) > 0) {
+        await this.page.keyboard.press('Escape')
+        if ((await overlay.count()) > 0) {
+          // Capped: an attachment landing in the popup replaces the overlay under the pointer.
+          await overlay.last().click({ position: { x: 10, y: 10 }, timeout: 5000 })
+        }
+        await expect(overlay).toHaveCount(0, { timeout: 2000 })
+      }
+    }).toPass({ intervals: retryIntervals, timeout: 15000 })
   }
 
   async closeNotification (): Promise<void> {
@@ -204,7 +307,15 @@ export class CommonPage {
   }
 
   async selectMention (mentionName: string, categoryName?: string): Promise<void> {
+    // The popup fills categories one after another (Employees, then Cards); an early click
+    // selects nothing and blocks Send with its overlay - the next click times out.
+    await waitStable(async () => await this.page.locator('form.mentionPoup div.list-item').count(), {
+      stableFor: 500,
+      interval: 100,
+      timeout: 15000
+    })
     await this.mentionPopupListItem(mentionName, categoryName).first().click()
+    await expect(this.page.locator('form.mentionPoup')).toHaveCount(0, { timeout: 5000 })
   }
 
   async selectListItem (name: string): Promise<void> {
@@ -232,33 +343,76 @@ export class CommonPage {
   }
 
   async selectFilter (filter: string, filterSecondLevel?: string): Promise<void> {
-    await this.buttonFilter().click()
-    await this.selectPopupMenu(filter).click()
+    // A closed popup is no proof Apply landed: a timed-out Apply click closed it with nothing filtered.
+    // Text filters verify the section and redo the whole pick; other kinds are not verified.
+    await expect(async () => {
+      await this.buttonFilter().click()
+      // The item list loads async inside an open popup; re-clicking the trigger hits its own
+      // overlay and closes it. Reopen only when no popup is open at all.
+      const anyPopup = this.page.locator('div.selectPopup')
+      await expect(async () => {
+        if ((await anyPopup.count()) === 0) await this.buttonFilter().click()
+        await this.selectPopupMenu(filter).click({ timeout: 5000 })
+      }).toPass({ intervals: retryIntervals, timeout: 30000 })
 
-    if (filterSecondLevel !== null && typeof filterSecondLevel === 'string') {
-      switch (filter) {
-        case 'Title':
-          await this.inputFilterTitle().fill(filterSecondLevel)
-          await this.buttonFilterApply().click()
-          // Wait for the list to update after applying filter
-          await this.page.waitForTimeout(500)
-          break
-        case 'Name':
-          await this.inputFilterName().fill(filterSecondLevel)
-          await this.buttonFilterApply().click()
-          break
-        case 'Labels':
-          await this.selectFromDropdown(this.page, filterSecondLevel)
-          break
-        case 'Skills':
-          await this.inputSearch().fill(filterSecondLevel)
-          await this.selectFromDropdown(this.page, filterSecondLevel)
-          await this.page.keyboard.press('Escape')
-          break
-        default:
-          await this.selectPopupMenu(filterSecondLevel).click()
+      if (filterSecondLevel !== null && typeof filterSecondLevel === 'string') {
+        switch (filter) {
+          case 'Title':
+            await this.applyTextFilter(this.inputFilterTitle(), filterSecondLevel)
+            // The unfiltered list is visible until the filter lands: wait for a row that carries the text.
+            await expect(this.page.locator('div.listGrid span.presenter-label > a').first()).toContainText(
+              filterSecondLevel,
+              { ignoreCase: true, timeout: 10000 }
+            )
+            break
+          case 'Name':
+            await this.applyTextFilter(this.inputFilterName(), filterSecondLevel)
+            break
+          case 'Labels':
+            await this.selectFromDropdown(this.page, filterSecondLevel)
+            break
+          case 'Skills':
+            await this.inputSearch().fill(filterSecondLevel)
+            await this.selectFromDropdown(this.page, filterSecondLevel)
+            await this.page.keyboard.press('Escape')
+            break
+          default:
+            // The option list re-renders as it loads, so the row detaches mid-click; an untimed click
+            // then spends the whole 30s on an element that is gone. Shorter than the outer retry: the
+            // values are read once when the popup opens, a missing one needs the popup reopened.
+            await retry(async () => {
+              await this.selectPopupMenu(filterSecondLevel).click({ timeout: 5000 })
+            }, 10000)
+        }
+        if (filter === 'Title' || filter === 'Name') {
+          // Default timeout, so a slow render is not taken for a miss and applied twice.
+          await expect(this.filterButton(1)).toHaveText(filter)
+        }
       }
-    }
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+  }
+
+  /** A string attribute filter (custom fields included): its input is placeholdered with the label. */
+  async applyStringFilter (label: string, value: string): Promise<void> {
+    await this.selectFilter(label)
+    await this.applyTextFilter(this.page.locator(`div.selectPopup input[placeholder="${label}"]`), value)
+  }
+
+  /**
+   * Typing and Apply retry as one: the popup re-renders as rows arrive, detaching whichever is
+   * targeted. Retrying only the fill left Apply burning 30s; gone popup means Apply landed.
+   */
+  private async applyTextFilter (input: Locator, value: string): Promise<void> {
+    const popup = this.page.locator('div.selectPopup')
+    // "Gone" only means Apply landed once the popup has been there: a popup that had not opened
+    // yet made the first attempt return successfully with nothing filtered.
+    await expect(popup.first()).toBeVisible({ timeout: 15000 })
+    await retry(async () => {
+      if ((await popup.count()) === 0) return
+      await input.fill(value, { timeout: 5000 })
+      await expect(input).toHaveValue(value, { timeout: 3000 })
+      await this.buttonFilterApply().click({ timeout: 5000 })
+    })
   }
 
   async filterOppositeCondition (filter: string, conditionBefore: string, conditionAfter: string): Promise<void> {
@@ -339,7 +493,7 @@ export class CommonPage {
     // Retry with timeout as list may update with delay after search/filter
     await expect(async () => {
       await expect(this.linesFromList(text)).toHaveCount(count)
-    }).toPass({ intervals: [100, 200, 500], timeout: 15000 })
+    }).toPass({ intervals: retryIntervals, timeout: 15000 })
   }
 
   async pressEscape (): Promise<void> {

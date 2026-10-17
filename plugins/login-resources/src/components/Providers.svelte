@@ -1,8 +1,9 @@
 <script lang="ts">
   import { concatLink } from '@hcengineering/core'
   import platform, { getMetadata } from '@hcengineering/platform'
-  import { type ProviderInfo } from '@hcengineering/account-client'
-  import { AnySvelteComponent, Grid, deviceOptionsStore, getCurrentLocation } from '@hcengineering/ui'
+  import type { ProviderInfo } from '@hcengineering/account-client'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { Grid, deviceOptionsStore, getCurrentLocation } from '@hcengineering/ui'
 
   import FormButton from './internal/FormButton.svelte'
   import { Analytics } from '@hcengineering/analytics'
@@ -94,7 +95,7 @@
 </script>
 
 <div class="container">
-  <Grid column={getColumnsCount(enabledProviders.length)} columnGap={1} rowGap={1} alignItems={'center'}>
+  <Grid column={getColumnsCount(enabledProviders.length)} columnGap={1} rowGap={1} alignItems="center">
     {#each enabledProviders as provider}
       <a
         class="provider-button"
@@ -103,8 +104,8 @@
           handleProviderClick(provider)
         }}
       >
-        <FormButton kind={'black'} shape={'round2'} size={'x-large'} width="100%" stopPropagation={false}>
-          <svelte:component this={provider.component} displayName={provider.displayName} labelClass={'button-label'} />
+        <FormButton kind="black" shape="round2" size="x-large" width="100%" stopPropagation={false}>
+          <svelte:component this={provider.component} displayName={provider.displayName} labelClass="button-label" />
         </FormButton>
       </a>
     {/each}

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
-  import { Issue } from '@hcengineering/tracker'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Issue } from '@hcengineering/tracker'
   import RelationEditorPart from './RelationEditorPart.svelte'
 
   export let value: Issue
@@ -10,7 +10,7 @@
   export let readonly: boolean = false
 
   $: valueGroup = (type === 'isBlocking' ? (blockedBy ?? []) : (value[type] ?? [])).reduce<
-  Map<Ref<Class<Doc>>, Ref<Doc>[]>
+    Map<Ref<Class<Doc>>, Ref<Doc>[]>
   >((rv, x) => {
     if (rv.has(x._class)) {
       rv.get(x._class)?.push(x._id)

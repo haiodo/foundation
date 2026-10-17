@@ -14,13 +14,15 @@
 //
 
 import { generateId } from '@hcengineering/core'
-import type { IntlString, Metadata } from '@hcengineering/platform'
-import { setMetadata, translate } from '@hcengineering/platform'
+import type { IntlString, Metadata, Status } from '@hcengineering/platform'
+import { setMetadata, Severity, translate } from '@hcengineering/platform'
+import { getCurrentLanguage } from '@hcengineering/theme'
 import autolinker from 'autolinker'
 import { writable } from 'svelte/store'
 import { NotificationPosition, NotificationSeverity, notificationsStore, type Notification } from '.'
-import ui, { DAY, HOUR, MINUTE } from '..'
+import ui, { DAY, HOUR, MINUTE } from '.'
 import RootStatusComponent from './components/RootStatusComponent.svelte'
+import StatusNotification from './components/notifications/StatusNotification.svelte'
 import { deviceSizes, type AnyComponent, type AnySvelteComponent, type WidthType } from './types'
 
 /**
@@ -55,13 +57,9 @@ export function fetchMetadataLocalStorage<T> (id: Metadata<T>): T | null {
 
 /**
  * @public
- *
- * Improved mobile detection:
- * - Prefer `navigator.userAgentData.mobile` when available (most reliable)
- * - Treat Android as mobile only when 'Mobile' is present in the UA (avoids treating tablets as phones)
- * - Explicitly treat iPhone/iPod and other mobile-only indicators as mobile
- * - Avoid classifying iPad/tablets as mobile by default
- * - Fallback to small viewport heuristic as a last resort
+ * Mobile detection: prefer userAgentData.mobile, treat Android as mobile only when
+ * 'Mobile' is in the UA (not tablets), iPhone/iPod always mobile, small-viewport
+ * heuristic as a last resort.
  */
 export function checkMobile (): boolean {
   try {
@@ -151,7 +149,7 @@ export function addNotification (
   severity: NotificationSeverity = NotificationSeverity.Success,
   group?: string
 ): void {
-  const closeTimeout = parseInt(localStorage.getItem('#platform.notification.timeout') ?? '10000')
+  const closeTimeout = getNotificationTimeout()
   const notification: Notification = {
     id: generateId(),
     title,
@@ -167,6 +165,40 @@ export function addNotification (
   if (closeTimeout !== 0) {
     notificationsStore.addNotification(notification)
   }
+}
+
+function getNotificationTimeout (): number {
+  return parseInt(localStorage.getItem('#platform.notification.timeout') ?? '10000')
+}
+
+function getStatusNotificationKind (
+  severity: Severity
+): { severity: NotificationSeverity, title: IntlString } | undefined {
+  switch (severity) {
+    case Severity.INFO:
+      return { severity: NotificationSeverity.Info, title: ui.string.StatusInfo }
+    case Severity.WARNING:
+      return { severity: NotificationSeverity.Warning, title: ui.string.StatusWarning }
+    case Severity.ERROR:
+      return { severity: NotificationSeverity.Error, title: ui.string.StatusError }
+  }
+}
+
+export async function addStatusNotification (status: Status): Promise<boolean> {
+  const kind = getStatusNotificationKind(status.severity)
+  // Timeout 0 means the user turned notifications off.
+  if (kind === undefined || getNotificationTimeout() === 0) return false
+  notificationsStore.addNotification({
+    id: generateId(),
+    title: await translate(status.options?.title ?? kind.title, status.params ?? {}, getCurrentLanguage()),
+    severity: kind.severity,
+    position: NotificationPosition.BottomLeft,
+    component: (status.options?.component as AnyComponent | undefined) ?? StatusNotification,
+    closeTimeout: status.options?.timeout ?? getNotificationTimeout(),
+    group: status.options?.group,
+    params: { status }
+  })
+  return true
 }
 
 /**
@@ -320,20 +352,7 @@ export function fromCodePoint (...vals: number[]): string {
 /**
  * @public
  */
-export class DelayedCaller {
-  op?: () => void
-  constructor (readonly delay: number = 10) {}
-  call (op: () => void): void {
-    const needTimer = this.op === undefined
-    this.op = op
-    if (needTimer) {
-      setTimeout(() => {
-        this.op?.()
-        this.op = undefined
-      }, this.delay)
-    }
-  }
-}
+export { DelayedCaller } from './callers'
 
 /**
  * @public
@@ -371,17 +390,17 @@ export class DebouncedCaller {
 export const testing = (localStorage.getItem('#platform.testing.enabled') ?? 'false') === 'true'
 
 export const rootBarExtensions = writable<
-Array<
-[
-  'left' | 'right',
-  {
-    id: string
-    component: AnyComponent | AnySvelteComponent
-    props?: Record<string, any>
-    order: number
-  }
-]
->
+  Array<
+    [
+      'left' | 'right',
+      {
+        id: string
+        component: AnyComponent | AnySvelteComponent
+        props?: Record<string, any>
+        order: number
+      }
+    ]
+  >
 >([])
 
 export async function formatDuration (duration: number, language: string): Promise<string> {

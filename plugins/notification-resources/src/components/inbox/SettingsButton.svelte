@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { eventToHTMLElement, showPopup, ButtonIcon, IconSettings } from '@hcengineering/ui'
+  import { eventToHTMLElement, showPopup, IconSettings } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import notification from '@hcengineering/notification'
 
   import SettingsPopup from './SettingsPopup.svelte'
-  import { SettingItem } from '../../types'
+  import type { SettingItem } from '../../types'
 
   export let items: SettingItem[] = []
 
@@ -25,4 +27,10 @@
   }
 </script>
 
-<ButtonIcon icon={IconSettings} size="small" on:click={click} dataId="inbox_settings-button" />
+<IconButton
+  icon={IconSettings}
+  size="small"
+  tooltip={{ label: notification.string.Configure }}
+  on:click={click}
+  data-id="inbox_settings-button"
+/>

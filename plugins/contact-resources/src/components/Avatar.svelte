@@ -14,39 +14,37 @@
 -->
 
 <script lang="ts">
+  import type { AvatarProvider, Contact, Person } from '@hcengineering/contact'
   import {
     type AvatarInfo,
-    AvatarProvider,
-    Contact,
     getAvatarColorForId,
     getAvatarDisplayName,
     getAvatarProvider,
-    getAvatarProviderId,
-    Person
+    getAvatarProviderId
   } from '@hcengineering/contact'
-  import { Asset, getResource } from '@hcengineering/platform'
+  import type { Asset } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import { getBlobURL, getClient, reduceCalls, sizeToWidth } from '@hcengineering/presentation'
+  import type { AnySvelteComponent, ColorDefinition, IconSize } from '@hcengineering/ui'
   import {
-    AnySvelteComponent,
-    ColorDefinition,
     getPlatformAvatarColorByName,
     getPlatformAvatarColorForTextDef,
     getPlatformColor,
-    IconSize,
     themeStore,
     tooltip
   } from '@hcengineering/ui'
   import { onMount } from 'svelte'
-  import { AccountUuid, type Data, PersonUuid, Ref, type WithLookup } from '@hcengineering/core'
+  import type { AccountUuid, PersonUuid, Ref } from '@hcengineering/core'
+  import type { Data, WithLookup } from '@hcengineering/core'
 
   import { loadUsersStatus, statusByUserStore } from '../utils'
   import AvatarInstance from './AvatarInstance.svelte'
   import { getPreviewPopup } from './person/utils'
 
   export let person:
-  | (Data<WithLookup<AvatarInfo>> & { _id?: Ref<Person>, personUuid?: PersonUuid })
-  | Person
-  | undefined = undefined
+    | (Data<WithLookup<AvatarInfo>> & { _id?: Ref<Person>, personUuid?: PersonUuid })
+    | Person
+    | undefined = undefined
   export let name: string | null | undefined = undefined
   export let direct: Blob | undefined = undefined
   export let size: IconSize

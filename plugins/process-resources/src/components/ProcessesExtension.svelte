@@ -13,10 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
-  import core, { Doc, FindOptions, Ref, SortingOrder, TypedSpace } from '@hcengineering/core'
-  import { createQuery } from '@hcengineering/presentation'
-  import { Execution } from '@hcengineering/process'
+  import type { Card } from '@hcengineering/card'
+  import type { PermissionsStore } from '@hcengineering/contact'
+  import { checkMyPermission, permissionsStore } from '@hcengineering/contact-resources'
+  import type { Doc, FindOptions, Ref, TypedSpace } from '@hcengineering/core'
+  import core, { SortingOrder } from '@hcengineering/core'
+  import { createQuery, getClient } from '@hcengineering/presentation'
+  import type { Execution, Process } from '@hcengineering/process'
   import {
     Button,
     eventToHTMLElement,
@@ -27,19 +30,13 @@
     Section,
     showPopup
   } from '@hcengineering/ui'
-  import view, { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
-  import {
-    List,
-    ListSelectionProvider,
-    noCategory,
-    SelectDirection,
-    ViewletsSettingButton
-  } from '@hcengineering/view-resources'
+  import type { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+  import type { SelectDirection } from '@hcengineering/view-resources'
+  import { List, ListSelectionProvider, noCategory, ViewletsSettingButton } from '@hcengineering/view-resources'
+  import { createEventDispatcher } from 'svelte'
   import process from '../plugin'
   import RunProcessPopup from './RunProcessPopup.svelte'
-  import { createEventDispatcher } from 'svelte'
-  import { checkMyPermission, permissionsStore } from '@hcengineering/contact-resources'
-  import { PermissionsStore } from '@hcengineering/contact'
 
   export let card: Card
   export let readonly: boolean = false
@@ -47,8 +44,18 @@
   const viewletId = process.viewlet.CardExecutions
   const dispatch = createEventDispatcher()
 
+  const client = getClient()
+
+  const autoProcesses = client
+    .getModel()
+    .findAllSync(process.class.Process, {
+      automationOnly: true
+    })
+    .map((p: Process) => p._id)
+
   $: query = {
-    card: card._id
+    card: card._id,
+    process: { $nin: autoProcesses }
   }
 
   const options: FindOptions<Execution> = {
@@ -123,9 +130,9 @@
 <Section icon={process.icon.Process} label={process.string.Processes} spaceBeforeContent>
   <svelte:fragment slot="header">
     <div class="buttons-group xsmall-gap">
-      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'tertiary'} bind:viewlet />
+      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="tertiary" bind:viewlet />
       {#if !readonly && !checkForbiddenPermission($permissionsStore)}
-        <Button id={process.string.RunProcess} icon={IconAdd} kind={'ghost'} on:click={add} />
+        <Button id={process.string.RunProcess} icon={IconAdd} kind="ghost" on:click={add} />
       {/if}
     </div>
   </svelte:fragment>

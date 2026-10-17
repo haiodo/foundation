@@ -13,18 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    ButtonIcon,
-    DropdownIntlItem,
-    Icon,
-    IconDelete,
-    IconMoreV,
-    ModernPopup,
-    eventToHTMLElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { Icon, IconDelete, IconMoreV, ModernPopup, eventToHTMLElement, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import setting from '@hcengineering/setting'
-  import { MailboxInfo } from '@hcengineering/account-client'
+  import type { MailboxInfo } from '@hcengineering/account-client'
   import { getClient, MessageBox } from '@hcengineering/presentation'
   import { getAccountClient } from '../utils'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
@@ -126,7 +120,8 @@
     <Icon icon={setting.icon.Mailbox} size="small" />
     <span style="user-select: text">{mailbox.mailbox}</span>
     <div class="buttons-group tertiary-textColor">
-      <ButtonIcon
+      <IconButton
+        tooltip={{ label: view.string.MoreActions }}
         kind="tertiary"
         icon={IconMoreV}
         size="small"
@@ -153,12 +148,13 @@
             type="type-link"
           >
             <svelte:fragment slot="actions">
-              <ButtonIcon
+              <IconButton
                 icon={IconDelete}
                 size="extra-small"
                 kind="tertiary"
                 tooltip={{ label: setting.string.Delete, direction: 'top' }}
-                on:click={() => {
+                on:click={(e) => {
+                  e.stopPropagation()
                   deleteAlias(alias)
                 }}
               />
@@ -187,12 +183,13 @@
             type="type-link"
           >
             <svelte:fragment slot="actions">
-              <ButtonIcon
+              <IconButton
                 icon={IconDelete}
                 size="extra-small"
                 kind="tertiary"
                 tooltip={{ label: setting.string.Delete, direction: 'top' }}
-                on:click={() => {
+                on:click={(e) => {
+                  e.stopPropagation()
                   deletePassword(app)
                 }}
               />

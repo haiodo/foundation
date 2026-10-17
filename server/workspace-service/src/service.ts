@@ -19,7 +19,6 @@ import {
   isArchivingMode,
   isMigrationMode,
   isRestoringMode,
-  MeasureMetricsContext,
   systemAccountUuid,
   type BrandingMap,
   type Data,
@@ -43,12 +42,6 @@ import path from 'path'
 
 import { Analytics } from '@hcengineering/analytics'
 import {
-  createMongoAdapter,
-  createMongoDestroyAdapter,
-  createMongoTxAdapter,
-  shutdownMongo
-} from '@hcengineering/mongo'
-import {
   createPostgreeDestroyAdapter,
   createPostgresAdapter,
   createPostgresTxAdapter,
@@ -71,8 +64,7 @@ import {
   registerDestroyFactory,
   registerServerPlugins,
   registerStringLoaders,
-  registerTxAdapterFactory,
-  setAdapterSecurity
+  registerTxAdapterFactory
 } from '@hcengineering/server-pipeline'
 import { buildStorageFromConfig, storageConfigFromEnv } from '@hcengineering/server-storage'
 import { createWorkspace, upgradeWorkspace } from './ws-operations'
@@ -95,9 +87,6 @@ export interface WorkspaceOptions {
 // Register close on process exit.
 process.on('exit', () => {
   shutdownPostgres().catch((err) => {
-    console.error(err)
-  })
-  shutdownMongo().catch((err) => {
     console.error(err)
   })
 })
@@ -169,14 +158,9 @@ export class WorkspaceWorker {
 
     setDBExtraOptions({ connection: { application_name: `workspace-${this.id}` } })
 
-    registerTxAdapterFactory('mongodb', createMongoTxAdapter)
-    registerAdapterFactory('mongodb', createMongoAdapter)
-    registerDestroyFactory('mongodb', createMongoDestroyAdapter)
-
     registerTxAdapterFactory('postgresql', createPostgresTxAdapter, true)
     registerAdapterFactory('postgresql', createPostgresAdapter, true)
     registerDestroyFactory('postgresql', createPostgreeDestroyAdapter, true)
-    setAdapterSecurity('postgresql', true)
 
     registerServerPlugins()
     registerStringLoaders()
@@ -197,12 +181,14 @@ export class WorkspaceWorker {
       } else {
         void this.exec(async () => {
           const job = randomUUID().slice(-8)
-          const opContext = new MeasureMetricsContext(`ws op with job ${job}`, { job })
+          const opContext = ctx.newChild('ws-op', {}, { fullParams: { job } })
           try {
             await this.doWorkspaceOperation(opContext, workspace, opt)
           } catch (err: any) {
             Analytics.handleError(err)
             opContext.error('Error while performing workspace operation', { origErr: err })
+          } finally {
+            opContext.end()
           }
         })
         // sleep for a little bit to avoid bombarding the account service, also add jitter to avoid simultaneous requests from multiple workspace services
@@ -254,6 +240,8 @@ export class WorkspaceWorker {
       const wsId = ws.uuid
       const token = generateToken(systemAccountUuid, wsId, { service: 'workspace' })
       const accountClient = getAccountClient(this.accountsUrl, token)
+      const language = ws.language ?? 'en'
+
       const handleWsEventWithRetry = (
         event: 'ping' | 'create-started' | 'progress' | 'create-done',
         version: Data<Version>,
@@ -276,7 +264,9 @@ export class WorkspaceWorker {
           this.migrationOperation,
           accountClient,
           this.workspaceQueue,
-          handleWsEventWithRetry
+          handleWsEventWithRetry,
+          false,
+          language
         )
       } else {
         // The previous attempth failed during init script and we cannot really retry it.
@@ -432,8 +422,9 @@ export class WorkspaceWorker {
       let serverEndpoint = await getTransactorEndpoint(token)
       serverEndpoint = serverEndpoint.replaceAll('wss://', 'https://').replace('ws://', 'http://')
       console.log('sending event', serverEndpoint, ws)
-      await fetch(serverEndpoint + `/api/v1/manage?token=${token}&operation=force-close`, {
-        method: 'PUT'
+      await fetch(serverEndpoint + '/api/v1/manage?operation=force-close', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
       })
     } catch (err: any) {
       console.log(err)
@@ -615,7 +606,9 @@ export class WorkspaceWorker {
           SkipWorkspaces: '',
           Interval: 0,
           Parallel: 1,
-          KeepSnapshots: 7 * 12
+          KeepSnapshots: 7 * 12,
+          // One-shot backup of a single workspace: retention cleanup is the backup pod's job.
+          DeletedRetentionDays: 0
         },
         pipelineFactory,
         (ctx, workspace, branding, externalStorage) => {

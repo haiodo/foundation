@@ -29,8 +29,19 @@ export interface Config {
   AllowedNotificationProviders: (Ref<NotificationProvider> | 'all')[]
   DbUrl: string
   ApplyTxBatchSize: number
+  ApplyTxRetries: number
   FrontUrl: string
   BrandingPath: string
+  LatestNotificationsSliceSize: number
+  // The cap on holding a native push while its receiver is at the computer.
+  PushHoldMs: number
+  HoldLetters: boolean
+}
+
+function parseMs (name: string, fallback: string): number {
+  const value = parseInt(process.env[name] ?? fallback)
+  if (!Number.isFinite(value) || value < 0) throw Error(`Invalid env variable ${name}: ${process.env[name]}`)
+  return value
 }
 
 function getAllowedProviders (): (Ref<NotificationProvider> | 'all')[] {
@@ -46,13 +57,16 @@ const config: Config = (() => {
     QueueConfig: process.env.QUEUE_CONFIG,
     QueueRegion: process.env.QUEUE_REGION,
     AccountsUrl: process.env.ACCOUNTS_URL,
-    ServiceId: process.env.SERVICE_ID ?? 'notifications-service',
+    ServiceId: process.env.SERVICE_ID ?? 'notifications',
     StorageConfig: process.env.STORAGE_CONFIG,
     AllowedNotificationProviders: getAllowedProviders(),
     DbUrl: process.env.DB_URL,
     ApplyTxBatchSize: parseInt(process.env.APPLY_TX_BATCH_SIZE ?? '100'),
     FrontUrl: process.env.FRONT_URL,
-    BrandingPath: process.env.BRANDING_PATH ?? ''
+    BrandingPath: process.env.BRANDING_PATH ?? '',
+    LatestNotificationsSliceSize: parseInt(process.env.LATEST_NOTIFICATIONS_SLICE_SIZE ?? '5'),
+    PushHoldMs: parseMs('PUSH_HOLD_MS', '60000'),
+    HoldLetters: (process.env.HOLD_LETTERS ?? 'true') !== 'false'
   }
 
   const missingEnv = (Object.keys(params) as Array<keyof Config>).filter((key) => params[key] === undefined)

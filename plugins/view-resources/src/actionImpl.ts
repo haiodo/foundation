@@ -31,6 +31,7 @@ import {
   type PopupPosAlignment,
   closeTooltip,
   isPopupPosAlignment,
+  isSafari,
   locationToUrl,
   navigate,
   showPanel,
@@ -44,26 +45,18 @@ import {
   type SelectDirection,
   type SelectionStore,
   focusStore,
-  previewDocument,
   selectionLimit,
   selectionStore
 } from './selection'
-import { deleteObjects, getObjectId, getObjectLinkFragment, restrictionStore } from './utils'
+import { deleteObjects, getObjectId, getObjectLinkFragment, openDocInSidebar, restrictionStore } from './utils'
 import workbenchPlugin from '@hcengineering/workbench'
 import converter from '@hcengineering/converter'
 import { viewletContextStore } from './viewletContextStore'
 
 /**
- * Action to be used for copying text to clipboard.
- * In Safari a request to write to the clipboard must be triggered during a user gesture.
- * A call to clipboard.write or clipboard.writeText outside the scope of a user
- * gesture(such as "click" or "touch" event handlers) will result in the immediate
- * rejection of the promise returned by the API call.
- * https://webkit.org/blog/10855/async-clipboard-api/
- *
- *  * Require props:
- * - textProvider - a function that provides text to be copied.
- * - props - additional text provider props.
+ * Copy text to clipboard. Safari requires the write to happen inside a user
+ * gesture or the promise rejects immediately (webkit.org/blog/10855).
+ * Props: `textProvider` returns the text, `props` are passed to it.
  */
 async function CopyTextToClipboard (
   doc: Doc | Doc[],
@@ -73,17 +66,20 @@ async function CopyTextToClipboard (
     props?: Record<string, any>
   }
 ): Promise<void> {
-  const getText = await getResource(props.textProvider)
-  const text = Array.isArray(doc)
-    ? (await Promise.all(doc.map(async (d) => await getText(d, props.props)))).join(',')
-    : await getText(doc, props.props)
+  // Pass a Promise so ClipboardItem is created synchronously within the user gesture (Safari)
+  const text = getResource(props.textProvider).then(async (getText) =>
+    Array.isArray(doc)
+      ? (await Promise.all(doc.map(async (d) => await getText(d, props.props)))).join(',')
+      : await getText(doc, props.props)
+  )
   await copyText(text, 'text/plain')
 }
 
 export async function copyText (text: any, contentType: string = 'text/plain'): Promise<void> {
   try {
-    // Check if ClipboardItem is available
-    if (typeof ClipboardItem !== 'undefined') {
+    // Chromium keeps every ClipboardItem write in a persistent root, which retains the page after reload.
+    // Safari needs it to keep the user gesture across the awaited text.
+    if (typeof ClipboardItem !== 'undefined' && (isSafari() || contentType !== 'text/plain')) {
       const clipboardData: Record<string, any> = {
         [contentType]: text instanceof Promise ? text : Promise.resolve(text)
       }
@@ -123,53 +119,17 @@ export async function copyText (text: any, contentType: string = 'text/plain'): 
  * @param metadata - Optional metadata object containing table information (query, config, document IDs, etc.)
  */
 export async function copyMarkdown (markdown: string, metadata?: Record<string, any>): Promise<void> {
-  // Step 1: Always embed metadata in markdown FIRST (if metadata exists)
+  // Browsers reject text/markdown and custom MIME types in ClipboardItem (NotAllowedError),
+  // so metadata is embedded as an HTML comment and everything is copied as text/plain
   let markdownToCopy = markdown
   if (metadata !== undefined) {
     try {
-      const metadataComment = `<!-- huly-table-metadata:${JSON.stringify(metadata)} -->`
-      markdownToCopy = markdown + '\n' + metadataComment
+      markdownToCopy = markdown + '\n' + `<!-- platform-table-metadata:${JSON.stringify(metadata)} -->`
     } catch (e) {
       console.error('Failed to embed metadata in markdown:', e)
-      // Continue with original markdown if embedding fails
     }
   }
-
-  // Step 2: Try modern ClipboardItem API (with custom MIME type for performance)
-  try {
-    if (typeof ClipboardItem !== 'undefined') {
-      const clipboardData: Record<string, any> = {
-        'text/markdown': Promise.resolve(markdownToCopy)
-      }
-      // Add custom MIME type for fast parsing in modern browsers
-      if (metadata !== undefined) {
-        try {
-          clipboardData['application/x-huly-table-metadata'] = Promise.resolve(JSON.stringify(metadata))
-        } catch (e) {
-          console.error('Failed to stringify metadata for custom MIME type:', e)
-        }
-      }
-
-      const clipboardItem = new ClipboardItem(clipboardData)
-      await navigator.clipboard.write([clipboardItem])
-      return // Success, exit early
-    }
-  } catch (error) {
-    console.error('Failed to copy with ClipboardItem, falling back:', error)
-  }
-
-  // Step 3: Fallback to writeText (markdownToCopy already has metadata)
-  try {
-    if (navigator.clipboard != null && typeof navigator.clipboard.writeText === 'function') {
-      await navigator.clipboard.writeText(markdownToCopy)
-      return // Success, exit early
-    }
-  } catch (fallbackError) {
-    console.error('Failed to copy with writeText, using old browser fallback:', fallbackError)
-  }
-
-  // Step 4: Final fallback to old browser method (markdownToCopy already has metadata)
-  copyTextToClipboardOldBrowser(markdownToCopy)
+  await copyText(markdownToCopy, 'text/plain')
 }
 
 function Delete (
@@ -302,11 +262,6 @@ export function select (
   if ($focusStore.provider?.select !== undefined) {
     $focusStore.provider?.select(offset, of, direction, noScroll)
     evt?.preventDefault()
-    previewDocument.update((old) => {
-      if (old !== undefined) {
-        return $focusStore.focus
-      }
-    })
   }
 }
 
@@ -330,7 +285,6 @@ function SelectItemNone (doc: Doc | undefined, evt: Event): void {
   const provider = $selectionStore.provider ?? $focusStore.provider
   if (provider !== undefined) {
     provider.selection.set([])
-    previewDocument.set(undefined)
     evt.preventDefault()
   }
 }
@@ -339,7 +293,6 @@ function SelectItemAll (doc: Doc | undefined, evt: Event): void {
   if (provider !== undefined) {
     const docs = provider.docs() ?? []
     provider.selection.set(docs.slice(0, selectionLimit))
-    previewDocument.set(undefined)
     evt.preventDefault()
   }
 }
@@ -364,25 +317,25 @@ function ShowActions (doc: Doc | Doc[] | undefined, evt: Event): void {
   showPopup(view.component.ActionsPopup, { viewContext: $contextStore.getLastContext() }, 'top')
 }
 
-function ShowPreview (doc: Doc | Doc[] | undefined, evt: Event): void {
-  previewDocument.update((old) => {
-    const d = Array.isArray(doc) ? doc[0] : doc
-    if (old?._id === d?._id) {
-      return undefined
-    }
-    return d
-  })
+function OpenInSidebar (doc: Doc | Doc[] | undefined, evt: Event): void {
+  const d = Array.isArray(doc) ? doc[0] : doc
+  if (d !== undefined) {
+    void openDocInSidebar(d)
+  }
   evt.preventDefault()
 }
+
+// Space key preview opens the doc in the sidebar, same as the OpenInSidebar action.
+const ShowPreview = OpenInSidebar
 
 async function Open (
   doc: Doc,
   evt: Event,
   props:
-  | {
-    component?: AnyComponent
-  }
-  | undefined
+    | {
+      component?: AnyComponent
+    }
+    | undefined
 ): Promise<void> {
   evt.preventDefault()
   const d = Array.isArray(doc) ? doc[0] : doc
@@ -398,10 +351,10 @@ async function OpenInNewTab (
   doc: Doc,
   evt: Event,
   props:
-  | {
-    component?: AnyComponent
-  }
-  | undefined
+    | {
+      component?: AnyComponent
+    }
+    | undefined
 ): Promise<void> {
   evt.preventDefault()
   const d = Array.isArray(doc) ? doc[0] : doc
@@ -420,11 +373,8 @@ async function OpenInNewTab (
 }
 
 /**
- * Quick action for show panel
- * Require props:
- * - component - view.component.EditDoc or another component
- * - element - position
- * - right - some right component
+ * Quick action to open a panel. Props: `component` (e.g. view.component.EditDoc),
+ * `element` (anchor), `right` (optional right-side component).
  */
 function ShowPanel (
   doc: Doc | Doc[],
@@ -447,13 +397,8 @@ function ShowPanel (
 }
 
 /**
- * Quick action for show popup
- * Props:
- * - _id - object id will be placed into
- * - _class - object _class will be placed into
- * - value - object itself will be placed into
- * - values - all docs will be placed into
- * - props - some basic props, will be merged with key, _class, value, values
+ * Quick action to open a popup. Props: `_id`/`_class`/`value`/`values` locate the
+ * target docs, `props` are merged into the popup options.
  */
 async function ShowPopup (
   doc: Doc | Doc[],
@@ -703,15 +648,12 @@ async function CopyDocumentMarkdown (
     return
   }
   if (contentField.type._class === core.class.TypeCollaborativeDoc) {
-    const content = await getMarkup(
+    // Pass a Promise so ClipboardItem is created synchronously within the user gesture (Safari)
+    const content = getMarkup(
       makeDocCollabId(docs[0], props.contentField),
       (docs[0] as any)[props.contentField] as Ref<Blob>
-    )
-    if (content !== null) {
-      const jsonMarkup = markupToJSON(content)
-      const contentJson = markupToMarkdown(jsonMarkup)
-      await copyText(contentJson, 'text/markdown')
-    }
+    ).then((c) => (c !== null ? markupToMarkdown(markupToJSON(c)) : ''))
+    await copyText(content, 'text/plain')
   }
 }
 
@@ -770,6 +712,7 @@ export const actionImpl = {
   ShowPreview,
   Open,
   OpenInNewTab,
+  OpenInSidebar,
   UpdateDocument,
   ShowPanel,
   ShowPopup,

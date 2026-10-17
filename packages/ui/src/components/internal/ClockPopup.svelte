@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { convertTimeZone, showPopup, TimeZone } from '../..'
+  import type { TimeZone } from '../..'
+  import { convertTimeZone, showPopup } from '../..'
   import ClockFace from './ClockFace.svelte'
   import TimeZonesPopup from '../TimeZonesPopup.svelte'
 
@@ -69,7 +70,7 @@
   }
 </script>
 
-<div class="antiPopup" style:flex-direction={'row'} style:padding={'12px'}>
+<div class="antiPopup" style:flex-direction="row" style:padding="12px">
   {#each selectedTZ as selected, i}
     <div class="statusPopup-option">
       <ClockFace bind:timeZone={selected} size={clockSize} />

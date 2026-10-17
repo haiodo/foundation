@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Employee } from '@hcengineering/contact'
-  import { FindOptions, Ref, SortingOrder } from '@hcengineering/core'
+  import type { Employee } from '@hcengineering/contact'
+  import type { FindOptions, Ref } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
   import presentation, { Card } from '@hcengineering/presentation'
-  import { Issue, TimeSpendReport } from '@hcengineering/tracker'
+  import type { Issue, TimeSpendReport } from '@hcengineering/tracker'
   import { Button, IconAdd, Scroller, showPopup, tableSP } from '@hcengineering/ui'
   import { TableBrowser } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
@@ -73,7 +74,7 @@
       <TableBrowser
         _class={tracker.class.TimeSpendReport}
         query={{ employee: person, date: { $gte: ld, $lte: rd } }}
-        preferredSorting={'date'}
+        preferredSorting="date"
         preferredSortingOrder={SortingOrder.Ascending}
         config={[
           '$lookup.attachedTo',
@@ -92,6 +93,6 @@
     </Scroller>
   </div>
   <svelte:fragment slot="buttons">
-    <Button id="PersonReportsPopupAddButton" icon={IconAdd} size={'large'} on:click={addReport} />
+    <Button id="PersonReportsPopupAddButton" icon={IconAdd} size="large" on:click={addReport} />
   </svelte:fragment>
 </Card>

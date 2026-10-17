@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -16,11 +17,12 @@
 import lead, { leadId } from '@hcengineering/lead'
 import { type IntlString, mergeIds, type Resource } from '@hcengineering/platform'
 import { type Client, type Doc, type Ref } from '@hcengineering/core'
-import { type AnyComponent } from '@hcengineering/ui/src/types'
+import { type AnyComponent, type Location, type ResolvedLocation } from '@hcengineering/ui/src/types'
 
 export default mergeIds(leadId, lead, {
   string: {
     FunnelName: '' as IntlString,
+    DefaultFunnel: '' as IntlString,
     CreateFunnel: '' as IntlString,
     LeadName: '' as IntlString,
     More: '' as IntlString,
@@ -56,6 +58,13 @@ export default mergeIds(leadId, lead, {
   },
   function: {
     LeadTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
-    LeadIdProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>
+    LeadIdProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
+    GetObjectLinkFragment: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
+    GetIdObjectLinkFragment: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
+    IdProvider: '' as Resource<(doc: Doc) => Promise<string>>,
+    ParseLinkId: '' as Resource<(id: string) => Promise<Ref<Doc> | undefined>>
+  },
+  resolver: {
+    Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>
   }
 })

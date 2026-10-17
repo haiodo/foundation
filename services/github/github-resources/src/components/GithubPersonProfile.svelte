@@ -3,7 +3,7 @@
   import { NavLink } from '@hcengineering/presentation'
   import tracker from '@hcengineering/tracker'
   import { Icon } from '@hcengineering/ui'
-  import { GithubAuthentication } from '@hcengineering/github'
+  import type { GithubAuthentication } from '@hcengineering/github'
   import github from '../plugin'
 
   export let auth: GithubAuthentication
@@ -12,7 +12,7 @@
 <div class="flex flex-row">
   <div class="flex flex-col">
     <div class="">
-      <img src={auth?.avatar} width="64" height={'64'} alt={auth.name ?? ''} />
+      <img src={auth?.avatar} width="64" height="64" alt={auth.name ?? ''} />
     </div>
     {#if auth?.name}
       <div class="p1 fs-title text-lg">
@@ -24,7 +24,7 @@
     </div>
     {#if auth}
       <div class="flex-row-center mt-4 text-sm no-word-wrap">
-        <Icon icon={contact.icon.Person} size={'small'} />
+        <Icon icon={contact.icon.Person} size="small" />
         <span class="ml-1">
           followers <b>{auth.followers}</b>
         </span>
@@ -35,7 +35,7 @@
         {/if}
       </div>
       <div class="flex-row-center mt-4 text-sm no-word-wrap">
-        <Icon icon={github.icon.GithubRepository} size={'small'} />
+        <Icon icon={github.icon.GithubRepository} size="small" />
         <span class="ml-1">
           repositories <b>{auth.repositories}</b>
         </span>
@@ -46,7 +46,7 @@
       </div>
 
       <div class="flex-row-center mt-4 text-sm no-word-wrap">
-        <Icon icon={tracker.icon.Issue} size={'small'} />
+        <Icon icon={tracker.icon.Issue} size="small" />
         <span class="ml-1">
           open <b>{auth.openIssues}</b>
         </span>
@@ -55,7 +55,7 @@
         </div>
       </div>
       <div class="flex-row-center mt-4 text-sm no-word-wrap">
-        <Icon icon={github.icon.PullRequest} size={'small'} />
+        <Icon icon={github.icon.PullRequest} size="small" />
         <span class="ml-1">
           open <b>{auth.openPRs}</b>
         </span>
@@ -97,7 +97,7 @@
         </div>
       {/if}
       <div class="flex-row-center mt-4 text-sm">
-        <Icon icon={github.icon.Github} size={'small'} />
+        <Icon icon={github.icon.Github} size="small" />
         <span class="ml-1">
           organizations <b class="ml-1">{auth.organizations?.totalCount ?? 0}</b>
         </span>
@@ -105,13 +105,13 @@
     {/if}
   </div>
   <div class="flex flex-col ml-4 flex-grow">
-    <div class="flex-grow" style:overflow={'auto'}>
+    <div class="flex-grow" style:overflow="auto">
       {#each auth?.organizations?.nodes ?? [] as organization}
         <div class="org-card mt-2 flex-grow">
           <div class="flex flex-row-center">
             {#if organization.avatarUrl}
               <div class="mr-2">
-                <img src={organization.avatarUrl} width="32" height={'32'} alt={organization.name} />
+                <img src={organization.avatarUrl} width="32" height="32" alt={organization.name} />
               </div>
             {/if}
             <div class="flex-row-center flex-no-wrap">

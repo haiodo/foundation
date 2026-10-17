@@ -15,8 +15,9 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte'
   import { ActionContext } from '@hcengineering/presentation'
-  import { WithLookup } from '@hcengineering/core'
-  import testManagement, { TestResult, TestCase } from '@hcengineering/test-management'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { TestResult, TestCase } from '@hcengineering/test-management'
+  import testManagement from '@hcengineering/test-management'
   import { Panel } from '@hcengineering/panel'
   import { Button } from '@hcengineering/ui'
 
@@ -37,7 +38,7 @@
 
   onMount(async () => {
     object = testResultIteratorProvider.getIterator()?.next()
-    testCase = object?.$lookup?.testCase as TestCase | undefined
+    testCase = object?.$lookup?.testCase
   })
   onDestroy(() => {
     testResultIteratorProvider.reset()
@@ -46,7 +47,7 @@
 
   async function goToNextItem (): Promise<void> {
     object = testResultIteratorProvider.getIterator()?.next()
-    testCase = object?.$lookup?.testCase as TestCase | undefined
+    testCase = object?.$lookup?.testCase
   }
 </script>
 
@@ -58,7 +59,7 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'default'}
+    adaptive="default"
     withoutActivity
     on:open
     on:close={() => dispatch('close')}
@@ -66,7 +67,7 @@
     <svelte:fragment slot="extra">
       <Button
         label={testManagement.string.GoToNextTest}
-        kind={'primary'}
+        kind="primary"
         icon={view.icon.ArrowRight}
         disabled={!hasNext}
         on:click={goToNextItem}

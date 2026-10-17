@@ -44,7 +44,7 @@ export { SmartPasteExtension as TransformPastedContentExtension } from './compon
 export { getReferenceFromUrl, getReferenceLabel, getTargetObjectFromUrl } from './components/extension/reference'
 export { TodoItemExtension, TodoListExtension } from './components/extension/todo/todo'
 
-export * from '@hcengineering/presentation/src/types'
+export type * from '@hcengineering/presentation/src/types'
 export { default as Collaboration } from './components/Collaboration.svelte'
 export { default as CollaborationDiffViewer } from './components/CollaborationDiffViewer.svelte'
 export { default as CollaborativeAttributeBox } from './components/CollaborativeAttributeBox.svelte'
@@ -56,6 +56,7 @@ export { default as FullDescriptionBox } from './components/FullDescriptionBox.s
 export { default as AttachIcon } from './components/icons/Attach.svelte'
 export { default as TableIcon } from './components/icons/Table.svelte'
 export { default as MarkupDiffViewer } from './components/MarkupDiffViewer.svelte'
+export { getRegisteredEditor, registeredEditor, registerEditor, unregisterEditor } from './editorRegistry'
 export * from './components/node-view'
 export { default as ReferenceInput } from './components/ReferenceInput.svelte'
 export { default as StringDiffViewer } from './components/StringDiffViewer.svelte'

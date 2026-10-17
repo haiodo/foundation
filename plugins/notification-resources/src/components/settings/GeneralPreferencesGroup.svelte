@@ -15,11 +15,13 @@
 
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import notification, { NotificationProvider } from '@hcengineering/notification'
-  import core, { Ref } from '@hcengineering/core'
+  import type { NotificationProvider } from '@hcengineering/notification'
+  import notification from '@hcengineering/notification'
+  import type { Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
 
-  import { providersSettings } from '../../utils'
+  import { providersSettings } from '../../stores'
   import ProviderPreferences from './ProviderPreferences.svelte'
 
   const client = getClient()

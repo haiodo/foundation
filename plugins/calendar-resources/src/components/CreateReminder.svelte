@@ -13,10 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccessLevel, Calendar, generateEventId } from '@hcengineering/calendar'
-  import { Employee, getCurrentEmployee } from '@hcengineering/contact'
+  import type { Calendar } from '@hcengineering/calendar'
+  import { AccessLevel, generateEventId } from '@hcengineering/calendar'
+  import type { Employee } from '@hcengineering/contact'
+  import { getCurrentEmployee, getCurrentEmployeeSpace } from '@hcengineering/contact'
   import { UserBoxList } from '@hcengineering/contact-resources'
-  import { Class, DateRangeMode, Doc, Ref, getCurrentAccount } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { DateRangeMode, getCurrentAccount } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
   import ui, { DateRangePresenter, EditBox } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -24,7 +27,6 @@
 
   export let attachedTo: Ref<Doc>
   export let attachedToClass: Ref<Class<Doc>>
-  // export let event: Event | undefined = undefined
   export let title: string = ''
   let _title = title
 
@@ -37,7 +39,7 @@
   const client = getClient()
 
   export function canClose (): boolean {
-    return _title !== undefined && _title.trim().length === 0 && participants.length === 0
+    return _title?.trim().length === 0 && participants.length === 0
   }
 
   async function saveReminder () {
@@ -45,7 +47,7 @@
     if (value != null) date = value
     if (date === undefined) return
     const _calendar = `${getCurrentAccount().uuid}_calendar` as Ref<Calendar>
-    await client.addCollection(calendar.class.Event, calendar.space.Calendar, attachedTo, attachedToClass, 'events', {
+    await client.addCollection(calendar.class.Event, getCurrentEmployeeSpace(), attachedTo, attachedToClass, 'events', {
       calendar: _calendar,
       eventId: generateEventId(),
       date,
@@ -71,16 +73,16 @@
   }}
   on:changeContent
 >
-  <EditBox bind:value={_title} placeholder={calendar.string.Title} kind={'large-style'} autoFocus />
+  <EditBox bind:value={_title} placeholder={calendar.string.Title} kind="large-style" autoFocus />
   <svelte:fragment slot="pool">
     <DateRangePresenter
       bind:value
       mode={DateRangeMode.DATETIME}
       editable={true}
       labelNull={ui.string.SelectDate}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
-    <UserBoxList bind:items={participants} label={calendar.string.Participants} kind={'regular'} size={'large'} />
+    <UserBoxList bind:items={participants} label={calendar.string.Participants} kind="regular" size="large" />
   </svelte:fragment>
 </Card>

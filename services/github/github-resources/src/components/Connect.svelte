@@ -10,12 +10,15 @@
 
   import type { Integration as AccountIntegration } from '@hcengineering/account-client'
   import { Analytics } from '@hcengineering/analytics'
-  import { WithLookup, getCurrentAccount } from '@hcengineering/core'
-  import { GithubAuthentication, GithubIntegration } from '@hcengineering/github'
+  import type { WithLookup } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
+  import type { GithubAuthentication, GithubIntegration } from '@hcengineering/github'
   import { getEmbeddedLabel, getMetadata, translate } from '@hcengineering/platform'
   import presentation, { Card, HTMLViewer, NavLink, createQuery } from '@hcengineering/presentation'
-  import tracker, { Project } from '@hcengineering/tracker'
-  import ui, { Button, Label, Loading, TabItem, TabList, location, ticker } from '@hcengineering/ui'
+  import type { Project } from '@hcengineering/tracker'
+  import tracker from '@hcengineering/tracker'
+  import type { TabItem } from '@hcengineering/ui'
+  import ui, { Button, Label, Loading, TabList, location, ticker } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import github from '../plugin'
   import { onAuthorize, updateGithubAccountIntegrationLogin } from './utils'
@@ -103,7 +106,7 @@
     <TabList
       items={tabs}
       bind:selected={selectedTab}
-      kind={'plain'}
+      kind="plain"
       on:select={(result) => {
         selectedTab = result.detail.id
       }}
@@ -128,7 +131,7 @@
                     <HTMLViewer value={msg} />
                   {/await}
                   <div class="underline">
-                    <NavLink href={'https://github.com/settings/installations/'} noUnderline={false}>
+                    <NavLink href="https://github.com/settings/installations/" noUnderline={false}>
                       <b><Label label={github.string.Uninstall} /></b>
                     </NavLink>
                   </div>
@@ -143,7 +146,7 @@
   <svelte:fragment slot="footer">
     {#if selectedTab === 'personal'}
       {#if auth !== undefined && $ticker - (auth?.authRequestTime ?? 0) > 0 && auth.login === ''}
-        <div class="fs-title" style:color={'red'}>
+        <div class="fs-title" style:color="red">
           <Label label={github.string.PleaseRetry} />
         </div>
       {/if}
@@ -152,16 +155,16 @@
         labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
         {loading}
         on:click={() => onAuthorize()}
-        size={'large'}
-        kind={'primary'}
+        size="large"
+        kind="primary"
       />
     {:else if selectedTab === 'installations'}
       <Button
         label={integrations.length === 0 ? github.string.InstallApp : github.string.Configure}
         labelParams={{ title: getMetadata(ui.metadata.PlatformTitle) }}
         on:click={onConnect}
-        size={'large'}
-        kind={'primary'}
+        size="large"
+        kind="primary"
       />
     {/if}
   </svelte:fragment>

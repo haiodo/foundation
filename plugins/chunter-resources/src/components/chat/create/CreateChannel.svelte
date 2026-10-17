@@ -14,14 +14,15 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { ModernEditbox, ButtonMenu, Label, Modal, TextArea } from '@hcengineering/ui'
+  import { ModernEditbox, Label, Modal, TextArea } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import presentation, { getClient } from '@hcengineering/presentation'
   import core, { getCurrentAccount } from '@hcengineering/core'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
 
   import Lock from '../../icons/Lock.svelte'
   import chunter from '../../../plugin'
-  import { openChannel } from '../../../navigation'
+  import { openChunterSpace } from '../../../navigation'
 
   const dispatch = createEventDispatcher()
   const client = getClient()
@@ -66,7 +67,7 @@
       owners: [myAcc]
     })
 
-    openChannel(channelId, chunter.class.Channel)
+    await openChunterSpace(channelId, chunter.class.Channel)
   }
 
   function handleCancel (): void {
@@ -88,7 +89,7 @@
     <TextArea
       placeholder={chunter.string.TopicOptional}
       width="100%"
-      height="6.5rem"
+      height="2.5rem"
       margin="var(--spacing-1) var(--spacing-2)"
       noFocusBorder
       bind:value={topic}
@@ -97,7 +98,7 @@
   <div class="hulyModal-content__settingsSet">
     <div class="hulyModal-content__settingsSet-line">
       <span class="label"><Label label={chunter.string.Visibility} /></span>
-      <ButtonMenu
+      <MenuButton
         items={visibilityOptions}
         selected={selectedVisibilityId}
         icon={visibilityIcon}

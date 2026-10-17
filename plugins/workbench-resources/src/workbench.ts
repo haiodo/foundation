@@ -19,11 +19,12 @@ import core, {
   generateId,
   getCurrentAccount,
   reduceCalls,
-  type Ref
+  type Ref,
+  SortingOrder
 } from '@hcengineering/core'
 import notification, { notificationId } from '@hcengineering/notification'
 import { type Asset, getMetadata, getResource, type IntlString, setMetadata, translate } from '@hcengineering/platform'
-import presentation, { configurationStore, getClient } from '@hcengineering/presentation'
+import presentation, { configurationStore, createQuery, getClient, onClient } from '@hcengineering/presentation'
 import {
   type AnyComponent,
   getCurrentLocation,
@@ -39,6 +40,7 @@ import view from '@hcengineering/view'
 import { parseLinkId } from '@hcengineering/view-resources'
 import { type Application, workbenchId, type WorkbenchTab } from '@hcengineering/workbench'
 import { derived, get, writable } from 'svelte/store'
+import pulse, { type WorkspacesNotification } from '@hcengineering/pulse'
 
 import setting from '@hcengineering/setting'
 import workbench from './plugin'
@@ -225,7 +227,7 @@ export async function createTab (): Promise<void> {
   try {
     const last = localStorage.getItem(`${locationStorageKeyId}_${notificationId}`)
     const lastLocation: Location | undefined = last != null ? JSON.parse(last) : undefined
-    if (lastLocation != null && lastLocation.path[1] === loc.path[1] && lastLocation.path[2] === notificationId) {
+    if (lastLocation?.path[1] === loc.path[1] && lastLocation.path[2] === notificationId) {
       defaultUrl = locationToUrl(lastLocation)
     }
   } catch (e) {
@@ -325,4 +327,28 @@ async function getDefaultTabName (loc: Location): Promise<string | undefined> {
 configurationStore.subscribe((config) => {
   const arePermissionsDisabled = config.get(setting.ids.DisablePermissionsConfiguration)?.enabled ?? false
   setMetadata(core.metadata.DisablePermissions, arePermissionsDisabled)
+})
+
+export const crossWorkspaceNotificationStore = writable<WorkspacesNotification | undefined>(undefined)
+
+const workspacesNotificationQuery = createQuery(true)
+onClient(() => {
+  workspacesNotificationQuery.query(
+    pulse.class.WorkspacesNotification,
+    {
+      account: getCurrentAccount().uuid
+    },
+    (res) => {
+      const r = res[0]
+      if (r == null) return
+      const current = get(crossWorkspaceNotificationStore)
+      // Every workspace keeps its own copies: after a switch its newest may be older than the one held.
+      if (current?.account === r.account && (current.createdOn ?? 0) > (r.createdOn ?? 0)) return
+      crossWorkspaceNotificationStore.set(r)
+    },
+    {
+      limit: 1,
+      sort: { createdOn: SortingOrder.Descending }
+    }
+  )
 })

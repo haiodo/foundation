@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022, 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,10 +14,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, SortingOrder, StatusCategory, WithLookup, toIdMap } from '@hcengineering/core'
+  import type { IdMap, Ref, Status, StatusCategory, WithLookup } from '@hcengineering/core'
+  import core, { SortingOrder, toIdMap } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
-  import { Issue, IssueStatus } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
+  import { IssueStatus } from '@hcengineering/tracker'
   import {
     Icon,
     IconDetails,
@@ -55,14 +58,15 @@
   function openSubIssue (target: Ref<Issue>) {
     const subIssue = subIssues?.find((p) => p._id === target)
     if (subIssue !== undefined) {
-      openIssue(subIssue)
+      closeTooltip()
+      void openIssue(subIssue)
     }
   }
 
   function openParentIssue () {
     if (parentIssue) {
       closeTooltip()
-      openIssue(parentIssue)
+      void openIssue(parentIssue)
     }
   }
 
@@ -102,7 +106,7 @@
 
   let categories: IdMap<StatusCategory> = new Map()
 
-  getClient()
+  void getClient()
     .findAll(core.class.StatusCategory, {})
     .then((res) => {
       categories = toIdMap(res)
@@ -112,7 +116,7 @@
 
   $: {
     if (subIssues !== undefined) {
-      subIssues.sort((a, b) => {
+      sortedSubIssues = [...subIssues].sort((a, b) => {
         const aStatus = $statusStore.byId.get(a.status)
         const bStatus = $statusStore.byId.get(b.status)
         const res =
@@ -120,12 +124,14 @@
           listIssueStatusOrder.indexOf(bStatus?.category ?? task.statusCategory.UnStarted)
         return res
       })
-      sortedSubIssues = subIssues ?? []
+    } else {
+      sortedSubIssues = []
     }
   }
 
   $: subIssueValue = sortedSubIssues.map((iss) => {
-    const status = iss.$lookup?.status as WithLookup<IssueStatus> | undefined
+    // The lookup type widens to Status | WithLookup<Status>; only the looked-up shape is used here.
+    const status = iss.$lookup?.status as WithLookup<Status> | undefined
     const icon = status?.$lookup?.category?.icon
     const color = status?.color ?? status?.$lookup?.category?.color
 

@@ -13,24 +13,25 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Enum } from '@hcengineering/core'
+  import type { Enum } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import {
     Breadcrumb,
-    ButtonIcon,
     Header,
     IconAdd,
     IconMoreH,
     IconTableOfContents,
     Label,
-    ModernButton,
     Scroller,
     Separator,
     defineSeparators,
     twoPanelsSeparators,
     showPopup
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { showMenu } from '@hcengineering/view-resources'
+  import view from '@hcengineering/view'
   import setting from '../plugin'
   import EnumValues from './EnumValues.svelte'
 
@@ -55,23 +56,23 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.Enums} label={setting.string.Enums} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.Enums} label={setting.string.Enums} size="large" isCurrent />
     <svelte:fragment slot="actions">
-      <ModernButton
-        kind={'primary'}
-        icon={IconAdd}
-        label={setting.string.CreateEnum}
-        size={'small'}
-        on:click={create}
-      />
+      <Button kind="primary" icon={IconAdd} label={setting.string.CreateEnum} size="small" on:click={create} />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column">
       <div class="hulyComponent-content__navHeader">
         <div class="hulyComponent-content__navHeader-menu">
-          <ButtonIcon kind={'tertiary'} icon={IconTableOfContents} size={'small'} inheritColor />
+          <IconButton
+            kind="tertiary"
+            icon={IconTableOfContents}
+            size="small"
+            inheritColor
+            tooltip={{ label: setting.string.Enums }}
+          />
         </div>
         <div class="hulyComponent-content__navHeader-hint paragraph-regular-14">
           <Label label={setting.string.EnumsSettingHint} />
@@ -93,10 +94,11 @@
                 <Label label={setting.string.EnumsCount} params={{ count: value.enumValues.length }} />
               </span>
             </div>
-            <ButtonIcon
-              kind={'tertiary'}
+            <IconButton
+              tooltip={{ label: view.string.MoreActions }}
+              kind="tertiary"
               icon={IconMoreH}
-              size={'small'}
+              size="small"
               pressed={hovered === i}
               on:click={(ev) => {
                 hovered = i
@@ -109,9 +111,9 @@
         {/each}
       </Scroller>
     </div>
-    <Separator name={'workspaceSettings'} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="workspaceSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if selected !== undefined}
             <EnumValues value={selected} />

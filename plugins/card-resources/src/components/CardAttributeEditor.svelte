@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 TraceX SAS.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,11 +14,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card, MasterTag } from '@hcengineering/card'
-  import { Doc, Mixin } from '@hcengineering/core'
+  import type { Card, MasterTag } from '@hcengineering/card'
+  import type { Doc, Mixin } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Button, Grid, IconDownOutline, IconUpOutline, Switcher, resizeObserver } from '@hcengineering/ui'
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import card from '../plugin'
   import MasterTagAttributes from './MasterTagAttributes.svelte'
   import TagAttributes from './TagAttributes.svelte'
@@ -34,16 +35,18 @@
   let width: number = 0
   let layoutMode: 'auto' | '1' | '2' = 'auto'
 
-  viewStore.subscribe((views) => {
-    if (views[value._class] !== undefined) {
-      layoutMode = views[value._class] as any
-    } else {
-      const masterTag = h.getClass(value._class) as MasterTag
-      if (masterTag.singleColumn) {
-        layoutMode = '1'
+  onDestroy(
+    viewStore.subscribe((views) => {
+      if (views[value._class] !== undefined) {
+        layoutMode = views[value._class] as any
+      } else {
+        const masterTag = h.getClass(value._class) as MasterTag
+        if (masterTag.singleColumn) {
+          layoutMode = '1'
+        }
       }
-    }
-  })
+    })
+  )
 
   $: columns = layoutMode === 'auto' ? (width > 600 ? 2 : 1) : parseInt(layoutMode)
 
@@ -66,32 +69,20 @@
 <div use:resizeObserver={(element) => (width = element.clientWidth)}>
   {#if mixins.length > 0}
     <div class="flex btn flex-gap-2">
-      <Button label={card.string.MinimizeAll} kind={'ghost'} iconRight={IconUpOutline} on:click={collapseAll} />
-      <Button label={card.string.ExpandAll} kind={'ghost'} iconRight={IconDownOutline} on:click={expandAll} />
+      <Button label={card.string.MinimizeAll} kind="ghost" iconRight={IconUpOutline} on:click={collapseAll} />
+      <Button label={card.string.ExpandAll} kind="ghost" iconRight={IconDownOutline} on:click={expandAll} />
     </div>
     <div class="divider" />
   {/if}
   <div class="masterTag">
-    <MasterTagAttributes
-      bind:this={masterTagAttributes}
-      readonly={readonly || h.getAncestors(value._class).some((p) => value.readonlySections?.includes(p))}
-      {value}
-      {ignoreKeys}
-      fourRows={columns === 2}
-    />
+    <MasterTagAttributes bind:this={masterTagAttributes} {readonly} {value} {ignoreKeys} fourRows={columns === 2} />
   </div>
   {#if mixins.length > 0}
     <div class="divider" />
-    <Grid column={columns} columnGap={0} rowGap={0} alignItems={'start'}>
+    <Grid column={columns} columnGap={0} rowGap={0} alignItems="start">
       {#each mixins as tag, i (tag._id)}
         <div class="tag" class:withoutBorder={Math.ceil((i + 1) / columns) === Math.ceil(mixins.length / columns)}>
-          <TagAttributes
-            bind:this={tagAttributes[i]}
-            readonly={readonly || value.readonlySections?.includes(tag._id)}
-            {tag}
-            {value}
-            {ignoreKeys}
-          />
+          <TagAttributes bind:this={tagAttributes[i]} {readonly} {tag} {value} {ignoreKeys} />
         </div>
       {/each}
     </Grid>
@@ -110,6 +101,11 @@
     padding: 1rem;
     padding-left: 0;
     overflow: hidden;
+
+    @media print {
+      height: auto;
+      overflow: visible;
+    }
 
     &.withoutBorder {
       padding-bottom: 0;

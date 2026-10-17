@@ -22,7 +22,8 @@ import {
   type Class,
   type CollaborativeDoc,
   type Doc,
-  type AccountUuid
+  type AccountUuid,
+  type Domain
 } from '@hcengineering/core'
 import { type Document, type DocumentSnapshot, type Teamspace } from '@hcengineering/document'
 import {
@@ -36,13 +37,14 @@ import {
 } from '@hcengineering/model'
 import { DOMAIN_ACTIVITY } from '@hcengineering/model-activity'
 import core, { DOMAIN_SPACE, getAccountUuidBySocialKey, getSocialKeyByOldAccount } from '@hcengineering/model-core'
-import { DOMAIN_NOTIFICATION } from '@hcengineering/notification'
 import { type Asset } from '@hcengineering/platform'
 import { makeRank } from '@hcengineering/rank'
 
 import { loadCollabYdoc, saveCollabYdoc, yDocCopyXmlField } from '@hcengineering/collaboration'
 import attachment, { DOMAIN_ATTACHMENT } from '@hcengineering/model-attachment'
 import document, { documentId, DOMAIN_DOCUMENT } from './index'
+
+const DOMAIN_NOTIFICATION = 'notification' as Domain
 
 async function migrateDocumentIcons (client: MigrationClient): Promise<void> {
   await client.update<Teamspace>(
@@ -137,7 +139,8 @@ async function migrateRank (client: MigrationClient): Promise<void> {
 async function renameFields (client: MigrationClient): Promise<void> {
   const documents = await client.find<Document>(DOMAIN_DOCUMENT, {
     _class: document.class.Document,
-    content: { $exists: true }
+    // Only the old schema has `name`; on Postgres `$rename` writes 'parent' into the attachedTo column.
+    name: { $exists: true }
   })
 
   for (const document of documents) {
@@ -160,7 +163,7 @@ async function renameFields (client: MigrationClient): Promise<void> {
 
   const spnapshots = await client.find<DocumentSnapshot>(DOMAIN_DOCUMENT, {
     _class: document.class.DocumentSnapshot,
-    content: { $exists: true }
+    name: { $exists: true }
   })
 
   for (const snapshot of spnapshots) {
@@ -291,7 +294,6 @@ async function migrateRanks (client: MigrationClient): Promise<void> {
 async function migrateAccountsToSocialIds (client: MigrationClient): Promise<void> {
   const socialKeyByAccount = await getSocialKeyByOldAccount(client)
 
-  client.logger.log('processing document lockedBy ', {})
   const iterator = await client.traverse(DOMAIN_DOCUMENT, { _class: document.class.Document })
 
   try {
@@ -329,7 +331,6 @@ async function migrateAccountsToSocialIds (client: MigrationClient): Promise<voi
   } finally {
     await iterator.close()
   }
-  client.logger.log('finished processing document lockedBy ', {})
 }
 
 async function migrateSocialIdsToGlobalAccounts (client: MigrationClient): Promise<void> {
@@ -376,7 +377,6 @@ async function migrateSocialIdsToGlobalAccounts (client: MigrationClient): Promi
   } finally {
     await iterator.close()
   }
-  client.logger.log('finished processing document lockedBy ', {})
 }
 
 async function removeOldClasses (client: MigrationClient): Promise<void> {

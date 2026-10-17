@@ -17,16 +17,8 @@
   import type { Doc, Ref } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import type { Action, AnySvelteComponent, IconSize } from '@hcengineering/ui'
-  import {
-    ActionIcon,
-    IconMoreH,
-    Menu,
-    showPopup,
-    getTreeCollapsed,
-    NavItem,
-    NavGroup,
-    ButtonIcon
-  } from '@hcengineering/ui'
+  import { ActionIcon, IconMoreH, Menu, showPopup, getTreeCollapsed, NavItem, NavGroup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
 
   export let _id: Ref<Doc> | string | undefined = undefined
@@ -62,7 +54,7 @@
   let popupMenuActions: Action[] = []
 
   $: if (actions !== undefined) {
-    actions().then((result) => {
+    void actions().then((result) => {
       inlineActions = result.filter((action) => action.inline === true)
       popupMenuActions = result.filter((action) => action.inline !== true)
     })
@@ -78,7 +70,8 @@
   }
 
   async function onInlineClick (ev: MouseEvent, action: Action): Promise<void> {
-    action.action([], ev)
+    ev.stopPropagation()
+    void action.action([], ev)
   }
 </script>
 
@@ -118,31 +111,31 @@
     <svelte:fragment slot="tools">
       {#if inlineActions.length > 0}
         {#each inlineActions as action}
-          <ButtonIcon
+          <IconButton
             icon={action.icon ?? ActionIcon}
-            size={'extra-small'}
-            kind={'tertiary'}
+            size="extra-small"
+            kind="tertiary"
             tooltip={{ label: action.label, direction: 'top' }}
             on:click={(ev) => onInlineClick(ev, action)}
           />
         {/each}
       {/if}
       {#if popupMenuActions.length === 1 && popupMenuActions[0].icon}
-        <ButtonIcon
+        <IconButton
           id={_id}
           icon={popupMenuActions[0].icon}
-          size={'extra-small'}
-          kind={'tertiary'}
+          size="extra-small"
+          kind="tertiary"
           tooltip={{ label: popupMenuActions[0].label, direction: 'top' }}
           on:click={async (ev) => {
             void popupMenuActions[0].action(_id, ev)
           }}
         />
       {:else if popupMenuActions.length > 0}
-        <ButtonIcon
+        <IconButton
           icon={IconMoreH}
-          size={'extra-small'}
-          kind={'tertiary'}
+          size="extra-small"
+          kind="tertiary"
           tooltip={{ label: view.string.MoreActions, direction: 'top' }}
           {pressed}
           on:click={onMenuClick}
@@ -186,28 +179,35 @@
       {#if $$slots.actions}<slot name="actions" />{/if}
       {#if inlineActions.length > 0}
         {#each inlineActions as action}
-          <ButtonIcon
+          <IconButton
             icon={action.icon ?? ActionIcon}
-            size={'extra-small'}
-            kind={'tertiary'}
+            size="extra-small"
+            kind="tertiary"
             tooltip={{ label: action.label, direction: 'bottom' }}
             on:click={(ev) => onInlineClick(ev, action)}
           />
         {/each}
       {/if}
       {#if popupMenuActions.length === 1 && popupMenuActions[0].icon}
-        <ButtonIcon
+        <IconButton
           id={_id}
           icon={popupMenuActions[0].icon}
-          size={'extra-small'}
-          kind={'tertiary'}
+          size="extra-small"
+          kind="tertiary"
           tooltip={{ label: popupMenuActions[0].label, direction: 'top' }}
           on:click={async (ev) => {
             void popupMenuActions[0].action(_id, ev)
           }}
         />
       {:else if popupMenuActions.length > 0}
-        <ButtonIcon icon={IconMoreH} size={'extra-small'} kind={'tertiary'} {pressed} on:click={onMenuClick} />
+        <IconButton
+          icon={IconMoreH}
+          size="extra-small"
+          kind="tertiary"
+          {pressed}
+          tooltip={{ label: view.string.MoreActions }}
+          on:click={onMenuClick}
+        />
       {/if}
     </svelte:fragment>
     <svelte:fragment slot="notify">

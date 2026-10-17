@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ButtonIcon, showPopup, closeTooltip } from '@hcengineering/ui'
-  import { ViewOptionModel, ViewOptions, Viewlet, BuildModelKey } from '@hcengineering/view'
+  import { showPopup, closeTooltip } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { ViewOptionModel, ViewOptions, Viewlet, BuildModelKey } from '@hcengineering/view'
   import view from '../plugin'
   import { getViewOptions, viewOptionStore, defaultOptions, getDefaults } from '../viewOptions'
   import ViewOptionsButton from './ViewOptionsButton.svelte'
@@ -55,14 +56,14 @@
   {#if viewOptions}
     <ViewOptionsButton {viewlet} {kind} {viewOptions} {viewOptionsConfig} />
   {/if}
-  <ButtonIcon
+  <IconButton
     icon={view.icon.Configure}
     {disabled}
     {kind}
-    size={'small'}
+    size="small"
     {pressed}
     tooltip={{ label: view.string.CustomizeView, direction: 'bottom' }}
-    dataId={'btn-viewSetting'}
+    data-id="btn-viewSetting"
     bind:element={btn}
     on:click={clickHandler}
   />

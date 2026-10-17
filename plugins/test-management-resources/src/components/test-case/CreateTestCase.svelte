@@ -14,10 +14,12 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
   import { AttachmentPresenter, AttachmentStyledBox } from '@hcengineering/attachment-resources'
-  import { TestCase, TestProject, TestSuite, TestCaseStatus } from '@hcengineering/test-management'
-  import core, { fillDefaults, generateId, makeCollabId, Ref, TxOperations, Data } from '@hcengineering/core'
+  import type { TestCase, TestProject, TestSuite } from '@hcengineering/test-management'
+  import { TestCaseStatus } from '@hcengineering/test-management'
+  import type { Ref, TxOperations, Data } from '@hcengineering/core'
+  import core, { fillDefaults, generateId, makeCollabId } from '@hcengineering/core'
   import { ObjectBox } from '@hcengineering/view-resources'
   import { Card, SpaceSelector, createMarkup, getClient } from '@hcengineering/presentation'
   import { EmptyMarkup, isEmptyMarkup } from '@hcengineering/text'
@@ -110,8 +112,8 @@
       _class={testManagement.class.TestProject}
       label={testManagement.string.TestProject}
       bind:space={_space}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       component={ProjectPresenter}
       defaultIcon={testManagement.icon.Home}
     />
@@ -122,11 +124,11 @@
         space: _space
       }}
       on:change={handleTestSuiteChange}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={testManagement.string.NoTestSuite}
       icon={testManagement.icon.TestSuite}
-      searchField={'title'}
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}
@@ -138,7 +140,7 @@
     <EditBox
       bind:value={object.name}
       placeholder={testManagement.string.TestNamePlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
     />
   </div>
@@ -177,7 +179,7 @@
           showPreview
           removable
           on:remove={(result) => {
-            if (result.detail !== undefined) descriptionBox.removeAttachmentById(result.detail._id)
+            if (result.detail !== undefined) void descriptionBox.removeAttachmentById(result.detail._id)
           }}
         />
       {/each}

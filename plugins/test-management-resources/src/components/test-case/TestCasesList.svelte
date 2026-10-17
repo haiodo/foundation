@@ -13,10 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, DocumentQuery } from '@hcengineering/core'
+  import type { Doc, DocumentQuery } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import { Icon, Label, Loading, Scroller } from '@hcengineering/ui'
-  import { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { TableBrowser, ViewletsSettingButton } from '@hcengineering/view-resources'
 
   import testManagement from '../../plugin'
@@ -43,7 +43,7 @@
 <div class="antiSection max-h-125 clear-mins">
   <div class="antiSection-header">
     <div class="antiSection-header__icon">
-      <Icon icon={testManagement.icon.TestCase} size={'small'} />
+      <Icon icon={testManagement.icon.TestCase} size="small" />
     </div>
     <span class="antiSection-header__title">
       <Label label={testManagement.string.TestCases} />
@@ -51,7 +51,7 @@
     <div class="flex-row-center gap-2 reverse">
       <ViewletsSettingButton
         viewletQuery={{ _id: testManagement.viewlet.TableTestCase }}
-        kind={'tertiary'}
+        kind="tertiary"
         bind:viewlet
         bind:preference
         bind:loading

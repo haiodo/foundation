@@ -14,21 +14,23 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { Ref, SortingOrder, Space, generateId } from '@hcengineering/core'
-  import { Document, DocumentEvents, Teamspace } from '@hcengineering/document'
+  import type { Ref, Space } from '@hcengineering/core'
+  import { SortingOrder, generateId } from '@hcengineering/core'
+  import type { Document, Teamspace } from '@hcengineering/document'
+  import { DocumentEvents } from '@hcengineering/document'
   import { IconWithEmoji, createQuery, getClient } from '@hcengineering/presentation'
+  import type { Action } from '@hcengineering/ui'
   import {
     IconEdit,
-    getPlatformColorDef,
+    getPaletteColorDef,
     getPlatformColorForTextDef,
     themeStore,
-    Action,
     IconAdd,
     closeTooltip
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { TreeNode, openDoc, getActions as getContributedActions } from '@hcengineering/view-resources'
-  import { SpacesNavModel } from '@hcengineering/workbench'
+  import type { SpacesNavModel } from '@hcengineering/workbench'
   import { getResource } from '@hcengineering/platform'
 
   import document from '../../plugin'
@@ -166,8 +168,7 @@
   }
 
   function onDragStart (event: DragEvent, object: Ref<Document>): void {
-    // no prevent default to leverage default rendering
-    // event.preventDefault()
+    // no preventDefault to keep default rendering
     if (event.dataTransfer === null || event.target === null) {
       return
     }
@@ -269,12 +270,11 @@
       ? { icon: space.color }
       : {
           fill:
-            space.color !== undefined && typeof space.color !== 'string'
-              ? getPlatformColorDef(space.color, $themeStore.dark).icon
-              : getPlatformColorForTextDef(space.name, $themeStore.dark).icon
+            getPaletteColorDef(space.color, $themeStore.dark)?.icon ??
+            getPlatformColorForTextDef(space.name, $themeStore.dark).icon
         }}
     title={space.name}
-    type={'nested'}
+    type="nested"
     highlighted={currentSpace === space._id}
     visible={currentSpace === space._id || forciblyСollapsed}
     actions={() => getActions(space)}
@@ -312,10 +312,7 @@
           iconProps={item.icon === view.ids.IconWithEmoji
             ? { icon: visibleItem.color }
             : {
-                fill:
-                  item.color !== undefined && typeof item.color !== 'string'
-                    ? getPlatformColorDef(item.color, $themeStore.dark).icon
-                    : 'currentColor'
+                fill: getPaletteColorDef(item.color, $themeStore.dark)?.icon ?? 'currentColor'
               }}
           title={item.title}
           selected

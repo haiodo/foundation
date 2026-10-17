@@ -1,14 +1,13 @@
-import { test, type Page, expect } from '@playwright/test'
+import { closeSharedPage, enterWorkspace, sharedPageTest as test, type Page, expect } from '../fixtures'
 import {
   generateId,
   getTimeForPlanner,
   generateUser,
-  createAccountAndWorkspace,
   createAccount,
   getInviteLink,
-  generateTestData,
   getSecondPageByInvite
 } from '../utils'
+import { retryIntervals } from '../retry'
 import { NewDocument, NewTeamspace } from '../model/documents/types'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
 import { DocumentsPage } from '../model/documents/documents-page'
@@ -16,18 +15,15 @@ import { DocumentContentPage } from '../model/documents/document-content-page'
 import { PlanningNavigationMenuPage } from '../model/planning/planning-navigation-menu-page'
 import { PlanningPage } from '../model/planning/planning-page'
 import { SignUpData } from '../model/common-types'
-import { TestData } from '../chat/types'
 import { faker } from '@faker-js/faker'
 
-const retryOptions = { intervals: [1000, 1500, 2500], timeout: 60000 }
+const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 
 test.describe('Content in the Documents tests', () => {
-  let testData: TestData
   let newUser2: SignUpData
   let testTeamspace: NewTeamspace
   let testDocument: NewDocument
 
-  let leftSideMenuPage: LeftSideMenuPage
   let documentsPage: DocumentsPage
   let documentContentPage: DocumentContentPage
 
@@ -36,8 +32,9 @@ test.describe('Content in the Documents tests', () => {
   let documentsSecondPage: DocumentsPage
   let documentContentSecondPage: DocumentContentPage
 
-  test.beforeEach(async ({ page, request }) => {
-    leftSideMenuPage = new LeftSideMenuPage(page)
+  test.afterAll(closeSharedPage)
+
+  test.beforeEach(async ({ page, sharedWorkspace }, testInfo) => {
     documentsPage = new DocumentsPage(page)
     documentContentPage = new DocumentContentPage(page)
     testTeamspace = {
@@ -50,10 +47,10 @@ test.describe('Content in the Documents tests', () => {
       space: testTeamspace.title
     }
 
-    testData = generateTestData()
-    await createAccountAndWorkspace(page, request, testData)
+    // One workspace per worker; the tests that invite a guest spend a seat of the free plan.
+    const shared = await sharedWorkspace(testInfo.tags.includes('@invite') ? 1 : 0)
+    await enterWorkspace(page, shared, 'document')
 
-    await leftSideMenuPage.clickDocuments()
     await documentsPage.checkTeamspaceNotExist(testTeamspace.title)
     await documentsPage.createNewTeamspace(testTeamspace)
     await documentsPage.clickOnButtonCreateDocument()
@@ -62,7 +59,7 @@ test.describe('Content in the Documents tests', () => {
     await documentContentPage.checkDocumentTitle(testDocument.title)
   })
 
-  test('ToDos in the Document', async ({ page, request, browser }) => {
+  test('ToDos in the Document', { tag: '@invite' }, async ({ page, request, browser }) => {
     newUser2 = generateUser()
     await createAccount(request, newUser2)
     const linkText = await getInviteLink(page)
@@ -107,7 +104,7 @@ test.describe('Content in the Documents tests', () => {
     for (const line of contents) await documentContentPage.checkToDo(line, true)
   })
 
-  test('Table in the Document', async ({ page, browser, request }) => {
+  test('Table in the Document', { tag: '@invite' }, async ({ page, browser, request }) => {
     newUser2 = generateUser()
     await createAccount(request, newUser2)
     const linkText = await getInviteLink(page)
@@ -126,6 +123,9 @@ test.describe('Content in the Documents tests', () => {
     await documentContentPage.buttonInsertColumn().click()
     await documentContentPage.proseTableCell(0, 1).fill('Three')
 
+    // col-handle is only rendered while the cell is being hovered.
+    await documentContentPage.proseTableCell(0, 1).hover()
+    await expect(documentContentPage.proseTableColumnHandle(1)).toBeVisible({ timeout: 10000 })
     await documentContentPage.proseTableColumnHandle(1).hover()
     await expect(async () => {
       await page.mouse.down()
@@ -173,6 +173,14 @@ test.describe('Content in the Documents tests', () => {
       })
     })
 
+    test('Pasted base64 image is uploaded as a file', async () => {
+      await documentContentPage.pasteHtmlWithDataImage('Pasted with image')
+      await expect(documentContentPage.page.getByText('Pasted with image')).toBeVisible()
+      const image = documentContentPage.imageInContent()
+      await expect(image).toHaveAttribute('file-id', /.+/, { timeout: 30000 })
+      await expect(image).not.toHaveAttribute('src', /^data:/)
+    })
+
     test.skip('Check Image size manipulations', async ({ page }) => {
       await documentContentPage.addImageToDocument(page)
 
@@ -213,7 +221,7 @@ test.describe('Content in the Documents tests', () => {
       })
     })
 
-    // TODO this currently fails for datalake because it downloads the image instead of opening it in the new tab
+    // TODO: fails for datalake - it downloads the image instead of opening it in a new tab.
     test.skip('Check Image can be opened in new tab', async ({ page, context }) => {
       await documentContentPage.addImageToDocument(page)
       const imageSrc = await documentContentPage.firstImageInDocument().getAttribute('src')
@@ -313,7 +321,7 @@ test.describe('Content in the Documents tests', () => {
     })
   })
 
-  test('Checking styles in a Document', async ({ page, browser, request }) => {
+  test('Checking styles in a Document', { tag: '@invite' }, async ({ page, browser, request }) => {
     const content: string = [...new Array(21).keys()].map((index) => `Line ${index}`).join('\n')
     const testLink: string = 'http://test/link/123456'
     const testNote: string = 'Test Note'
@@ -353,7 +361,6 @@ test.describe('Content in the Documents tests', () => {
     await documentContentPage.changeCodeBlockLanguage('Line 18', 'plaintext', 'css')
     await documentContentPage.applyNote('Line 19', 'warning', testNote)
     await documentContentPage.addImage('Line 20')
-    // await page.keyboard.type('Cat')
 
     newUser2 = generateUser()
     await createAccount(request, newUser2)
@@ -368,6 +375,9 @@ test.describe('Content in the Documents tests', () => {
     await documentsSecondPage.openTeamspace(testDocument.space)
     await documentsSecondPage.openDocument(testDocument.title)
     await documentContentSecondPage.checkDocumentTitle(testDocument.title)
+    // Title appears at once; the body replays via the collaborator after. Wait for the
+    // image (the first page's last edit) so a slow sync doesn't read as a missing link.
+    await expect(documentContentSecondPage.imageInContent()).toBeVisible({ timeout: 30000 })
     await documentContentSecondPage.checkLinkInTheText('Line 8', testLink)
     await documentContentSecondPage.goToByTOC('Line 15')
     await documentContentSecondPage.checkImage()

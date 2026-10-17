@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset } from '@hcengineering/platform'
+  import type { Asset } from '@hcengineering/platform'
   import { IssuePriority } from '@hcengineering/tracker'
   import { Icon } from '@hcengineering/ui'
   import { issuePriorities } from '../../utils'
@@ -38,7 +38,7 @@
 <div class="flex-presenter">
   {#each icons as icon}
     <div class="icon small-gap flow">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
   {/each}
 </div>

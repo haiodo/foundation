@@ -1,12 +1,10 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../fixtures'
 import { generateToken } from '@hcengineering/server-token'
 import { systemAccountUuid } from '@hcengineering/core'
 import { ApiEndpoint } from '../API/Api'
-import { generateTestData, PlatformURI } from '../utils'
-import { LoginPage } from '../model/login-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
+import { generateTestData } from '../utils'
 
-const BILLING_URL = process.env.BILLING_URL ?? 'http://localhost:4043'
+const BILLING_URL = process.env.BILLING_URL ?? 'http://localhost:8083/_billing'
 
 function getAdminHeaders (): Record<string, string> {
   const token = generateToken(systemAccountUuid, undefined, { service: 'billing', admin: 'true' }, 'secret')
@@ -30,7 +28,8 @@ test.describe('Billing API — data that UI displays', () => {
   let ownerToken: string
   let data: ReturnType<typeof generateTestData>
 
-  test.beforeEach(async ({ request, page }) => {
+  // Exact sums are asserted, so every test needs its own empty workspace. API only: no page needed.
+  test.beforeEach(async ({ request }) => {
     data = generateTestData()
     const api = new ApiEndpoint(request)
     await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
@@ -40,12 +39,6 @@ test.describe('Billing API — data that UI displays', () => {
     }
     ownerToken = wsInfo.token
     workspaceUuid = wsInfo.workspace
-
-    await page.goto(PlatformURI)
-    const loginPage = new LoginPage(page)
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
   })
 
   // ── AI section ───────────────────────────────────────────────────────────────
@@ -358,7 +351,7 @@ test.describe('Billing API — data that UI displays', () => {
   })
 
   test('Office — maxParticipants reflects concurrent participants in a session', async ({ request }) => {
-    // UI: maxParticipants = participantDailyStats.reduce((max, d) => Math.max(max, d.maxParticipants), 0)
+    // UI computes maxParticipants as the max of daily maxParticipants across the session.
     const now = new Date()
     const sessionStart = new Date(now.getTime() - 3600 * 1000).toISOString()
 
@@ -466,7 +459,8 @@ test.describe('Billing API — data that UI displays', () => {
     const meeting2End = new Date(yesterday)
     meeting2End.setHours(13, 15, 0, 0)
 
-    await request.post(`${BILLING_URL}/api/v1/livekit/participants`, {
+    // Checked, not retried: a bad seed once surfaced 2 calls later as "expected 23, received 0".
+    const res = await request.post(`${BILLING_URL}/api/v1/livekit/participants`, {
       headers: getAdminHeaders(),
       data: [
         {
@@ -489,6 +483,7 @@ test.describe('Billing API — data that UI displays', () => {
         }
       ]
     })
+    expect(res.status(), `seed answered ${res.status()}: ${await res.text()}`).toBe(204)
 
     const stats = await getStats(request, workspaceUuid, ownerToken)
     const avDuration = stats.participantDailyStats.reduce(
@@ -498,25 +493,29 @@ test.describe('Billing API — data that UI displays', () => {
 
     expect(avDuration).toBe(23)
   })
+})
 
-  // ── Auth ─────────────────────────────────────────────────────────────────────
-
-  test('Admin endpoint rejects non-admin token', async ({ request }) => {
+// Nothing is written here, so the worker's shared workspace is enough: no fresh one per test.
+test.describe('Billing API — auth', () => {
+  test('Admin endpoint rejects non-admin token', async ({ request, sharedWorkspace }) => {
+    const { ws } = await sharedWorkspace()
     const res = await request.post(`${BILLING_URL}/api/v1/ai/transcript`, {
-      headers: ownerHeaders(ownerToken),
+      headers: ownerHeaders(ws.token as string),
       data: []
     })
     expect(res.status()).toBe(401)
   })
 
-  test('Stats endpoint rejects missing token', async ({ request }) => {
-    const res = await request.get(`${BILLING_URL}/api/v1/${workspaceUuid}/stats`)
+  test('Stats endpoint rejects missing token', async ({ request, sharedWorkspace }) => {
+    const { ws } = await sharedWorkspace()
+    const res = await request.get(`${BILLING_URL}/api/v1/${ws.workspace}/stats`)
     expect(res.status()).toBe(401)
   })
 
-  test('Stats endpoint rejects token from a different workspace', async ({ request }) => {
+  test('Stats endpoint rejects token from a different workspace', async ({ request, sharedWorkspace }) => {
+    const { ws } = await sharedWorkspace()
     const res = await request.get(`${BILLING_URL}/api/v1/00000000-0000-0000-0000-000000000000/stats`, {
-      headers: ownerHeaders(ownerToken)
+      headers: ownerHeaders(ws.token as string)
     })
     expect(res.status()).toBe(401)
   })

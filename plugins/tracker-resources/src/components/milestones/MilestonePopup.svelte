@@ -14,8 +14,9 @@
 -->
 <script lang="ts">
   import type { Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
-  import { ObjectCreate, ObjectPopup } from '@hcengineering/presentation'
-  import { Milestone, MilestoneStatus } from '@hcengineering/tracker'
+  import type { ObjectCreate } from '@hcengineering/presentation'
+  import { ObjectPopup } from '@hcengineering/presentation'
+  import type { Milestone, MilestoneStatus } from '@hcengineering/tracker'
   import { Icon, Label } from '@hcengineering/ui'
   import { milestoneStatusAssets } from '../../utils'
   import MilestoneTitlePresenter from './MilestoneTitlePresenter.svelte'
@@ -45,7 +46,7 @@
   {selected}
   {ignoreObjects}
   bind:docQuery={milestoneQuery}
-  searchField={'label'}
+  searchField="label"
   multiSelect={false}
   {allowDeselect}
   {closeAfterSelect}
@@ -54,7 +55,7 @@
   create={_create}
   on:update
   on:close
-  groupBy={'status'}
+  groupBy="status"
 >
   <svelte:fragment slot="item" let:item={milestone}>
     <MilestoneTitlePresenter value={milestone} />
@@ -64,7 +65,7 @@
     {@const status = milestoneStatusAssets[getStatus(milestone)]}
     {#if status}
       <div class="flex-row-center p-1">
-        <Icon icon={status.icon} size={'small'} />
+        <Icon icon={status.icon} size="small" />
         <div class="ml-2">
           <Label label={status.label} />
         </div>

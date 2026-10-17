@@ -64,6 +64,7 @@ import { serverRequestId, createModel as serverRequestModel } from '@hcengineeri
 import { serverSettingId, createModel as serveSettingModel } from '@hcengineering/model-server-setting'
 import { serverTagsId, createModel as serverTagsModel } from '@hcengineering/model-server-tags'
 import { serverTaskId, createModel as serverTaskModel } from '@hcengineering/model-server-task'
+import { serverWorkflowId, createModel as serverWorkflowModel } from '@hcengineering/model-server-workflow'
 import { serverTelegramId, createModel as serverTelegramModel } from '@hcengineering/model-server-telegram'
 import { serverTemplatesId, createModel as serverTemplatesModel } from '@hcengineering/model-server-templates'
 import { serverTrackerId, createModel as serverTrackerModel } from '@hcengineering/model-server-tracker'
@@ -72,6 +73,7 @@ import setting, { settingId, createModel as settingModel } from '@hcengineering/
 import { supportId, createModel as supportModel } from '@hcengineering/model-support'
 import { tagsId, createModel as tagsModel } from '@hcengineering/model-tags'
 import { taskId, createModel as taskModel } from '@hcengineering/model-task'
+import { workflowId, createModel as workflowModel } from '@hcengineering/model-workflow'
 import telegram, { telegramId, createModel as telegramModel } from '@hcengineering/model-telegram'
 import { templatesId, createModel as templatesModel } from '@hcengineering/model-templates'
 import { textEditorId, createModel as textEditorModel } from '@hcengineering/model-text-editor'
@@ -111,10 +113,7 @@ import trainings, { trainingId, createModel as trainingModel } from '@hcengineer
 
 import { achievementId, createModel as achievementModel } from '@hcengineering/model-achievement'
 import { billingId, createModel as billingModel } from '@hcengineering/model-billing'
-import chat, { chatId, createModel as chatModel } from '@hcengineering/model-chat'
-import communication, { communicationId, createModel as communicationModel } from '@hcengineering/model-communication'
 import { emojiId, createModel as emojiModel } from '@hcengineering/model-emoji'
-import { inboxId, createModel as inboxModel } from '@hcengineering/model-inbox'
 import { presenceId, createModel as presenceModel } from '@hcengineering/model-presence'
 import { pulseId, createModel as pulseModel } from '@hcengineering/model-pulse'
 import processes, { processId, createModel as processModel } from '@hcengineering/model-process'
@@ -125,7 +124,7 @@ import {
 import survey, { surveyId, createModel as surveyModel } from '@hcengineering/model-survey'
 import { type Plugin } from '@hcengineering/platform'
 
-interface ConfigurablePlugin extends Omit<Data<PluginConfiguration>, 'pluginId' | 'transactions'> {}
+type ConfigurablePlugin = Omit<Data<PluginConfiguration>, 'pluginId' | 'transactions'>
 
 type BuilderConfig = [(b: Builder) => void, Plugin] | [(b: Builder) => void, Plugin, ConfigurablePlugin | undefined]
 
@@ -220,6 +219,7 @@ export default function buildModel (): Builder {
       }
     ],
     [taskModel, taskId],
+    [workflowModel, workflowId],
     [
       calendarModel,
       calendarId,
@@ -370,9 +370,7 @@ export default function buildModel (): Builder {
         description: github.string.ConfigDescription,
         enabled: false,
         beta: false,
-        icon: github.icon.Github,
-        classFilter: defaultFilter,
-        mixinFilter: defaultMixinFilter
+        icon: github.icon.Github
       }
     ],
     [
@@ -479,44 +477,8 @@ export default function buildModel (): Builder {
     ],
     [presenceModel, presenceId],
     [pulseModel, pulseId],
-    [
-      chatModel,
-      chatId,
-      {
-        label: chat.string.Chat,
-        hidden: true,
-        enabled: false,
-        beta: true,
-        classFilter: [...defaultFilter, card.class.MasterTag, chat.masterTag.Thread],
-        mixinFilter: defaultMixinFilter
-      }
-    ],
-    [
-      inboxModel,
-      inboxId,
-      {
-        label: setting.string.Configure,
-        hidden: true,
-        enabled: false,
-        beta: true,
-        classFilter: defaultFilter,
-        mixinFilter: defaultMixinFilter
-      }
-    ],
     [achievementModel, achievementId],
     [emojiModel, emojiId],
-    [
-      communicationModel,
-      communicationId,
-      {
-        label: setting.string.Configure,
-        hidden: true,
-        enabled: false,
-        beta: true,
-        classFilter: [...defaultFilter, card.class.MasterTag, communication.type.Direct, communication.type.Poll],
-        mixinFilter: defaultMixinFilter
-      }
-    ],
     [mailModel, mailId],
     [
       billingModel,
@@ -568,6 +530,7 @@ export default function buildModel (): Builder {
     [serverLeadModel, serverLeadId],
     [serverTagsModel, serverTagsId],
     [serverTaskModel, serverTaskId],
+    [serverWorkflowModel, serverWorkflowId],
     [serverTrackerModel, serverTrackerId],
     [serverCardModel, serverCardId],
     [serverCalendarModel, serverCalendarId],

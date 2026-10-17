@@ -44,11 +44,11 @@ export class BackupClientOps {
     domain: Domain,
     idx?: number
   ): Promise<{
-      idx: number
-      size?: number
-      docs: DocInfo[]
-      finished: boolean
-    }> {
+    idx: number
+    size?: number
+    docs: DocInfo[]
+    finished: boolean
+  }> {
     return ctx.with('load-chunk', {}, async (ctx) => {
       idx = idx ?? this.idIndex++
       let chunk: ChunkInfo | undefined = this.chunkInfo.get(idx)
@@ -98,7 +98,10 @@ export class BackupClientOps {
       const chunk = this.chunkInfo.get(idx)
       this.chunkInfo.delete(idx)
       if (chunk != null) {
-        await chunk.iterator.close(ctx)
+        // The chunk is already dropped from the map; a close failure must not abort the caller.
+        await chunk.iterator.close(ctx).catch((err) => {
+          ctx.error('failed to close chunk iterator', { idx, err })
+        })
       }
     })
   }

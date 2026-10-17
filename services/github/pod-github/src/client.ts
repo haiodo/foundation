@@ -3,7 +3,7 @@
 //
 //
 
-import client, { ClientSocket } from '@hcengineering/client'
+import client from '@hcengineering/client'
 import clientResources from '@hcengineering/client-resources'
 import { Client, ClientConnectEvent, systemAccountUuid, WorkspaceUuid, type MeasureContext } from '@hcengineering/core'
 import { setMetadata } from '@hcengineering/platform'
@@ -26,11 +26,11 @@ export async function createPlatformClient (
       headers: {
         'User-Agent': config.ServiceID
       }
-    }) as never as ClientSocket
+    }) as never
   })
 
   const token = generateToken(systemAccountUuid, workspace, { service: 'github', mode: 'github' })
-  setMetadata(client.metadata.UseBinaryProtocol, true)
+  setMetadata(client.metadata.UseBinaryProtocol, process.env.USE_BINARY_PROTOCOL !== 'false')
   setMetadata(client.metadata.UseProtocolCompression, true)
   setMetadata(client.metadata.ConnectionTimeout, timeout)
   setMetadata(client.metadata.FilterModel, 'client')

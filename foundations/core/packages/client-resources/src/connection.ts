@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,7 +21,8 @@ import client, {
   ClientSocket,
   ClientSocketReadyState,
   pingConst,
-  pongConst
+  pongConst,
+  type PresenceReport
 } from '@hcengineering/client'
 import core, {
   Account,
@@ -56,8 +58,18 @@ import core, {
   TxResult,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import platform, { getMetadata, PlatformError, Severity, Status } from '@hcengineering/platform'
-import { HelloRequest, HelloResponse, type RateLimitInfo, ReqId, type Response, RPCHandler } from '@hcengineering/rpc'
+import platform, { broadcastEvent, getMetadata, PlatformError, Severity, Status } from '@hcengineering/platform'
+import {
+  ConnectionStatsEvent,
+  ConnectionStatusEvent,
+  HelloRequest,
+  HelloResponse,
+  type RateLimitInfo,
+  RateLimitUpdatedEvent,
+  ReqId,
+  type Response,
+  RPCHandler
+} from '@hcengineering/rpc'
 import { uncompress } from 'snappyjs'
 
 const SECOND = 1000
@@ -66,7 +78,8 @@ const hangTimeout = 5 * 60 * SECOND
 const dialTimeout = 30 * SECOND
 // After visibilitychange -> visible we probe with short timeout.
 const visibilityProbeTimeout = 1 * SECOND
-// Jitter window for reconnect resend storm.
+// Jitter (ms) applied to reconnect retries after a failed attempt and to pending-request
+// resend, so a herd of clients doesn't redial/resend on the same tick.
 const reconnectJitterMs = 300
 // Throttle window for noisy diagnostics logs in hot paths.
 const diagLogThrottleMs = 5 * SECOND
@@ -180,6 +193,12 @@ class Connection implements ClientConnection {
 
     this.installVisibilityHandler()
 
+    if (typeof globalThis !== 'undefined') {
+      ;(globalThis as any).__connStatsPush = async () => {
+        await this.reportStats()
+      }
+    }
+
     this.scheduleOpen(this.ctx, false)
   }
 
@@ -213,7 +232,7 @@ class Connection implements ClientConnection {
       const probeSocket = this.websocket
       void this.sendRequest({
         method: pingConst,
-        params: [],
+        params: this.pingParams(),
         once: true,
         handleResult: async () => {
           if (this.websocket === probeSocket) {
@@ -245,6 +264,12 @@ class Connection implements ClientConnection {
     return this.lastHash
   }
 
+  // The presence report rides on the ping: the transactor keeps `UserStatus.away` from it.
+  private pingParams (): [PresenceReport] | [] {
+    const provider = getMetadata(client.metadata.PresenceProvider)
+    return provider !== undefined ? [provider()] : []
+  }
+
   private schedulePing (socketId: number): void {
     this.pingResponse = platformNow()
     const wsocket = this.websocket
@@ -273,6 +298,7 @@ class Connection implements ClientConnection {
       }
 
       if (!this.closed) {
+        void this.reportStats()
         const sinceLastPong = platformNow() - this.pingResponse
         if (sinceLastPong > pingTimeout * 2 && this.requests.size > 0) {
           console.log('[conn] ping tick - no pong but pending requests', {
@@ -284,7 +310,7 @@ class Connection implements ClientConnection {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         void this.sendRequest({
           method: pingConst,
-          params: [],
+          params: this.pingParams(),
           once: true,
           handleResult: async (result) => {
             if (this.websocket === wsocket) {
@@ -300,7 +326,21 @@ class Connection implements ClientConnection {
     }, pingTimeout)
   }
 
+  // Cumulative traffic counters for client.ws.* metrics. On globalThis too: the tick is 10s
+  // and a test page lives seconds, so a teardown asks explicitly - see __analyticsFlush.
+  async reportStats (): Promise<void> {
+    await broadcastEvent(ConnectionStatsEvent, {
+      sent: this.sentCount,
+      received: this.receivedCount,
+      sentBytes: this.sentBytes,
+      receivedBytes: this.receivedBytes,
+      latency: this.latency
+    })
+  }
+
   async close (): Promise<void> {
+    // Last report before the socket goes: a short-lived page never reaches the 10s ping tick.
+    void this.reportStats()
     this.closed = true
     clearTimeout(this.openAction)
     clearTimeout(this.dialTimer)
@@ -322,7 +362,7 @@ class Connection implements ClientConnection {
   }
 
   isConnected (): boolean {
-    return this.websocket != null && this.websocket.readyState === ClientSocketReadyState.OPEN && this.helloReceived
+    return this.websocket?.readyState === ClientSocketReadyState.OPEN && this.helloReceived
   }
 
   delay = 0
@@ -367,10 +407,16 @@ class Connection implements ClientConnection {
         if (this.delay === 0) {
           this.openConnection(ctx, socketId)
         } else {
-          this.openAction = setTimeout(() => {
-            this.openAction = undefined
-            this.openConnection(ctx, socketId)
-          }, this.delay * 1000)
+          // delay>0 means a prior attempt failed (transactor down / herd). Jitter the backoff
+          // so clients don't all retry on the same tick; a clean first reconnect stays immediate.
+          const jitter = Math.floor(Math.random() * reconnectJitterMs)
+          this.openAction = setTimeout(
+            () => {
+              this.openAction = undefined
+              this.openConnection(ctx, socketId)
+            },
+            this.delay * 1000 + jitter
+          )
         }
       }
     }
@@ -379,6 +425,13 @@ class Connection implements ClientConnection {
   currentRateLimit: RateLimitInfo | undefined
   slowDownTimer = 0
 
+  // Traffic counters surfaced to the UI (see ConnectionStatsEvent).
+  sentCount = 0
+  receivedCount = 0
+  sentBytes = 0
+  receivedBytes = 0
+  latency = 0 // ping/pong round-trip, ms
+  private lastPingSent = 0
   handleMsg (
     socketId: number,
     resp: Response<any>,
@@ -387,6 +440,8 @@ class Connection implements ClientConnection {
     if (this.closed) {
       return
     }
+    this.receivedCount++
+    this.receivedBytes += sizes.compressedSize
 
     if (resp.rateLimit !== undefined && resp.rateLimit.remaining < 50) {
       this.currentRateLimit = resp.rateLimit
@@ -398,21 +453,29 @@ class Connection implements ClientConnection {
       } else if (this.slowDownTimer > 0) {
         this.slowDownTimer--
       }
+      void broadcastEvent(RateLimitUpdatedEvent, this.currentRateLimit)
+    } else if (resp.rateLimit !== undefined && this.currentRateLimit !== undefined) {
+      // Server reports healthy budget again - clear the indicator.
+      this.currentRateLimit = undefined
+      void broadcastEvent(RateLimitUpdatedEvent, undefined)
+    }
+
+    if (resp.terminate === true) {
+      if (
+        resp.error !== undefined &&
+        resp.error.code !== platform.status.WorkspaceArchived &&
+        resp.error.code !== platform.status.WorkspaceNotFound
+      ) {
+        Analytics.handleError(new PlatformError(resp.error))
+      }
+      this.closed = true
+      this.websocket?.close()
+      if (resp.error !== undefined) {
+        this.opt?.onError?.(resp.error.code)
+      }
     }
 
     if (resp.error !== undefined) {
-      if (resp.terminate === true) {
-        if (
-          resp.error.code !== platform.status.WorkspaceArchived &&
-          resp.error.code !== platform.status.WorkspaceNotFound
-        ) {
-          Analytics.handleError(new PlatformError(resp.error))
-        }
-        this.closed = true
-        this.websocket?.close()
-        this.opt?.onError?.(resp.error.code)
-      }
-
       if (resp.id !== undefined) {
         const promise = this.requests.get(resp.id)
 
@@ -429,6 +492,7 @@ class Connection implements ClientConnection {
         }
 
         if (promise !== undefined) {
+          this.requests.delete(resp.id)
           promise.reject(new PlatformError(resp.error))
         }
       }
@@ -500,6 +564,7 @@ class Connection implements ClientConnection {
           }
         }
 
+        void broadcastEvent(ConnectionStatusEvent, true)
         void this.onConnect?.(
           helloResp.reconnect === true ? ClientConnectEvent.Reconnected : ClientConnectEvent.Connected,
           helloResp.lastTx,
@@ -539,7 +604,6 @@ class Connection implements ClientConnection {
             data: resp.result as FindResult<any>
           }
         ]
-        // console.log(socketId, 'chunk', promise.method, promise.params, promise.chunks.length, (resp.result as []).length)
         if (resp.chunk.final) {
           promise.chunks.sort((a, b) => a.index - b.index)
           let result: any[] = []
@@ -547,11 +611,11 @@ class Connection implements ClientConnection {
           let lookupMap: Record<string, Doc> | undefined
 
           for (const c of promise.chunks) {
-            if (c.data.total !== 0) {
+            if (c.data.total !== undefined) {
               total = c.data.total
             }
             if (c.data.lookupMap !== undefined) {
-              lookupMap = c.data.lookupMap
+              lookupMap = { ...lookupMap, ...c.data.lookupMap }
             }
             result = result.concat(c.data)
           }
@@ -582,8 +646,6 @@ class Connection implements ClientConnection {
           resp.id,
           'error: ',
           resp.error,
-          'result: ',
-          resp.result,
           this.workspace,
           this.user
         )
@@ -629,6 +691,10 @@ class Connection implements ClientConnection {
       }
       if (text === pongConst) {
         this.pingResponse = platformNow()
+        // Ignore stale pings (visibility probe / resend can overwrite lastPingSent).
+        if (this.lastPingSent > 0 && this.pingResponse - this.lastPingSent < pingTimeout) {
+          this.latency = Math.round(this.pingResponse - this.lastPingSent)
+        }
         return true
       }
     }
@@ -644,7 +710,6 @@ class Connection implements ClientConnection {
       getMetadata(client.metadata.ClientSocketFactory) ??
       ((url: string) => {
         const s = new WebSocket(url)
-        // s.binaryType = 'arraybuffer'
         return s as ClientSocket
       })
 
@@ -660,17 +725,15 @@ class Connection implements ClientConnection {
       return
     }
     this.websocket = wsocket
-    if (this.dialTimer === undefined) {
-      this.dialTimer = setTimeout(() => {
-        this.dialTimer = undefined
-        if (!this.closed) {
-          void this.opt?.onDialTimeout?.()?.catch((err) => {
-            this.ctx.error('failed to handle dial timeout', { err })
-          })
-          this.scheduleOpen(this.ctx, true)
-        }
-      }, dialTimeout)
-    }
+    this.dialTimer ??= setTimeout(() => {
+      this.dialTimer = undefined
+      if (!this.closed) {
+        void this.opt?.onDialTimeout?.()?.catch((err) => {
+          this.ctx.error('failed to handle dial timeout', { err })
+        })
+        this.scheduleOpen(this.ctx, true)
+      }
+    }, dialTimeout)
 
     wsocket.onmessage = (event: MessageEvent) => {
       if (this.closed) {
@@ -681,6 +744,10 @@ class Connection implements ClientConnection {
       }
       if (event.data === pongConst) {
         this.pingResponse = platformNow()
+        // Ignore stale pings (visibility probe / resend can overwrite lastPingSent).
+        if (this.lastPingSent > 0 && this.pingResponse - this.lastPingSent < pingTimeout) {
+          this.latency = Math.round(this.pingResponse - this.lastPingSent)
+        }
         return
       }
       if (event.data === pingConst) {
@@ -761,21 +828,26 @@ class Connection implements ClientConnection {
         pendingCount: this.requests.size,
         workspace: this.workspace
       })
-      this.scheduleOpen(this.ctx, true)
+      if (!this.closed) void broadcastEvent(ConnectionStatusEvent, false)
+      // Immediate redial for a clean disconnect; if the transactor is down the failed
+      // attempt bumps delay and scheduleOpen jitters the retry herd (see reconnectJitterMs).
+      if (!this.closed) this.scheduleOpen(this.ctx, true)
     }
     wsocket.onopen = () => {
       if (this.websocket !== wsocket) {
         return
       }
+      // msgpack+snappy by default: json costs +17..38% on the wire. USE_BINARY_PROTOCOL=false for json.
       const useBinary = this.opt?.useBinaryProtocol ?? getMetadata(client.metadata.UseBinaryProtocol) ?? true
       this.compressionMode =
-        this.opt?.useProtocolCompression ?? getMetadata(client.metadata.UseProtocolCompression) ?? false
+        this.opt?.useProtocolCompression ?? getMetadata(client.metadata.UseProtocolCompression) ?? true
       const helloRequest: HelloRequest = {
         method: 'hello',
         params: [],
         id: -1,
         binary: useBinary,
-        compression: this.compressionMode
+        compression: this.compressionMode,
+        client: getMetadata(client.metadata.ClientKind)
       }
       ctx.withSync('send-hello', {}, () => this.websocket?.send(this.rpcHandler.serialize(helloRequest, false)))
     }
@@ -855,8 +927,11 @@ class Connection implements ClientConnection {
               )
 
               this.websocket?.send(dta)
+              this.sentCount++
+              this.sentBytes += typeof dta === 'string' ? dta.length : dta.byteLength
             } else {
               this.websocket?.send(pingConst)
+              this.lastPingSent = platformNow()
             }
           }
         }
@@ -903,7 +978,7 @@ class Connection implements ClientConnection {
       params: [_class, query, options],
       measure: ({ time, serverTime, queue, result, compressedSize, uncompressedSize }) => {
         if (typeof window !== 'undefined' && (time > 1000 || serverTime > 500)) {
-          console.error('measure slow findAll', {
+          console.warn('measure slow findAll', {
             time,
             serverTime,
             queue,
@@ -915,7 +990,7 @@ class Connection implements ClientConnection {
             uncompressedSize,
             ratio: compressedSize > 0 && uncompressedSize > 0 ? (uncompressedSize / compressedSize).toFixed(2) : 'n/a',
             count: result.length,
-            lookupDocs: result.lookupMap !== undefined ? Object.keys(result.lookupMap).length : 0,
+            lookupDocs: result.lookupMap != null ? Object.keys(result.lookupMap).length : 0,
             pendingCount: this.requests.size,
             sinceReconnectMs: this.lastReconnectAt === 0 ? -1 : platformNow() - this.lastReconnectAt
           })
@@ -943,14 +1018,10 @@ class Connection implements ClientConnection {
     for (const doc of result) {
       for (const [k, v] of Object.entries(query)) {
         if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-          if (doc[k] == null) {
-            doc[k] = v
-          }
+          doc[k] ??= v
         }
       }
-      if (doc._class == null) {
-        doc._class = _class
-      }
+      doc._class ??= _class
     }
 
     return result

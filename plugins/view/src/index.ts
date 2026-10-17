@@ -24,6 +24,7 @@ import {
   Aggregation,
   AllValuesFunc,
   ArrayEditor,
+  AttrApplier,
   AttrPresenter,
   AttributeEditor,
   AttributeFilter,
@@ -53,12 +54,14 @@ import {
   ObjectIdentifier,
   ObjectPanel,
   ObjectPresenter,
+  SidebarObjectPreview,
   ObjectTitle,
   ObjectTooltip,
   ObjectValidator,
   OpenDocumentFunction,
   PreviewPresenter,
   ReferenceObjectProvider,
+  ReferenceVersionsProvider,
   SpaceHeader,
   SpaceName,
   SpacePresenter,
@@ -105,6 +108,7 @@ const view = plugin(viewId, {
     ObjectLabel: '' as Ref<Mixin<ObjectLabel>>,
     ObjectIdentifier: '' as Ref<Mixin<ObjectIdentifier>>,
     ReferenceObjectProvider: '' as Ref<Mixin<ReferenceObjectProvider>>,
+    ReferenceVersionsProvider: '' as Ref<Mixin<ReferenceVersionsProvider>>,
     ObjectTooltip: '' as Ref<Mixin<ObjectTooltip>>,
     SpaceHeader: '' as Ref<Mixin<SpaceHeader>>,
     SpaceName: '' as Ref<Mixin<SpaceName>>,
@@ -114,6 +118,7 @@ const view = plugin(viewId, {
     SortFuncs: '' as Ref<Mixin<ClassSortFuncs>>,
     AllValuesFunc: '' as Ref<Mixin<AllValuesFunc>>,
     ObjectPanel: '' as Ref<Mixin<ObjectPanel>>,
+    SidebarObjectPreview: '' as Ref<Mixin<SidebarObjectPreview>>,
     LinkProvider: '' as Ref<Mixin<LinkProvider>>,
     LinkIdProvider: '' as Ref<Mixin<LinkIdProvider>>,
     SpacePresenter: '' as Ref<Mixin<SpacePresenter>>,
@@ -135,7 +140,8 @@ const view = plugin(viewId, {
     LinkPresenter: '' as Ref<Class<LinkPresenter>>,
     FilterMode: '' as Ref<Class<FilterMode>>,
     FilteredView: '' as Ref<Class<FilteredView>>,
-    AttrPresenter: '' as Ref<Class<AttrPresenter>>
+    AttrPresenter: '' as Ref<Class<AttrPresenter>>,
+    AttrApplier: '' as Ref<Class<AttrApplier>>
   },
   action: {
     Delete: '' as Ref<Action>,
@@ -162,6 +168,7 @@ const view = plugin(viewId, {
     // Edit document
     Open: '' as Ref<Action>,
     OpenInNewTab: '' as Ref<Action>,
+    OpenInSidebar: '' as Ref<Action>,
     RemoveRelation: '' as Ref<Action>,
 
     CopyLink: '' as Ref<Action<Doc, any>>,
@@ -195,10 +202,12 @@ const view = plugin(viewId, {
     ReadOnlyNotification: '' as AnyComponent,
     ForbiddenNotification: '' as AnyComponent,
     DatePresenter: '' as AnyComponent,
-    DateEditor: '' as AnyComponent
+    DateEditor: '' as AnyComponent,
+    SidebarPreviewWidget: '' as AnyComponent
   },
   ids: {
-    IconWithEmoji: '' as Asset
+    IconWithEmoji: '' as Asset,
+    PreviewWidget: '' as Ref<Doc>
   },
   string: {
     CustomizeView: '' as IntlString,
@@ -222,6 +231,7 @@ const view = plugin(viewId, {
     Assigned: '' as IntlString,
     Open: '' as IntlString,
     OpenInNewTab: '' as IntlString,
+    OpenInSidebar: '' as IntlString,
     Created: '' as IntlString,
     Delete: '' as IntlString,
     Then: '' as IntlString,
@@ -260,8 +270,12 @@ const view = plugin(viewId, {
     ReadOnlyWarningMessage: '' as IntlString,
     ReadOnlySignUp: '' as IntlString,
     ReadOnlyJoinWorkspace: '' as IntlString,
+    ReadOnlyWorkspaceWarningTitle: '' as IntlString,
+    ReadOnlyWorkspaceWarningMessage: '' as IntlString,
     PermissionWarningTitle: '' as IntlString,
     PermissionWarningMessage: '' as IntlString,
+    PlanLimitWarningTitle: '' as IntlString,
+    PlanLimitWarningMessage: '' as IntlString,
     Icon: '' as IntlString,
     Select: '' as IntlString,
     Color: '' as IntlString,
@@ -335,7 +349,8 @@ const view = plugin(viewId, {
     MarkdownFormatting: '' as Ref<ActionCategory>
   },
   extensions: {
-    EditDocTitleExtension: '' as ComponentExtensionId
+    EditDocTitleExtension: '' as ComponentExtensionId,
+    EditDocPreTitleExtension: '' as ComponentExtensionId
   },
   filter: {
     FilterArrayAll: '' as Ref<FilterMode>,
@@ -446,7 +461,8 @@ const view = plugin(viewId, {
       // If defined, documents will be set into value
       valueKey?: string
     }>,
-    Delete: '' as ViewAction
+    Delete: '' as ViewAction,
+    OpenInSidebar: '' as ViewAction
   }
 })
 export default view

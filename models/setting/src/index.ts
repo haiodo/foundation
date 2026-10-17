@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -19,11 +20,14 @@ import {
   DOMAIN_MODEL,
   type AccountUuid,
   type Blob,
+  type Rank,
   type Ref,
-  type IntegrationKind
+  type Space,
+  type IntegrationKind,
+  type Timestamp
 } from '@hcengineering/core'
 import exportPlugin from '@hcengineering/export'
-import { Mixin, Model, UX, type Builder } from '@hcengineering/model'
+import { Mixin, Model, Prop, TypeRank, UX, type Builder } from '@hcengineering/model'
 import core, { defineCollaborators, TClass, TConfiguration, TDoc } from '@hcengineering/model-core'
 import view, { createAction } from '@hcengineering/model-view'
 import notification, { type MessageNotificationType } from '@hcengineering/notification'
@@ -31,6 +35,8 @@ import type { Asset, IntlString } from '@hcengineering/platform'
 import {
   DOMAIN_SETTING,
   settingId,
+  type AttributeUsageProvider,
+  type ClassifierOrder,
   type Editable,
   type Handler,
   type Integration,
@@ -42,6 +48,13 @@ import {
   type SpaceTypeEditor,
   type SpaceTypeEditorSection,
   type UserMixin,
+  type WebhookDelivery,
+  type WebhookEndpoint,
+  type WebhookIncomingRule,
+  type WebhookRuleCondition,
+  type WebhookRuleTarget,
+  type WebhookSecretEntry,
+  type WebhookStat,
   type WorkspaceSetting
 } from '@hcengineering/setting'
 import templates from '@hcengineering/templates'
@@ -72,6 +85,11 @@ export class TSettingsCategory extends TDoc implements SettingsCategory {
   component!: AnyComponent
   role!: AccountRole
   adminOnly?: boolean
+}
+
+@Model(setting.class.AttributeUsageProvider, core.class.Doc, DOMAIN_MODEL)
+export class TAttributeUsageProvider extends TDoc implements AttributeUsageProvider {
+  component!: AnyComponent
 }
 
 @Model(setting.class.WorkspaceSettingCategory, core.class.Doc, DOMAIN_MODEL)
@@ -105,6 +123,12 @@ export class TEditable extends TClass implements Editable {
 @Mixin(setting.mixin.UserMixin, core.class.Class)
 export class TUserMixin extends TClass implements UserMixin {}
 
+@Mixin(setting.mixin.ClassifierOrder, core.class.Class)
+export class TClassifierOrder extends TClass implements ClassifierOrder {
+  @Prop(TypeRank(), core.string.Rank)
+  rank!: Rank
+}
+
 @Model(setting.class.InviteSettings, core.class.Configuration, DOMAIN_SETTING)
 @UX(setting.string.InviteSettings)
 export class TInviteSettings extends TConfiguration implements InviteSettings {
@@ -118,11 +142,64 @@ export class TInviteSettings extends TConfiguration implements InviteSettings {
 export class TOfficeSettings extends TConfiguration implements OfficeSettings {
   defaultStartWithTranscription!: boolean
   defaultStartWithRecording!: boolean
+  defaultStartPrivate!: boolean
 }
 
 @Model(setting.class.WorkspaceSetting, core.class.Doc, DOMAIN_SETTING)
 export class TWorkspaceSetting extends TDoc implements WorkspaceSetting {
   icon?: Ref<Blob>
+}
+
+@Model(setting.class.WebhookEndpoint, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookEndpoint extends TDoc implements WebhookEndpoint {
+  url!: string
+  name?: string
+  description?: string
+  events!: string[]
+  secrets!: WebhookSecretEntry[]
+  enabled!: boolean
+  spaces?: Ref<Space>[]
+  failureCount!: number
+  lastDeliveryOn?: Timestamp
+  lastError?: string
+}
+
+@Model(setting.class.WebhookDelivery, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookDelivery extends TDoc implements WebhookDelivery {
+  endpoint!: Ref<WebhookEndpoint>
+  deliveryId!: string
+  attempt!: number
+  status?: number
+  error?: string
+}
+
+@Model(setting.class.WebhookStat, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookStat extends TDoc implements WebhookStat {
+  direction!: 'in' | 'out'
+  target!: string
+  type!: string
+  count!: number
+  lastOn!: Timestamp
+}
+
+@Model(setting.class.WebhookIncomingRule, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookIncomingRule extends TDoc implements WebhookIncomingRule {
+  keyId!: string
+  name!: string
+  enabled!: boolean
+
+  // Declared as an attribute: SortableDocList reorders only classes that have `rank` in the hierarchy.
+  @Prop(TypeRank(), core.string.Rank)
+  rank!: Rank
+
+  match!: WebhookRuleCondition[]
+  forEach?: string
+  where?: WebhookRuleCondition[]
+  action!: WebhookIncomingRule['action']
+  target!: WebhookRuleTarget
+  fields!: Record<string, string>
+  template?: string
+  sample?: string
 }
 
 @Mixin(setting.mixin.SpaceTypeEditor, core.class.Class)
@@ -144,11 +221,17 @@ export function createModel (builder: Builder): void {
     TWorkspaceSettingCategory,
     TEditable,
     TUserMixin,
+    TClassifierOrder,
     TInviteSettings,
     TOfficeSettings,
     TWorkspaceSetting,
+    TWebhookEndpoint,
+    TWebhookDelivery,
+    TWebhookStat,
+    TWebhookIncomingRule,
     TSpaceTypeEditor,
-    TSpaceTypeCreator
+    TSpaceTypeCreator,
+    TAttributeUsageProvider
   )
 
   builder.createDoc(
@@ -272,28 +355,30 @@ export function createModel (builder: Builder): void {
     setting.class.WorkspaceSettingCategory,
     core.space.Model,
     {
+      name: 'integrations',
+      label: setting.string.ApiAndWebhooks,
+      icon: setting.icon.Setting,
+      component: setting.component.ApiKeys,
+      order: 975,
+      // Any member reaches the Incoming (API keys) section here; the Outgoing (webhooks) section is
+      // rendered Owner-only inside the component itself, via the same hasAccountRole check.
+      role: AccountRole.User
+    },
+    setting.ids.ApiKeys
+  )
+  builder.createDoc(
+    setting.class.WorkspaceSettingCategory,
+    core.space.Model,
+    {
       name: 'owners',
-      label: setting.string.Owners,
-      icon: setting.icon.Owners,
-      component: setting.component.Owners,
+      label: setting.string.Members,
+      icon: setting.icon.Members,
+      component: setting.component.Members,
       order: 1000,
       role: AccountRole.Maintainer
     },
-    setting.ids.Owners
+    setting.ids.Members
   )
-  // builder.createDoc(
-  //   setting.class.WorkspaceSettingCategory,
-  //   core.space.Model,
-  //   {
-  //     name: 'allSpaces',
-  //     label: setting.string.Spaces,
-  //     icon: setting.icon.Views,
-  //     component: setting.component.Spaces,
-  //     order: 1100,
-  //     role: AccountRole.Maintainer
-  //   },
-  //   setting.ids.Spaces
-  // )
   builder.createDoc(
     setting.class.WorkspaceSettingCategory,
     core.space.Model,
@@ -307,20 +392,20 @@ export function createModel (builder: Builder): void {
     },
     setting.ids.Configure
   )
-  // builder.createDoc(
-  //   setting.class.WorkspaceSettingCategory,
-  //   core.space.Model,
-  //   {
-  //     name: 'classes',
-  //     label: setting.string.Classes,
-  //     icon: setting.icon.Clazz,
-  //     component: setting.component.ClassSetting,
-  //     group: 'settings-editor',
-  //     role: AccountRole.Maintainer,
-  //     order: 4500
-  //   },
-  //   setting.ids.ClassSetting
-  // )
+  builder.createDoc(
+    setting.class.WorkspaceSettingCategory,
+    core.space.Model,
+    {
+      name: 'classes',
+      label: setting.string.Classes,
+      icon: setting.icon.Clazz,
+      component: setting.component.ClassSetting,
+      group: 'settings-editor',
+      role: AccountRole.Maintainer,
+      order: 4500
+    },
+    setting.ids.ClassSetting
+  )
   builder.createDoc(
     setting.class.WorkspaceSettingCategory,
     core.space.Model,
@@ -331,7 +416,8 @@ export function createModel (builder: Builder): void {
       component: setting.component.RelationSetting,
       group: 'settings-editor',
       role: AccountRole.Maintainer,
-      order: 4501
+      order: 4501,
+      feature: 'relation'
     },
     setting.ids.Relations
   )
@@ -394,6 +480,20 @@ export function createModel (builder: Builder): void {
       order: 4900
     },
     setting.ids.OfficeSettings
+  )
+  builder.createDoc(
+    setting.class.SettingsCategory,
+    core.space.Model,
+    {
+      name: 'sidebarMenu',
+      label: setting.string.SidebarMenuSettings,
+      icon: setting.icon.Setting,
+      component: setting.component.SidebarMenuSettings,
+      group: 'settings-account',
+      role: AccountRole.User,
+      order: 1650
+    },
+    setting.ids.SidebarMenuSettings
   )
   // Currently remove Support item from settings
   // builder.createDoc(
@@ -472,6 +572,10 @@ export function createModel (builder: Builder): void {
     editor: setting.component.EmployeeRefEditor
   })
 
+  builder.mixin(core.class.TypeMarkup, core.class.Class, view.mixin.ObjectEditor, {
+    editor: setting.component.MarkupTypeEditor
+  })
+
   builder.mixin(core.class.TypeNumber, core.class.Class, view.mixin.ObjectEditor, {
     editor: setting.component.NumberTypeEditor
   })
@@ -537,7 +641,12 @@ export function createModel (builder: Builder): void {
     setting.action.DeleteMixin
   )
 
-  // builder.mixin(core.class.Space, core.class.Class, setting.mixin.Editable, {})
+  builder.mixin(core.class.Space, core.class.Class, setting.mixin.Editable, {
+    value: true
+  })
+  builder.mixin(core.class.SpaceType, core.class.Class, setting.mixin.Editable, {
+    value: true
+  })
 
   createAction(builder, {
     action: view.actionImpl.UpdateDocument,

@@ -7,30 +7,39 @@
   },
   "exports": {
     "./bin/*": "./bin/*",
+    "./profiles/ui/svelte": {
+      "types": "./profiles/ui/svelte/index.d.ts",
+      "default": "./profiles/ui/svelte/index.d.ts"
+    },
     "./profiles/*": "./profiles/*"
   },
   "dependencies": {
-    "@node-rs/xxhash": "^1.7.6",
-    "typescript": "^5.9.3",
-    "esbuild": "^0.25.10",
+    "@node-rs/xxhash": "^1.7.7",
+    "@stylistic/eslint-plugin": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "esbuild": "catalog:",
     "esbuild-plugin-copy": "~2.1.1",
-    "esbuild-svelte": "^0.9.3",
-    "svelte": "^4.2.20",
-    "svelte-preprocess": "^5.1.4",
-    "svelte2tsx": "^0.7.45",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-promise": "^6.1.1",
-    "eslint-plugin-n": "^15.4.0",
-    "eslint": "^8.54.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "eslint-config-standard-with-typescript": "^40.0.0",
-    "prettier": "^3.6.2",
-    "prettier-plugin-svelte": "^3.4.0",
-    "svelte-eslint-parser": "^0.33.1",
-    "eslint-plugin-svelte": "^2.35.1"
+    "esbuild-svelte": "^0.9.5",
+    "eslint": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "istanbul-lib-coverage": "catalog:",
+    "istanbul-lib-report": "catalog:",
+    "istanbul-reports": "catalog:",
+    "prettier": "catalog:",
+    "prettier-plugin-svelte": "catalog:",
+    "svelte": "catalog:",
+    "svelte-eslint-parser": "catalog:",
+    "svelte-preprocess": "catalog:",
+    "svelte2tsx": "^0.7.61",
+    "typescript": "catalog:",
+    "typescript7": "npm:typescript@7.0.2",
+    "v8-to-istanbul": "catalog:"
   },
-
   "bin": {
     "format": "./bin/format.js",
     "compile": "./bin/compile.js",
@@ -39,7 +48,8 @@
     "bump-package-version": "./bin/bump-package-version.js",
     "bump-changes-from-tag": "./bin/bump-changes-from-tag.js",
     "update-deps": "./bin/update-deps.js",
-    "sync-eslint-deps": "./bin/sync-eslint-deps.js"
+    "sync-eslint-deps": "./bin/sync-eslint-deps.js",
+    "check-svelte-imports": "./bin/check-svelte-imports.js"
   },
   "files": [
     "bin/**/*",

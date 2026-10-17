@@ -14,9 +14,9 @@
 -->
 <script lang="ts">
   import { getClient, ObjectPopup } from '@hcengineering/presentation'
-  import { Card } from '@hcengineering/card'
-  import { Class, Ref } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Card } from '@hcengineering/card'
+  import type { Class, Ref } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import CardPresenter from './CardPresenter.svelte'
@@ -49,9 +49,9 @@
   {titleDeselect}
   {ignoreObjects}
   {docQuery}
-  searchField={'title'}
-  type={'object'}
-  groupBy={'_class'}
+  searchField="title"
+  type="object"
+  groupBy="_class"
   showVersions
   forceShowSelected={false}
   on:update
@@ -61,7 +61,7 @@
   {readonly}
 >
   <svelte:fragment slot="item" let:item={it}>
-    <CardPresenter value={it} disabled showVersion={false} type={'text'} />
+    <CardPresenter value={it} disabled showVersion={false} type="text" />
   </svelte:fragment>
 
   <svelte:fragment slot="category" let:item={it}>

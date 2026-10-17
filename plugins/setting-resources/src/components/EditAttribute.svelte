@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
+  import type {
     AnyAttribute,
     AttributePermission,
     Class,
@@ -23,13 +24,13 @@
     Ref,
     Type
   } from '@hcengineering/core'
-  import { Asset, getEmbeddedLabel, getResource, translateCB } from '@hcengineering/platform'
+  import core from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
+  import { getEmbeddedLabel, translateCB } from '@hcengineering/platform'
   import presentation, { getClient, MessageBox } from '@hcengineering/presentation'
+  import type { AnyComponent, DropdownIntlItem } from '@hcengineering/ui'
   import {
-    AnyComponent,
-    ButtonIcon,
     Component,
-    DropdownIntlItem,
     DropdownLabelsIntl,
     IconDelete,
     Label,
@@ -39,10 +40,12 @@
     themeStore,
     Toggle
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { IconPicker } from '@hcengineering/view-resources'
   import view from '@hcengineering/view-resources/src/plugin'
   import setting from '../plugin'
   import { clearSettingsStore } from '../store'
+  import { showDeleteAttributePopup } from '../utils'
 
   export let attribute: AnyAttribute
   export let exist: boolean
@@ -56,6 +59,7 @@
   let defaultValue: any | undefined = attribute.defaultValue
   let icon: Asset | undefined = attribute.icon
   let automationOnly = attribute.automationOnly ?? false
+  let required = attribute.required ?? false
   let extra: Record<string, any> = {}
   let is: AnyComponent | undefined
 
@@ -94,6 +98,9 @@
       update.readonly = automationOnly
       update.automationOnly = automationOnly
     }
+    if (required !== attribute.required) {
+      update.required = required
+    }
     for (const [k, v] of Object.entries(extra)) {
       if (attribute[k] === v) continue
       update[k] = v
@@ -118,11 +125,16 @@
   }
 
   const items = getTypes()
+  const isKnownType = hierarchy.hasClass(attribute.type._class)
   let selectedType: Ref<Class<Type<PropertyType>>> = attribute.type._class
 
   $: selectedType && selectType(selectedType)
 
   function selectType (type: Ref<Class<Type<PropertyType>>>): void {
+    if (!hierarchy.hasClass(type)) {
+      is = undefined
+      return
+    }
     const _class = hierarchy.getClass(type)
     const editor = hierarchy.as(_class, view.mixin.ObjectEditor)
     if (editor.editor !== undefined) {
@@ -145,13 +157,8 @@
     }
   }
 
-  async function remove (evt: MouseEvent): Promise<void> {
-    const impl = await getResource(view.actionImpl.Delete)
-    await impl(attribute, evt, {
-      afterDelete: () => {
-        clearSettingsStore()
-      }
-    })
+  async function remove (): Promise<void> {
+    await showDeleteAttributePopup(attribute, exist, clearSettingsStore)
   }
 
   async function hide (): Promise<void> {
@@ -235,52 +242,65 @@
 
 <Modal
   label={setting.string.EditAttribute}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Save}
   okAction={save}
-  canSave={!(name === undefined || name.trim().length === 0) && !disabled}
+  canSave={!(name === undefined || name.trim().length === 0) && !disabled && isKnownType}
   onCancel={clearSettingsStore}
   {noTopIndent}
 >
   <svelte:fragment slot="actions">
     {#if !disabled}
-      <ButtonIcon
-        icon={attribute.hidden ? view.icon.Eye : view.icon.EyeCrossed}
-        size={'small'}
-        kind={'tertiary'}
+      <IconButton
+        icon={attribute.hidden ? view.icon.EyeCrossed : view.icon.Eye}
+        tooltip={{ label: attribute.hidden ? view.string.Show : view.string.Hide }}
+        size="small"
+        kind="tertiary"
         {disabled}
         on:click={hide}
       />
       {#if attribute.isCustom}
-        <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} {disabled} on:click={remove} />
+        <IconButton
+          icon={IconDelete}
+          size="small"
+          kind="tertiary"
+          {disabled}
+          on:click={remove}
+          tooltip={{ label: setting.string.DeleteAttribute }}
+        />
       {/if}
     {/if}
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
     <div class="flex items-center">
-      <ButtonIcon
+      <IconButton
+        tooltip={{ label: view.string.ChooseIcon }}
         icon={icon ?? setting.icon.Enums}
-        size={'medium'}
-        iconSize={'large'}
-        kind={'tertiary'}
+        size="medium"
+        iconSize="large"
+        kind="tertiary"
         {disabled}
         on:click={setIcon}
       />
-      <ModernEditbox bind:value={name} label={core.string.Name} size={'large'} kind={'ghost'} {disabled} />
+      <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" {disabled} />
     </div>
   </div>
   <div class="grid">
     <span class="label">
       <Label label={setting.string.Type} />
     </span>
-    {#if exist}
-      <Label label={attribute.type.label} />
+    {#if !isKnownType}
+      <span class="unknown-type">
+        <Label label={setting.string.UnknownAttributeType} />
+      </span>
+    {:else if exist}
+      <Label label={attribute.type.label ?? hierarchy.getClass(attribute.type._class).label} />
     {:else}
       <DropdownLabelsIntl
         label={setting.string.Type}
         {items}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         bind:selected={selectedType}
         on:selected={handleSelect}
         {disabled}
@@ -309,6 +329,10 @@
     </span>
     <Toggle bind:on={automationOnly} disabled={attribute.isCustom !== true} />
     <span class="label">
+      <Label label={setting.string.Required} />
+    </span>
+    <Toggle bind:on={required} {disabled} />
+    <span class="label">
       <Label label={setting.string.Restricted} />
     </span>
     <Toggle on={isRestricted} disabled={isRestricted || attribute.isCustom !== true} on:change={changeRestricted} />
@@ -316,6 +340,11 @@
 </Modal>
 
 <style lang="scss">
+  .unknown-type {
+    color: var(--global-error-TextColor);
+    overflow-wrap: anywhere;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: 1fr 1.5fr;

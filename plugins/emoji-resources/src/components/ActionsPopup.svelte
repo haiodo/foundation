@@ -3,12 +3,16 @@
   // © 2025 Hardcore Engineering, Inc. All Rights Reserved.
   // Licensed under the Eclipse Public License v2.0 (SPDX: EPL-2.0).
   //
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
-  import emojiPlugin, { ExtendedEmoji, Emoji } from '@hcengineering/emoji'
+  import type { ExtendedEmoji, Emoji } from '@hcengineering/emoji'
+  import emojiPlugin from '@hcengineering/emoji'
   import { getEmojiByHexcode, getEmojiSkins } from '../utils'
   import EmojiButton from './EmojiButton.svelte'
+  import EmojiGlyph from './EmojiGlyph.svelte'
   import { getSkinTone, unicodeEmojiStore } from '../store'
-  import { Label, IconDelete, closeTooltip, ButtonBase } from '@hcengineering/ui'
+  import { Label, IconDelete, closeTooltip } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import SkinToneTooltip from './SkinToneTooltip.svelte'
 
   export let emoji: ExtendedEmoji
@@ -78,16 +82,16 @@
             }}
           />
           {#if index === 0}
-            <ButtonBase
-              type={'type-button-icon'}
-              kind={'tertiary'}
-              size={'large'}
+            <IconButton
+              icon={EmojiGlyph}
+              iconProps={{ emoji: getEmojiStringByTone(emoji, combinedTones), fontSize: '2.5rem' }}
+              kind="tertiary"
+              size="large"
+              tooltip={{ label: getEmbeddedLabel('label' in emoji ? emoji.label : emoji.shortcode) }}
               on:click={() => {
                 dispatch('close', getEmojiByTone(emoji, combinedTones))
               }}
-            >
-              <span style:font-size={'2.5rem'} class="emoji">{getEmojiStringByTone(emoji, combinedTones)}</span>
-            </ButtonBase>
+            />
           {/if}
         {/each}
       </div>
@@ -103,7 +107,7 @@
     {#if haveSkins}<div class="hulyPopup-divider" />{/if}
     <div class="hulyPopup-group">
       <button class="hulyPopup-row" on:click={clickRemove}>
-        <div class="hulyPopup-row__icon red-color"><IconDelete size={'small'} /></div>
+        <div class="hulyPopup-row__icon red-color"><IconDelete size="small" /></div>
         <span class="hulyPopup-row__label red-color"><Label label={emojiPlugin.string.Remove} /></span>
       </button>
     </div>

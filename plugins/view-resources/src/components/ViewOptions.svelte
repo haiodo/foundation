@@ -1,11 +1,12 @@
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import { DropdownIntlItem, DropdownLabelsIntl, Label, Toggle } from '@hcengineering/ui'
-  import { Viewlet, ViewOptions, ViewOptionsModel, ViewOptionModel } from '@hcengineering/view'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { DropdownLabelsIntl, Label, Toggle } from '@hcengineering/ui'
+  import type { Viewlet, ViewOptions, ViewOptionsModel, ViewOptionModel, GroupingKey } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import view from '../plugin'
   import { buildConfigLookup, canResolveAttribute, getKeyLabel } from '../utils'
-  import { isDropdownType, isToggleType, noCategory } from '../viewOptions'
+  import { isDropdownType, isToggleType, noCategory, MAX_GROUPING_DEPTH } from '../viewOptions'
   import { SortingOrder } from '@hcengineering/core'
 
   export let viewlet: Viewlet
@@ -13,10 +14,10 @@
   export let viewOptions: ViewOptions
 
   const dispatch = createEventDispatcher()
+  const maxGroupDepth = Math.min(config.groupDepth ?? MAX_GROUPING_DEPTH, MAX_GROUPING_DEPTH)
 
-  const groups =
-    viewOptions.groupBy[viewOptions.groupBy.length - 1] === noCategory ||
-    viewOptions.groupBy.length === config.groupDepth
+  $: groups =
+    viewOptions.groupBy[viewOptions.groupBy.length - 1] === noCategory || viewOptions.groupBy.length >= maxGroupDepth
       ? [...viewOptions.groupBy]
       : [...viewOptions.groupBy, noCategory]
 
@@ -24,15 +25,8 @@
   const hierarchy = client.getHierarchy()
   const lookup = buildConfigLookup(hierarchy, viewlet.attachTo, viewlet.config, viewlet.options?.lookup)
 
-  const groupBy = config.groupBy
-    .filter((p) => canResolveAttribute(hierarchy, viewlet.attachTo, p, lookup))
-    .map((p) => {
-      return {
-        id: p,
-        label: getKeyLabel(client, viewlet.attachTo, p, lookup)
-      }
-    })
-    .concat({ id: noCategory, label: view.string.NoGrouping })
+  const getKey = (k: GroupingKey): string => (typeof k === 'string' ? k : k.key)
+  const isHidden = (k: GroupingKey): boolean => (typeof k === 'string' ? false : (k.hidden ?? false))
 
   const orderBy = config.orderBy
     .filter((p) => p[0] === 'rank' || canResolveAttribute(hierarchy, viewlet.attachTo, p[0], lookup))
@@ -48,7 +42,7 @@
     groups[i] = value
     if (value === noCategory) {
       groups.length = i + 1
-    } else if (config.groupDepth === undefined || config.groupDepth > viewOptions.groupBy.length) {
+    } else if (maxGroupDepth > viewOptions.groupBy.length) {
       groups.length = i + 1
       groups[i + 1] = noCategory
     }
@@ -59,10 +53,26 @@
     })
   }
 
-  function getItems (groupBy: DropdownIntlItem[], i: number, current: string[]): DropdownIntlItem[] {
-    const notAllowed = current.slice(0, i)
-    return groupBy.filter((p) => !notAllowed.includes(p.id as string))
-  }
+  $: allGroupByItems = config.groupBy
+    .filter((p) => canResolveAttribute(hierarchy, viewlet.attachTo, getKey(p), lookup))
+    .map((p) => ({
+      id: getKey(p),
+      label: getKeyLabel(client, viewlet.attachTo, getKey(p), lookup)
+    }))
+    .concat({ id: noCategory, label: view.string.NoGrouping })
+
+  $: dropdownItems = groups.map((_, i) => {
+    const notAllowed = viewOptions.groupBy.slice(0, i)
+
+    return allGroupByItems.filter((p) => {
+      if (notAllowed.includes(p.id as string)) return false
+
+      const isHiddenItem = config.groupBy.some((k) => getKey(k) === p.id && isHidden(k))
+      const isCurrentlyUsed = viewOptions.groupBy.includes(p.id as string)
+
+      return !(isHiddenItem && !isCurrentlyUsed)
+    })
+  })
 
   const changeToggle = (model: ViewOptionModel) => {
     viewOptions[model.key] = !viewOptions[model.key]
@@ -89,9 +99,9 @@
         <span class="overflow-label"><Label label={i === 0 ? view.string.Grouping : view.string.Then} /></span>
         <DropdownLabelsIntl
           label={view.string.Grouping}
-          kind={'regular'}
-          size={'medium'}
-          items={getItems(groupBy, i, viewOptions.groupBy)}
+          kind="regular"
+          size="medium"
+          items={dropdownItems[i]}
           selected={group}
           width="10rem"
           justify="left"
@@ -107,8 +117,8 @@
       <span class="overflow-label"><Label label={view.string.Ordering} /></span>
       <DropdownLabelsIntl
         label={view.string.Ordering}
-        kind={'regular'}
-        size={'medium'}
+        kind="regular"
+        size="medium"
         items={orderBy}
         selected={viewOptions.orderBy?.[0]}
         width="10rem"
@@ -157,8 +167,8 @@
         })}
         <DropdownLabelsIntl
           label={model.label}
-          kind={'regular'}
-          size={'medium'}
+          kind="regular"
+          size="medium"
           {items}
           selected={viewOptions[model.key] ?? model.defaultValue}
           width="10rem"

@@ -3,7 +3,7 @@
   import { Severity } from '@hcengineering/platform'
 
   import Info from './icons/Info.svelte'
-  import Label from './Label.svelte'
+  import StatusLabel from './StatusLabel.svelte'
 
   export let status: Status
   export let overflow: boolean = true
@@ -11,9 +11,9 @@
 
 <div class="flex-center container {status.severity}" class:overflow-label={overflow}>
   {#if status.severity !== Severity.OK}
-    <Info size={'small'} />
+    <Info size="small" />
     <span class="text-sm ml-2" class:overflow-label={overflow}>
-      <Label label={status.code} params={status.params} />
+      <StatusLabel {status} />
     </span>
   {/if}
 </div>

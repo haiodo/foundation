@@ -14,11 +14,13 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { Contact, Employee, getCurrentEmployee, getName, Person } from '@hcengineering/contact'
-  import { AccountUuid, notEmpty, Ref } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Contact, Employee, Person } from '@hcengineering/contact'
+  import { getCurrentEmployee, getName } from '@hcengineering/contact'
+  import type { AccountUuid, Ref } from '@hcengineering/core'
+  import { notEmpty } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import { ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import type { ButtonKind, ButtonSize } from '@hcengineering/ui'
   import { onDestroy } from 'svelte'
   import contact from '../plugin'
   import { employeeByIdStore, employeeRefByAccountUuidStore } from '../utils'
@@ -36,8 +38,12 @@
   export let emptyLabel: IntlString | undefined = undefined
   export let allowGuests: boolean = false
   export let attributeKey: string | undefined = undefined
+  export let protectedAccounts: AccountUuid[] = []
+  export let protectLastSelected: boolean = false
 
-  $: accounts = typeof value === 'string' ? [value] : (value ?? [])
+  $: protectedPersons = protectedAccounts.map((a) => $employeeRefByAccountUuidStore.get(a)).filter(notEmpty)
+
+  $: accounts = Array.isArray(value) ? value : typeof value === 'string' ? [value] : []
 
   let timer: any = null
   const client = getClient()
@@ -152,8 +158,10 @@
   on:update={onUpdate}
   {size}
   {sort}
-  justify={'left'}
+  justify="left"
   width={width ?? 'min-content'}
   {kind}
   create={allowGuests ? { component: contact.component.CreateGuest, label: contact.string.AddGuest } : undefined}
+  protectedItems={protectedPersons}
+  {protectLastSelected}
 />

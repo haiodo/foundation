@@ -16,7 +16,7 @@
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Avatar, getPersonByPersonRefStore } from '@hcengineering/contact-resources'
   import { tooltip, deviceOptionsStore as deviceInfo, checkAdaptiveMatching } from '@hcengineering/ui'
-  import { ParticipantInfo } from '@hcengineering/love'
+  import type { ParticipantInfo } from '@hcengineering/love'
   import { formatName } from '@hcengineering/contact'
   import ParticipantsList from './ParticipantsList.svelte'
 
@@ -48,7 +48,7 @@
         >
           <Avatar
             name={$personByRefStore.get(participant.person)?.name ?? participant.name}
-            size={'card'}
+            size="card"
             person={$personByRefStore.get(participant.person)}
           />
         </div>
@@ -68,7 +68,7 @@
         >
           <Avatar
             name={$personByRefStore.get(participant.person)?.name ?? participant.name}
-            size={'card'}
+            size="card"
             person={$personByRefStore.get(participant.person)}
           />
         </div>

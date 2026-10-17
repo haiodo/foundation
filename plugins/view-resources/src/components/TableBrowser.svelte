@@ -16,11 +16,13 @@
   import type { Class, Doc, DocumentQuery, FindOptions, Ref, SortingOrder } from '@hcengineering/core'
   import { generateId } from '@hcengineering/core'
   import { ActionContext } from '@hcengineering/presentation'
-  import { FadeOptions, Scroller, tableSP } from '@hcengineering/ui'
-  import { BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { FadeOptions } from '@hcengineering/ui'
+  import { Scroller, tableSP } from '@hcengineering/ui'
+  import type { BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
   import { onDestroy, onMount } from 'svelte'
-  import { focusStore, ListSelectionProvider, SelectDirection } from '../selection'
-  import { LoadingProps } from '../utils'
+  import type { SelectDirection } from '../selection'
+  import { focusStore, ListSelectionProvider } from '../selection'
+  import type { LoadingProps } from '../utils'
   import { type ViewletContext, ViewletContextStore, viewletContextStore } from '../viewletContextStore'
   import Table from './Table.svelte'
   import { setViewOptions } from '../viewOptions'
@@ -32,7 +34,6 @@
   export let options: FindOptions<Doc> | undefined = undefined
   export let baseMenuClass: Ref<Class<Doc>> | undefined = undefined
   export let config: Array<BuildModelKey | string>
-  // export let showFilterBar = true
   export let enableChecking = true
   export let tableId: string | undefined = undefined
   export let fade: FadeOptions = tableSP

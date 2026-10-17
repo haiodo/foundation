@@ -13,11 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ActivityMessageViewType, ActivityMessage } from '@hcengineering/activity'
+  import type { ActivityMessageViewType, ActivityMessage } from '@hcengineering/activity'
   import view from '@hcengineering/view'
   import { getClient } from '@hcengineering/presentation'
-  import { Action, Component } from '@hcengineering/ui'
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Action } from '@hcengineering/ui'
+  import { Component } from '@hcengineering/ui'
+  import type { Doc } from '@hcengineering/core'
+  import { Class, Ref } from '@hcengineering/core'
 
   export let value: ActivityMessage
   export let doc: Doc | undefined = undefined
@@ -41,18 +43,21 @@
   export let compact = false
   export let readonly = false
   export let padding: string | null = null
+  export let timeFormat: 'time' | 'full' = 'time'
+  export let showChannel: boolean = false
   export let onClick: (() => void) | undefined = undefined
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  $: objectPresenter = hierarchy.classHierarchyMixin(value._class as Ref<Class<Doc>>, view.mixin.ObjectPresenter)
+  $: objectPresenter = hierarchy.classHierarchyMixin(value._class, view.mixin.ObjectPresenter)
 </script>
 
 {#if objectPresenter}
   <Component
     is={objectPresenter.presenter}
+    showLoading={false}
     props={{
       space: value.space,
       value,
@@ -77,6 +82,8 @@
       compact,
       readonly,
       padding,
+      timeFormat,
+      showChannel,
       onClick,
       onReply
     }}

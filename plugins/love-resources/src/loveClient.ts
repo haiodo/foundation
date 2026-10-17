@@ -1,16 +1,30 @@
-import { concatLink } from '@hcengineering/core'
-import love, { RecordingState, type MeetingMinutes, type Room } from '@hcengineering/love'
+import { concatLink, type Ref } from '@hcengineering/core'
+import love, { type MeetingMinutes, type Room, callTraceParent, newCallTraceId } from '@hcengineering/love'
 import { getMetadata } from '@hcengineering/platform'
 import { getPlatformToken } from './utils'
 import { getCurrentEmployee } from '@hcengineering/contact'
 import { getPersonByPersonRef } from '@hcengineering/contact-resources'
 import { Analytics } from '@hcengineering/analytics'
-import { selectedRoomPlace } from './stores'
+import { meetings, selectedRoomPlace } from './stores'
 import { get } from 'svelte/store'
+import { getClient } from '@hcengineering/presentation'
 
 export function getLoveClient (): LoveClient {
   return new LoveClient()
 }
+
+export class LoveServiceError extends Error {
+  constructor (
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'LoveServiceError'
+  }
+}
+
+// Optional calls must never hold up joining a meeting; `fetch` has no timeout of its own.
+const LOVE_HOUSEKEEPING_TIMEOUT_MS = 4000
 
 export class LoveClient {
   async getRoomToken (meetingMinutes: MeetingMinutes): Promise<string> {
@@ -24,10 +38,7 @@ export class LoveClient {
 
       await fetch(concatLink(endpoint, '/language'), {
         method: 'POST',
-        headers: {
-          Authorization: 'Bearer ' + token,
-          'Content-Type': 'application/json'
-        },
+        headers: await this.buildHeaders(mm.traceId, token),
         body: JSON.stringify({
           meetingId: mm._id,
           language: room.language
@@ -39,38 +50,30 @@ export class LoveClient {
     }
   }
 
-  async record (mm: MeetingMinutes): Promise<void> {
+  // `isRecording` comes from the caller: the server treats a live PendingRecording as running
+  // long before `recordingState` flips, so deciding on the flag alone sends start into a 409.
+  async record (mm: MeetingMinutes, isRecording: boolean): Promise<void> {
     try {
       const endpoint = this.getLoveEndpoint()
       const token = getPlatformToken()
-      if (mm.recordingState === RecordingState.Recording) {
-        await fetch(concatLink(endpoint, '/stopRecord'), {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            meetingId: mm._id,
-            title: mm.title
-          })
+      const path = isRecording ? '/stopRecord' : '/startRecord'
+      const res = await fetch(concatLink(endpoint, path), {
+        method: 'POST',
+        headers: await this.buildHeaders(mm.traceId, token),
+        body: JSON.stringify({
+          meetingId: mm._id,
+          title: mm.name
         })
-      } else {
-        await fetch(concatLink(endpoint, '/startRecord'), {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            meetingId: mm._id,
-            title: mm.title
-          })
-        })
+      })
+      // 409 means somebody else already flipped it, or the flip is still settling - the
+      // document carries the real state, so surface it instead of failing silently.
+      if (!res.ok) {
+        throw new LoveServiceError(res.status, `${path} failed: ${res.status}`)
       }
     } catch (err: any) {
       Analytics.handleError(err)
       console.error(err)
+      throw err
     }
   }
 
@@ -81,6 +84,89 @@ export class LoveClient {
     }
 
     return endpoint
+  }
+
+  /**
+   * Tells love this session is the live one, so it can drop my sessions in other meetings. Call it
+   * only after LiveKit is connected: a failed connect must not cost the meeting I am still in.
+   * The person is taken from the bearer token server-side, never from the body.
+   */
+  async claimSession (meetingMinutes: MeetingMinutes): Promise<void> {
+    try {
+      await fetch(concatLink(this.getLoveEndpoint(), '/claimSession'), {
+        method: 'POST',
+        headers: await this.buildHeaders(meetingMinutes.traceId, getPlatformToken()),
+        body: JSON.stringify({ meetingId: meetingMinutes._id }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+    } catch (err: any) {
+      // Housekeeping only - polling still closes an abandoned room on its own schedule.
+      console.warn('Failed to claim the session', err)
+    }
+  }
+
+  /**
+   * Of `candidates`, the meetings LiveKit still has me in. A ParticipantInfo row outlives a closed
+   * tab by `departureTimeout`, so only the server can tell a live second session from a leftover.
+   */
+  async liveSessions (candidates: Array<Ref<MeetingMinutes>>): Promise<Array<Ref<MeetingMinutes>>> {
+    try {
+      const token = getPlatformToken()
+      const headers =
+        candidates.length === 1
+          ? await this.buildHeaders(this.getTraceId(candidates[0]), token)
+          : this.authHeaders(token)
+
+      const res = await fetch(concatLink(this.getLoveEndpoint(), '/liveSessions'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ meetings: candidates }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+      if (!res.ok) return []
+      return (await res.json()).meetings ?? []
+    } catch (err: any) {
+      // Unknown means "do not bother the user": a wrong prompt is worse than a missing one.
+      console.warn('Failed to list live sessions', err)
+      return []
+    }
+  }
+
+  async kickParticipant (meetingId: Ref<MeetingMinutes>, targetAccount: string): Promise<void> {
+    try {
+      const endpoint = this.getLoveEndpoint()
+      const token = getPlatformToken()
+
+      const res = await fetch(concatLink(endpoint, '/kickParticipant'), {
+        method: 'POST',
+        headers: await this.buildHeaders(this.getTraceId(meetingId), token),
+        body: JSON.stringify({
+          meetingId,
+          targetAccount
+        }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        console.warn(`[LoveClient] Failed to kick participant: ${res.status} ${text}`)
+      }
+    } catch (err: any) {
+      console.warn('[LoveClient] Error calling kickParticipant', err)
+    }
+  }
+
+  async requestFinishMeeting (meetingId: Ref<MeetingMinutes>): Promise<void> {
+    try {
+      await fetch(concatLink(this.getLoveEndpoint(), '/finishMeeting'), {
+        method: 'POST',
+        headers: await this.buildHeaders(this.getTraceId(meetingId), getPlatformToken()),
+        body: JSON.stringify({ meetingId }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+    } catch (err: any) {
+      console.warn('Failed to request meeting finish', err)
+    }
   }
 
   private async refreshRoomToken (meetingMinutes: MeetingMinutes): Promise<string> {
@@ -99,17 +185,24 @@ export class LoveClient {
     let x: number | undefined
     let y: number | undefined
 
-    if (meetingMinutes.attachedTo === place?._id && place != null) {
+    if (meetingMinutes.roomId === place?._id && place != null) {
       x = place.x
       y = place.y
     }
 
+    if (meetingMinutes.traceId === undefined) {
+      const traceId = newCallTraceId()
+      try {
+        await getClient().update(meetingMinutes, { traceId })
+        meetingMinutes.traceId = traceId
+      } catch (err: any) {
+        console.warn('[loveClient] failed to persist traceId', err?.message ?? err)
+      }
+    }
+
     const res = await fetch(concatLink(endpoint, '/getToken'), {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${platformToken}`,
-        'Content-Type': 'application/json'
-      },
+      headers: await this.buildHeaders(meetingMinutes.traceId, platformToken),
       body: JSON.stringify({
         meetingId: meetingMinutes._id,
         _id: myPerson._id,
@@ -118,16 +211,21 @@ export class LoveClient {
         y
       })
     })
+    if (!res.ok) {
+      // Surface the status — callers (auto-join after knock-accept) need to
+      // distinguish a transient 403 (membership propagation race) from a
+      // permanent denial. Returning the response body as the token would
+      // otherwise be passed straight into LiveKit and fail opaquely.
+      const text = await res.text().catch(() => '')
+      throw new LoveServiceError(res.status, `getToken failed: ${res.status} ${text}`)
+    }
     return await res.text()
   }
 
   async getGuestToken (mm: MeetingMinutes): Promise<string> {
     const res = await fetch(concatLink(this.getLoveEndpoint(), '/guestToken'), {
       method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + getPlatformToken(),
-        'Content-Type': 'application/json'
-      },
+      headers: await this.buildHeaders(mm.traceId, getPlatformToken()),
       body: JSON.stringify({ meetingId: mm._id })
     })
 
@@ -138,5 +236,27 @@ export class LoveClient {
 
     const data = await res.json()
     return data?.token ?? data
+  }
+
+  private getTraceId (meetingId: Ref<MeetingMinutes>): string | undefined {
+    return get(meetings).find((m) => m._id === meetingId)?.traceId
+  }
+
+  private authHeaders (token: string): Record<string, string> {
+    return {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }
+
+  private async buildHeaders (traceId: string | undefined, token: string): Promise<Record<string, string>> {
+    const headers = this.authHeaders(token)
+    const traceParent = traceId !== undefined ? callTraceParent(traceId) : undefined
+    if (traceParent !== undefined) {
+      headers.traceparent = traceParent
+    }
+    headers['x-participant-id'] = getCurrentEmployee()
+
+    return headers
   }
 }

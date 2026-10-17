@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Ref, SortingOrder } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import core, { SortingOrder } from '@hcengineering/core'
   import { Card, createQuery, getClient } from '@hcengineering/presentation'
-  import { Process, State, Transition, Trigger } from '@hcengineering/process'
-  import { Component, Dropdown, DropdownIntlItem, DropdownLabelsIntl, Label, ListItem } from '@hcengineering/ui'
+  import type { Process, State, Transition, Trigger } from '@hcengineering/process'
+  import type { DropdownIntlItem, ListItem } from '@hcengineering/ui'
+  import { Component, Dropdown, DropdownLabelsIntl, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
   import { makeRank } from '@hcengineering/rank'
@@ -111,7 +113,7 @@
   okAction={save}
   canSave={to !== undefined && trigger !== undefined}
   label={plugin.string.AddTransition}
-  width={'medium'}
+  width="medium"
   on:close
 >
   <div class="editor-grid">
@@ -121,9 +123,9 @@
         items={statesItems}
         bind:selected={fromState}
         placeholder={plugin.string.From}
-        justify={'left'}
-        width={'100%'}
-        kind={'no-border'}
+        justify="left"
+        width="100%"
+        kind="no-border"
       />
     {:else}
       <div>⦳</div>
@@ -133,9 +135,9 @@
       items={statesItems}
       bind:selected={selectedState}
       placeholder={plugin.string.To}
-      justify={'left'}
-      width={'100%'}
-      kind={'no-border'}
+      justify="left"
+      width="100%"
+      kind="no-border"
     />
     <Label label={plugin.string.Trigger} />
     <DropdownLabelsIntl
@@ -145,9 +147,9 @@
       on:selected={() => {
         params = {}
       }}
-      justify={'left'}
-      width={'100%'}
-      kind={'no-border'}
+      justify="left"
+      width="100%"
+      kind="no-border"
     />
   </div>
   {#if triggerValue?.editor}

@@ -13,15 +13,38 @@
 // limitations under the License.
 //
 import { writable } from 'svelte/store'
-import contact, { type SocialIdentity } from '@hcengineering/contact'
-import { createQuery, onClient } from '@hcengineering/presentation'
+import { type Ref } from '@hcengineering/core'
+import contact, { getFirstName, type Person, type SocialIdentity } from '@hcengineering/contact'
+import { createQuery } from '@hcengineering/presentation'
 import { aiBotEmailSocialKey } from '@hcengineering/ai-bot'
 
-export const aiBotSocialIdentityStore = writable<SocialIdentity>()
+// Empty until the query resolves, and empty again if the bot has not been provisioned yet.
+export const aiBotSocialIdentityStore = writable<SocialIdentity | undefined>(undefined)
+/** First name of the bot as the pod created it (FIRST_NAME), for labels that name the assistant. */
+export const aiBotNameStore = writable<string>('')
 const identityQuery = createQuery(true)
+const personQuery = createQuery(true)
 
-onClient(() => {
-  identityQuery.query(contact.class.SocialIdentity, { key: aiBotEmailSocialKey }, (res) => {
-    aiBotSocialIdentityStore.set(res[0])
+let identityLoaded: Promise<void> | undefined
+
+export async function ensureAiBotIdentityLoaded (): Promise<void> {
+  identityLoaded ??= loadAiBotIdentity()
+  await identityLoaded
+}
+
+async function loadAiBotIdentity (): Promise<void> {
+  await new Promise<void>((resolve) => {
+    identityQuery.query(contact.class.SocialIdentity, { key: aiBotEmailSocialKey }, (res) => {
+      const identity = res[0]
+      aiBotSocialIdentityStore.set(identity)
+      if (identity !== undefined) loadAiBotName(identity.attachedTo)
+      resolve()
+    })
   })
-})
+}
+
+function loadAiBotName (person: Ref<Person>): void {
+  personQuery.query<Person>(contact.class.Person, { _id: person }, (persons) => {
+    aiBotNameStore.set(getFirstName(persons[0]?.name ?? ''))
+  })
+}

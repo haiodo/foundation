@@ -14,16 +14,19 @@
 -->
 <script lang="ts">
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import { EditBox, ModernButton } from '@hcengineering/ui'
-  import { MeetingMinutes, MeetingStatus, PendingRecording, ParticipantInfo, Room } from '@hcengineering/love'
+  import { EditBox } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
+  import type { MeetingMinutes, PendingRecording, ParticipantInfo } from '@hcengineering/love'
+  import { MeetingStatus } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
 
   import love from '../plugin'
   import { joinMeeting, leaveMeeting } from '../meetings'
-  import { currentMeetingMinutes, infos, myConnectingSessionId, rooms } from '../stores'
+  import { currentMeetingMinutes, infos, myConnectingSessionId, rooms, connectingToMeeting } from '../stores'
   import { lkIsConnecting, lkSessionConnected } from '../liveKitClient'
   import { getMetadata } from '@hcengineering/platform'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
   import ParticipantsPreview from './ParticipantsPreview.svelte'
   import PendingRecordingPresenter from './PendingRecordingPresenter.svelte'
   import { openWidgetTab } from '@hcengineering/workbench-resources'
@@ -35,20 +38,29 @@
   const client = getClient()
   const dispatch = createEventDispatcher()
 
-  let currentTitle = object.title
-  let newTitle = object.title
+  const currentAccount = getCurrentAccount()
 
-  $: if (object.title !== currentTitle) {
-    newTitle = object.title
-    currentTitle = object.title
+  let currentName = object.name
+  let newName = object.name
+
+  $: if (object.name !== currentName) {
+    newName = object.name
+    currentName = object.name
   }
 
-  async function changeTitle (): Promise<void> {
-    await client.diffUpdate(object, { title: newTitle })
+  async function changeName (): Promise<void> {
+    await client.diffUpdate(object, { name: newName })
   }
+
+  async function togglePrivate (): Promise<void> {
+    await client.diffUpdate(object, { private: !object.private })
+  }
+
+  // Check if current user is owner of the meeting
+  $: isOwner = object.owners?.includes(currentAccount.uuid) ?? false
 
   onMount(() => {
-    dispatch('open', { ignoreKeys: ['title'] })
+    dispatch('open', { ignoreKeys: ['name'] })
   })
 
   // Check if pending join is for THIS session (same browser tab)
@@ -57,6 +69,7 @@
     $myConnectingSessionId !== null && $myConnectingSessionId === currentSessionId && $lkIsConnecting
 
   async function connect (): Promise<void> {
+    if ($connectingToMeeting) return
     await joinMeeting(object)
   }
 
@@ -80,7 +93,7 @@
 
   $: roomInfos = getInfo(object._id, $infos)
 
-  $: room = $rooms.find((it) => it._id === object.attachedTo)
+  $: room = $rooms.find((it) => it._id === object.roomId)
 
   const pendingQuery = createQuery()
   let pendingRecordings: PendingRecording[] = []
@@ -93,41 +106,52 @@
 <div class="flex flex-col">
   <div class="flex flex-row">
     <div class="flex flex-grow flex-between gap-2 mb-4">
-      <div class="title flex-grow">
+      <div class="title flex-grow" data-id="meeting-name-input">
         <EditBox
           disabled={readonly}
           placeholder={love.string.MeetingMinutes}
-          bind:value={newTitle}
-          on:change={changeTitle}
+          bind:value={newName}
+          on:change={changeName}
           focusIndex={1}
         />
       </div>
-      {#if showConnectionButton(object, hasPendingJoinInThisSession, $lkSessionConnected)}
-        <ModernButton
+      {#if isOwner}
+        <Button
+          label={object.private ? love.string.OpenRoom : love.string.CloseRoom}
+          size="large"
+          kind={object.private ? 'secondary' : 'primary'}
+          on:click={togglePrivate}
+          data-id="meeting-toggle-private"
+        />
+      {/if}
+      {#if showConnectionButton(object, hasPendingJoinInThisSession || $connectingToMeeting, $lkSessionConnected)}
+        <Button
           label={connectLabel}
           size="large"
-          kind={'primary'}
+          kind="primary"
           on:click={connect}
-          loading={hasPendingJoinInThisSession}
+          loading={hasPendingJoinInThisSession || $connectingToMeeting}
+          data-id="meeting-connect"
         />
       {:else if $lkSessionConnected}
         {#if !$videoVisible}
-          <ModernButton
+          <Button
             label={love.string.ShowVideo}
             size="large"
-            kind={'secondary'}
+            kind="secondary"
             on:click={() => {
               openWidgetTab(love.ids.MeetingWidget, 'video')
             }}
           />
         {/if}
-        <ModernButton
+        <Button
           label={love.string.LeaveRoom}
           size="large"
-          kind={'negative'}
+          kind="negative"
           on:click={() => {
             void leaveMeeting()
           }}
+          data-id="meeting-leave"
         />
       {/if}
     </div>

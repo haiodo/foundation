@@ -14,14 +14,14 @@
 -->
 <script lang="ts">
   import { afterUpdate, createEventDispatcher } from 'svelte'
+  import IconButton from '../../ui-kit/button/IconButton.svelte'
+  import ui from '../../plugin'
   import { capitalizeFirstLetter } from '../../utils'
-  import ButtonIcon from '../ButtonIcon.svelte'
   import IconChevronLeft from '../icons/ChevronLeft.svelte'
   import IconChevronRight from '../icons/ChevronRight.svelte'
-  import { deviceOptionsStore as deviceInfo } from '../..'
+  import { deviceOptionsStore as deviceInfo, languageStore } from '../..'
+  import type { ICell, TCellStyle } from './internal/DateUtils'
   import {
-    ICell,
-    TCellStyle,
     areDatesEqual,
     day,
     daysInMonth,
@@ -76,6 +76,10 @@
     viewDate.setMonth(viewDate.getMonth() + offset)
     days = renderCellStyles(viewDate, $deviceInfo.firstDayOfWeek)
   }
+
+  $: if ($languageStore !== undefined) {
+    days = renderCellStyles(viewDate, $deviceInfo.firstDayOfWeek)
+  }
 </script>
 
 <div class="month-container">
@@ -85,21 +89,23 @@
       <slot name="header" />
       {#if !hideNavigator}
         <div class="flex-row-center flex-no-shrink gap-2 tertiary-textColor">
-          <ButtonIcon
+          <IconButton
             icon={IconChevronLeft}
-            kind={'tertiary'}
-            size={'extra-small'}
+            kind="tertiary"
+            size="extra-small"
             inheritColor
+            tooltip={{ label: ui.string.PreviousMonth }}
             on:click={() => {
               viewDate.setDate(1)
               changeMonth(-1)
             }}
           />
-          <ButtonIcon
+          <IconButton
             icon={IconChevronRight}
-            kind={'tertiary'}
-            size={'extra-small'}
+            kind="tertiary"
+            size="extra-small"
             inheritColor
+            tooltip={{ label: ui.string.NextMonth }}
             on:click={() => {
               viewDate.setDate(1)
               changeMonth(1)
@@ -111,13 +117,15 @@
   </div>
 
   {#if viewDate}
-    <div class="caption">
-      {#each [...Array(7).keys()] as dayOfWeek}
-        <span class="weekdays ui-regular-12">
-          {capitalizeFirstLetter(getWeekDayName(day(firstDayOfCurrentMonth, dayOfWeek), 'short'))}
-        </span>
-      {/each}
-    </div>
+    {#key $languageStore}
+      <div class="caption">
+        {#each [...Array(7).keys()] as dayOfWeek}
+          <span class="weekdays ui-regular-12">
+            {capitalizeFirstLetter(getWeekDayName(day(firstDayOfCurrentMonth, dayOfWeek), 'short'))}
+          </span>
+        {/each}
+      </div>
+    {/key}
     <div class="calendar">
       {#each days as day, i}
         <button

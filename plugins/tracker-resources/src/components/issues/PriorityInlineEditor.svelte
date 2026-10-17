@@ -14,16 +14,8 @@
 -->
 <script lang="ts">
   import { IssuePriority } from '@hcengineering/tracker'
-  import {
-    Button,
-    ButtonKind,
-    ButtonSize,
-    Icon,
-    Label,
-    SelectPopup,
-    eventToHTMLElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import type { ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import { Button, Icon, Label, SelectPopup, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../plugin'
   import { defaultPriorities, issuePriorities } from '../../utils'
@@ -91,13 +83,14 @@
 {:else}
   <Button
     showTooltip={isEditable ? { label: tracker.string.SetPriority } : undefined}
-    label={shouldShowLabel ? issuePriorities[value]?.label : undefined}
-    icon={issuePriorities[value]?.icon}
+    label={shouldShowLabel ? (issuePriorities[value]?.label ?? tracker.string.Priority) : undefined}
+    icon={issuePriorities[value]?.icon ?? tracker.icon.Priority}
     {justify}
     {focusIndex}
     {width}
     {size}
     {kind}
+    notSelected={issuePriorities[value] == null}
     disabled={!isEditable}
     on:click={handlePriorityEditorOpened}
   />

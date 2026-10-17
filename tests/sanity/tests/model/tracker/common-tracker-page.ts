@@ -13,7 +13,7 @@ export class CommonTrackerPage extends CalendarPage {
   privatebuttonFilter = (): Locator => this.page.locator('div.search-start > div:first-child button')
   inputComment = (): Locator => this.page.locator('div.text-input div.tiptap')
   buttonSendComment = (): Locator => this.page.locator('g#Send')
-  textComment = (): Locator => this.page.locator('div.showMore-content p')
+  textComment = (): Locator => this.page.locator('.activityMessage .text-markup-view p')
   textActivity = (): Locator => this.page.locator('div.header')
   buttonSpaceSelectorMoveIssuesModal = (): Locator =>
     this.page.locator('form[id="tracker:string:MoveIssues"] button[id="space.selector"]')
@@ -130,6 +130,7 @@ export class CommonTrackerPage extends CalendarPage {
     await this.componentNameInput().click()
     await this.componentNameInput().fill(componentName)
     await this.createComponentConfirmButton().click()
+    await this.expandCollapsedCategories()
     await this.page.click(`text=${componentName}`)
   }
 
@@ -177,7 +178,9 @@ export class CommonTrackerPage extends CalendarPage {
   }
 
   async checkActivityContentExist (activityContent: string): Promise<void> {
-    await expect(this.textActivityContent().filter({ hasText: activityContent })).toBeVisible()
+    // hasText matches a substring, so one status change plus its grouped copy are two hits and the
+    // strict locator throws. Presence is what is checked here - same as checkActivityExist.
+    await expect(this.textActivityContent().filter({ hasText: activityContent }).first()).toBeVisible()
   }
 
   async openLinkFromActivitiesByText (linkText: string): Promise<void> {
@@ -193,8 +196,12 @@ export class CommonTrackerPage extends CalendarPage {
 
   async checkCommentWithImageExist (commentHeader: string, fileName: string): Promise<void> {
     await this.checkActivityExist(commentHeader)
-    const srcset = await this.commentImg().getAttribute('alt')
-    expect(srcset).toContain(fileName)
+    // loading="lazy" never loads an image the small popup does not scroll into view.
+    await this.commentImg().scrollIntoViewIfNeeded()
+    // `getAttribute` has no timeout of its own, so a missing image used to read as a bare 30s
+    // "waiting for locator" with nothing naming the attachment.
+    await expect(this.commentImg(), `no image in the comment, expected ${fileName}`).toBeVisible({ timeout: 15000 })
+    expect(await this.commentImg().getAttribute('alt')).toContain(fileName)
   }
 
   async checkCategoryHeader (categoryHeader: string): Promise<void> {

@@ -13,10 +13,10 @@
 -->
 
 <script lang="ts">
-  import cardPlugin, { Card, MasterTag } from '@hcengineering/card'
+  import type { Card, MasterTag } from '@hcengineering/card'
+  import cardPlugin from '@hcengineering/card'
   import { getClient } from '@hcengineering/presentation'
   import { Component, getPlatformColorDef, themeStore, tooltip } from '@hcengineering/ui'
-  import communication from '@hcengineering/communication'
 
   import NotifyMarker from './NotifyMarker.svelte'
 
@@ -26,7 +26,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  $: size = hierarchy.isDerived(card._class, communication.type.Direct) ? 'large' : 'medium'
+  $: size = 'medium'
 
   // Get the color from the card's MasterTag class, similar to MasterTagSelector
   $: clazz = hierarchy.getClass(card._class) as MasterTag

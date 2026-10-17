@@ -14,12 +14,13 @@
 //
 
 import {
+  createRestClient,
   createRestTxOperations,
   getWorkspaceToken,
   loadServerConfig,
   type WorkspaceToken
 } from '@hcengineering/api-client'
-import core, { generateId, type Ref, type TxOperations } from '@hcengineering/core'
+import core, { type AnyAttribute, type Class, generateId, type Ref, type TxOperations } from '@hcengineering/core'
 import { makeRank } from '@hcengineering/rank'
 import task, { type TaskType } from '@hcengineering/task'
 import tracker, {
@@ -40,6 +41,8 @@ export interface ProjectContext {
 }
 
 export interface CreateIssueOptions {
+  // For a caller that needs the id before the issue exists, e.g. to upload its description
+  _id?: Ref<Issue>
   title: string
   status: StatusName | Ref<IssueStatus>
   priority?: IssuePriority
@@ -50,6 +53,9 @@ export interface CreateIssueOptions {
   dueDate?: number | null
   space?: Ref<Project>
   component?: Ref<TrackerComponent> | null
+  // The task type target class, as CreateIssue does; its custom fields are set via `attributes`
+  _class?: Ref<Class<Issue>>
+  attributes?: Record<string, unknown>
 }
 
 export async function connectTracker (
@@ -98,7 +104,7 @@ export async function createIssue (
   ctx: ProjectContext,
   opts: CreateIssueOptions
 ): Promise<Ref<Issue>> {
-  const _id: Ref<Issue> = generateId()
+  const _id: Ref<Issue> = opts._id ?? generateId()
   const status: Ref<IssueStatus> | undefined =
     typeof opts.status === 'string' && ctx.statuses.has(opts.status as StatusName)
       ? ctx.statuses.get(opts.status as StatusName)
@@ -135,7 +141,7 @@ export async function createIssue (
   }
 
   await client.addCollection(
-    tracker.class.Issue,
+    opts._class ?? tracker.class.Issue,
     space,
     opts.parent ?? tracker.ids.NoParent,
     tracker.class.Issue,
@@ -161,12 +167,41 @@ export async function createIssue (
       relations: [],
       childInfo: [],
       kind: ctx.taskType,
-      identifier
+      identifier,
+      ...opts.attributes
     },
     _id
   )
 
   return _id
+}
+
+/** An issue a test only needs as a fixture: Backlog, with the description the form would have stored. */
+export async function createIssueWithDescription (
+  title: string,
+  description: string,
+  projectName?: string
+): Promise<{ id: Ref<Issue>, identifier: string }> {
+  const { client, workspaceToken } = await connectTracker()
+  try {
+    const project = projectName === undefined ? undefined : await findProjectByName(client, projectName)
+    if (projectName !== undefined && project === undefined) throw new Error(`Project "${projectName}" not found`)
+    const ctx = await getProjectContext(client, project?._id)
+    const id: Ref<Issue> = generateId()
+    const rest = createRestClient(
+      workspaceToken.endpoint,
+      workspaceToken.workspaceId,
+      workspaceToken.token,
+      workspaceToken.info.collaboratorEndpoint
+    )
+    const markup = await rest.uploadMarkup(tracker.class.Issue, id, 'description', description, 'markdown')
+    await createIssue(client, ctx, { _id: id, title, status: 'Backlog', attributes: { description: markup } })
+    const created = await client.findOne(tracker.class.Issue, { _id: id })
+    if (created === undefined) throw new Error(`Issue "${title}" was not stored`)
+    return { id, identifier: created.identifier }
+  } finally {
+    await client.close()
+  }
 }
 
 export async function createComponent (
@@ -203,4 +238,71 @@ export async function deleteIssuesByTitlePrefix (client: TxOperations, prefix: s
     )
   }
   return issues.length
+}
+
+// Whether a comment counter that disagrees with the UI drifted on the server or only in the
+// browser copy - the popup already says how many messages really exist.
+export async function readStoredCommentCount (issueTitle: string): Promise<number | undefined> {
+  const { client } = await connectTracker()
+  try {
+    return (await client.findOne(tracker.class.Issue, { title: issueTitle }))?.comments
+  } finally {
+    await client.close()
+  }
+}
+
+/** Whether a move reached the server - the open panel can keep the old identifier. */
+export async function readIssueIdentifier (issueTitle: string): Promise<string | undefined> {
+  const { client } = await connectTracker()
+  try {
+    return (await client.findOne(tracker.class.Issue, { title: issueTitle }))?.identifier
+  } finally {
+    await client.close()
+  }
+}
+
+/** Identifiers of the issues that block `issueTitle` on the server - RelationsPopup's onClose
+ *  fires the write without awaiting it, so the popup can close before it lands. */
+export async function readIssueBlockedByIdentifiers (issueTitle: string): Promise<string[]> {
+  const { client } = await connectTracker()
+  try {
+    const issue = await client.findOne(tracker.class.Issue, { title: issueTitle })
+    const ids = (issue?.blockedBy ?? []).map((r) => r._id as Ref<Issue>)
+    if (ids.length === 0) return []
+    const blockers = await client.findAll(tracker.class.Issue, { _id: { $in: ids } })
+    return blockers.map((b) => b.identifier)
+  } finally {
+    await client.close()
+  }
+}
+
+/** Whether a component edit reached the server - the panel can render an unsaved value. */
+export async function readComponentDescription (label: string): Promise<string | undefined> {
+  const { client } = await connectTracker()
+  try {
+    return (await client.findOne(tracker.class.Component, { label }))?.description
+  } finally {
+    await client.close()
+  }
+}
+
+/** A custom string field, as the class settings create one; `name` is the stored key. */
+export async function createCustomStringAttribute (
+  client: TxOperations,
+  attributeOf: Ref<Class<Issue>>,
+  label: string
+): Promise<{ _id: Ref<AnyAttribute>, name: string }> {
+  const name = `custom${generateId()}`
+  const _id = await client.createDoc(core.class.Attribute, core.space.Model, {
+    attributeOf,
+    name,
+    label: `embedded:embedded:${label}` as AnyAttribute['label'],
+    type: { _class: core.class.TypeString, label: core.string.String, icon: core.icon.TypeString },
+    isCustom: true
+  })
+  return { _id, name }
+}
+
+export async function removeAttribute (client: TxOperations, _id: Ref<AnyAttribute>): Promise<void> {
+  await client.removeDoc(core.class.Attribute, core.space.Model, _id)
 }

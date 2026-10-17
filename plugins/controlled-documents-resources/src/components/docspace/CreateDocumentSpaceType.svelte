@@ -15,22 +15,24 @@
 
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { Data, SpaceTypeDescriptor, generateId } from '@hcengineering/core'
+  import type { Data, Ref, SpaceTypeDescriptor } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import documents, { DocumentSpaceType, DocumentSpaceTypeDescriptor } from '@hcengineering/controlled-documents'
+  import type { DocumentSpaceType, DocumentSpaceTypeDescriptor } from '@hcengineering/controlled-documents'
+  import documents from '@hcengineering/controlled-documents'
   import { createSpaceType } from '@hcengineering/setting'
 
   const client = getClient()
 
   export let descriptor: SpaceTypeDescriptor
   export let name: string = ''
-  export const handleTypeCreated: () => Promise<void> = createType
+  export const handleTypeCreated: () => Promise<Ref<DocumentSpaceType> | undefined> = createType
 
   $: docDescriptor = descriptor as DocumentSpaceTypeDescriptor
 
   const dispatch = createEventDispatcher()
 
-  async function createType (): Promise<void> {
+  async function createType (): Promise<Ref<DocumentSpaceType> | undefined> {
     if (docDescriptor === undefined) {
       return
     }
@@ -42,8 +44,9 @@
       projects: docDescriptor.withProjects === true
     }
 
-    await createSpaceType(client, data, generateId(), documents.class.DocumentSpaceType)
+    const typeId = await createSpaceType(client, data, generateId(), documents.class.DocumentSpaceType)
 
     dispatch('close')
+    return typeId
   }
 </script>

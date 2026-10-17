@@ -13,12 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
+  import type { Card } from '@hcengineering/card'
   import { CardSelector } from '@hcengineering/card-resources'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { Card as CardPopup, getClient } from '@hcengineering/presentation'
-  import { Process } from '@hcengineering/process'
-  import { Dropdown, ListItem } from '@hcengineering/ui'
+  import type { Process } from '@hcengineering/process'
+  import type { ListItem } from '@hcengineering/ui'
+  import { Dropdown } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../plugin'
   import { createExecution } from '../utils'
@@ -77,14 +78,14 @@
   label={plugin.string.RunProcess}
   canSave={process !== undefined && card !== undefined}
   okAction={runProcess}
-  width={'menu'}
+  width="menu"
   on:close
 >
   <div class="mb-4">
     <Dropdown
       {items}
-      kind={'regular'}
-      size={'medium'}
+      kind="regular"
+      size="medium"
       placeholder={plugin.string.Process}
       disabled={value !== undefined}
       selected={items.find((i) => i._id === process)}
@@ -96,8 +97,8 @@
   </div>
   {#if selectedProcess !== undefined}
     <CardSelector
-      kind={'regular'}
-      size={'medium'}
+      kind="regular"
+      size="medium"
       value={card?._id}
       on:value={(e) => {
         card = e.detail

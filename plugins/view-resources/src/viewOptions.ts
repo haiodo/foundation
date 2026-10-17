@@ -22,7 +22,8 @@ import {
   type Viewlet,
   type ViewletDescriptor,
   type ViewOptionsModel,
-  type BuildModelKey
+  type BuildModelKey,
+  type GroupingKey
 } from '@hcengineering/view'
 import { get, writable } from 'svelte/store'
 import view from './plugin'
@@ -34,6 +35,8 @@ export const defaultOptions: ViewOptions = {
   groupBy: [noCategory],
   orderBy: ['modifiedBy', SortingOrder.Descending]
 }
+
+export const MAX_GROUPING_DEPTH = 3
 
 export function isToggleType (viewOption: ViewOptionModel): viewOption is ToggleViewOption {
   return viewOption.type === 'toggle'
@@ -55,9 +58,14 @@ function makeViewOptionsKey (viewlet: Viewlet, variant?: string, ignoreViewletKe
 }
 
 export function setViewOptions (viewlet: Viewlet, options: ViewOptions): void {
+  const normalizedOptions = {
+    ...options,
+    groupBy: normalizeGroupBy(options.groupBy)
+  }
+
   const key = makeViewOptionsKey(viewlet, viewlet.variant)
-  localStorage.setItem(key, JSON.stringify(options))
-  setStore(key, options)
+  localStorage.setItem(key, JSON.stringify(normalizedOptions))
+  setStore(key, normalizedOptions)
 }
 
 function setStore (key: string, options: ViewOptions): void {
@@ -94,7 +102,13 @@ export function getViewOptions (
     return { ...defaults }
   }
   const res = _getViewOptions(viewlet, viewOptionStore)
-  if (res !== null) return res
+  if (res !== null) {
+    return {
+      ...res,
+      groupBy: normalizeGroupBy(res.groupBy)
+    }
+  }
+
   return defaults
 }
 
@@ -102,8 +116,12 @@ export function getDefaults (viewOptions?: ViewOptionsModel): ViewOptions {
   if (viewOptions === undefined) {
     return defaultOptions
   }
+
+  const firstGroupBy = viewOptions.groupBy[0] ?? defaultOptions.groupBy[0]
+  const firstGroupByKey = typeof firstGroupBy === 'string' ? firstGroupBy : firstGroupBy.key
+
   const res: ViewOptions = {
-    groupBy: [viewOptions.groupBy[0] ?? defaultOptions.groupBy[0]],
+    groupBy: [firstGroupByKey],
     orderBy: viewOptions.orderBy?.[0] ?? defaultOptions.orderBy
   }
   for (const opt of viewOptions.other) {
@@ -120,6 +138,12 @@ export function migrateViewOpttions (): void {
     const options = localStorage.getItem(key)
     if (options === null) continue
     const res = JSON.parse(options) as ViewOptions
+
+    if (Array.isArray(res.groupBy) && res.groupBy.length > MAX_GROUPING_DEPTH) {
+      res.groupBy = normalizeGroupBy(res.groupBy)
+      localStorage.setItem(key, JSON.stringify(res))
+    }
+
     if (!Array.isArray(res.groupBy)) {
       res.groupBy = [res.groupBy]
     }
@@ -182,7 +206,7 @@ export async function showEmptyGroups (
   const allValuesMixin = hierarchy.as(attributeClass, view.mixin.AllValuesFunc)
   if (allValuesMixin.func !== undefined) {
     const f = await getResource(allValuesMixin.func)
-    const res = await f(query, onUpdate, queryId, attr)
+    const res = await f(query, onUpdate, queryId, attr, space)
     if (res !== undefined) {
       return await groupByCategory(client, _class, space, key, res, viewletDescriptorId)
     }
@@ -268,4 +292,14 @@ export interface AttributeConfig extends Config {
 
 export function isAttribute (val: Config): val is AttributeConfig {
   return val.type === 'attribute'
+}
+
+function normalizeGroupBy (groupBy: GroupingKey[] | string): string[] {
+  if (typeof groupBy === 'string') {
+    return [groupBy]
+  }
+
+  if (!Array.isArray(groupBy)) return []
+
+  return groupBy.slice(0, MAX_GROUPING_DEPTH).map((k: GroupingKey) => (typeof k === 'string' ? k : k.key))
 }

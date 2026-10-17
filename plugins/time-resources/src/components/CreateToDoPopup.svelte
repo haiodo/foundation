@@ -14,19 +14,24 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { AccessLevel, Calendar, generateEventId } from '@hcengineering/calendar'
+  import type { Calendar } from '@hcengineering/calendar'
+  import { AccessLevel, generateEventId } from '@hcengineering/calendar'
   import { VisibilityEditor } from '@hcengineering/calendar-resources'
   import calendar from '@hcengineering/calendar-resources/src/plugin'
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import core, { AttachedData, Doc, Ref, SortingOrder, generateId, getCurrentAccount } from '@hcengineering/core'
+  import type { AttachedData, Doc, Ref } from '@hcengineering/core'
+  import core, { SortingOrder, generateId, getCurrentAccount } from '@hcengineering/core'
   import { SpaceSelector, createQuery, getClient } from '@hcengineering/presentation'
-  import tagsPlugin, { TagReference } from '@hcengineering/tags'
+  import type { TagReference } from '@hcengineering/tags'
+  import tagsPlugin from '@hcengineering/tags'
   import task, { makeRank } from '@hcengineering/task'
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
-  import { TimeEvents, ToDo, ToDoPriority, WorkSlot } from '@hcengineering/time'
+  import type { ToDo, WorkSlot } from '@hcengineering/time'
+  import { TimeEvents, ToDoPriority } from '@hcengineering/time'
   import { Button, Component, EditBox, IconClose, Label, Scroller } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import time from '../plugin'
+  import { getWorkSlotSpace } from '../utils'
   import DueDateEditor from './DueDateEditor.svelte'
   import PriorityEditor from './PriorityEditor.svelte'
   import Workslots from './Workslots.svelte'
@@ -91,8 +96,9 @@
       }
     )
     Analytics.handleEvent(TimeEvents.ToDoCreated, { id })
+    const workslotSpace = getWorkSlotSpace(todo)
     for (const slot of slots) {
-      await ops.addCollection(time.class.WorkSlot, calendar.space.Calendar, id, time.class.ToDo, 'workslots', {
+      await ops.addCollection(time.class.WorkSlot, workslotSpace, id, time.class.ToDo, 'workslots', {
         eventId: generateEventId(),
         date: slot.date,
         dueDate: slot.dueDate,
@@ -153,7 +159,7 @@
       visibility: todo.visibility,
       reminders: [],
       calendar: _calendar,
-      space: calendar.space.Calendar,
+      space: getWorkSlotSpace(todo),
       _id: generateId(),
       _class: time.class.WorkSlot,
       attachedTo: generateId(),
@@ -192,7 +198,7 @@
   <div class="header flex-between">
     <EditBox
       bind:value={todo.title}
-      kind={'large-style'}
+      kind="large-style"
       placeholder={time.string.AddTitle}
       fullSize
       focusable
@@ -203,8 +209,8 @@
       <Button
         id="card-close"
         icon={IconClose}
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         on:click={() => {
           dispatch('close')
         }}
@@ -239,8 +245,8 @@
           label={core.string.Space}
           autoSelect={false}
           allowDeselect
-          kind={'regular'}
-          size={'medium'}
+          kind="regular"
+          size="medium"
           focus={false}
           bind:space={todo.attachedSpace}
         />
@@ -261,7 +267,7 @@
       <Workslots
         bind:slots
         shortcuts={false}
-        fixed={'createToDo'}
+        fixed="createToDo"
         on:remove={removeSlot}
         on:create={createSlot}
         on:change={changeSlot}

@@ -48,7 +48,7 @@ export const popupstore = derived(modalStore, (modals) => {
 })
 
 export const dockStore = derived(modalStore, (modals) => {
-  return (modals.filter((m) => m.type === 'popup') as CompAndProps[]).find((popup: CompAndProps) => popup.dock)
+  return (modals.filter((m) => m.type === 'popup') as CompAndProps[]).find((popup: CompAndProps) => popup.dock === true)
 })
 
 export function updatePopup (id: string, props: Partial<CompAndProps>): void {
@@ -118,8 +118,12 @@ export function showPopup (
     id,
     props,
     element: _element,
-    onClose,
-    onUpdate,
+    onClose: (result: any) => {
+      void onClose?.(result)
+    },
+    onUpdate: (result: any) => {
+      void onUpdate?.(result)
+    },
     close: closePopupOp,
     options,
     type: 'popup'
@@ -151,7 +155,7 @@ export function showPopup (
 export function closePopup (category?: string): void {
   modalStore.update((popups) => {
     if (category !== undefined) {
-      popups = popups.filter((p) => p.type === 'popup' && p.options.category !== category)
+      popups = popups.filter((p) => p.type !== 'popup' || p.options.category !== category)
     } else {
       for (let i = popups.length - 1; i >= 0; i--) {
         if (popups[i].type !== 'popup') continue
@@ -275,7 +279,6 @@ export function fitPopupElement (
     newProps.maxWidth = newProps.width = newProps.minWidth = ''
     if (typeof element !== 'string') {
       const result = fitPopupPositionedElement(modalHTML, element, newProps)
-      // applyStyle(newProps, modalHTML)
       return result
     } else if (element === 'right' && contentPanel !== undefined) {
       const rect = contentPanel.getBoundingClientRect()
@@ -368,7 +371,6 @@ export function fitPopupElement (
       newProps.bottom = '0'
       newProps.left = '0'
       newProps.right = '0'
-      // newProps.width = '100vw'
       newProps.height = '100vh'
       show = false
     } else if (element === 'full' && contentPanel !== undefined) {
@@ -388,10 +390,8 @@ export function fitPopupElement (
     } else if (element === 'content' && contentPanel !== undefined) {
       const rect = contentPanel.getBoundingClientRect()
       newProps.top = `${rect.top}px`
-      // newProps.bottom = `${Math.min(document.body.clientHeight - rect.bottom + 1, window.innerHeight - rect.top - 1)}px`
       newProps.height = `${Math.min(rect.height, window.innerHeight - rect.top)}px`
       newProps.left = `${rect.left}px`
-      // newProps.right = `${Math.min(document.body.clientWidth - rect.right, window.innerWidth - rect.left - 5)}px`
       newProps.width = `${Math.min(rect.width, window.innerWidth - rect.left)}px`
     } else if (element === 'middle') {
       if (contentPanel !== undefined) {
@@ -431,7 +431,6 @@ export function fitPopupElement (
     }
     show = true
   }
-  // applyStyle(newProps, modalHTML)
   return { props: newProps, showOverlay: show, direction: '' }
 }
 

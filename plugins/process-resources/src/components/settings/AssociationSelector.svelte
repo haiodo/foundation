@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Association, Ref } from '@hcengineering/core'
+  import type { Association, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Process } from '@hcengineering/process'
-  import { Button, eventToHTMLElement, Label, SelectPopup, SelectPopupValueType, showPopup } from '@hcengineering/ui'
+  import type { Process } from '@hcengineering/process'
+  import type { SelectPopupValueType } from '@hcengineering/ui'
+  import { Button, eventToHTMLElement, Label, SelectPopup, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
 
   export let process: Process
@@ -73,7 +75,7 @@
   $: selected = association !== undefined && client.getModel().findObject(association)
 </script>
 
-<Button on:click={open} width={'100%'}>
+<Button on:click={open} width="100%">
   <div slot="content">
     {#if selected && direction !== undefined}
       {direction === 'A' ? selected.nameA : selected.nameB}

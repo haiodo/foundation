@@ -15,16 +15,18 @@
 //
 -->
 <script lang="ts">
-  import { type Doc } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { KeyedAttribute } from '@hcengineering/presentation'
-  import textEditor, { CollaborationUser, TextEditorCommandHandler } from '@hcengineering/text-editor'
-  import { AnySvelteComponent, IconSize, registerFocus } from '@hcengineering/ui'
-  import { FocusPosition } from '@tiptap/core'
+  import type { Doc } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import type { CollaborationUser, RefAction, TextEditorCommandHandler } from '@hcengineering/text-editor'
+  import textEditor from '@hcengineering/text-editor'
+  import type { AnySvelteComponent, IconSize } from '@hcengineering/ui'
+  import { registerFocus } from '@hcengineering/ui'
+  import type { FocusPosition } from '@tiptap/core'
 
-  import { EditorKitOptions } from '../kits/editor-kit'
+  import type { EditorKitOptions } from '../kits/editor-kit'
   import CollaborativeTextEditor from './CollaborativeTextEditor.svelte'
-  import { FileAttachFunction } from './extension/types'
+  import type { FileAttachFunction } from './extension/types'
 
   export let object: Doc
   export let attribute: KeyedAttribute
@@ -43,6 +45,7 @@
   export let boundary: HTMLElement | undefined = undefined
 
   export let attachFile: FileAttachFunction | undefined = undefined
+  export let refActions: RefAction[] = []
   export let kitOptions: Partial<EditorKitOptions> = {}
   export let requestSideSpace: ((width: number) => void) | undefined = undefined
 
@@ -58,6 +61,10 @@
 
   export function isFocused (): boolean {
     return collaborativeEditor?.isFocused() ?? false
+  }
+
+  export function removeAttachment (id: string): void {
+    collaborativeEditor?.removeAttachment(id)
   }
 
   export let focusIndex = -1
@@ -93,6 +100,7 @@
     {overflow}
     {boundary}
     {attachFile}
+    {refActions}
     {editorAttributes}
     {spellcheck}
     {kitOptions}

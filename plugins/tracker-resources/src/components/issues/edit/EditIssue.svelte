@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { AttachmentStyleBoxCollabEditor } from '@hcengineering/attachment-resources'
-  import { Class, Doc, Ref, WithLookup } from '@hcengineering/core'
+  import type { Class, Doc, Ref, WithLookup } from '@hcengineering/core'
   import { Panel } from '@hcengineering/panel'
   import presentation, {
     ActionContext,
@@ -25,9 +25,10 @@
   } from '@hcengineering/presentation'
   import setting, { settingId } from '@hcengineering/setting'
   import { taskTypeStore, typeStore } from '@hcengineering/task-resources'
-  import { Issue, TrackerEvents } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
+  import { TrackerEvents } from '@hcengineering/tracker'
+  import type { AnyComponent } from '@hcengineering/ui'
   import {
-    AnyComponent,
     Button,
     Component,
     EditBox,
@@ -37,12 +38,19 @@
     Label,
     createFocusManager,
     getCurrentResolvedLocation,
-    navigate
+    navigate,
+    deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import { DocNavLink, ParentsNavigator, showMenu, RelationsEditor } from '@hcengineering/view-resources'
+  import {
+    DocNavLink,
+    ParentsNavigator,
+    showMenu,
+    RelationsEditor,
+    openDocInSidebar
+  } from '@hcengineering/view-resources'
   import ProjectPresenter from '../../projects/ProjectPresenter.svelte'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { Analytics } from '@hcengineering/analytics'
 
   import { createEventDispatcher, onDestroy } from 'svelte'
@@ -53,11 +61,15 @@
   import CopyToClipboard from './CopyToClipboard.svelte'
   import SubIssueSelector from './SubIssueSelector.svelte'
   import SubIssues from './SubIssues.svelte'
+  import ParentIssues from './ParentIssues.svelte'
+  import DependentIssues from './DependentIssues.svelte'
 
   export let _id: Ref<Issue> | string
   export let _class: Ref<Class<Issue>>
   export let embedded: boolean = false
   export let readonly: boolean = false
+  export let allowClose: boolean = !embedded
+  export let isSidebar: boolean = false
 
   let lastId: Ref<Issue> | undefined
 
@@ -73,7 +85,7 @@
   let showAllMixins: boolean = getShowAllMixins()
   $: saveShowAllMixins(showAllMixins)
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   let issueId: Ref<Issue> | undefined
 
@@ -100,9 +112,11 @@
     void inboxClient.readDoc(issueId)
   })
 
+  // By the base class, not `_class`: a task type change moves the issue to another class, and a
+  // subscription pinned to the old one would lose it and collapse the panel.
   $: if (issueId !== undefined && _class !== undefined) {
     queryClient.query<Issue>(
-      _class,
+      tracker.class.Issue,
       { _id: issueId },
       async (result) => {
         if (lastId !== issueId) {
@@ -170,7 +184,8 @@
     }
     return undefined
   }
-  $: editorFooter = getEditorFooter(issue?._class)
+  $: currentClass = issue?._class ?? _class
+  $: editorFooter = getEditorFooter(currentClass)
 
   let content: HTMLElement
 
@@ -193,9 +208,12 @@
   function saveShowAllMixins (showAllMixins: boolean): void {
     localStorage.setItem('issue.showAllMixins', showAllMixins.toString())
   }
+
+  // Mobile header has room for two buttons only: context menu and the properties aside.
+  $: mobileAdaptive = $deviceInfo.isMobile && $deviceInfo.minWidth
 </script>
 
-{#if !embedded}
+{#if !embedded && !isSidebar}
   <FocusHandler {manager} isEnabled={isContextEnabled} />
   <ActionContext
     context={{
@@ -209,14 +227,13 @@
     object={issue}
     isHeader={false}
     withoutInput={readonly}
-    allowClose={!embedded}
-    isAside={true}
+    {allowClose}
     isSub={false}
     {embedded}
     withoutActivity={false}
     printAside={true}
-    adaptive={'default'}
-    useMaxWidth
+    adaptive="default"
+    useMaxWidth={mobileAdaptive ? undefined : true}
     bind:content
     bind:innerWidth
     on:open
@@ -250,7 +267,7 @@
     <svelte:fragment slot="pre-utils">
       <ComponentExtensions
         extension={view.extensions.EditDocTitleExtension}
-        props={{ size: 'medium', kind: 'ghost', _id, _class, value: issue, readonly }}
+        props={{ size: 'medium', kind: 'ghost', _id, _class: currentClass, value: issue, readonly }}
       />
       <ComponentExtensions
         extension={tracker.extensions.EditIssueHeader}
@@ -262,50 +279,68 @@
     </svelte:fragment>
 
     <svelte:fragment slot="utils">
+      {#if !embedded && issue && !mobileAdaptive}
+        <Button
+          icon={view.icon.DetailsFilled}
+          iconProps={{ size: 'medium' }}
+          kind="icon"
+          dataId="btnOpenInSidebar"
+          showTooltip={{ label: view.string.OpenInSidebar }}
+          on:click={() => {
+            if (issue !== undefined) {
+              void openDocInSidebar(issue)
+            }
+          }}
+        />
+      {/if}
       {#if !readonly}
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
-          dataId={'btnMoreActions'}
+          kind="icon"
+          dataId="btnMoreActions"
           on:click={showContextMenu}
         />
-        <CopyToClipboard issueUrl={generateIssueShortLink(issue.identifier)} />
+        {#if !mobileAdaptive}
+          <CopyToClipboard issueUrl={generateIssueShortLink(issue.identifier)} />
+          <Button
+            icon={setting.icon.Setting}
+            kind="icon"
+            iconProps={{ size: 'medium' }}
+            showTooltip={{ label: setting.string.ClassSetting }}
+            dataId="btnClassSetting"
+            on:click={(ev) => {
+              ev.stopPropagation()
+              const loc = getCurrentResolvedLocation()
+              loc.path[2] = settingId
+              if (projectType?._id != null && issue?.kind != null) {
+                loc.path[3] = 'spaceTypes'
+                loc.path[4] = projectType?._id
+                loc.path[5] = 'taskTypes'
+                loc.path[6] = issue?.kind
+                loc.path.length = 7
+              } else {
+                loc.path.length = 3
+              }
+              loc.fragment = undefined
+              navigate(loc)
+            }}
+          />
+        {/if}
+      {/if}
+      {#if !mobileAdaptive}
         <Button
-          icon={setting.icon.Setting}
-          kind={'icon'}
+          icon={IconMixin}
           iconProps={{ size: 'medium' }}
-          showTooltip={{ label: setting.string.ClassSetting }}
-          dataId={'btnClassSetting'}
-          on:click={(ev) => {
-            ev.stopPropagation()
-            const loc = getCurrentResolvedLocation()
-            loc.path[2] = settingId
-            if (projectType?._id != null && issue?.kind != null) {
-              loc.path[3] = 'spaceTypes'
-              loc.path[4] = projectType?._id
-              loc.path[5] = 'taskTypes'
-              loc.path[6] = issue?.kind
-              loc.path.length = 7
-            } else {
-              loc.path.length = 3
-            }
-            loc.fragment = undefined
-            navigate(loc)
+          kind="icon"
+          selected={showAllMixins}
+          showTooltip={{ label: tracker.string.AdditionalProperties }}
+          dataId="btnMixin"
+          on:click={() => {
+            showAllMixins = !showAllMixins
           }}
         />
       {/if}
-      <Button
-        icon={IconMixin}
-        iconProps={{ size: 'medium' }}
-        kind={'icon'}
-        selected={showAllMixins}
-        showTooltip={{ label: tracker.string.AdditionalProperties }}
-        dataId={'btnMixin'}
-        on:click={() => {
-          showAllMixins = !showAllMixins
-        }}
-      />
     </svelte:fragment>
 
     {#if hasParentIssue}
@@ -316,9 +351,9 @@
             <Button
               icon={tracker.icon.UnsetParent}
               iconProps={{ size: 'medium' }}
-              kind={'regular'}
+              kind="ghost"
               showTooltip={{ label: tracker.string.UnsetParentIssue }}
-              dataId={'btnUnsetParent'}
+              dataId="btnUnsetParent"
               on:click={() => {
                 void unsetParentIssue()
               }}
@@ -353,6 +388,10 @@
     <div class="mt-6">
       {#key issue._id}
         <SubIssues focusIndex={50} {issue} shouldSaveDraft />
+        {#if taskType?.showParentTasks === true}
+          <ParentIssues {issue} />
+        {/if}
+        <DependentIssues {issue} />
       {/key}
     </div>
 
@@ -360,7 +399,10 @@
 
     {#if editorFooter}
       <div class="step-tb-6">
-        <Component is={editorFooter.footer} props={{ object: issue, _class, ...editorFooter.props, readonly }} />
+        <Component
+          is={editorFooter.footer}
+          props={{ object: issue, _class: currentClass, ...editorFooter.props, readonly }}
+        />
       </div>
     {/if}
 
@@ -382,7 +424,7 @@
   </Panel>
 {/if}
 
-<style>
+<style lang="scss">
   .breadcrumb-separator {
     margin: 0 0.5rem;
     color: var(--theme-caption-color);

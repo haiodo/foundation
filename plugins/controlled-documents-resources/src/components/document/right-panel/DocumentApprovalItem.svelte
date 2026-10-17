@@ -1,6 +1,6 @@
 <script lang="ts">
   import { PersonRefPresenter } from '@hcengineering/contact-resources'
-  import { DocumentValidationState } from '@hcengineering/controlled-documents'
+  import type { DocumentValidationState } from '@hcengineering/controlled-documents'
   import { Chevron, Label, tooltip } from '@hcengineering/ui'
   import { slide } from 'svelte/transition'
 
@@ -49,7 +49,7 @@
     <span>•</span>
     <span class="date">{dtf.format(state?.modifiedOn)}</span>
     <div class="chevron" class:visible={expanded}>
-      <Chevron outline {expanded} size={'small'} />
+      <Chevron outline {expanded} size="small" />
     </div>
   </div>
 </button>
@@ -74,9 +74,9 @@
           >
             <span><Label label={roleString[approval.role]} /></span>
             {#if approval.state === 'approved'}
-              <ApprovedIcon size="medium" fill={'var(--theme-docs-accepted-color)'} />
+              <ApprovedIcon size="medium" fill="var(--theme-docs-accepted-color)" />
             {:else if approval.state === 'rejected'}
-              <RejectedIcon size="medium" fill={'var(--negative-button-default)'} />
+              <RejectedIcon size="medium" fill="var(--negative-button-default)" />
             {:else if approval.state === 'cancelled'}
               <CancelledIcon size="medium" />
             {:else if approval.state === 'waiting'}

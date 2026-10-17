@@ -13,13 +13,13 @@
 // limitations under the License.
 //
 
-import { Message, Update } from 'telegraf/typings/core/types/typegram'
+import { Message, Update } from 'telegraf/types'
 import { Context, Scenes } from 'telegraf'
 
 export type ReplyMessage = Update.New &
-Update.NonChannel &
-Message.TextMessage &
-(Message.PhotoMessage | Message.VoiceMessage | Message.VideoMessage | Message.VideoNoteMessage)
+  Update.NonChannel &
+  Message.TextMessage &
+  (Message.PhotoMessage | Message.VoiceMessage | Message.VideoMessage | Message.VideoNoteMessage)
 
 export interface TgContext extends Context {
   processingKeyboards: Set<number>

@@ -15,20 +15,10 @@
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-unused-vars */
   import { Analytics } from '@hcengineering/analytics'
-  import { Channel, Person, SocialIdentity, getName } from '@hcengineering/contact'
-  import core, {
-    ArrOf,
-    Doc,
-    DocumentUpdate,
-    Mixin,
-    PersonUuid,
-    Ref,
-    RefTo,
-    SocialIdType,
-    Tx,
-    TxOperations,
-    TxProcessor
-  } from '@hcengineering/core'
+  import type { Channel, Person, SocialIdentity } from '@hcengineering/contact'
+  import { getName } from '@hcengineering/contact'
+  import type { ArrOf, Doc, DocumentUpdate, Mixin, PersonUuid, Ref, RefTo, Tx, TxOperations } from '@hcengineering/core'
+  import core, { SocialIdType, TxProcessor } from '@hcengineering/core'
   import { Card, createQuery, getClient, updateAttribute } from '@hcengineering/presentation'
   import { Label, Spinner, Toggle } from '@hcengineering/ui'
   import { isCollectionAttr } from '@hcengineering/view-resources'
@@ -175,7 +165,7 @@
       await accountClient.mergeSpecifiedPersons(targetPerson.personUuid, sourcePerson.personUuid)
     }
 
-    // Ok now we could safely remove source person.
+    // Safe to remove source person now that refs are updated and the merge is committed.
     await client.remove(sourcePerson)
 
     dispatch('close')
@@ -410,10 +400,10 @@
       <ChannelsDropdown
         value={oldChannels}
         editable={false}
-        kind={'link-bordered'}
-        size={'small'}
-        length={'full'}
-        shape={'circle'}
+        kind="link-bordered"
+        size="small"
+        length="full"
+        shape="circle"
       />
     </div>
     <span class="mx-4">&gt;&gt;</span>
@@ -428,10 +418,10 @@
       <ChannelsDropdown
         value={targetChannels}
         editable={false}
-        kind={'link-bordered'}
-        size={'small'}
-        length={'full'}
-        shape={'circle'}
+        kind="link-bordered"
+        size="small"
+        length="full"
+        shape="circle"
       />
     </div>
   </div>
@@ -446,7 +436,7 @@
           selected={update.avatar !== undefined}
         >
           <svelte:fragment slot="item" let:item>
-            <Avatar person={item} size={'x-large'} icon={contact.icon.Person} name={item.name} />
+            <Avatar person={item} size="x-large" icon={contact.icon.Person} name={item.name} />
           </svelte:fragment>
         </MergeComparer>
         <MergeComparer key="name" value={sourcePerson} targetEmp={targetPerson} onChange={select} selected>

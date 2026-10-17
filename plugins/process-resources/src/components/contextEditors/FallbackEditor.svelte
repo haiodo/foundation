@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AnyAttribute, Class, Doc, Ref } from '@hcengineering/core'
+  import type { AnyAttribute, Class, Doc, Ref } from '@hcengineering/core'
   import presentation, { Card, getAttributeEditor, getClient } from '@hcengineering/presentation'
-  import { SelectedContext } from '@hcengineering/process'
-  import { AnySvelteComponent, CheckBox, Label } from '@hcengineering/ui'
+  import type { SelectedContext } from '@hcengineering/process'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { CheckBox, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
 
@@ -56,7 +57,7 @@
 
 <Card
   on:close
-  width={'menu'}
+  width="menu"
   label={plugin.string.FallbackValue}
   canSave
   okAction={save}
@@ -71,7 +72,7 @@
         <Label label={plugin.string.FallbackValueError} />
       </div>
     </div>
-    <CheckBox checked={value === undefined} on:value={errorChange} size={'medium'} kind={'primary'} />
+    <CheckBox checked={value === undefined} on:value={errorChange} size="medium" kind="primary" />
   </div>
   {#if value !== undefined && editor}
     <div class="w-full mt-2">
@@ -79,10 +80,10 @@
         this={editor}
         label={attribute?.label}
         placeholder={attribute?.label}
-        kind={'ghost'}
-        size={'large'}
-        width={'100%'}
-        justify={'left'}
+        kind="ghost"
+        size="large"
+        width="100%"
+        justify="left"
         type={attribute?.type}
         {value}
         {onChange}

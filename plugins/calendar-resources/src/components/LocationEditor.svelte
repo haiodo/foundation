@@ -22,12 +22,12 @@
 </script>
 
 <div class="flex-row-center flex-gap-1 flex-no-shrink">
-  <Icon icon={calendar.icon.Location} size={'small'} />
+  <Icon icon={calendar.icon.Location} size="small" />
   <div class="flex-row-center container" style="flex: 1">
     <EditBox
       bind:value
       placeholder={calendar.string.Location}
-      kind={'ghost'}
+      kind="ghost"
       {focusIndex}
       fullSize
       focusable
@@ -35,7 +35,7 @@
     />
     {#if isLink(value)}
       <div class="tool">
-        <Button focusIndex={4} kind={'ghost'} size={'small'} icon={IconArrowRight} on:click={open} />
+        <Button focusIndex={4} kind="ghost" size="small" icon={IconArrowRight} on:click={open} />
       </div>
     {/if}
   </div>

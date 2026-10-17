@@ -15,14 +15,16 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
 
-  import { MasterTag, Tag } from '@hcengineering/card'
-  import core, { Data, generateId, Ref } from '@hcengineering/core'
+  import type { MasterTag, Tag } from '@hcengineering/card'
+  import type { Data, Ref } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
   import { EditBox, Label } from '@hcengineering/ui'
-  import view, { MasterDetailConfig, Viewlet, ViewletDescriptor, ViewOptionsModel } from '@hcengineering/view'
+  import type { MasterDetailConfig, Viewlet, ViewletDescriptor, ViewOptionsModel } from '@hcengineering/view'
+  import view from '@hcengineering/view'
 
-  import { AttributeConfig, Config } from '@hcengineering/view-resources'
+  import type { AttributeConfig, Config } from '@hcengineering/view-resources'
   import card from '../../../plugin'
   import DescriptorBox from './DescriptorBox.svelte'
   import { updateViewletConfig } from './utils'
@@ -126,7 +128,7 @@
       <Label label={view.string.Title} />
     </div>
     <div class="padding">
-      <EditBox bind:value={title} placeholder={view.string.Title} kind={'large-style'} autoFocus />
+      <EditBox bind:value={title} placeholder={view.string.Title} kind="large-style" autoFocus />
     </div>
   </div>
   <div class="antiGrid-row">

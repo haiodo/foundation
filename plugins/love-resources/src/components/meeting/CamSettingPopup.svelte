@@ -1,9 +1,12 @@
 <script lang="ts">
   import { Component, Label, Loading, Progress, Toggle } from '@hcengineering/ui'
   import love from '../../plugin'
-  import { myPreferences } from '../../stores'
+  import { ensureOfficeDetailsLoaded, myPreferences } from '../../stores'
+
   import { blurProcessor, updateBlurRadius } from '../../utils'
   import mediaPlugin, { getMediaDevices } from '@hcengineering/media'
+
+  void ensureOfficeDetailsLoaded()
 
   $: blurRadius = $myPreferences?.blurRadius ?? 0
 </script>
@@ -23,7 +26,7 @@
         showTooltip={{ label: love.string.BlurTooltip }}
         on={blurRadius >= 0.5}
         on:change={(e) => {
-          updateBlurRadius(e.detail ? 0.5 : 0)
+          void updateBlurRadius(e.detail ? 0.5 : 0)
         }}
       />
       {#if blurRadius >= 0.5}
@@ -36,7 +39,7 @@
           value={blurRadius}
           on:change={(e) => {
             const value = Math.round(e.detail * 2) / 2
-            updateBlurRadius(value)
+            void updateBlurRadius(value)
           }}
         />
       {/if}

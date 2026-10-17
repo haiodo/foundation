@@ -91,10 +91,10 @@ export class AggregationMiddleware extends BasePresentationMiddleware implements
     options: FindOptions<T> | undefined,
     refresh: () => void
   ): Promise<{
-      unsubscribe: () => void
-      query?: DocumentQuery<T>
-      options?: FindOptions<T>
-    }> {
+    unsubscribe: () => void
+    query?: DocumentQuery<T>
+    options?: FindOptions<T>
+  }> {
     const ret = await this.provideSubscribe(_class, query, options, refresh)
     const h = this.client.getHierarchy()
 
@@ -136,14 +136,7 @@ export class AggregationMiddleware extends BasePresentationMiddleware implements
     // }
 
     const h = this.client.getHierarchy()
-    const skipAccountAggregation = [
-      notification.class.BrowserNotification,
-      notification.class.InboxNotification,
-      notification.class.MentionInboxNotification,
-      notification.class.CommonInboxNotification,
-      notification.class.ActivityInboxNotification,
-      notification.class.DocNotifyContext
-    ]
+    const skipAccountAggregation = [notification.class.AppPushNotification, notification.class.DocNotifyContext]
 
     for (const skipClass of skipAccountAggregation) {
       if (_class === skipClass) {
@@ -331,10 +324,15 @@ export class AnalyticsMiddleware extends BasePresentationMiddleware implements P
   }
 }
 
+const READONLY_WORKSPACE_NOTIFY_INTERVAL = 5 * 60 * 1000
+
 /**
  * @public
  */
 export class ReadOnlyAccessMiddleware extends BasePresentationMiddleware implements PresentationMiddleware {
+  // Background writes fail on every module switch; one warning per interval is enough.
+  private readOnlyWorkspaceNotifiedAt = 0
+
   private constructor (client: Client, next?: PresentationMiddleware) {
     super(client, next)
   }
@@ -366,6 +364,33 @@ export class ReadOnlyAccessMiddleware extends BasePresentationMiddleware impleme
     try {
       return await this.provideTx(tx)
     } catch (err: any) {
+      if (err instanceof PlatformError && err.status.code === platform.status.PlanLimitExceeded) {
+        addNotification(
+          await translate(view.string.PlanLimitWarningTitle, {}, getCurrentLanguage()),
+          await translate(view.string.PlanLimitWarningMessage, {}, getCurrentLanguage()),
+          ForbiddenNotification,
+          {
+            onClose: () => {}
+          },
+          NotificationSeverity.Info
+        )
+        return {}
+      }
+      if (err instanceof PlatformError && err.status.code === platform.status.WorkspaceReadOnly) {
+        if (Date.now() - this.readOnlyWorkspaceNotifiedAt < READONLY_WORKSPACE_NOTIFY_INTERVAL) return {}
+        this.readOnlyWorkspaceNotifiedAt = Date.now()
+        addNotification(
+          await translate(view.string.ReadOnlyWorkspaceWarningTitle, {}, getCurrentLanguage()),
+          await translate(view.string.ReadOnlyWorkspaceWarningMessage, {}, getCurrentLanguage()),
+          ForbiddenNotification,
+          {
+            onClose: () => {}
+          },
+          NotificationSeverity.Info,
+          'readOnlyWorkspaceNotification'
+        )
+        return {}
+      }
       if (err instanceof PlatformError && err.status.code === platform.status.Forbidden) {
         addNotification(
           await translate(view.string.PermissionWarningTitle, {}, getCurrentLanguage()),

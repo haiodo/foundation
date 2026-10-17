@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022, 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,8 +14,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment, AttachmentMetadata } from '@hcengineering/attachment'
-  import {
+  import type { Attachment, AttachmentMetadata } from '@hcengineering/attachment'
+  import type {
     Blob as PlatformBlob,
     BlobMetadata,
     Class,
@@ -22,13 +23,13 @@
     IdMap,
     Markup,
     PersonId,
-    RateLimiter,
     Ref,
-    Space,
-    generateId,
-    toIdMap
+    Space
   } from '@hcengineering/core'
-  import { Asset, IntlString, getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
+  import { RateLimiter, generateId, toIdMap } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
+  import type { LinkPreviewAttachmentMetadata } from '@hcengineering/presentation'
   import {
     DraftController,
     canDisplayLinkPreview,
@@ -39,13 +40,13 @@
     getClient,
     isLinkPreviewEnabled,
     uploadFile,
-    LinkPreviewAttachmentMetadata,
-    generateFileId
+    generateFileId,
+    MessageBox
   } from '@hcengineering/presentation'
   import { EmptyMarkup, isEmptyMarkup } from '@hcengineering/text'
   import textEditor, { type RefAction } from '@hcengineering/text-editor'
   import { AttachIcon, ReferenceInput } from '@hcengineering/text-editor-resources'
-  import { Loading, type AnySvelteComponent } from '@hcengineering/ui'
+  import { Loading, type AnySvelteComponent, showPopup } from '@hcengineering/ui'
   import {
     type FileUploadCallbackParams,
     type UploadHandlerDefinition,
@@ -54,6 +55,7 @@
   import { createEventDispatcher, onDestroy, tick } from 'svelte'
   import attachment from '../plugin'
   import AttachmentPresenter from './AttachmentPresenter.svelte'
+  import view from '@hcengineering/view'
 
   export let objectId: Ref<Doc>
   export let space: Ref<Space>
@@ -70,13 +72,17 @@
   export let loading = false
   export let focusIndex: number = -1
   export let autofocus = false
+  export let isContentChanged = false
   export function submit (): void {
     refInput.submit()
   }
   export let placeholder: IntlString | undefined = undefined
+  export let disableSubmit = false
+  export let clearOnSubmit = true
   export let extraActions: RefAction[] = []
   export let boundary: HTMLElement | undefined = undefined
   export let skipAttachmentsPreload = false
+  export let disableAttachments = false
   export let onKeyDown: ((event: KeyboardEvent) => boolean) | undefined = undefined
 
   let refInput: ReferenceInput
@@ -143,20 +149,21 @@
     return s
   }
 
-  $: objectId && updateAttachments(objectId)
+  $: void (objectId && updateAttachments(objectId))
 
   async function updateAttachments (objectId: Ref<Doc>): Promise<void> {
     draftAttachments = $draftsStore[draftKey]
     if (draftAttachments && shouldSaveDraft) {
       attachments = new Map()
       newAttachments.clear()
+      originalAttachments.clear()
       Object.entries(draftAttachments).map((file) => {
         return attachments.set(file[0] as Ref<Attachment>, file[1])
       })
+      // Draft attachments already persisted (write-through) -> restore as originals, not news.
       Object.entries(draftAttachments).map((file) => {
-        return newAttachments.add(file[0] as Ref<Attachment>)
+        return originalAttachments.add(file[0] as Ref<Attachment>)
       })
-      originalAttachments.clear()
       removedAttachments.clear()
       urlSet.clear()
       query.unsubscribe()
@@ -225,11 +232,29 @@
       newAttachments.add(_id)
       attachments = attachments
       saved = false
+      // Write-through: persist now (attachedTo=objectId=future message id), not on send.
+      // Avoids orphan blobs and lets async consumers (voice-note transcription) find the doc.
+      const created = attachments.get(_id)
+      if (created !== undefined) {
+        await saveAttachment(created)
+        originalAttachments.add(_id)
+      }
       saveDraft()
       dispatch('update', { message: content, attachments: attachments.size })
     } catch (err: any) {
       void setPlatformStatus(unknownError(err))
     }
+  }
+
+  // Register an already-persisted attachment (attachedTo=objectId) into the draft set for preview
+  // and send. Used by async-produced attachments (voice-notes) whose doc must exist up front.
+  export function addAttachmentDoc (doc: Attachment): void {
+    attachments.set(doc._id, doc)
+    originalAttachments.add(doc._id)
+    attachments = attachments
+    saved = false
+    saveDraft()
+    dispatch('update', { message: content, attachments: attachments.size })
   }
 
   async function saveAttachment (doc: Attachment): Promise<void> {
@@ -240,6 +265,7 @@
   }
 
   async function fileSelected (): Promise<void> {
+    if (disableAttachments) return
     progress = true
     await tick()
     const list = inputFile.files
@@ -257,6 +283,7 @@
   }
 
   async function fileDrop (e: DragEvent): Promise<void> {
+    if (disableAttachments) return
     const list = e.dataTransfer?.files
     const limiter = new RateLimiter(10)
 
@@ -272,10 +299,28 @@
     progress = false
   }
 
+  async function removeAttachmentWithConfirmation (attachment: Attachment): Promise<void> {
+    showPopup(
+      MessageBox,
+      {
+        label: view.string.DeleteObject,
+        message: view.string.DeleteObjectConfirm,
+        params: { count: 1 },
+        action: async () => {
+          await removeAttachment(attachment)
+        }
+      },
+      'top'
+    )
+  }
+
   async function removeAttachment (attachment: Attachment): Promise<void> {
-    removedAttachments.add(attachment)
     attachments.delete(attachment._id)
     attachments = attachments
+    // Must run before dropping ids from the sets, else it only loses the blob and re-attaches on send.
+    await deleteAttachment(attachment)
+    newAttachments.delete(attachment._id)
+    originalAttachments.delete(attachment._id)
     saveDraft()
     dispatch('update', { message: content, attachments: attachments.size })
   }
@@ -347,11 +392,23 @@
     saveDraft()
   }
 
+  // Drop the draft attachment set after the message is dispatched (id known to the message), so the
+  // next message starts empty without racing the objectId-change reactive. Docs stay in the DB.
+  function clearAttachmentsAfterSend (): void {
+    attachments = new Map()
+    newAttachments.clear()
+    originalAttachments.clear()
+    removedAttachments.clear()
+    urlSet.clear()
+    saveDraft()
+  }
+
   async function onMessage (event: CustomEvent): Promise<void> {
     loading = true
     await createAttachments()
     loading = false
     dispatch('message', { message: event.detail, attachments: attachments.size })
+    clearAttachmentsAfterSend()
   }
 
   function updateLinkPreview (): void {
@@ -466,6 +523,11 @@
       void uploadWith(handler)
     }
   }))
+
+  export function focus (): void {
+    if (refInput == null) return
+    refInput.focus()
+  }
 </script>
 
 <div class="flex-col no-print" bind:this={refContainer}>
@@ -494,22 +556,29 @@
       {labelSend}
       {showSend}
       {showActions}
+      {disableSubmit}
+      {clearOnSubmit}
       autofocus={autofocus ? 'end' : false}
       loading={loading || progress || loadingLinks}
       {boundary}
       {docClass}
+      {isContentChanged}
       extraActions={[
         ...extraActions,
-        {
-          label: textEditor.string.Attach,
-          icon: AttachIcon,
-          action: () => {
-            dispatch('focus')
-            inputFile.click()
-          },
-          order: 1001
-        },
-        ...uploadActions
+        ...(disableAttachments
+          ? []
+          : [
+              {
+                label: textEditor.string.Attach,
+                icon: AttachIcon,
+                action: () => {
+                  dispatch('focus')
+                  inputFile.click()
+                },
+                order: 1001
+              }
+            ]),
+        ...(disableAttachments ? [] : uploadActions)
       ]}
       showHeader={attachments.size > 0 || progress}
       haveAttachment={attachments.size > 0}
@@ -526,7 +595,7 @@
       }}
     >
       <div slot="header">
-        {#if attachments.size > 0 || progress}
+        {#if (attachments.size > 0 || progress) && !disableAttachments}
           <div class="flex-row-center list scroll-divider-color">
             {#if progress}
               <div class="flex p-3">
@@ -540,7 +609,7 @@
                   showPreview
                   removable
                   on:remove={(result) => {
-                    if (result !== undefined) void removeAttachment(attachment)
+                    if (result !== undefined) void removeAttachmentWithConfirmation(attachment)
                   }}
                 />
               </div>

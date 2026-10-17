@@ -36,12 +36,18 @@ export function addPermissionHandlers (session: Session): void {
       return
     }
 
-    const audioGranted = (details as any).mediaTypes?.includes('audio') === true ? askForMediaAccess('microphone') : Promise.resolve(true)
-    const videoGranted = (details as any).mediaTypes?.includes('video') === true ? askForMediaAccess('camera') : Promise.resolve(true)
+    const audioGranted =
+      (details as any).mediaTypes?.includes('audio') === true ? askForMediaAccess('microphone') : Promise.resolve(true)
+    const videoGranted =
+      (details as any).mediaTypes?.includes('video') === true ? askForMediaAccess('camera') : Promise.resolve(true)
 
     Promise.all([audioGranted, videoGranted]).then(
-      (res) => { result(res.every(r => r)) },
-      () => { result(false) }
+      (res) => {
+        result(res.every((r) => r))
+      },
+      () => {
+        result(false)
+      }
     )
   })
 
@@ -83,7 +89,7 @@ async function askForMediaAccess (type: 'microphone' | 'camera'): Promise<boolea
 
     return status === 'granted'
   } catch (error) {
-    log.error(`Could not get ${type} permission:`, error.message)
+    log.error(`Could not get ${type} permission:`, (error as Error).message)
   }
 
   return false

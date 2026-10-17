@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { Avatar, getPersonByPersonRefStore } from '@hcengineering/contact-resources'
-  import { ParticipantInfo } from '@hcengineering/love'
+  import type { ParticipantInfo } from '@hcengineering/love'
   import { Scroller } from '@hcengineering/ui'
   import { formatName } from '@hcengineering/contact'
 
@@ -23,7 +23,7 @@
   $: personByRefStore = getPersonByPersonRefStore(items.map((p) => p.person))
 </script>
 
-<Scroller padding={'.25rem'} gap={'flex-gap-2'}>
+<Scroller padding=".25rem" gap="flex-gap-2">
   {#each items as participant (participant.person)}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->

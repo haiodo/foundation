@@ -2,11 +2,19 @@
   import { getClient, createQuery, MessageBox } from '@hcengineering/presentation'
   import notification, { type PushSubscription, type PushSubscriptionSetting } from '@hcengineering/notification'
   import core, { getCurrentAccount } from '@hcengineering/core'
-  import ModernToggle from '@hcengineering/ui/src/components/ModernToggle.svelte'
-  import { Button, Label, showPopup, getCurrentLocation, tooltip, desktopPlatform } from '@hcengineering/ui'
-  import { subscribePush, parseUserAgent } from '../../utils'
+  import {
+    Button,
+    Label,
+    ModernToggle,
+    showPopup,
+    getCurrentLocation,
+    tooltip,
+    desktopPlatform
+  } from '@hcengineering/ui'
   import { onMount } from 'svelte'
   import { getMetadata } from '@hcengineering/platform'
+
+  import { subscribePush, parseUserAgent } from '../../webpush'
 
   let subscriptions: PushSubscription[] = []
   let settings: PushSubscriptionSetting[] = []

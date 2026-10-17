@@ -1,13 +1,14 @@
 <script lang="ts">
-  import contact, { Employee } from '@hcengineering/contact'
-  import { DocumentQuery, SortingOrder } from '@hcengineering/core'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { DocumentQuery } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Scroller } from '@hcengineering/ui'
   import EmployeePresenter from './EmployeePresenter.svelte'
 
   export let search: string = ''
   const client = getClient()
-  // export let withHeader: boolean = true
   $: searchQuery = search.length ? { $search: search } : {}
   $: resultQuery = { ...searchQuery }
   let employees: Employee[] = []
@@ -26,10 +27,10 @@
     )
   }
 
-  $: updateEmployees(resultQuery)
+  $: void updateEmployees(resultQuery)
 </script>
 
-<Scroller padding={'var(--spacing-2)'}>
+<Scroller padding="var(--spacing-2)">
   {#each employees as employee}
     <div class="fs-title item">
       <EmployeePresenter value={employee} avatarSize="medium" />

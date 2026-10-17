@@ -13,20 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, IntlString } from '@hcengineering/platform'
-  import {
-    AnySvelteComponent,
-    Button,
-    ButtonKind,
-    Icon,
-    Label,
-    SelectPopup,
-    SelectPopupValueType,
-    eventToHTMLElement,
-    showPopup,
-    LabelAndProps,
-    ButtonSize
-  } from '../index'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import type { AnySvelteComponent, ButtonKind, SelectPopupValueType, LabelAndProps, ButtonSize } from '../index'
+  import { Button, Icon, Label, SelectPopup, eventToHTMLElement, showPopup } from '../index'
   import { createEventDispatcher } from 'svelte'
 
   export let dropdownItems: SelectPopupValueType[]
@@ -57,15 +46,15 @@
 <div class="w-full flex-row-center">
   <Button
     {focusIndex}
-    width="100%"
+    flex="1 1 0rem"
     {icon}
     {size}
     {kind}
+    {loading}
     disabled={disabled || loading}
     shape={hasDropdown ? 'rectangle-right' : undefined}
     {justify}
     {noFocus}
-    shrink={1}
     borderStyle="none"
     on:click
     showTooltip={showTooltipMain}
@@ -90,8 +79,7 @@
       borderStyle="none"
       on:click={openDropdown}
       {size}
-      {disabled}
-      {loading}
+      disabled={disabled || loading}
       {noFocus}
     >
       <div slot="icon">

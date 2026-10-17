@@ -14,16 +14,21 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import attachmentP, { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachmentP from '@hcengineering/attachment'
   import { AttachmentPresenter } from '@hcengineering/attachment-resources'
-  import contact, { Channel, Contact, getName } from '@hcengineering/contact'
-  import core, { Data, Markup, generateId } from '@hcengineering/core'
-  import { NewMessage, SharedMessage, GmailEvents } from '@hcengineering/gmail'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import type { Channel, Contact } from '@hcengineering/contact'
+  import contact, { getName } from '@hcengineering/contact'
+  import type { Data, Markup } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
+  import type { NewMessage, SharedMessage } from '@hcengineering/gmail'
+  import { GmailEvents } from '@hcengineering/gmail'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Integration } from '@hcengineering/setting'
-  import templates, { TemplateDataProvider } from '@hcengineering/templates'
+  import type { Integration } from '@hcengineering/setting'
+  import type { TemplateDataProvider } from '@hcengineering/templates'
+  import templates from '@hcengineering/templates'
   import { EmptyMarkup, isEmptyMarkup, markupToJSON } from '@hcengineering/text'
   import { markupToHtml } from '@hcengineering/text-html'
   import { StyledTextEditor } from '@hcengineering/text-editor-resources'
@@ -37,7 +42,7 @@
   export let selectedIntegration: Integration
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   let objectId = generateId()
 
@@ -64,7 +69,7 @@
     templateProvider?.destroy()
   })
 
-  $: templateProvider !== undefined && templateProvider.set(contact.class.Contact, object)
+  $: templateProvider?.set(contact.class.Contact, object)
 
   async function sendMsg (): Promise<void> {
     await client.createDoc(
@@ -97,7 +102,7 @@
     if (list === null || list.length === 0) return
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
-      if (file !== null) createAttachment(file)
+      if (file !== null) void createAttachment(file)
     }
     inputFile.value = ''
     progress = false
@@ -111,7 +116,7 @@
     if (list === undefined || list.length === 0) return
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
-      if (file !== null) createAttachment(file)
+      if (file !== null) void createAttachment(file)
     }
     progress = false
   }
@@ -136,7 +141,7 @@
         }
       )
     } catch (err: any) {
-      setPlatformStatus(unknownError(err))
+      void setPlatformStatus(unknownError(err))
     }
   }
 
@@ -191,7 +196,7 @@
   <div class="buttons-group">
     <Button
       icon={IconArrowLeft}
-      kind={'ghost'}
+      kind="ghost"
       on:click={() => {
         dispatch('close')
       }}
@@ -204,7 +209,7 @@
   <div class="buttons-group small-gap">
     <Button
       icon={IconAttachment}
-      kind={'ghost'}
+      kind="ghost"
       loading={progress}
       on:click={() => {
         inputFile.click()
@@ -212,7 +217,7 @@
     />
     <Button
       label={plugin.string.Send}
-      kind={'primary'}
+      kind="primary"
       disabled={progress || isEmptyMarkup(content)}
       on:click={sendMsg}
     />
@@ -220,14 +225,14 @@
 </div>
 {#if attachments.length}
   <div class="flex-row-center background-bg-accent-color bottom-divider">
-    <Scroller padding={'.5rem'} gap={'gap-2'} horizontal contentDirection={'horizontal'} noFade={false}>
+    <Scroller padding=".5rem" gap="gap-2" horizontal contentDirection="horizontal" noFade={false}>
       {#each attachments as attachment}
         <AttachmentPresenter
           value={attachment}
           showPreview
           removable
           on:remove={(result) => {
-            if (result !== undefined) removeAttachment(attachment)
+            if (result !== undefined) void removeAttachment(attachment)
           }}
         />
       {/each}
@@ -237,7 +242,7 @@
 {/if}
 
 <div class="antiVSpacer x2" />
-<Scroller padding={'.5rem 1rem'} on:drop={fileDrop}>
+<Scroller padding=".5rem 1rem" on:drop={fileDrop}>
   <div class="mb-2">
     <EditBox label={plugin.string.Subject} bind:value={obj.subject} placeholder={plugin.string.SubjectPlaceholder} />
   </div>
@@ -245,7 +250,7 @@
     <EditBox label={plugin.string.Copy} bind:value={copy} placeholder={plugin.string.CopyPlaceholder} />
   </div>
   <div class="input clear-mins">
-    <StyledTextEditor full bind:content maxHeight={'max'} on:template={onTemplate} />
+    <StyledTextEditor full bind:content maxHeight="max" on:template={onTemplate} />
   </div>
 </Scroller>
 <div class="antiVSpacer x2" />

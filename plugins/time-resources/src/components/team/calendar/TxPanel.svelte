@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref, TxCUD } from '@hcengineering/core'
+  import type { Doc, Ref, TxCUD } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Component, resizeObserver } from '@hcengineering/ui'
   import { DocNavLink, ObjectPresenter } from '@hcengineering/view-resources'
-  import { ItemPresenter } from '@hcengineering/time'
+  import type { ItemPresenter } from '@hcengineering/time'
   import { createEventDispatcher } from 'svelte'
   import time from '../../../plugin'
 
@@ -48,10 +48,10 @@
     objects = Array.from(objs.values())
   }
 
-  $: group(tx)
+  $: void group(tx)
 </script>
 
-<div use:resizeObserver={() => dispatch('changeContent')} class="p-1" style:overflow={'auto'}>
+<div use:resizeObserver={() => dispatch('changeContent')} class="p-1" style:overflow="auto">
   {#each objects as object}
     <div class="p-1">
       {#if object.itemPresenter && object.doc !== undefined}

@@ -3,24 +3,36 @@ import { getClient as getAccountClientRaw, type AccountClient } from '@hcenginee
 import contact, { getFirstName, getLastName } from '@hcengineering/contact'
 import { employeeByPersonIdStore } from '@hcengineering/contact-resources'
 import {
+  type AnyAttribute,
   type Class,
   type Doc,
   type Hierarchy,
   type IntegrationKind,
   type PluginConfiguration,
-  type Ref
+  type Ref,
+  type Space
 } from '@hcengineering/core'
 import {
   getIntegrationClient as getIntegrationClientRaw,
   type IntegrationClient
 } from '@hcengineering/integration-client'
 import login from '@hcengineering/login'
-import { getMetadata } from '@hcengineering/platform'
-import presentation, { getClient } from '@hcengineering/presentation'
+import platform, { getMetadata, PlatformError, translate } from '@hcengineering/platform'
+import presentation, {
+  getClient,
+  MessageBox,
+  OtpConfirmDialog,
+  type OtpConfirmProps,
+  type OtpConfirmResult
+} from '@hcengineering/presentation'
 import type { PersonRating } from '@hcengineering/rating'
 import setting from '@hcengineering/setting'
 import { type TemplateDataProvider } from '@hcengineering/templates'
+import { showPopup, themeStore } from '@hcengineering/ui'
 import { get } from 'svelte/store'
+
+import AttributeUsages from './components/AttributeUsages.svelte'
+import settingsRes from './plugin'
 
 function isEditable (hierarchy: Hierarchy, p: Class<Doc>): boolean {
   let ancestors = [p._id]
@@ -113,6 +125,29 @@ export function getAccountClient (): AccountClient {
   return getAccountClientRaw(accountsUrl, token)
 }
 
+// An allowlist, not a denylist: only the space kinds an API key operation can target. Class ids as string
+// literals - the same escape hatch export-resources uses to avoid a tracker/chunter/document dependency here.
+// Shared by ApiKeySpacesPopup (the picker) and CreateApiKeyPopup (its "Add all" chip control) so the two can
+// never disagree about what is selectable.
+export const apiKeySpacePickableClasses = [
+  'tracker:class:Project',
+  'chunter:class:Channel',
+  'document:class:Teamspace'
+].map((id) => id as Ref<Class<Doc>>)
+
+export function isApiKeyPickableSpace (hierarchy: Hierarchy, doc: Doc): boolean {
+  const space = doc as Space
+  return !space.archived && apiKeySpacePickableClasses.some((cls) => hierarchy.isDerived(space._class, cls))
+}
+
+// Shared by CreateApiKeyPopup and the incoming-webhooks section - both call accountClient.createApiKey directly.
+export async function formatApiKeyError (err: unknown): Promise<string> {
+  if (err instanceof PlatformError && err.status.code === platform.status.ApiKeyLimitReached) {
+    return await translate(settingsRes.string.ApiKeyLimitReachedError, { limit: err.status.params?.limit ?? 0 })
+  }
+  return String(err)
+}
+
 export async function getIntegrationClient (kind: IntegrationKind): Promise<IntegrationClient> {
   const accountsUrl = getMetadata(login.metadata.AccountsUrl)
   const token = getMetadata(presentation.metadata.Token)
@@ -120,4 +155,48 @@ export async function getIntegrationClient (kind: IntegrationKind): Promise<Inte
     throw new Error('Accounts URL or token is not defined')
   }
   return getIntegrationClientRaw(accountsUrl, token, kind, 'settings')
+}
+
+/** Prompts for the email confirmation code required by self-service destructive actions. */
+export async function requestOperationOtpCode (): Promise<string | undefined> {
+  return await new Promise<string | undefined>((resolve) => {
+    const props: OtpConfirmProps = {
+      label: setting.string.ConfirmOperation,
+      okLabel: setting.string.Confirm,
+      codeLabel: setting.string.OtpCode,
+      sendLabel: setting.string.SendCode,
+      sentLabel: setting.string.OtpSent,
+      failedLabel: setting.string.OtpSendFailed,
+      requestCode: async () => await getAccountClient().requestOperationOtp()
+    }
+    showPopup(OtpConfirmDialog, props, undefined, (res?: OtpConfirmResult) => {
+      resolve(res != null && res.code.length > 0 ? res.code : undefined)
+    })
+  })
+}
+
+/** Confirms removing a custom attribute and lists what refers to it (`setting.class.AttributeUsageProvider`). */
+export async function showDeleteAttributePopup (
+  attribute: AnyAttribute,
+  exist: boolean,
+  onDeleted?: () => void
+): Promise<void> {
+  const name = await translate(attribute.label, {}, get(themeStore).language)
+  showPopup(
+    MessageBox,
+    {
+      label: settingsRes.string.DeleteAttribute,
+      message: exist ? settingsRes.string.DeleteAttributeExistConfirm : settingsRes.string.DeleteAttributeConfirm,
+      params: { name },
+      component: AttributeUsages,
+      componentProps: { attribute },
+      okLabel: presentation.string.Delete,
+      dangerous: true,
+      action: async () => {
+        await getClient().remove(attribute)
+        onDeleted?.()
+      }
+    },
+    'top'
+  )
 }

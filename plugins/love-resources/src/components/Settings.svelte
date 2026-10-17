@@ -1,13 +1,15 @@
 <script lang="ts">
   import core, { getCurrentAccount } from '@hcengineering/core'
-  import { DevicesPreference } from '@hcengineering/love'
+  import type { DevicesPreference } from '@hcengineering/love'
   import { getClient } from '@hcengineering/presentation'
   import { Breadcrumb, Header, Label, Toggle } from '@hcengineering/ui'
   import love from '../plugin'
-  import { myPreferences } from '../stores'
+  import { ensureOfficeDetailsLoaded, myPreferences } from '../stores'
   import { liveKitClient } from '../utils'
 
   const client = getClient()
+
+  void ensureOfficeDetailsLoaded()
 
   async function saveMicPreference (myPreferences: DevicesPreference | undefined, value: boolean): Promise<void> {
     if (myPreferences !== undefined) {
@@ -57,11 +59,30 @@
     }
     await liveKitClient.applyNoiseCancellation(value)
   }
+
+  async function saveSpeakingWhileMutedPreference (
+    myPreferences: DevicesPreference | undefined,
+    value: boolean
+  ): Promise<void> {
+    if (myPreferences !== undefined) {
+      await client.update(myPreferences, { speakingWhileMutedAlert: value })
+    } else {
+      const acc = getCurrentAccount().uuid
+      await client.createDoc(love.class.DevicesPreference, core.space.Workspace, {
+        attachedTo: acc,
+        noiseCancellation: true,
+        camEnabled: true,
+        micEnabled: true,
+        blurRadius: 0,
+        speakingWhileMutedAlert: value
+      })
+    }
+  }
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={love.icon.Love} label={love.string.Settings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={love.icon.Love} label={love.string.Settings} size="large" isCurrent />
   </Header>
   <div class="flex-row-stretch flex-grow p-10">
     <div class="flex-grow flex-col flex-gap-4">
@@ -70,7 +91,7 @@
         <Toggle
           on={!($myPreferences?.micEnabled ?? true)}
           on:change={(e) => {
-            saveMicPreference($myPreferences, e.detail)
+            void saveMicPreference($myPreferences, e.detail)
           }}
         />
       </div>
@@ -79,7 +100,7 @@
         <Toggle
           on={!($myPreferences?.camEnabled ?? true)}
           on:change={(e) => {
-            saveCamPreference($myPreferences, e.detail)
+            void saveCamPreference($myPreferences, e.detail)
           }}
         />
       </div>
@@ -88,7 +109,16 @@
         <Toggle
           on={$myPreferences?.noiseCancellation ?? true}
           on:change={(e) => {
-            saveNoiseCancellationPreference($myPreferences, e.detail)
+            void saveNoiseCancellationPreference($myPreferences, e.detail)
+          }}
+        />
+      </div>
+      <div class="flex-row-center flex-gap-4">
+        <Label label={love.string.SpeakingWhileMutedAlert} />
+        <Toggle
+          on={$myPreferences?.speakingWhileMutedAlert ?? true}
+          on:change={(e) => {
+            void saveSpeakingWhileMutedPreference($myPreferences, e.detail)
           }}
         />
       </div>

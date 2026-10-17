@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card, Tag } from '@hcengineering/card'
+  import type { Card, Tag } from '@hcengineering/card'
   import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import setting, { settingId } from '@hcengineering/setting'
@@ -36,6 +36,7 @@
   import Lock from './icons/Lock.svelte'
   import Unlock from './icons/Unlock.svelte'
   import card from '../plugin'
+  import MarkupProperties from './MarkupProperties.svelte'
 
   export let value: Card
   export let tag: Tag
@@ -63,6 +64,7 @@
   $: isLocked = value.readonlySections?.includes(tag._id) ?? false
   $: canLock = canLockSection(value.space, $permissionsStore)
   $: canUnlock = canUnlockSection(value.space, $permissionsStore)
+  $: _readonly = readonly || isLocked
 
   async function toggleLock (ev: MouseEvent): Promise<void> {
     ev.stopPropagation()
@@ -81,15 +83,16 @@
     <span class="overflow-label">
       <Label {label} />
     </span>
-    <Chevron expanded={!isCollapsed} outline fill={'var(--content-color'} />
+    <Chevron expanded={!isCollapsed} outline fill="var(--content-color" />
   </div>
   <div class="btns">
     {#if (isLocked && canUnlock) || (!isLocked && canLock)}
       <div class="lock-btn">
         <Button
           icon={isLocked ? Lock : Unlock}
-          kind={'link'}
-          size={'medium'}
+          kind="link"
+          disabled={readonly}
+          size="medium"
           showTooltip={{ label: isLocked ? card.string.UnLockSection : card.string.LockSection }}
           on:click={toggleLock}
         />
@@ -98,8 +101,8 @@
     {#if hasAccountRole(getCurrentAccount(), AccountRole.Maintainer) && isEditable}
       <Button
         icon={IconAdd}
-        kind={'link'}
-        size={'medium'}
+        kind="link"
+        size="medium"
         showTooltip={{ label: setting.string.AddAttribute }}
         on:click={() => {
           showPopup(setting.component.CreateAttributePopup, { _class: tag._id, isCard: true }, 'top')
@@ -107,8 +110,8 @@
       />
       <Button
         icon={setting.icon.Setting}
-        kind={'link'}
-        size={'medium'}
+        kind="link"
+        size="medium"
         showTooltip={{ label: setting.string.Setting }}
         on:click={(ev) => {
           ev.stopPropagation()
@@ -125,7 +128,8 @@
   </div>
 </div>
 <ExpandCollapse isExpanded={!isCollapsed}>
-  <CardAttributes object={value} _class={tag._id} to={tag.extends} {readonly} {ignoreKeys} />
+  <CardAttributes object={value} _class={tag._id} to={tag.extends} readonly={_readonly} {ignoreKeys} />
+  <MarkupProperties doc={value} readonly={_readonly} {tag} />
 </ExpandCollapse>
 
 <style lang="scss">

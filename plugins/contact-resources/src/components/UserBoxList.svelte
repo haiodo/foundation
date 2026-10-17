@@ -13,11 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import type { Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
-  import { ObjectCreate, getClient } from '@hcengineering/presentation'
-  import type { ButtonKind, ButtonSize, TooltipAlignment } from '@hcengineering/ui'
+  import type { ObjectCreate } from '@hcengineering/presentation'
+  import { getClient } from '@hcengineering/presentation'
+  import type { ButtonKind, ButtonSize, TooltipAlignment, PopupResult } from '@hcengineering/ui'
   import { Button, Label, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../plugin'
@@ -42,6 +44,20 @@
   export let create: ObjectCreate | undefined = undefined
 
   export let sort: ((a: Person, b: Person) => number) | undefined = undefined
+  export let protectedItems: Ref<Person>[] = []
+  export let protectLastSelected: boolean = false
+
+  let popupResult: PopupResult | undefined = undefined
+  let prevReadonly: boolean = readonly
+
+  $: if (readonly !== prevReadonly) {
+    const wasReadonly = prevReadonly
+    prevReadonly = readonly
+
+    if (readonly && !wasReadonly && popupResult !== undefined) {
+      popupResult.close()
+    }
+  }
 
   function filter (items: Ref<Person>[] | undefined): Ref<Person>[] {
     return (items ?? []).filter((it, idx, arr) => arr.indexOf(it) === idx)
@@ -51,7 +67,7 @@
   let persons: Person[] = []
   $: persons = filter(items)
     .map((p) => $personByRefStore.get(p))
-    .filter((p) => p !== undefined) as Person[]
+    .filter((p) => p !== undefined)
 
   const dispatch = createEventDispatcher()
 
@@ -63,6 +79,8 @@
       multiSelect: true,
       allowDeselect: false,
       selectedUsers: filter(items),
+      disallowDeselect: filter(protectedItems),
+      protectLastSelected,
       filter: (it: Doc) => {
         const h = getClient().getHierarchy()
         if (h.hasMixin(it, contact.mixin.Employee)) {
@@ -70,7 +88,7 @@
           const isSelected = items.some((selectedItem) => selectedItem === it._id)
           return isActive || isSelected
         }
-        return true // Previously it was cheching for PersonAccount to exist. Now we could check for any social id to exist?
+        return true // Previously it was cheching for PersonAccount to exist. now we can check for any social id to exist?
       },
       readonly,
       create
@@ -78,11 +96,11 @@
     if (sort !== undefined) {
       popupProps.sort = sort
     }
-    showPopup(UsersPopup, popupProps, evt.target as HTMLElement, undefined, (result) => {
-      if (result != null) {
-        items = filter(result)
-        dispatch('update', items)
-      }
+
+    popupResult = showPopup(UsersPopup, popupProps, evt.target as HTMLElement, undefined, (result) => {
+      if (result == null || readonly) return
+      items = filter(result)
+      dispatch('update', items)
     })
   }
 </script>
@@ -95,7 +113,6 @@
   {kind}
   {size}
   {justify}
-  disabled={readonly}
   showTooltip={label ? { label, direction: labelDirection } : undefined}
   on:click={addPerson}
 >
@@ -103,9 +120,9 @@
     {#if persons.length > 0}
       <div class="flex-row-center flex-nowrap pointer-events-none">
         {#if persons.length === 1}
-          <UserInfo value={persons[0]} size={'card'} />
+          <UserInfo value={persons[0]} size="card" />
         {:else}
-          <CombineAvatars {_class} bind:items size={'card'} hideLimit />
+          <CombineAvatars {_class} bind:items size="card" hideLimit />
           <span class="overflow-label ml-1-5">
             <Label label={plugin.string.NumberMembers} params={{ count: persons.length }} />
           </span>

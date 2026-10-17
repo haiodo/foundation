@@ -14,10 +14,12 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import tags, { TagReference } from '@hcengineering/tags'
-  import { ButtonBase, ButtonKind, Icon, Label, getEventPopupPositionElement, showPopup } from '@hcengineering/ui'
+  import type { TagReference } from '@hcengineering/tags'
+  import tags from '@hcengineering/tags'
+  import { ButtonKind, Icon, Label, getEventPopupPositionElement, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import tagsPlugin from '../plugin'
   import TagReferencePresenter from './TagReferencePresenter.svelte'
   import TagsEditorPopup from './TagsEditorPopup.svelte'
@@ -73,13 +75,13 @@
 </script>
 
 {#if type === 'type-button-only'}
-  <ButtonBase
+  <IconButton
     icon={TagIcon}
-    type={'type-button-icon'}
-    kind={'secondary'}
-    size={'small'}
+    kind="secondary"
+    size="small"
     {pressed}
     hasMenu
+    tooltip={{ label: tags.string.Tags }}
     {...buttonParams}
     on:click={click}
   />
@@ -92,7 +94,7 @@
           attr={undefined}
           isEditable
           {value}
-          kind={'todo'}
+          kind="todo"
           {...contentParams}
           on:remove={(res) => removeTag(res.detail)}
         />

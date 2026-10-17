@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,9 +14,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type SpaceType, type SpaceTypeDescriptor } from '@hcengineering/core'
+  import type { SpaceType, SpaceTypeDescriptor } from '@hcengineering/core'
 
   import ClassAttributes from '../../ClassAttributes.svelte'
+  import settingRes from '../../../plugin'
 
   export let type: SpaceType | undefined
   export let descriptor: SpaceTypeDescriptor | undefined
@@ -23,5 +25,11 @@
 </script>
 
 {#if type !== undefined && descriptor !== undefined}
-  <ClassAttributes _class={type.targetClass} {disabled} showHierarchy />
+  <ClassAttributes
+    _class={type.targetClass}
+    {disabled}
+    disabledTooltip={{ label: settingRes.string.OwnerOrMaintainerRequired }}
+    showHierarchy
+    showMixins
+  />
 {/if}

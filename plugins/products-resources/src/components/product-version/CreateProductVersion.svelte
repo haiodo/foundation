@@ -19,14 +19,16 @@
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher } from 'svelte'
 
+  import type { Document } from '@hcengineering/controlled-documents'
   import documents, {
-    Document,
     DocumentState,
     copyProjectDocuments,
     deleteProjectDrafts
   } from '@hcengineering/controlled-documents'
-  import { Product, ProductVersion, ProductVersionState } from '@hcengineering/products'
-  import { Data, Ref, SortingOrder, generateId } from '@hcengineering/core'
+  import type { Product, ProductVersion } from '@hcengineering/products'
+  import { ProductVersionState } from '@hcengineering/products'
+  import type { Data, Ref } from '@hcengineering/core'
+  import { SortingOrder, generateId } from '@hcengineering/core'
   import { Card, MessageBox, SpaceSelector, createQuery, getClient } from '@hcengineering/presentation'
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
   import { DropdownLabelsIntl, EditBox, FocusHandler, createFocusManager, showPopup } from '@hcengineering/ui'
@@ -179,8 +181,8 @@
       bind:space
       _class={products.class.Product}
       label={products.string.Product}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
     />
     <!-- TODO this object selector sometimes shows wrong value -->
     <ObjectBox
@@ -188,8 +190,8 @@
       value={parent?._id}
       docQuery={{ space }}
       readonly={true}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={products.string.NoProductVersionParent}
       icon={products.icon.ProductVersion}
       showNavigate={false}
@@ -209,7 +211,7 @@
       <StyledTextBox
         bind:content={object.description}
         placeholder={products.string.ProductVersionDescriptionPlaceholder}
-        kind={'normal'}
+        kind="normal"
         focusIndex={10}
         showButtons={false}
         alwaysEdit
@@ -242,10 +244,10 @@
           isRegular: true,
           disableLink: true
         }}
-        searchField={'code'}
+        searchField="code"
         excluded={excludedChangeControl}
-        kind={'regular'}
-        size={'small'}
+        kind="regular"
+        size="small"
         label={products.string.ChangeControl}
         showNavigate={false}
       />

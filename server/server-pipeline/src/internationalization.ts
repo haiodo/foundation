@@ -1,178 +1,111 @@
 import { coreId } from '@hcengineering/core'
 import { addStringsLoader, platformId } from '@hcengineering/platform'
-import { activityId } from '@hcengineering/activity'
-import { attachmentId } from '@hcengineering/attachment'
-import { calendarId } from '@hcengineering/calendar'
-import { chunterId } from '@hcengineering/chunter'
-import { contactId } from '@hcengineering/contact'
-import { documentsId } from '@hcengineering/controlled-documents'
-import { documentId } from '@hcengineering/document'
-import { exportId } from '@hcengineering/export'
-import { driveId } from '@hcengineering/drive'
-import { githubId } from '@hcengineering/github'
-import { gmailId } from '@hcengineering/gmail'
-import { hrId } from '@hcengineering/hr'
-import { inventoryId } from '@hcengineering/inventory'
-import { leadId } from '@hcengineering/lead'
-import { loginId } from '@hcengineering/login'
-import { loveId } from '@hcengineering/love'
-import { notificationId } from '@hcengineering/notification'
-import { onboardId } from '@hcengineering/onboard'
-import { preferenceId } from '@hcengineering/preference'
-import { productsId } from '@hcengineering/products'
-import { recruitId } from '@hcengineering/recruit'
-import { requestId } from '@hcengineering/request'
-import { settingId } from '@hcengineering/setting'
-import { supportId } from '@hcengineering/support'
-import { tagsId } from '@hcengineering/tags'
-import { taskId } from '@hcengineering/task'
-import { telegramId } from '@hcengineering/telegram'
-import { templatesId } from '@hcengineering/templates'
-import { trackerId } from '@hcengineering/tracker'
-import { trainingId } from '@hcengineering/training'
-import { viewId } from '@hcengineering/view'
-import { workbenchId } from '@hcengineering/workbench'
-import { timeId } from '@hcengineering/time'
-import { surveyId } from '@hcengineering/survey'
-import { chatId } from '@hcengineering/chat'
-import { cardId } from '@hcengineering/card'
-import { mailId } from '@hcengineering/mail'
-import { communicationId } from '@hcengineering/communication'
+import loginStrings from '@hcengineering/login-assets/lang'
+import activityStrings from '@hcengineering/activity-assets/lang'
+import attachmentStrings from '@hcengineering/attachment-assets/lang'
+import calendarStrings from '@hcengineering/calendar-assets/lang'
+import chunterStrings from '@hcengineering/chunter-assets/lang'
+import contactStrings from '@hcengineering/contact-assets/lang'
+import controlledDocumentsStrings from '@hcengineering/controlled-documents-assets/lang'
+import documentStrings from '@hcengineering/document-assets/lang'
+import exportStrings from '@hcengineering/export-assets/lang'
+import driveStrings from '@hcengineering/drive-assets/lang'
+import githubStrings from '@hcengineering/github-assets/lang'
+import gmailStrings from '@hcengineering/gmail-assets/lang'
+import hrStrings from '@hcengineering/hr-assets/lang'
+import inventoryStrings from '@hcengineering/inventory-assets/lang'
+import leadStrings from '@hcengineering/lead-assets/lang'
+import loveStrings from '@hcengineering/love-assets/lang'
+import notificationStrings from '@hcengineering/notification-assets/lang'
+import onboardStrings from '@hcengineering/onboard-assets/lang'
+import preferenceStrings from '@hcengineering/preference-assets/lang'
+import productsStrings from '@hcengineering/products-assets/lang'
+import recruitStrings from '@hcengineering/recruit-assets/lang'
+import requestStrings from '@hcengineering/request-assets/lang'
+import settingStrings from '@hcengineering/setting-assets/lang'
+import supportStrings from '@hcengineering/support-assets/lang'
+import tagsStrings from '@hcengineering/tags-assets/lang'
+import taskStrings from '@hcengineering/task-assets/lang'
+import telegramStrings from '@hcengineering/telegram-assets/lang'
+import templatesStrings from '@hcengineering/templates-assets/lang'
+import trackerStrings from '@hcengineering/tracker-assets/lang'
+import trainingStrings from '@hcengineering/training-assets/lang'
+import viewStrings from '@hcengineering/view-assets/lang'
+import workbenchStrings from '@hcengineering/workbench-assets/lang'
+import timeStrings from '@hcengineering/time-assets/lang'
+import surveyStrings from '@hcengineering/survey-assets/lang'
+import cardStrings from '@hcengineering/card-assets/lang'
+import mailStrings from '@hcengineering/mail-assets/lang'
+import workflowStrings from '@hcengineering/workflow-assets/lang'
 
-import coreEng from '@hcengineering/core/lang/en.json'
-import loginEng from '@hcengineering/login-assets/lang/en.json'
-import platformEng from '@hcengineering/platform/lang/en.json'
-import activityEn from '@hcengineering/activity-assets/lang/en.json'
-import attachmentEn from '@hcengineering/attachment-assets/lang/en.json'
-import calendarEn from '@hcengineering/calendar-assets/lang/en.json'
-import chunterEn from '@hcengineering/chunter-assets/lang/en.json'
-import contactEn from '@hcengineering/contact-assets/lang/en.json'
-import documentsEn from '@hcengineering/controlled-documents-assets/lang/en.json'
-import documentEn from '@hcengineering/document-assets/lang/en.json'
-import exportEn from '@hcengineering/export-assets/lang/en.json'
-import driveEn from '@hcengineering/drive-assets/lang/en.json'
-import githubEn from '@hcengineering/github-assets/lang/en.json'
-import gmailEn from '@hcengineering/gmail-assets/lang/en.json'
-import hrEn from '@hcengineering/hr-assets/lang/en.json'
-import inventoryEn from '@hcengineering/inventory-assets/lang/en.json'
-import leadEn from '@hcengineering/lead-assets/lang/en.json'
-import loveEn from '@hcengineering/love-assets/lang/en.json'
-import notificationEn from '@hcengineering/notification-assets/lang/en.json'
-import onboardEn from '@hcengineering/onboard-assets/lang/en.json'
-import preferenceEn from '@hcengineering/preference-assets/lang/en.json'
-import productsEn from '@hcengineering/products-assets/lang/en.json'
-import recruitEn from '@hcengineering/recruit-assets/lang/en.json'
-import requestEn from '@hcengineering/request-assets/lang/en.json'
-import settingEn from '@hcengineering/setting-assets/lang/en.json'
-import supportEn from '@hcengineering/support-assets/lang/en.json'
-import tagsEn from '@hcengineering/tags-assets/lang/en.json'
-import taskEn from '@hcengineering/task-assets/lang/en.json'
-import telegramEn from '@hcengineering/telegram-assets/lang/en.json'
-import templatesEn from '@hcengineering/templates-assets/lang/en.json'
-import trackerEn from '@hcengineering/tracker-assets/lang/en.json'
-import trainingEn from '@hcengineering/training-assets/lang/en.json'
-import viewEn from '@hcengineering/view-assets/lang/en.json'
-import workbenchEn from '@hcengineering/workbench-assets/lang/en.json'
-import timeEn from '@hcengineering/time-assets/lang/en.json'
-import surveyEn from '@hcengineering/survey-assets/lang/en.json'
-import chatEn from '@hcengineering/chat-assets/lang/en.json'
-import cardEn from '@hcengineering/card-assets/lang/en.json'
-import mailEn from '@hcengineering/mail-assets/lang/en.json'
-import communicationEn from '@hcengineering/communication-assets/lang/en.json'
+const coreLangs: Record<string, () => Promise<any>> = {
+  cs: async () => await import('@hcengineering/core/lang/cs.json'),
+  de: async () => await import('@hcengineering/core/lang/de.json'),
+  en: async () => await import('@hcengineering/core/lang/en.json'),
+  es: async () => await import('@hcengineering/core/lang/es.json'),
+  fr: async () => await import('@hcengineering/core/lang/fr.json'),
+  it: async () => await import('@hcengineering/core/lang/it.json'),
+  ja: async () => await import('@hcengineering/core/lang/ja.json'),
+  pt: async () => await import('@hcengineering/core/lang/pt.json'),
+  'pt-br': async () => await import('@hcengineering/core/lang/pt-br.json'),
+  ru: async () => await import('@hcengineering/core/lang/ru.json'),
+  tr: async () => await import('@hcengineering/core/lang/tr.json'),
+  zh: async () => await import('@hcengineering/core/lang/zh.json')
+}
 
-import coreRu from '@hcengineering/core/lang/ru.json'
-import loginRu from '@hcengineering/login-assets/lang/ru.json'
-import platformRu from '@hcengineering/platform/lang/ru.json'
-import activityRu from '@hcengineering/activity-assets/lang/ru.json'
-import attachmentRu from '@hcengineering/attachment-assets/lang/ru.json'
-import calendarRu from '@hcengineering/calendar-assets/lang/ru.json'
-import chunterRu from '@hcengineering/chunter-assets/lang/ru.json'
-import contactRu from '@hcengineering/contact-assets/lang/ru.json'
-import documentsRu from '@hcengineering/controlled-documents-assets/lang/ru.json'
-import documentRu from '@hcengineering/document-assets/lang/ru.json'
-import exportRu from '@hcengineering/export-assets/lang/ru.json'
-import driveRu from '@hcengineering/drive-assets/lang/ru.json'
-import githubRu from '@hcengineering/github-assets/lang/ru.json'
-import gmailRu from '@hcengineering/gmail-assets/lang/ru.json'
-import hrRu from '@hcengineering/hr-assets/lang/ru.json'
-import inventoryRu from '@hcengineering/inventory-assets/lang/ru.json'
-import leadRu from '@hcengineering/lead-assets/lang/ru.json'
-import loveRu from '@hcengineering/love-assets/lang/ru.json'
-import notificationRu from '@hcengineering/notification-assets/lang/ru.json'
-import onboardRu from '@hcengineering/onboard-assets/lang/ru.json'
-import preferenceRu from '@hcengineering/preference-assets/lang/ru.json'
-import productsRu from '@hcengineering/products-assets/lang/ru.json'
-import recruitRu from '@hcengineering/recruit-assets/lang/ru.json'
-import requestRu from '@hcengineering/request-assets/lang/ru.json'
-import settingRu from '@hcengineering/setting-assets/lang/ru.json'
-import supportRu from '@hcengineering/support-assets/lang/ru.json'
-import tagsRu from '@hcengineering/tags-assets/lang/ru.json'
-import taskRu from '@hcengineering/task-assets/lang/ru.json'
-import telegramRu from '@hcengineering/telegram-assets/lang/ru.json'
-import templatesRu from '@hcengineering/templates-assets/lang/ru.json'
-import trackerRu from '@hcengineering/tracker-assets/lang/ru.json'
-import trainingRu from '@hcengineering/training-assets/lang/ru.json'
-import viewRu from '@hcengineering/view-assets/lang/ru.json'
-import workbenchRu from '@hcengineering/workbench-assets/lang/ru.json'
-import timeRu from '@hcengineering/time-assets/lang/ru.json'
-import surveyRu from '@hcengineering/survey-assets/lang/ru.json'
-import chatRu from '@hcengineering/chat-assets/lang/ru.json'
-import cardRu from '@hcengineering/card-assets/lang/ru.json'
-import mailRu from '@hcengineering/mail-assets/lang/ru.json'
-import communicationRu from '@hcengineering/communication-assets/lang/ru.json'
-
-function createLoader (en: any, ru: any): (lang: string) => Promise<any> {
-  return async (lang: string) => {
-    switch (lang) {
-      case 'en':
-        return en
-      case 'ru':
-        return ru
-      default:
-        return en
-    }
-  }
+const platformLangs: Record<string, () => Promise<any>> = {
+  cs: async () => await import('@hcengineering/platform/lang/cs.json'),
+  de: async () => await import('@hcengineering/platform/lang/de.json'),
+  en: async () => await import('@hcengineering/platform/lang/en.json'),
+  es: async () => await import('@hcengineering/platform/lang/es.json'),
+  fr: async () => await import('@hcengineering/platform/lang/fr.json'),
+  it: async () => await import('@hcengineering/platform/lang/it.json'),
+  ja: async () => await import('@hcengineering/platform/lang/ja.json'),
+  pt: async () => await import('@hcengineering/platform/lang/pt.json'),
+  'pt-br': async () => await import('@hcengineering/platform/lang/pt-br.json'),
+  ru: async () => await import('@hcengineering/platform/lang/ru.json'),
+  tr: async () => await import('@hcengineering/platform/lang/tr.json'),
+  zh: async () => await import('@hcengineering/platform/lang/zh.json')
 }
 
 export function registerStringLoaders (): void {
-  addStringsLoader(coreId, createLoader(coreEng, coreRu))
-  addStringsLoader(loginId, createLoader(loginEng, loginRu))
-  addStringsLoader(onboardId, createLoader(onboardEn, onboardRu))
-  addStringsLoader(platformId, createLoader(platformEng, platformRu))
-  addStringsLoader(taskId, createLoader(taskEn, taskRu))
-  addStringsLoader(viewId, createLoader(viewEn, viewRu))
-  addStringsLoader(chunterId, createLoader(chunterEn, chunterRu))
-  addStringsLoader(attachmentId, createLoader(attachmentEn, attachmentRu))
-  addStringsLoader(contactId, createLoader(contactEn, contactRu))
-  addStringsLoader(recruitId, createLoader(recruitEn, recruitRu))
-  addStringsLoader(activityId, createLoader(activityEn, activityRu))
-  addStringsLoader(settingId, createLoader(settingEn, settingRu))
-  addStringsLoader(supportId, createLoader(supportEn, supportRu))
-  addStringsLoader(telegramId, createLoader(telegramEn, telegramRu))
-  addStringsLoader(leadId, createLoader(leadEn, leadRu))
-  addStringsLoader(gmailId, createLoader(gmailEn, gmailRu))
-  addStringsLoader(workbenchId, createLoader(workbenchEn, workbenchRu))
-  addStringsLoader(inventoryId, createLoader(inventoryEn, inventoryRu))
-  addStringsLoader(templatesId, createLoader(templatesEn, templatesRu))
-  addStringsLoader(notificationId, createLoader(notificationEn, notificationRu))
-  addStringsLoader(tagsId, createLoader(tagsEn, tagsRu))
-  addStringsLoader(calendarId, createLoader(calendarEn, calendarRu))
-  addStringsLoader(trackerId, createLoader(trackerEn, trackerRu))
-  addStringsLoader(preferenceId, createLoader(preferenceEn, preferenceRu))
-  addStringsLoader(hrId, createLoader(hrEn, hrRu))
-  addStringsLoader(documentId, createLoader(documentEn, documentRu))
-  addStringsLoader(exportId, createLoader(exportEn, exportRu))
-  addStringsLoader(requestId, createLoader(requestEn, requestRu))
-  addStringsLoader(loveId, createLoader(loveEn, loveRu))
-  addStringsLoader(driveId, createLoader(driveEn, driveRu))
-  addStringsLoader(documentsId, createLoader(documentsEn, documentsRu))
-  addStringsLoader(productsId, createLoader(productsEn, productsRu))
-  addStringsLoader(trainingId, createLoader(trainingEn, trainingRu))
-  addStringsLoader(githubId, createLoader(githubEn, githubRu))
-  addStringsLoader(timeId, createLoader(timeEn, timeRu))
-  addStringsLoader(surveyId, createLoader(surveyEn, surveyRu))
-  addStringsLoader(chatId, createLoader(chatEn, chatRu))
-  addStringsLoader(cardId, createLoader(cardEn, cardRu))
-  addStringsLoader(mailId, createLoader(mailEn, mailRu))
-  addStringsLoader(communicationId, createLoader(communicationEn, communicationRu))
+  addStringsLoader(coreId, async (lang: string) => await (coreLangs[lang] ?? coreLangs.en)())
+  addStringsLoader(platformId, async (lang: string) => await (platformLangs[lang] ?? platformLangs.en)())
+  loginStrings()
+  activityStrings()
+  attachmentStrings()
+  calendarStrings()
+  chunterStrings()
+  contactStrings()
+  controlledDocumentsStrings()
+  documentStrings()
+  exportStrings()
+  driveStrings()
+  githubStrings()
+  gmailStrings()
+  hrStrings()
+  inventoryStrings()
+  leadStrings()
+  loveStrings()
+  notificationStrings()
+  onboardStrings()
+  preferenceStrings()
+  productsStrings()
+  recruitStrings()
+  requestStrings()
+  settingStrings()
+  supportStrings()
+  tagsStrings()
+  taskStrings()
+  telegramStrings()
+  templatesStrings()
+  trackerStrings()
+  trainingStrings()
+  viewStrings()
+  workbenchStrings()
+  timeStrings()
+  surveyStrings()
+  cardStrings()
+  mailStrings()
+  workflowStrings()
 }

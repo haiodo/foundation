@@ -16,13 +16,14 @@
   import {
     ModernPopup,
     IconDelete,
-    ButtonIcon,
     IconMoreV,
     IconMoreV2,
     showPopup,
     eventToHTMLElement,
     ModernEditbox
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import setting from '../plugin'
@@ -70,7 +71,7 @@
       label: setting.string.Delete,
       action: () => {
         if (opened !== undefined) {
-          remove(values[opened])
+          void remove(values[opened])
           opened = undefined
         }
       }
@@ -84,7 +85,7 @@
         if (result) {
           switch (result) {
             case 'delete':
-              remove(values[n])
+              void remove(values[n])
               break
           }
         }
@@ -127,28 +128,29 @@
     }}
   >
     <button class="hulyTableAttr-content__row-dragMenu" class:drag={!disableMouseOver}>
-      <IconMoreV2 size={'small'} />
+      <IconMoreV2 size="small" />
     </button>
     <div class="hulyTableAttr-content__row-label font-regular-14 accent">
       <ModernEditbox
-        kind={'ghost'}
-        size={'small'}
+        kind="ghost"
+        size="small"
         label={setting.string.EnterOptionTitle}
         on:keydown={handleKeydown}
         on:blur={() => {
           update()
         }}
         bind:value={values[i]}
-        width={'100%'}
+        width="100%"
       />
     </div>
     <div class="hulyTableAttr-content__row-label grow" />
     {#if !disableMouseOver}
-      <ButtonIcon
-        kind={'tertiary'}
+      <IconButton
+        tooltip={{ label: view.string.MoreActions }}
+        kind="tertiary"
         icon={IconMoreV}
         iconProps={{ fill: 'var(--global-tertiary-TextColor)' }}
-        size={'small'}
+        size="small"
         pressed={opened === i}
         hasMenu
         on:click={(ev) => {

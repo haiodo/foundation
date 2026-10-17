@@ -16,7 +16,8 @@
 -->
 <script lang="ts">
   import { MessageBox } from '@hcengineering/presentation'
-  import { Question, QuestionKind, Survey } from '@hcengineering/survey'
+  import type { Question, Survey } from '@hcengineering/survey'
+  import { QuestionKind } from '@hcengineering/survey'
   import { createFocusManager, EditBox, FocusHandler, showPopup, Section } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import survey from '../plugin'
@@ -128,7 +129,7 @@
       disabled={readonly}
       placeholder={survey.string.Name}
       bind:value={object.name}
-      kind={'large-style'}
+      kind="large-style"
       on:input={() => {
         handleChange({ name: object.name })
       }}
@@ -170,7 +171,8 @@
               deleteQuestion(index)
             }}
             on:change={(e) => {
-              isNewQuestion ? handleNewQuestionChange(e.detail) : handleQuestionChange(index, e.detail)
+              if (isNewQuestion) handleNewQuestionChange(e.detail)
+              else void handleQuestionChange(index, e.detail)
             }}
             {readonly}
             on:dragStart={() => {

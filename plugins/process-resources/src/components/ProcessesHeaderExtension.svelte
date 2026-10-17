@@ -13,11 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
+  import type { Card } from '@hcengineering/card'
   import { getCurrentEmployee } from '@hcengineering/contact'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { ApproveRequest, EventButton, Execution, ExecutionStatus, ProcessToDo } from '@hcengineering/process'
+  import type { ApproveRequest, EventButton, Execution, ProcessToDo } from '@hcengineering/process'
+  import { ExecutionStatus } from '@hcengineering/process'
   import { Button } from '@hcengineering/ui'
   import process from '../plugin'
   import ApproveRequestButtons from './ApproveRequestButtons.svelte'
@@ -109,13 +110,13 @@
   {#if isRequest(todo)}
     <ApproveRequestButtons {todo} card={card._id} />
   {:else}
-    <Button kind={'primary'} label={getEmbeddedLabel(todo.title)} on:click={() => checkTodo(todo)} />
+    <Button kind="primary" label={getEmbeddedLabel(todo.title)} on:click={() => checkTodo(todo)} />
   {/if}
 {/each}
 {#each actions as action (action._id)}
-  <Button kind={'primary'} label={getEmbeddedLabel(action.title)} on:click={() => performAction(action)} />
+  <Button kind="primary" label={getEmbeddedLabel(action.title)} on:click={() => performAction(action)} />
 {/each}
 {#each rollbacks as rollback}
   {getExecutionLabel(rollback)}
-  <Button kind={'dangerous'} label={process.string.Rollback} on:click={() => performRollback(rollback)} />
+  <Button kind="dangerous" label={process.string.Rollback} on:click={() => performRollback(rollback)} />
 {/each}

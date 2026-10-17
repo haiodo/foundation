@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import { type Class, type Ref } from '@hcengineering/core'
 import { type Asset, type IntlString, type Metadata, plugin, type Plugin } from '@hcengineering/platform'
 import { AnyComponent } from '@hcengineering/ui'
-import { Tier } from './types'
 
 /** @public */
 export const billingId = 'billing' as Plugin
 
 export const billingPlugin = plugin(billingId, {
-  class: {
-    Tier: '' as Ref<Class<Tier>>
-  },
   metadata: {
     BillingURL: '' as Metadata<string>
   },
@@ -53,31 +48,67 @@ export const billingPlugin = plugin(billingId, {
     Documents: '' as IntlString,
     Archives: '' as IntlString,
     OtherFiles: '' as IntlString,
+    GeneratedVersions: '' as IntlString,
     StorageByType: '' as IntlString,
     LargestFiles: '' as IntlString,
-    Tier: '' as IntlString,
-    StorageLimit: '' as IntlString,
-    TrafficLimit: '' as IntlString,
-    Common: '' as IntlString,
-    CommonDescription: '' as IntlString,
-    Rare: '' as IntlString,
-    RareDescription: '' as IntlString,
-    Epic: '' as IntlString,
-    EpicDescription: '' as IntlString,
-    Legendary: '' as IntlString,
-    LegendaryDescription: '' as IntlString,
     UpgradePlan: '' as IntlString,
-    LimitReached: '' as IntlString
+    LimitReached: '' as IntlString,
+    SeatLimitReadonly: '' as IntlString,
+    PayOrUpgrade: '' as IntlString,
+    FreePlan: '' as IntlString,
+    FreePlanHint: '' as IntlString,
+    TrialPlan: '' as IntlString,
+    TrialPlanHint: '' as IntlString,
+    AITokens: '' as IntlString,
+    PurchasedTokens: '' as IntlString,
+    PurchasableCatalog: '' as IntlString,
+    PurchaseHistory: '' as IntlString,
+    ConfirmBuy: '' as IntlString,
+    Buy: '' as IntlString,
+    PurchaseStatusPending: '' as IntlString,
+    PurchaseStatusActive: '' as IntlString,
+    PurchaseStatusConsumed: '' as IntlString,
+    PurchaseStatusFailed: '' as IntlString,
+    PickModel: '' as IntlString,
+    ByLevel: '' as IntlString,
+    AddTokens: '' as IntlString,
+    TokenWindowMonth: '' as IntlString,
+    Calculator: '' as IntlString,
+    PricePer1000: '' as IntlString,
+    CostPer100k: '' as IntlString,
+    CustomTokens: '' as IntlString,
+    CustomTokensCost: '' as IntlString,
+    PackagePrice: '' as IntlString,
+    PackageMargin: '' as IntlString,
+    PackagesTitle: '' as IntlString,
+    PackageTokens: '' as IntlString,
+    PackageEffPrice: '' as IntlString,
+    Forecast: '' as IntlString,
+    ForecastMonthly: '' as IntlString,
+    TabModels: '' as IntlString,
+    TabCalculator: '' as IntlString,
+    TabUsage: '' as IntlString,
+    Workers: '' as IntlString,
+    NoData: '' as IntlString,
+    Total: '' as IntlString,
+    NoLimit: '' as IntlString,
+    SetLimit: '' as IntlString,
+    SetUsed: '' as IntlString,
+    ResetUsed: '' as IntlString,
+    ResetAllUsed: '' as IntlString,
+    ResetAllUsedConfirm: '' as IntlString,
+    ModelLimits: '' as IntlString,
+    ResetsAt: '' as IntlString,
+    TokenAvailable: '' as IntlString,
+    TokenPurchased: '' as IntlString,
+    SectionLLM: '' as IntlString,
+    SectionASR: '' as IntlString,
+    AsrByModel: '' as IntlString,
+    DirectProvider: '' as IntlString
   },
   icon: {
     Billing: '' as Asset,
     Subscriptions: '' as Asset
-  },
-  tier: {
-    Common: '' as Ref<Tier>,
-    Rare: '' as Ref<Tier>,
-    Epic: '' as Ref<Tier>,
-    Legendary: '' as Ref<Tier>
   }
 })
 

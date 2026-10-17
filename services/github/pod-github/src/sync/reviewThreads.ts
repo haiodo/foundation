@@ -51,20 +51,20 @@ import config from '../config'
 import { githubConfiguration } from './configuration'
 
 export type ReviewThreadData = Pick<
-GithubReviewThread,
-| 'threadId'
-| 'line'
-| 'diffSide'
-| 'startLine'
-| 'isCollapsed'
-| 'isPinned'
-| 'isResolved'
-| 'isOutdated'
-| 'path'
-| 'originalLine'
-| 'originalStartLine'
-| 'resolvedBy'
-| 'startDiffSide'
+  GithubReviewThread,
+  | 'threadId'
+  | 'line'
+  | 'diffSide'
+  | 'startLine'
+  | 'isCollapsed'
+  | 'isPinned'
+  | 'isResolved'
+  | 'isOutdated'
+  | 'path'
+  | 'originalLine'
+  | 'originalStartLine'
+  | 'resolvedBy'
+  | 'startDiffSide'
 >
 
 export class ReviewThreadSyncManager implements DocSyncManager {
@@ -483,15 +483,15 @@ export class ReviewThreadSyncManager implements DocSyncManager {
 
       if (isGHWriteAllowed()) {
         const response:
-        | {
-          addPullRequestReviewThread: {
-            thread: ReviewThreadExternalData
+          | {
+            addPullRequestReviewThread: {
+              thread: ReviewThreadExternalData
+            }
           }
-        }
-        | undefined = await okit.graphql(q, {
-          prID: (parent.external as PullRequestExternalData).id,
-          body: EmptyMarkup // TODO: Need to replace with first comment on comment sync.
-        })
+          | undefined = await okit.graphql(q, {
+            prID: (parent.external as PullRequestExternalData).id,
+            body: EmptyMarkup // TODO: Need to replace with first comment on comment sync.
+          })
 
         const reviewExternal = response?.addPullRequestReviewThread?.thread
 
@@ -527,7 +527,7 @@ export class ReviewThreadSyncManager implements DocSyncManager {
     prj: GithubProject
   ): Promise<void> {
     if (kind === 'externalVersion') {
-      // No need to perform external sync for review threads, so let's update marks
+      // No need to perform external sync for review threads, so update marks
       const tx = derivedClient.apply()
       for (const d of syncDocs) {
         await tx.update(d, { externalVersion: githubExternalSyncVersion })

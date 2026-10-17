@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person } from '@hcengineering/contact'
-  import { Ref } from '@hcengineering/core'
+  import type { Person } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
   import { Button, Icon, Label, IconMoreV, Scroller } from '@hcengineering/ui'
   import calendar from '../plugin'
   import AddParticipant from './AddParticipant.svelte'
@@ -24,6 +24,11 @@
   export let externalParticipants: string[]
   export let disabled: boolean = false
   export let focusIndex = -1
+  export let busyPersons: Set<Ref<Person>> | undefined = undefined
+
+  function isBusy (person: Ref<Person> | undefined, busy: Set<Ref<Person>> | undefined): boolean | undefined {
+    return person !== undefined ? busy?.has(person) : undefined
+  }
 
   interface IParticipants {
     participant: Ref<Person> | undefined
@@ -109,6 +114,7 @@
         <EventParticipantItem
           participant={p.participant}
           externalParticipant={p.externalParticipant}
+          busy={isBusy(p.participant, busyPersons)}
           focusIndex={focusIndex + i}
           {disabled}
           on:removeParticipant={() => {
@@ -123,9 +129,9 @@
       <div class="antiOption step-tb25" tabindex={focusIndex + shortListLength - 2}>
         <Button
           icon={IconMoreV}
-          kind={'ghost'}
-          size={'x-small'}
-          padding={'0 .5rem'}
+          kind="ghost"
+          size="x-small"
+          padding="0 .5rem"
           focusIndex={-1}
           on:click={() => (shown = true)}
         />
@@ -138,6 +144,7 @@
       <EventParticipantItem
         participant={allParticipants[allParticipants.length - 1].participant}
         externalParticipant={allParticipants[allParticipants.length - 1].externalParticipant}
+        busy={isBusy(allParticipants[allParticipants.length - 1].participant, busyPersons)}
         focusIndex={focusIndex + shortListLength - 1}
         {disabled}
         on:removeParticipant={(event) => {
@@ -152,6 +159,7 @@
         <EventParticipantItem
           participant={p.participant}
           externalParticipant={p.externalParticipant}
+          busy={isBusy(p.participant, busyPersons)}
           focusIndex={focusIndex + i}
           {disabled}
           on:removeParticipant={() => {

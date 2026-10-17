@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
   import { Avatar, getPersonByPersonRef, PersonPresenter } from '@hcengineering/contact-resources'
-  import { ParticipantInfo } from '@hcengineering/love'
+  import type { ParticipantInfo } from '@hcengineering/love'
 
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
 
   export let info: ParticipantInfo[]
 
@@ -44,7 +44,7 @@
             style="modern"
             /> -->
     {#if person != null}
-      <PersonPresenter value={person} avatarSize={'large'} shouldShowName={false} />
+      <PersonPresenter value={person} avatarSize="large" shouldShowName={false} />
     {/if}
   {/await}
 {/each}

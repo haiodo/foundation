@@ -43,7 +43,23 @@ export interface Attachment extends AttachedDoc {
 /**
  * @public
  */
-export interface Embedding extends Attachment {}
+export interface DraftAttachment {
+  _id?: Ref<Attachment>
+  name?: string
+  file: Ref<Blob>
+  size?: number
+  type?: string
+}
+
+/**
+ * @public
+ */
+export type AttachmentValue = Ref<Blob> | Ref<Attachment> | DraftAttachment | Attachment
+
+/**
+ * @public
+ */
+export type Embedding = Attachment
 
 /**
  * @public
@@ -53,7 +69,7 @@ export type AttachmentMetadata = BlobMetadata
 /**
  * @public
  */
-export interface Photo extends Attachment {}
+export type Photo = Attachment
 
 /**
  * @public
@@ -79,6 +95,7 @@ export const attachmentId = 'attachment' as Plugin
 export default plugin(attachmentId, {
   component: {
     Attachments: '' as AnyComponent,
+    DraftAttachmentsEditor: '' as AnyComponent,
     Photos: '' as AnyComponent,
     AttachmentsPresenter: '' as AnyComponent,
     DrawingPresenter: '' as AnyComponent,
@@ -125,6 +142,11 @@ export default plugin(attachmentId, {
     Attachments: '' as IntlString,
     FileBrowser: '' as IntlString,
     OpenInWindow: '' as IntlString,
-    Embeddings: '' as IntlString
+    Embeddings: '' as IntlString,
+    Transcribing: '' as IntlString,
+    TranscriptionFailed: '' as IntlString
+  },
+  function: {
+    AttachmentsApplier: '' as Resource<any>
   }
 })

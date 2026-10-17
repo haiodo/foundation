@@ -14,24 +14,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Doc, Ref, Space, AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
-  import { IntlString, getResource } from '@hcengineering/platform'
+  import type { Doc, Ref, Space } from '@hcengineering/core'
+  import core, { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import preference from '@hcengineering/preference'
   import { getClient } from '@hcengineering/presentation'
-  import {
-    Action,
-    AnyComponent,
-    IconAdd,
-    IconSearch,
-    getCurrentResolvedLocation,
-    navigate,
-    showPopup
-  } from '@hcengineering/ui'
+  import type { Action, AnyComponent } from '@hcengineering/ui'
+  import { IconAdd, IconSearch, getCurrentResolvedLocation, navigate, showPopup } from '@hcengineering/ui'
   import { TreeNode } from '@hcengineering/view-resources'
-  import { SpacesNavModel } from '@hcengineering/workbench'
+  import type { SpacesNavModel } from '@hcengineering/workbench'
   import { createEventDispatcher } from 'svelte'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
-  import { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
+  import type { UnreadContext } from '@hcengineering/notification'
 
   import plugin from '../../plugin'
   import TreeSeparator from './TreeSeparator.svelte'
@@ -80,24 +75,11 @@
     }
   }
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const notifyContextByDocStore = inboxClient.contextByDoc
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
+  const inboxClient = NotificationClientImpl.getClient()
+  const unreadByDoc = inboxClient.unreadByDoc
 
-  function isChanged (
-    space: Space,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): boolean {
-    const context = notifyContextByDoc.get(space._id)
-
-    if (context === undefined) {
-      return false
-    }
-
-    const inboxNotifications = inboxNotificationsByContext.get(context._id) ?? []
-
-    return inboxNotifications.filter(({ isViewed }) => !isViewed).length > 0
+  function isChanged (space: Space, unread: Map<Ref<Doc>, UnreadContext>): boolean {
+    return (unread.get(space._id)?.unreadCount ?? 0) > 0
   }
 
   function getParentActions (): Action[] {
@@ -115,7 +97,7 @@
   let visibleIf: ((space: Space) => Promise<boolean>) | undefined
 
   $: if (model.visibleIf) {
-    getResource(model.visibleIf).then((r) => {
+    void getResource(model.visibleIf).then((r) => {
       visibleIf = r
     })
   }
@@ -133,7 +115,7 @@
   }
 
   $: if (visibleIf) {
-    updateSpaces(spaces, visibleIf)
+    void updateSpaces(spaces, visibleIf)
   } else {
     filteredSpaces = spaces
   }
@@ -164,7 +146,7 @@
       {currentSpecial}
       {currentFragment}
       {deselect}
-      isChanged={isChanged(space, $notifyContextByDocStore, $inboxNotificationsByContextStore)}
+      isChanged={isChanged(space, $unreadByDoc)}
       spaceActions={[starSpace]}
     />
   {/each}
@@ -178,7 +160,7 @@
         {currentSpecial}
         {currentFragment}
         {deselect}
-        isChanged={isChanged(visibleSpace, $notifyContextByDocStore, $inboxNotificationsByContextStore)}
+        isChanged={isChanged(visibleSpace, $unreadByDoc)}
         spaceActions={[starSpace]}
         forciblyСollapsed
       />

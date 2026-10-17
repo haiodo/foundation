@@ -1,0 +1,399 @@
+//
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+import core from '@hcengineering/core'
+
+import workflow from '../../plugin'
+
+import {
+  checkWorkflowCompatibility,
+  exportWorkflow,
+  isAttributeTypeCompatible,
+  isAttributeTypeResolvable
+} from '../../transfer'
+import {
+  createMockTx,
+  projectTypeId,
+  statusOpenId,
+  statusResolvedId,
+  targetTaskTypeId,
+  workflowId,
+  ws1
+} from './fixtures'
+
+describe('Workflow Compatibility Check', () => {
+  it('identifies matched statuses and unmatched statuses', async () => {
+    const client = createMockTx()
+    const config = await exportWorkflow(client, workflowId, {
+      workspace: ws1,
+      projectTypeId
+    })
+    const report = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+
+    expect(report.statuses).toBeDefined()
+    const openStatus = report.statuses.find((s) => s.sourceName === 'Open')
+    const doneStatus = report.statuses.find((s) => s.sourceName === 'Done')
+
+    expect(openStatus?.isMatched).toBe(true)
+    expect(openStatus?.targetStatusId).toBe(statusOpenId)
+
+    // Done is matched to Resolved via same category ('completed')
+    expect(doneStatus?.isMatched).toBe(true)
+    expect(doneStatus?.targetStatusId).toBe(statusResolvedId)
+  })
+
+  it('identifies matched and unmatched attributes in rules', async () => {
+    const client = createMockTx()
+    const config = await exportWorkflow(client, workflowId, {
+      workspace: ws1,
+      projectTypeId
+    })
+    const report = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+
+    expect(report.attributes).toBeDefined()
+    const assigneeAttr = report.attributes.find((a) => a.fieldKey === 'assignee')
+    expect(assigneeAttr?.isMatched).toBe(true)
+  })
+
+  it('identifies affected transitions and unmatched statuses', async () => {
+    const client = createMockTx()
+    const customStatusId = 'status-custom-unmatched' as any
+    const transWithUnmatched = {
+      id: 'trans-unmatched',
+      name: 'Custom Step',
+      from: [statusOpenId],
+      to: customStatusId
+    }
+
+    const config = await exportWorkflow(client, workflowId, {
+      workspace: ws1,
+      projectTypeId
+    })
+    config.workflows[0].transitions?.push(transWithUnmatched as any)
+    config.statuses?.push({
+      id: customStatusId,
+      name: 'Custom Unmatched',
+      color: 1,
+      category: 'custom-unknown' as any
+    })
+
+    const report = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+    const customStatus = report.statuses.find((s) => s.sourceStatusId === customStatusId)
+    expect(customStatus?.isMatched).toBe(false)
+
+    const transitionReport = report.transitions.find((t) => t.id === 'trans-unmatched')
+    expect(transitionReport).toBeDefined()
+    expect(transitionReport?.to).toBe(customStatusId)
+  })
+
+  it('correctly sets hasScreens flag', async () => {
+    const client = createMockTx()
+    const config = await exportWorkflow(client, workflowId, {
+      workspace: ws1,
+      projectTypeId
+    })
+
+    const reportWithoutScreens = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+    expect(reportWithoutScreens.hasScreens).toBe(false)
+
+    // With screens in config
+    config.screens = [
+      {
+        id: 'screen-1' as any,
+        name: 'Screen 1',
+        targetClass: 'core:class:Doc' as any
+      }
+    ]
+    const reportWithScreens = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+    expect(reportWithScreens.hasScreens).toBe(true)
+  })
+
+  it('does not set hasScreens for a ScreenRequest with no screens section', async () => {
+    const client = createMockTx()
+    const config = await exportWorkflow(client, workflowId, {
+      workspace: ws1,
+      projectTypeId
+    })
+
+    // A request left over from a deleted screen: the export cannot resolve it, so there is nothing
+    // for the Screens step to render and it must stay hidden.
+    config.screens = undefined
+    config.workflows[0].transitions = [
+      {
+        id: 'trans-dangling' as any,
+        name: 'dangling',
+        to: 'status-open' as any,
+        requests: [
+          {
+            id: 'req-dangling',
+            rule: workflow.request.ScreenRequest,
+            ruleClass: workflow.class.WorkflowRequest,
+            props: { screen: 'deleted-screen' }
+          }
+        ]
+      }
+    ] as any
+
+    const report = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+    expect(report.hasScreens).toBe(false)
+  })
+
+  it('checks strict attribute type compatibility', () => {
+    const client = createMockTx()
+    const hierarchy = client.getHierarchy()
+
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: 'core:class:TypeString' } as any,
+        { _class: 'core:class:TypeString' } as any
+      )
+    ).toBe(true)
+
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: 'core:class:TypeString' } as any,
+        { _class: 'core:class:TypeNumber' } as any
+      )
+    ).toBe(false)
+
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: core.class.EnumOf, of: 'custom:enum:1' } as any,
+        { _class: core.class.EnumOf, of: 'custom:enum:1' } as any
+      )
+    ).toBe(true)
+
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: core.class.EnumOf, of: 'custom:enum:1' } as any,
+        { _class: core.class.EnumOf, of: 'custom:enum:2' } as any
+      )
+    ).toBe(false)
+
+    // ArrOf compatibility
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: core.class.ArrOf, of: { _class: 'core:class:TypeString' } } as any,
+        { _class: core.class.ArrOf, of: { _class: 'core:class:TypeString' } } as any
+      )
+    ).toBe(true)
+
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: core.class.ArrOf, of: { _class: 'core:class:TypeString' } } as any,
+        { _class: core.class.ArrOf, of: { _class: 'core:class:TypeNumber' } } as any
+      )
+    ).toBe(false)
+
+    // RefTo compatibility
+    expect(
+      isAttributeTypeCompatible(
+        hierarchy,
+        { _class: core.class.RefTo, to: 'core:class:Doc' } as any,
+        { _class: core.class.RefTo, to: 'core:class:Doc' } as any
+      )
+    ).toBe(true)
+
+    // isAttributeTypeResolvable
+    expect(
+      isAttributeTypeResolvable(hierarchy, { _class: core.class.EnumOf, of: 'custom:non-existent:enum' } as any)
+    ).toBe(true)
+    expect(isAttributeTypeResolvable(hierarchy, { _class: core.class.RefTo, to: 'core:class:Doc' } as any)).toBe(true)
+    expect(
+      isAttributeTypeResolvable(hierarchy, { _class: core.class.RefTo, to: 'non:existent:Class' as any } as any)
+    ).toBe(false)
+    expect(isAttributeTypeResolvable(hierarchy, { _class: 'non:existent:Class' } as any)).toBe(false)
+    expect(
+      isAttributeTypeResolvable(hierarchy, { _class: core.class.ArrOf, of: { _class: 'non:existent:Class' } } as any)
+    ).toBe(false)
+  })
+
+  it('matches screens by structure/signature', async () => {
+    const client = createMockTx()
+    const screenId = 'screen-match-1' as any
+    const tabId = 'tab-match-1' as any
+    const existingScreen = {
+      _id: screenId,
+      _class: 'workflow:class:Screen' as any,
+      name: 'Existing Screen',
+      projectType: projectTypeId,
+      targetClass: 'core:class:Doc' as any
+    }
+    const existingTab = {
+      _id: tabId,
+      _class: 'workflow:class:ScreenTab' as any,
+      attachedTo: screenId,
+      name: 'General'
+    }
+    const existingField = {
+      _id: 'field-1' as any,
+      _class: 'workflow:class:ScreenField' as any,
+      attachedTo: tabId,
+      fieldKey: 'assignee',
+      required: true
+    }
+
+    client.findAll = jest.fn().mockImplementation((cls: any) => {
+      if (cls === 'workflow:class:Screen') return Promise.resolve([existingScreen])
+      if (cls === 'workflow:class:ScreenTab') return Promise.resolve([existingTab])
+      if (cls === 'workflow:class:ScreenField') return Promise.resolve([existingField])
+      return Promise.resolve([])
+    })
+
+    const config = await exportWorkflow(client, workflowId, {
+      workspace: ws1,
+      projectTypeId
+    })
+
+    config.screens = [
+      {
+        id: 'screen-cfg-1' as any,
+        name: 'My Screen',
+        targetClass: 'core:class:Doc' as any,
+        tabs: [
+          {
+            name: 'General',
+            fields: [
+              {
+                attribute: 'attr-assignee' as any,
+                fieldKey: 'assignee',
+                required: true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+
+    const report = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+    expect(report.screens).toBeDefined()
+    expect(report.screens?.[0].isExactMatch).toBe(true)
+    expect(report.screens?.[0].matchingScreenId).toBe(screenId)
+    expect(report.screens?.[0].matchingScreenName).toBe('Existing Screen')
+  })
+
+  describe('screen field order', () => {
+    const screenDoc = (id: string, name: string): any => ({
+      _id: id,
+      _class: workflow.class.Screen,
+      name,
+      projectType: projectTypeId,
+      targetClass: 'core:class:Doc'
+    })
+    const tabDoc = (screenId: string): any => ({
+      _id: `${screenId}-tab`,
+      _class: workflow.class.ScreenTab,
+      attachedTo: screenId,
+      name: 'General',
+      rank: '0'
+    })
+    const fieldDoc = (screenId: string, fieldKey: string, rank: string, required = false): any => ({
+      _id: `${screenId}-${fieldKey}`,
+      _class: workflow.class.ScreenField,
+      attachedTo: `${screenId}-tab`,
+      fieldKey,
+      rank,
+      required
+    })
+
+    // Rows come in store order like Postgres without ORDER BY, sorted by rank only on request
+    async function checkScreen (docs: any[], fieldKeys: string[]): Promise<any> {
+      const client = createMockTx()
+      client.findAll = jest.fn().mockImplementation((cls: any, query: any, options: any) => {
+        let res = docs.filter((d) => d._class === cls)
+        if (query?.attachedTo?.$in !== undefined) {
+          res = res.filter((d) => query.attachedTo.$in.includes(d.attachedTo) === true)
+        }
+        if (options?.sort?.rank !== undefined) res = [...res].sort((a, b) => a.rank.localeCompare(b.rank))
+        return Promise.resolve(res)
+      })
+      const config = await exportWorkflow(client, workflowId, { workspace: ws1, projectTypeId })
+      config.screens = [
+        {
+          id: 'screen-cfg' as any,
+          name: 'My Screen',
+          targetClass: 'core:class:Doc' as any,
+          tabs: [
+            {
+              name: 'General',
+              fields: fieldKeys.map((fieldKey) => ({ attribute: `attr-${fieldKey}` as any, fieldKey, required: false }))
+            }
+          ]
+        }
+      ]
+      const report = await checkWorkflowCompatibility(client, config, targetTaskTypeId)
+      return report.screens?.[0]
+    }
+
+    it('matches a screen with the same fields in another order', async () => {
+      const item = await checkScreen(
+        [screenDoc('s1', 'Other'), tabDoc('s1'), fieldDoc('s1', 'b', '1'), fieldDoc('s1', 'a', '2')],
+        ['a', 'b']
+      )
+      expect(item?.isExactMatch).toBe(true)
+      expect(item?.matchingScreenId).toBe('s1')
+    })
+
+    it('prefers a screen with the same field order, read by rank', async () => {
+      // s2 rows are out of rank order: read without a sort it looks reordered and loses to s1
+      const item = await checkScreen(
+        [
+          screenDoc('s1', 'Reordered'),
+          screenDoc('s2', 'Ordered'),
+          tabDoc('s1'),
+          tabDoc('s2'),
+          fieldDoc('s1', 'b', '1'),
+          fieldDoc('s1', 'a', '2'),
+          fieldDoc('s2', 'b', '2'),
+          fieldDoc('s2', 'a', '1')
+        ],
+        ['a', 'b']
+      )
+      expect(item?.matchingScreenId).toBe('s2')
+    })
+
+    it('prefers the same name over the same field order', async () => {
+      const item = await checkScreen(
+        [
+          screenDoc('s1', 'Ordered'),
+          screenDoc('s2', 'My Screen'),
+          tabDoc('s1'),
+          tabDoc('s2'),
+          fieldDoc('s1', 'a', '1'),
+          fieldDoc('s1', 'b', '2'),
+          fieldDoc('s2', 'b', '1'),
+          fieldDoc('s2', 'a', '2')
+        ],
+        ['a', 'b']
+      )
+      expect(item?.matchingScreenId).toBe('s2')
+    })
+
+    it('does not match a screen with another required flag', async () => {
+      const item = await checkScreen(
+        [screenDoc('s1', 'My Screen'), tabDoc('s1'), fieldDoc('s1', 'b', '1', true), fieldDoc('s1', 'a', '2')],
+        ['a', 'b']
+      )
+      expect(item?.isExactMatch).toBe(false)
+      expect(item?.isExisting).toBe(true)
+    })
+  })
+})

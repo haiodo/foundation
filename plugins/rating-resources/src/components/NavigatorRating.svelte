@@ -14,7 +14,8 @@
 -->
 
 <script lang="ts">
-  import { Ref, type Class, type Doc } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import type { Class, Doc } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import { FixedColumn, ObjectPresenter } from '@hcengineering/view-resources'
   import RatingEditor from './RatingEditor.svelte'
@@ -44,7 +45,7 @@
 <div class="ml-2 flex-col">
   {#each objects as doc (doc.doc._id)}
     <div class="flex-presenter p-1 flex flex-between">
-      <FixedColumn key={'reactions_link'}>
+      <FixedColumn key="reactions_link">
         <ObjectPresenter _class={doc.doc._class} objectId={doc.doc._id} value={doc.doc} noUnderline />
       </FixedColumn>
       <RatingEditor _class={doc.doc._class} _id={doc.doc._id} reactions={doc.reactions} showMy={false} />

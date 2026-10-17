@@ -13,21 +13,24 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import activity, { ActivityMessagePreviewType, DocUpdateMessage } from '@hcengineering/activity'
+  import type { ActivityMessagePreviewType, DocUpdateMessage } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
   import { BaseMessagePreview } from '@hcengineering/activity-resources'
   import { getCurrentEmployee } from '@hcengineering/contact'
   import { getClient } from '@hcengineering/presentation'
   import { Icon, Label } from '@hcengineering/ui'
   import { ObjectPresenter } from '@hcengineering/view-resources'
+  import type { MessageNotification } from '@hcengineering/notification'
 
   import request from '../plugin'
 
-  export let message: DocUpdateMessage
+  export let value: MessageNotification<DocUpdateMessage>
   export let type: ActivityMessagePreviewType = 'full'
 
   const me = getCurrentEmployee()
   const client = getClient()
 
+  $: message = value.message
   $: isRemovedMe = message.attributeUpdates?.removed.includes(me) ?? false
   $: isAddedMe = message.attributeUpdates?.added.includes(me) ?? false
 </script>

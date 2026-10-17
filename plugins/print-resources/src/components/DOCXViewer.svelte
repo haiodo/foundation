@@ -5,7 +5,7 @@
 
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { type Blob, type BlobMetadata, type Ref } from '@hcengineering/core'
+  import type { Blob, BlobMetadata, Ref } from '@hcengineering/core'
   import { getMetadata } from '@hcengineering/platform'
   import presentation, { getFileUrl } from '@hcengineering/presentation'
   import { convertToHTML } from '@hcengineering/print'
@@ -37,7 +37,7 @@
     )
   }
 
-  $: src = convertedFile === undefined ? '' : getFileUrl(convertedFile as Ref<Blob>, name)
+  $: src = convertedFile === undefined ? '' : getFileUrl(convertedFile, name)
 
   $: colors = $themeStore.dark
     ? `

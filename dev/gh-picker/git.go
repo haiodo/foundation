@@ -14,6 +14,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -29,8 +30,8 @@ type Commit struct {
 	Partial      bool     // True if only some files/lines are already present in HEAD
 	AppliedRatio string   // e.g. "3/5 files" when Partial
 	MissingFiles []string // files not yet applied to HEAD (set when Partial)
-	HasConflict  bool   // True if cherry-pick would have conflicts
-	Diff         string // Full diff of the commit
+	HasConflict  bool     // True if cherry-pick would have conflicts
+	Diff         string   // Full diff of the commit
 }
 
 // GitExec runs a git command and returns the output
@@ -44,6 +45,10 @@ func GitExecIn(dir string, args ...string) (string, error) {
 	if dir != "" {
 		cmd.Dir = dir
 	}
+	// Without this, read-only commands still try to refresh the index and race
+	// each other on index.lock when the content check runs in parallel, which
+	// silently turns into "no diff" and a false "already applied".
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -186,14 +191,16 @@ func checkFileApplied(hash, file string) fileState {
 	if strings.Contains(patch, "Binary files") || strings.Contains(patch, "GIT binary patch") {
 		return fileSkip
 	}
-	// Try forward apply: if it still applies cleanly, file is NOT yet applied.
-	if runApplyCheck(patch, false) {
-		return fileMissing
-	}
-	// Try reverse apply: if the patch reverses cleanly, the end-state is
-	// already in HEAD — treat as applied.
+	// Reverse first: if the patch reverses cleanly, the end-state is already in
+	// HEAD -> applied. Must precede the forward check because pure insertions
+	// often forward-apply cleanly too (the anchor context still exists), which
+	// would falsely report missing.
 	if runApplyCheck(patch, true) {
 		return fileApplied
+	}
+	// Forward applies cleanly and reverse did not -> not yet applied.
+	if runApplyCheck(patch, false) {
+		return fileMissing
 	}
 	// Fallback: inspect added/removed lines vs HEAD content of file.
 	headContent, err := GitExec("show", "HEAD:"+file)
@@ -234,7 +241,7 @@ func checkFileApplied(hash, file string) fileState {
 		}
 	}
 	_ = removedHit
-	// Otherwise: genuinely absent or conflicting
+	// Otherwise: absent or conflicting.
 	if addedHit > 0 {
 		return fileConflict
 	}
@@ -270,6 +277,7 @@ func runApplyCheck(patch string, reverse bool) bool {
 	cmd := exec.Command("git", args...)
 	cmd.Stdin = strings.NewReader(patch)
 	var stderr bytes.Buffer
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	cmd.Stderr = &stderr
 	return cmd.Run() == nil
 }
@@ -363,6 +371,77 @@ func CherryPickPathsIn(dir, hash string, paths []string) error {
 	return nil
 }
 
+// GetFileDiffVsUpstream returns combined diff of file between upstream and HEAD.
+func GetFileDiffVsUpstream(upstream, file string) (string, error) {
+	out, err := GitExec("diff", "--color=never", upstream+"...HEAD", "--", ":/"+file)
+	if err != nil {
+		return "", err
+	}
+	return clampDiff(out), nil
+}
+
+// GetChangedFilesVsUpstream returns all files differing between HEAD and upstream.
+func GetChangedFilesVsUpstream(upstream string) ([]string, error) {
+	out, err := GitExec("diff", "--name-only", upstream+"...HEAD")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}
+
+// ApplyFileFullDiff generates cumulative diff (upstream..HEAD) of one file and
+// applies it to working tree of dir without commit/stage.
+func ApplyFileFullDiff(dir, upstream, file string) error {
+	patch, err := GitExec("diff", "--binary", "--color=never", upstream+"...HEAD", "--", ":/"+file)
+	if err != nil {
+		return fmt.Errorf("get patch: %w", err)
+	}
+	if strings.TrimSpace(patch) == "" {
+		return fmt.Errorf("no changes for %s vs %s", file, upstream)
+	}
+	cmd := exec.Command("git", "apply", "--3way")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdin = strings.NewReader(patch)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git apply: %v (stderr: %s)", err, stderr.String())
+	}
+	return nil
+}
+
+// ApplyFilePatch generates patch for single file from commit and applies it
+// to working tree of dir (no index update, no commit).
+func ApplyFilePatch(dir, hash, file string) error {
+	patch, err := GitExec("diff", "--binary", "--color=never", hash+"^.."+hash, "--", ":/"+file)
+	if err != nil {
+		return fmt.Errorf("get patch: %w", err)
+	}
+	if strings.TrimSpace(patch) == "" {
+		return fmt.Errorf("empty patch for %s in %s", file, hash[:8])
+	}
+	cmd := exec.Command("git", "apply", "--3way")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdin = strings.NewReader(patch)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git apply: %v (stderr: %s)", err, stderr.String())
+	}
+	return nil
+}
+
 // AbortCherryPick aborts current cherry-pick
 func AbortCherryPick() error {
 	_, err := GitExec("cherry-pick", "--abort")
@@ -387,7 +466,7 @@ func GetCommitDiff(hash string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return out, nil
+	return clampDiff(out), nil
 }
 
 // GetCommitDiffForFiles returns diff for commit limited to given files
@@ -396,12 +475,14 @@ func GetCommitDiffForFiles(hash string, files []string) (string, error) {
 		return "", nil
 	}
 	args := []string{"show", hash, "--stat", "-p", "--color=never", "--"}
-	args = append(args, files...)
+	for _, f := range files {
+		args = append(args, ":/"+f)
+	}
 	out, err := GitExec(args...)
 	if err != nil {
 		return "", err
 	}
-	return out, nil
+	return clampDiff(out), nil
 }
 
 // GetCommitDiffInFolder returns diff for commit limited to paths under folder
@@ -410,11 +491,22 @@ func GetCommitDiffInFolder(hash, folder string) (string, error) {
 	if !strings.HasSuffix(pathspec, "/") {
 		pathspec += "/"
 	}
-	out, err := GitExec("show", hash, "--stat", "-p", "--color=never", "--", pathspec)
+	out, err := GitExec("show", hash, "--stat", "-p", "--color=never", "--", ":/"+pathspec)
 	if err != nil {
 		return "", err
 	}
-	return out, nil
+	return clampDiff(out), nil
+}
+
+// clampDiff truncates very large diffs to keep TUI responsive.
+const diffMaxBytes = 200_000
+
+func clampDiff(s string) string {
+	if len(s) <= diffMaxBytes {
+		return s
+	}
+	return s[:diffMaxBytes] + "\n\n[... diff truncated, " +
+		fmt.Sprintf("%d bytes total", len(s)) + "]\n"
 }
 
 // GetCommitFilesInFolder returns files changed in commit that live under folder

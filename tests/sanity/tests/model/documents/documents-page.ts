@@ -3,6 +3,7 @@ import { NewDocument, NewTeamspace } from './types'
 import { CommonPage } from '../common-page'
 import { DocumentCreatePopup } from './document-create-popup'
 import { DocumentMovePopup } from './document-move-popup'
+import { retry, retryIntervals } from '../../retry'
 
 export class DocumentsPage extends CommonPage {
   readonly page: Page
@@ -110,10 +111,17 @@ export class DocumentsPage extends CommonPage {
   }
 
   async moreActionTeamspace (name: string, action: string): Promise<void> {
-    await this.page.locator('button.hulyNavGroup-header span[class*="label"]', { hasText: name }).hover()
-    await this.page
-      .locator(`xpath=//span[text()="${name}"]/../../div[@class="hulyNavGroup-header__tools"]/button[last()]`)
-      .click()
+    const header = this.page.locator('button.hulyNavGroup-header span[class*="label"]', { hasText: name })
+    const tools = this.page.locator(
+      `xpath=//span[text()="${name}"]/../../div[@class="hulyNavGroup-header__tools"]/button[last()]`
+    )
+    // The tools button only exists while the group is hovered, so a re-render of the navigator
+    // hides it again and a plain click waits out the whole timeout. Re-hover on every attempt.
+    await expect(async () => {
+      // Bounded like the click: an unbounded hover on a reflowing list eats the whole retry budget.
+      await header.hover({ timeout: 5000 })
+      await tools.click({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
     await this.selectFromDropdown(this.page, action)
   }
 
@@ -132,16 +140,43 @@ export class DocumentsPage extends CommonPage {
   }
 
   async clickAddDocumentIntoDocument (documentTitle: string): Promise<void> {
-    await this.buttonDocumentWrapper(documentTitle).hover()
-    await this.buttonAddDocumentToDocument(documentTitle).click()
+    // The button only shows on hover; the navigator re-renders as documents arrive, shifting the
+    // row under the sticky header and losing hover - retry, don't hover just once.
+    await expect(async () => {
+      await this.buttonDocumentWrapper(documentTitle).hover()
+      await this.buttonAddDocumentToDocument(documentTitle).click({ timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
+  // The row is still moving between teamspaces right after a Move, so a click can land on one the
+  // navigator is about to drop and open nothing. Retry until the panel really carries the document.
   async openDocumentForTeamspace (spaceName: string, documentName: string): Promise<void> {
-    await this.page
+    const row = this.page
       .locator('button.hulyNavGroup-header span[class*="label"]', { hasText: spaceName })
       .locator('xpath=../../following-sibling::div[1]')
       .locator('button.hulyNavItem-container span[class*="label"]', { hasText: documentName })
-      .click()
+    const title = this.page.locator('div[class*="main-content"] div.title input')
+    try {
+      await retry(async () => {
+        await row.click({ timeout: 5000 })
+        await expect(title).toHaveValue(documentName, { timeout: 5000 })
+      })
+    } catch {
+      // "element(s) not found" on the title says nothing about which half broke: the row may be
+      // missing from the tree after a move, or clicked but never opened a document panel.
+      const rows = await row.count()
+      const titles = await title.count()
+      const shown =
+        titles > 0
+          ? await title
+            .first()
+            .inputValue()
+            .catch(() => '<unreadable>')
+          : '<no title input>'
+      throw new Error(
+        `could not open "${documentName}" under "${spaceName}": tree rows ${rows}, title inputs ${titles}, title reads "${shown}"`
+      )
+    }
   }
 
   async editTeamspace (data: NewTeamspace): Promise<void> {

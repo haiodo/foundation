@@ -18,22 +18,23 @@
   import { Analytics } from '@hcengineering/analytics'
   import { AttachmentStyledBox } from '@hcengineering/attachment-resources'
   import { ActionContext, createMarkup, createQuery, getClient } from '@hcengineering/presentation'
-  import core, { Data, Ref, getCurrentAccount, generateId, makeCollabId, WithLookup } from '@hcengineering/core'
-  import testManagement, {
+  import type { Data, Ref, WithLookup } from '@hcengineering/core'
+  import core, { getCurrentAccount, generateId, makeCollabId } from '@hcengineering/core'
+  import type {
     TestProject,
     TestRun,
     TestCase,
     TestResult,
-    TestRunStatus,
-    TestManagementEvents,
     TestPlan,
     TestPlanItem
   } from '@hcengineering/test-management'
+  import testManagement, { TestRunStatus, TestManagementEvents } from '@hcengineering/test-management'
   import { Panel } from '@hcengineering/panel'
-  import { EditBox, ModernButton, Label, navigate } from '@hcengineering/ui'
+  import { EditBox, Label, navigate } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { EmptyMarkup, isEmptyMarkup } from '@hcengineering/text'
   import { IntlString } from '@hcengineering/platform'
-  import { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
 
   import { selectedTestCases, selectedTestPlan, resetStore } from './store/testRunStore'
   import NewTestRunAside from './NewTestRunAside.svelte'
@@ -74,7 +75,7 @@
   const me = getCurrentAccount()
 
   const object: Data<TestRun> = {
-    name: '' as IntlString,
+    name: '',
     description: null,
     dueDate: undefined
   }
@@ -152,7 +153,7 @@
     isHeader={false}
     isAside={true}
     isSub={false}
-    adaptive={'disabled'}
+    adaptive="disabled"
     withoutActivity={true}
     on:open
     on:close={() => dispatch('close')}
@@ -163,7 +164,7 @@
     <EditBox
       bind:value={object.name}
       placeholder={testManagement.string.TestRunNamePlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
     />
 
@@ -194,10 +195,10 @@
       <div id="test-cases-selector">
         <TestCaseSelector bind:objects={testCases} />
       </div>
-      <ModernButton
+      <Button
         label={testManagement.string.Save}
         size="medium"
-        kind={'primary'}
+        kind="primary"
         disabled={object?.name.trim().length === 0 || testCases?.length === 0}
         on:click={onSave}
       />

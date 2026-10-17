@@ -28,6 +28,9 @@ import { makeRank } from '@hcengineering/rank'
 import { type StorageAdapter } from '@hcengineering/storage'
 import { type ModelLogger } from './utils'
 
+// Most migrations are a no-op on an already-current workspace; only the slow ones earn a line.
+const SLOW_MIGRATION_MS = 250
+
 /**
  * @public
  */
@@ -127,14 +130,18 @@ export interface MigrationClient {
 /**
  * @public
  */
-export type MigrationUpgradeClient = Client
+export interface MigrationUpgradeClient extends Client {
+  // Optional cache of known Spaces, attached during `updateModel` so
+  // create-time helpers (e.g. createDefaultSpace) skip per-space findOne.
+  spaceCache?: Map<Ref<Space>, Space>
+}
 export type MigrateMode = 'create' | 'upgrade'
 
 /**
  * @public
  */
 export interface MigrateOperation {
-  // Perform low level migration prior to the model update
+  // Perform low level migration before updating the model
   preMigrate?: (client: MigrationClient, logger: ModelLogger, mode: MigrateMode) => Promise<void>
   // Perform low level migration
   migrate: (client: MigrationClient, mode: MigrateMode) => Promise<void>
@@ -142,7 +149,8 @@ export interface MigrateOperation {
   upgrade: (
     state: Map<string, Set<string>>,
     client: () => Promise<MigrationUpgradeClient>,
-    mode: MigrateMode
+    mode: MigrateMode,
+    context?: { language?: string }
   ) => Promise<void>
 }
 
@@ -176,15 +184,21 @@ export async function tryMigrate (
   const states = client.migrateState.get(plugin) ?? new Set()
   for (const migration of migrations) {
     if (states.has(migration.state)) continue
-    if (migration.mode == null || migration.mode === mode) {
-      try {
-        client.logger.log('running migration', { plugin, state: migration.state })
-        await migration.func(client, mode)
-      } catch (err: any) {
-        client.logger.error('Failed to run migration', { plugin, state: migration.state, err })
-        Analytics.handleError(err)
-        continue
+    // Mode mismatch: skip without persisting state, otherwise it'd never re-run.
+    if (migration.mode != null && migration.mode !== mode) {
+      continue
+    }
+    try {
+      const started = Date.now()
+      await migration.func(client, mode)
+      const elapsed = Date.now() - started
+      if (elapsed > SLOW_MIGRATION_MS) {
+        client.logger.log('migration done', { plugin, state: migration.state, time: elapsed })
       }
+    } catch (err: any) {
+      client.logger.error('Failed to run migration', { plugin, state: migration.state, err })
+      Analytics.handleError(err)
+      continue
     }
     const st: MigrationState = {
       plugin,
@@ -212,15 +226,16 @@ export async function tryUpgrade (
   const states = state.get(plugin) ?? new Set()
   for (const upgrades of migrations) {
     if (states.has(upgrades.state)) continue
+    if (upgrades.mode != null && upgrades.mode !== mode) {
+      continue
+    }
     const _client = await client()
-    if (upgrades.mode == null || upgrades.mode === mode) {
-      try {
-        await upgrades.func(_client, mode)
-      } catch (err: any) {
-        console.error(err)
-        Analytics.handleError(err)
-        continue
-      }
+    try {
+      await upgrades.func(_client, mode)
+    } catch (err: any) {
+      console.error(err)
+      Analytics.handleError(err)
+      continue
     }
     const st: Data<MigrationState> = {
       plugin,
@@ -254,15 +269,35 @@ export async function createDefaultSpace<T extends Space> (
     ...props
   }
   const tx = new TxOperations(client, core.account.System)
-  const current = await tx.findOne(core.class.Space, {
-    _id
-  })
-  if (current === undefined || current._class !== _class) {
+  const cache = client.spaceCache
+  const current = cache !== undefined ? cache.get(_id) : await tx.findOne(core.class.Space, { _id })
+  if (current?._class !== _class) {
     if (current !== undefined && current._class !== _class) {
       await tx.remove(current)
+      cache?.delete(_id)
     }
     await tx.createDoc(_class, core.space.Space, data, _id)
   }
+}
+
+export async function prefetchSpaces (client: Pick<MigrationUpgradeClient, 'findAll'>): Promise<Map<Ref<Space>, Space>> {
+  const all = await client.findAll<Space>(core.class.Space, {})
+  return new Map(all.map((s) => [s._id, s]))
+}
+
+// Cached Space lookup. Passing `_class` mirrors the old `tx.findOne(<subclass>, ...)`
+// semantics: a same-id document of a different class is treated as missing so
+// callers can recreate it with the expected concrete type.
+export async function findCachedSpace<T extends Space> (
+  client: MigrationUpgradeClient,
+  _id: Ref<T>,
+  _class?: Ref<Class<T>>
+): Promise<T | undefined> {
+  const cached = client.spaceCache?.get(_id)
+  const found = cached ?? (await client.findOne(core.class.Space, { _id }))
+  if (found === undefined) return undefined
+  if (_class !== undefined && found._class !== _class) return undefined
+  return found as T
 }
 
 /**

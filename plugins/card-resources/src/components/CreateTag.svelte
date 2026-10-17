@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { CardEvents, MasterTag, Tag } from '@hcengineering/card'
-  import core, { Class, ClassifierKind, Data, Ref } from '@hcengineering/core'
+  import type { MasterTag, Tag } from '@hcengineering/card'
+  import { CardEvents } from '@hcengineering/card'
+  import type { Class, Data, Ref } from '@hcengineering/core'
+  import core, { ClassifierKind } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import { EditBox, getColorNumberByText, Icon, Label } from '@hcengineering/ui'
@@ -58,7 +60,7 @@
 >
   <svelte:fragment slot="header">
     <div class="flex-row-center">
-      <Icon icon={isMasterTag ? card.icon.MasterTag : card.icon.Tag} size={'large'} />
+      <Icon icon={isMasterTag ? card.icon.MasterTag : card.icon.Tag} size="large" />
       <div class="ml-2">
         <Label label={parent?.label ?? (isMasterTag ? card.string.MasterTag : card.string.Tag)} />
       </div>

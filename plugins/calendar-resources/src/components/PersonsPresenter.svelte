@@ -14,7 +14,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getName, Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import { getName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
   import { getClient } from '@hcengineering/presentation'
   import { tooltip } from '@hcengineering/ui'
@@ -28,7 +29,7 @@
   $: persons = Array.isArray(value) ? value : [value]
 
   async function onClick (p: Person) {
-    openDoc(getClient().getHierarchy(), p)
+    void openDoc(getClient().getHierarchy(), p)
   }
   const client = getClient()
 </script>
@@ -45,7 +46,7 @@
         on:click={() => onClick(p)}
       >
         <div class="icon">
-          <Avatar size={'x-small'} person={p} name={p.name} />
+          <Avatar size="x-small" person={p} name={p.name} />
         </div>
       </div>
     {/each}

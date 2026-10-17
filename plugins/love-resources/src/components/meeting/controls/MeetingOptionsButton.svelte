@@ -1,14 +1,17 @@
 <script lang="ts">
-  import { ButtonMenu, DropdownIntlItem, IconMoreV } from '@hcengineering/ui'
-  import { Action } from '@hcengineering/view'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { IconMoreV } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
+  import type { Action } from '@hcengineering/view'
   import { getResource } from '@hcengineering/platform'
   import { lkSessionConnected } from '../../../liveKitClient'
   import { getActions } from '@hcengineering/view-resources'
   import love from '../../../plugin'
-  import { Room } from '@hcengineering/love'
+  import type { MeetingMinutes, Room } from '@hcengineering/love'
   import { getClient } from '@hcengineering/presentation'
 
   export let room: Room
+  export let meetingMinutes: MeetingMinutes | undefined = undefined
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
   export let size: 'large' | 'medium' | 'small' | 'extra-small' | 'min' = 'large'
 
@@ -17,9 +20,16 @@
 
   const client = getClient()
 
-  $: void getActions(client, room, love.class.Room).then((res) => {
-    actions = res
-  })
+  $: void loadActions(room, meetingMinutes)
+
+  async function loadActions (_room: Room, _mm: MeetingMinutes | undefined): Promise<void> {
+    const roomActions = await getActions(client, room, love.class.Room)
+    let mmActions: Action[] = []
+    if (meetingMinutes !== undefined) {
+      mmActions = await getActions(client, meetingMinutes, love.class.MeetingMinutes)
+    }
+    actions = [...roomActions, ...mmActions]
+  }
 
   $: moreItems = actions.map((action) => ({
     id: action._id,
@@ -36,12 +46,17 @@
 
   async function handleAction (action: Action): Promise<void> {
     const fn = await getResource(action.action)
-    await fn(room)
+    // Pass the appropriate object based on action target
+    if (action.target === love.class.MeetingMinutes && meetingMinutes !== undefined) {
+      await fn(meetingMinutes)
+    } else {
+      await fn(room)
+    }
   }
 </script>
 
 {#if $lkSessionConnected && moreItems.length > 0}
-  <ButtonMenu
+  <MenuButton
     items={moreItems}
     icon={IconMoreV}
     tooltip={{ label: love.string.MoreOptions, direction: 'top' }}

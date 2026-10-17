@@ -15,13 +15,11 @@
 
 <script lang="ts">
   import { createEventDispatcher, onDestroy } from 'svelte'
-  import {
-    AnyComponent,
-    AnySvelteComponent,
+  import type { AnyComponent, AnySvelteComponent } from '@hcengineering/ui'
+  import ui, {
     Component,
     IconMenuOpen,
     IconMenuClose,
-    ButtonIcon,
     Header,
     Separator,
     getLocation,
@@ -31,7 +29,9 @@
     twoPanelsSeparators,
     resizeObserver
   } from '@hcengineering/ui'
-  import { Class, Doc, DocumentQuery, Ref, Space, mergeQueries } from '@hcengineering/core'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { Class, Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
+  import { mergeQueries } from '@hcengineering/core'
   import ClassHeader from './ClassHeader.svelte'
 
   export let space: Ref<Space> | undefined = undefined
@@ -124,7 +124,7 @@
       class:fly={$deviceInfo.navigator.float}
     >
       <div class="hulyComponent-content__column">
-        <Header adaptive={'disabled'}>
+        <Header adaptive="disabled">
           <ClassHeader _class={parentClass} />
           <svelte:fragment slot="actions">
             {#if createMasterComponent}
@@ -143,23 +143,24 @@
       </div>
       {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
         <Separator
-          name={'parentsNavigator'}
+          name="parentsNavigator"
           float={floatNavigator ? 'navigator' : true}
           index={0}
-          color={'var(--theme-divider-color)'}
+          color="var(--theme-divider-color)"
         />
       {/if}
     </div>
-    <Separator name={'parentsNavigator'} float={floatNavigator} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="parentsNavigator" float={floatNavigator} index={0} color="var(--theme-divider-color)" />
   {/if}
   <div class="hulyComponent-content__column">
-    <Header adaptive={'disabled'}>
+    <Header adaptive="disabled">
       <svelte:fragment slot="beforeTitle">
-        <ButtonIcon
+        <IconButton
           icon={visibleNavigator ? IconMenuClose : IconMenuOpen}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           pressed={!visibleNavigator}
+          tooltip={{ label: visibleNavigator ? ui.string.HideNavigator : ui.string.ShowNavigator }}
           on:click={toggleNavigator}
         />
       </svelte:fragment>

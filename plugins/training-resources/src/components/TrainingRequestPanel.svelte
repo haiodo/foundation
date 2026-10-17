@@ -16,7 +16,7 @@
 -->
 
 <script lang="ts">
-  import { Class, Ref } from '@hcengineering/core'
+  import type { Class, Ref } from '@hcengineering/core'
   import { Panel } from '@hcengineering/panel'
   import { ActionContext, createQuery } from '@hcengineering/presentation'
   import { Button, IconMoreH, type IModeSelector, navigate, rawLocation } from '@hcengineering/ui'
@@ -200,7 +200,7 @@
     on:close
     withoutActivity
     contentClasses="h-full"
-    adaptive={'default'}
+    adaptive="default"
   >
     <svelte:fragment slot="title">
       {#if isOwner}
@@ -234,7 +234,7 @@
       </div>
     </svelte:fragment>
     <svelte:fragment slot="post-utils">
-      <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind={'icon'} on:click={showContextMenu} />
+      <Button icon={IconMoreH} iconProps={{ size: 'medium' }} kind="icon" on:click={showContextMenu} />
     </svelte:fragment>
     <svelte:fragment slot="aside">
       <TrainingAttributes object={trainingObject} showHeader />

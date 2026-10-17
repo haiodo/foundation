@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref } from '@hcengineering/core'
-  import { Process, Transition } from '@hcengineering/process'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import type { Process, Transition } from '@hcengineering/process'
   import { Button, getCurrentLocation, IconAdd, Label, navigate, showPopup } from '@hcengineering/ui'
   import plugin from '../../plugin'
   import AddTransitionPopup from './AddTransitionPopup.svelte'
@@ -51,9 +51,9 @@
     <svelte:fragment slot="object" let:value>
       {@const transition = toTransition(value)}
       <Button
-        width={'100%'}
-        kind={'ghost'}
-        justify={'left'}
+        width="100%"
+        kind="ghost"
+        justify="left"
         on:click={() => {
           handleSelect(transition._id)
         }}
@@ -68,7 +68,7 @@
     </svelte:fragment>
   </SortableDocList>
   {#if !readonly}
-    <Button kind={'ghost'} width={'100%'} icon={IconAdd} label={plugin.string.AddTransition} on:click={addTransition} />
+    <Button kind="ghost" width="100%" icon={IconAdd} label={plugin.string.AddTransition} on:click={addTransition} />
   {/if}
 </div>
 

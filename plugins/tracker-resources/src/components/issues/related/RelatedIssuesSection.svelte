@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Doc, DocumentQuery } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Doc, DocumentQuery } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { pluginConfigurationStore } from '@hcengineering/presentation'
-  import tracker, { Issue, trackerId } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
+  import tracker, { trackerId } from '@hcengineering/tracker'
   import { Icon, Label } from '@hcengineering/ui'
   import QueryIssuesList from '../edit/QueryIssuesList.svelte'
 
@@ -18,7 +19,7 @@
     <svelte:fragment slot="header">
       <div class="flex-row-center">
         <div class="antiSection-header__icon">
-          <Icon icon={tracker.icon.Issue} size={'small'} />
+          <Icon icon={tracker.icon.Issue} size="small" />
         </div>
         <span class="antiSection-header__title short">
           <Label {label} />

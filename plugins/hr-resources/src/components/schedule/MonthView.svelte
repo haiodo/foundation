@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Employee } from '@hcengineering/contact'
-  import { AccountRole, getCurrentAccount, Ref } from '@hcengineering/core'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
+  import { AccountRole, getCurrentAccount } from '@hcengineering/core'
   import { tzDateCompare, type Department, type Request, type RequestType, type Staff } from '@hcengineering/hr'
-  import { isAdminUser } from '@hcengineering/presentation'
+  import type { LabelAndProps } from '@hcengineering/ui'
   import {
     areDatesEqual,
     daysInMonth,
@@ -26,7 +28,6 @@
     getWeekDayName,
     isWeekend,
     Label,
-    LabelAndProps,
     resizeObserver,
     Scroller,
     showPopup,
@@ -184,7 +185,7 @@
   }
 
   function isEditable (employee: Staff): boolean {
-    return editableList.includes(employee._id) && (isFutureDate() || me.role === AccountRole.Owner || isAdminUser())
+    return editableList.includes(employee._id) && (isFutureDate() || me.role === AccountRole.Owner)
   }
 
   function getTooltip (requests: Request[], day: Date, staff: Staff): LabelAndProps | undefined {
@@ -313,7 +314,7 @@
                 class="timeline-cell timeline-day-header flex-col-center justify-center"
                 style={getCellStyle()}
                 on:click={() => {
-                  if (isFutureDate() || me.role === AccountRole.Owner || isAdminUser()) {
+                  if (isFutureDate() || me.role === AccountRole.Owner) {
                     setPublicHoliday(day)
                   }
                 }}

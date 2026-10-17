@@ -14,12 +14,17 @@
 -->
 <script lang="ts">
   import { ActivityExtension as ActivityExtensionComponent } from '@hcengineering/activity-resources'
-  import { Class, Doc, Ref } from '@hcengineering/core'
-  import activity, { ActivityExtension } from '@hcengineering/activity'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import type { ActivityExtension } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
   import { getClient } from '@hcengineering/presentation'
-  import { AnySvelteComponent, Icon, Label, languageStore } from '@hcengineering/ui'
-  import { Asset, getResource, IntlString } from '@hcengineering/platform'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { Icon, Label, languageStore } from '@hcengineering/ui'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import view from '@hcengineering/view'
+  import { isLimited } from '@hcengineering/billing-resources'
+  import billing from '@hcengineering/billing'
 
   import { getChannelName, getObjectIcon } from '../utils'
   import chunter from '../plugin'
@@ -27,6 +32,11 @@
 
   export let object: Doc
   export let readonly = false
+
+  $: isDirect = object?._class === chunter.class.DirectMessage
+  // read-only from billing: only for non-Direct channels
+  $: billingReadOnly = !isDirect && $isLimited
+  $: effectiveReadonly = readonly || billingReadOnly
   export let boundary: HTMLElement | undefined | null = undefined
   export let collection: string | undefined
   export let isThread = false
@@ -86,7 +96,7 @@
   }
 </script>
 
-{#if !readonly}
+{#if !effectiveReadonly}
   <div class="ref-input flex-col">
     <ActivityExtensionComponent
       kind="input"
@@ -96,7 +106,9 @@
   </div>
 {:else}
   <div class="message">
-    {#if isThread}
+    {#if billingReadOnly}
+      <Label label={billing.string.SeatLimitReadonly} />
+    {:else if isThread}
       <Label label={chunter.string.ViewingThreadFromArchivedChannel} />
     {:else}
       <Label label={chunter.string.ViewingArchivedChannel} />

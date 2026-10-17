@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -35,6 +36,7 @@ import { plugin } from '@hcengineering/platform'
 import type { AnyComponent, ComponentExtensionId } from '@hcengineering/ui'
 import { Action, IconProps, ViewletDescriptor } from '@hcengineering/view'
 
+export * from './transfer'
 export * from './utils'
 export type { Rank } from '@hcengineering/rank'
 
@@ -59,6 +61,7 @@ export interface Task extends AttachedDoc {
   dueDate: Timestamp | null
   comments?: number
   attachments?: number
+  collaborators?: number
   labels?: number
   identifier: string
   rank: Rank
@@ -80,11 +83,6 @@ export interface ProjectStatus extends IconProps {
 /**
  * @public
  */
-export type TaskTypeKind = 'task' | 'subtask' | 'both'
-
-/**
- * @public
- */
 export interface TaskTypeDescriptor extends Doc {
   name: IntlString
   description: IntlString
@@ -94,6 +92,7 @@ export interface TaskTypeDescriptor extends Doc {
   // If specified, will allow to be created by users, system type overwise
   allowCreate: boolean
   statusCategoriesFunc?: Resource<(project: ProjectType) => Ref<StatusCategory>[]>
+  defaultStatusesFunc?: Resource<(project: ProjectType) => Ref<Status>[]>
 
   openTasks?: Resource<(value: TaskType) => Promise<void>>
 }
@@ -114,10 +113,17 @@ export interface TaskType extends Doc, IconProps {
   descriptor: Ref<TaskTypeDescriptor>
 
   name: string
+  // Specify if task can be used as root (e.g. without parents).
+  isRootTaskType?: boolean
 
-  kind: TaskTypeKind
-  // Specify if task is allowed to be used as subtask of following tasks.
+  // Specify if task is allowed to be a subtask of any task type in the project.
+  allowAnyParent?: boolean
+
+  // Specify which task types this task is allowed to be used as subtask of.
   allowedAsChildOf?: Ref<TaskType>[]
+
+  // Show parent tasks block in task editor
+  showParentTasks?: boolean
 
   ofClass: Ref<Class<Task>> // Base class for task
   targetClass: Ref<Class<Task>> // Class or Mixin mixin to hold all user defined attributes.
@@ -174,6 +180,7 @@ export interface ProjectType extends SpaceType {
 export interface ProjectTypeDescriptor extends SpaceTypeDescriptor {
   allowedClassic?: boolean
   allowedTaskTypeDescriptors?: Ref<TaskTypeDescriptor>[] // if undefined we allow all possible
+  defaultTaskType?: { descriptor: Ref<TaskTypeDescriptor>, name: string }
   baseClass: Ref<Class<Project>>
   editor?: AnyComponent
 }
@@ -236,7 +243,8 @@ const task = plugin(taskId, {
     ProjectTypes: '' as IntlString,
     TaskType: '' as IntlString,
     ProjectType: '' as IntlString,
-    Identifier: '' as IntlString
+    Identifier: '' as IntlString,
+    TaskTypesDiagram: '' as IntlString
   },
   class: {
     ProjectTypeDescriptor: '' as Ref<Class<ProjectTypeDescriptor>>,
@@ -258,7 +266,10 @@ const task = plugin(taskId, {
     TodoUnCheck: '' as Asset,
     ManageTemplates: '' as Asset,
     TaskState: '' as Asset,
-    Dashboard: '' as Asset
+    Dashboard: '' as Asset,
+    TypeHierarchy: '' as Asset,
+    Export: '' as Asset,
+    Import: '' as Asset
   },
   global: {
     // Global task root, if not attached to some other object.

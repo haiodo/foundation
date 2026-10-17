@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -28,7 +29,8 @@ import {
   TxCUD,
   Blob,
   Markup,
-  Client
+  Client,
+  BlobType
 } from '@hcengineering/core'
 import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
@@ -40,10 +42,6 @@ import type { Action } from '@hcengineering/view'
  * @public
  */
 export interface ActivityMessage extends AttachedDoc {
-  attachedToTitle?: string
-  attachedToIdentifier?: string
-  attachedToUrl?: string
-
   modifiedBy: PersonId
   modifiedOn: Timestamp
 
@@ -56,6 +54,28 @@ export interface ActivityMessage extends AttachedDoc {
   replies?: number
   reactions?: number
   editedOn?: Timestamp
+
+  forwardedMessage?: Ref<ActivityMessage>
+  forwardContent?: ForwardContent
+  forwardFromId?: Ref<Doc>
+  forwardFromClass?: Ref<Class<Doc>>
+}
+
+export type ActivityMessageLite<T extends ActivityMessage = ActivityMessage> = Omit<
+  T,
+  'isPinned' | 'repliedPersons' | 'lastReply' | 'reactions' | 'editedOn'
+>
+
+export interface ForwardedAttachment extends BlobType {
+  originId: Ref<Doc>
+  createdOn: Timestamp
+}
+
+export interface ForwardContent {
+  author: PersonId
+  createdOn: Timestamp
+  message: Markup
+  attachments: ForwardedAttachment[]
 }
 
 /**
@@ -88,6 +108,12 @@ export interface ActivityInfoMessage extends ActivityMessage {
 
   // A possible set of links to some platform resources.
   links?: { _class: Ref<Class<Doc>>, _id: Ref<Doc> }[]
+  markup?: Markup
+}
+
+export interface ActivityInfoMessageViewlet extends Doc {
+  match: DocumentQuery<ActivityInfoMessage>
+  presenter: AnyComponent
 }
 
 export interface DocUpdateMessageHistory {
@@ -119,6 +145,10 @@ export interface DocUpdateMessage extends ActivityMessage {
   attributeUpdates?: DocAttributeUpdates
 
   history: DocUpdateMessageHistory[]
+
+  messageIntl?: IntlString
+  intlParams?: Record<string, string | number>
+  intlParamsNotLocalized?: Record<string, IntlString>
 }
 
 export interface ActivityReference extends ActivityMessage {
@@ -153,12 +183,12 @@ export interface DocAttributeUpdates {
 export type DocUpdateAction = 'create' | 'update' | 'remove'
 
 export type DocUpdateMessageViewletAttributesConfig = Record<
-string,
-{
-  presenter?: AnyComponent
-  icon?: Asset
-  iconPresenter?: AnyComponent
-}
+  string,
+  {
+    presenter?: AnyComponent
+    icon?: Asset
+    iconPresenter?: AnyComponent
+  }
 >
 
 /**
@@ -264,7 +294,7 @@ export type WithReferences<T extends Doc> = T & {
 /**
  * @public
  */
-export interface IgnoreActivity extends Class<Doc> {}
+export type IgnoreActivity = Class<Doc>
 
 export type ActivityMessagePreviewType = 'full' | 'content-only'
 export type ActivityMessageViewType = 'default' | 'short'
@@ -280,6 +310,7 @@ export default plugin(activityId, {
     DocUpdateMessage: '' as Ref<Class<DocUpdateMessage>>,
     ActivityMessage: '' as Ref<Class<ActivityMessage>>,
     ActivityInfoMessage: '' as Ref<Class<ActivityInfoMessage>>,
+    ActivityInfoMessageViewlet: '' as Ref<Class<ActivityInfoMessageViewlet>>,
     ActivityMessageControl: '' as Ref<Class<ActivityMessageControl>>,
     DocUpdateMessageViewlet: '' as Ref<Class<DocUpdateMessageViewlet>>,
     ActivityMessagesFilter: '' as Ref<Class<ActivityMessagesFilter>>,
@@ -294,7 +325,9 @@ export default plugin(activityId, {
     Activity: '' as Asset,
     Emoji: '' as Asset,
     Bookmark: '' as Asset,
-    BookmarkFilled: '' as Asset
+    BookmarkFilled: '' as Asset,
+    Forward: '' as Asset,
+    ReplyTo: '' as Asset
   },
   string: {
     Activity: '' as IntlString,
@@ -339,10 +372,20 @@ export default plugin(activityId, {
     NewObjectType: '' as IntlString,
     RemovedObjectType: '' as IntlString,
     AttributeSetTo: '' as IntlString,
+    AddedToCollection: '' as IntlString,
+    RemovedFromCollection: '' as IntlString,
     AddedTag: '' as IntlString,
     RemovedTag: '' as IntlString,
     ValueTooLarge: '' as IntlString,
-    SentAttachments: '' as IntlString
+    SentAttachments: '' as IntlString,
+    ReplyTo: '' as IntlString,
+    ForwardedFrom: '' as IntlString,
+    ReplyToMessage: '' as IntlString,
+    ForwardMessage: '' as IntlString,
+    ForwardedMessage: '' as IntlString,
+    ForwardedMessageFrom: '' as IntlString,
+    Forward: '' as IntlString,
+    Reply: '' as IntlString
   },
   component: {
     Activity: '' as AnyComponent,
@@ -365,7 +408,7 @@ export default plugin(activityId, {
   function: {
     ShouldScrollToActivity: '' as Resource<() => boolean>,
     ActivityMessageTooltipProvider: '' as Resource<
-    (client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>
+      (client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>
     >
   },
   backreference: {

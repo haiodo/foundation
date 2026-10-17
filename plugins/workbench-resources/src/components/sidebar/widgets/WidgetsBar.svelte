@@ -13,9 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Widget, WidgetPreference, WidgetType } from '@hcengineering/workbench'
-  import { IconSettings, ModernButton, showPopup, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
-  import { Ref } from '@hcengineering/core'
+  import type { Widget, WidgetPreference } from '@hcengineering/workbench'
+  import workbench, { WidgetType } from '@hcengineering/workbench'
+  import { IconSettings, showPopup, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { Ref } from '@hcengineering/core'
+  import { ComponentExtensions } from '@hcengineering/presentation'
 
   import WidgetPresenter from './/WidgetPresenter.svelte'
   import AddWidgetsPopup from './AddWidgetsPopup.svelte'
@@ -45,7 +48,7 @@
     .filter((it) => it.enabled)
     .sort((a, b) => a.modifiedOn - b.modifiedOn)
     .map((it) => widgets.find((widget) => widget._id === it.attachedTo))
-    .filter((widget): widget is Widget => widget !== undefined && widget.type === WidgetType.Configurable)
+    .filter((widget): widget is Widget => widget?.type === WidgetType.Configurable)
 </script>
 
 <div class="root">
@@ -86,8 +89,10 @@
 
     {#if widgets.some((widget) => widget.type === WidgetType.Configurable)}
       <div class="separator" />
-      <ModernButton icon={IconSettings} size="small" on:click={handleAddWidget} />
+      <IconButton iconSize="medium" icon={IconSettings} size="small" on:click={handleAddWidget} />
     {/if}
+
+    <ComponentExtensions extension={workbench.extensions.WidgetsBarExtensions} />
   </div>
 </div>
 

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { retry } from '../../retry'
 
 export enum ButtonAction {
   Open = 'Open',
@@ -80,6 +81,9 @@ export class ContractPage {
     await this.newApplicationStartDate().click()
     await this.newApplicationStartInADay().click()
     await this.newApplicationCreate().click()
+    // Create returns before the application exists; the caller papered over that with a fixed 1s
+    // sleep, which under load ran out before the form had even closed.
+    await this.waitForFormAntiCardDetached()
   }
 
   async clickAppContact (): Promise<void> {
@@ -247,8 +251,12 @@ export class ContractPage {
 
   async checkStateApplication (role: string): Promise<void> {
     await expect(this.stateApplication(role)).toBeVisible()
-    await this.commentApplication().hover()
-    await expect(this.commentDescription()).toBeVisible()
+    // Description shows only in a hover tooltip; hovering during a row re-render opens nothing, and
+    // one untimed check then burns 15s on a tooltip that never shows - hover again.
+    await retry(async () => {
+      await this.commentApplication().hover()
+      await expect(this.commentDescription()).toBeVisible({ timeout: 3000 })
+    })
   }
 
   async closePanel (): Promise<void> {

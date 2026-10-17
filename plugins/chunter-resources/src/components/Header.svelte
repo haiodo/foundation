@@ -13,31 +13,21 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, getResource, IntlString } from '@hcengineering/platform'
-  import {
-    AnySvelteComponent,
-    Breadcrumbs,
-    Button,
-    Icon,
-    Label,
-    SearchInput,
-    Header,
-    HeaderAdaptive,
-    IconSettings,
-    IconToDetails
-  } from '@hcengineering/ui'
-  import { createEventDispatcher, onDestroy } from 'svelte'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
+  import type { AnySvelteComponent, HeaderAdaptive } from '@hcengineering/ui'
+  import { Breadcrumbs, Button, Icon, Label, SearchInput, Header, IconSettings, IconToDetails } from '@hcengineering/ui'
+  import { createEventDispatcher } from 'svelte'
   import view from '@hcengineering/view'
   import { openDoc } from '@hcengineering/view-resources'
   import { getClient, IconWithEmoji } from '@hcengineering/presentation'
-  import { Doc, Ref } from '@hcengineering/core'
-  import { ActivityMessagesFilter } from '@hcengineering/activity'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import type { ActivityMessagesFilter } from '@hcengineering/activity'
   import workbench from '@hcengineering/workbench'
   import { PresenceAvatars } from '@hcengineering/presence-resources'
 
-  import { userSearch } from '../index'
   import chunter from '../plugin'
-  import { navigateToSpecial, openChannelInSidebar } from '../navigation'
+  import { openChannelInSidebar } from '../navigation'
   import ChannelMessagesFilter from './ChannelMessagesFilter.svelte'
 
   export let object: Doc | undefined = undefined
@@ -62,18 +52,13 @@
   export let canOpenInSidebar: boolean = false
   export let closeOnEscape: boolean = true
   export let realWidth: number | undefined = undefined
+  export let hideTitle: boolean = false
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
   const dispatch = createEventDispatcher()
 
   export let searchValue: string = ''
-
-  $: searchValue = $userSearch
-
-  onDestroy(() => {
-    userSearch.set('')
-  })
 
   let iconComponent: AnySvelteComponent | undefined = undefined
   $: clazz = object && hierarchy.getClass(object._class)
@@ -102,7 +87,9 @@
     <slot />
   </svelte:fragment>
 
-  {#if titleKind === 'breadcrumbs'}
+  {#if hideTitle}
+    <!-- Nothing: the title group gives way to whatever the search slot renders. -->
+  {:else if titleKind === 'breadcrumbs'}
     {#if iconComponent != null && object}
       <Breadcrumbs
         items={[
@@ -132,7 +119,7 @@
     <div class="hulyHeader-titleGroup">
       {#if icon}
         <div class="content-color mr-2 pl-2">
-          <Icon {icon} size={'small'} {iconProps} />
+          <Icon {icon} size="small" {iconProps} />
         </div>
       {/if}
       {#if label}
@@ -164,18 +151,14 @@
         autoFocus={focusSearch}
         bind:value={searchValue}
         on:change={(ev) => {
-          userSearch.set(ev.detail)
-
-          if (ev.detail !== '') {
-            navigateToSpecial('browser')
-          }
+          dispatch('search', ev.detail)
         }}
       />
       {#if withFilters}
         <ChannelMessagesFilter bind:selectedFilters={filters} />
       {/if}
-      <slot name="search" {doubleRow} />
     {/if}
+    <slot name="search" {doubleRow} />
   </svelte:fragment>
   <svelte:fragment slot="actions" let:doubleRow>
     <slot name="actions" {doubleRow} />
@@ -183,12 +166,12 @@
       <Button
         icon={IconToDetails}
         iconProps={{ size: 'small' }}
-        kind={'icon'}
+        kind="icon"
         showTooltip={{ label: workbench.string.OpenInSidebar }}
         dataId="open-in-sidebar"
         on:click={() => {
           if (object !== undefined) {
-            void openChannelInSidebar(object._id, object._class, object, undefined, true)
+            void openChannelInSidebar(object._id, object._class, object)
           }
         }}
       />
@@ -197,7 +180,7 @@
       <Button
         icon={view.icon.Open}
         iconProps={{ size: 'small' }}
-        kind={'icon'}
+        kind="icon"
         showTooltip={{ label: view.string.Open }}
         on:click={() => {
           if (object !== undefined) {
@@ -210,7 +193,7 @@
       <Button
         icon={IconSettings}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         dataId="aside-toggle"
         showTooltip={{ label: chunter.string.Settings }}
         selected={isAsideShown}

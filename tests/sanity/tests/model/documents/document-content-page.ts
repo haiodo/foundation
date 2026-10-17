@@ -2,6 +2,7 @@ import { type Locator, type Page, expect } from '@playwright/test'
 import { CommonPage } from '../common-page'
 import { uploadFile } from '../../utils'
 import path from 'path'
+import { readFileSync } from 'fs'
 
 export class DocumentContentPage extends CommonPage {
   readonly page: Page
@@ -12,6 +13,7 @@ export class DocumentContentPage extends CommonPage {
   }
 
   readonly buttonDocumentTitle = (): Locator => this.page.locator('div[class*="main-content"] div.title input')
+  readonly buttonOpenInSidebar = (): Locator => this.page.locator('button[data-id="btnOpenInSidebar"]')
   readonly inputContent = (): Locator => this.page.locator('div.textInput div.tiptap')
   readonly selectContent = (): Locator => this.page.locator('div.textInput .select-text')
   readonly inputContentParapraph = (): Locator => this.page.locator('div.textInput div.tiptap > p')
@@ -236,7 +238,16 @@ export class DocumentContentPage extends CommonPage {
     if (shallow) {
       await loc.click({ clickCount: 3 })
     } else {
-      await loc.selectText()
+      // A re-render after a document change drops the DOM selection, and with it the toolbar.
+      // Retry until this exact line is selected - a stale selection is non-empty too.
+      const expected = (await loc.textContent()) ?? text
+      await expect(async () => {
+        // selectText only sets a DOM selection. After a popup (TOC, menu) took focus the editor is
+        // not focused, so ProseMirror ignores it and the toolbar command applies to nothing.
+        await loc.click()
+        await loc.selectText()
+        expect(await this.page.evaluate(() => window.getSelection()?.toString() ?? '')).toEqual(expected)
+      }).toPass({ timeout: 15000 })
     }
   }
 
@@ -313,6 +324,17 @@ export class DocumentContentPage extends CommonPage {
   async checkToDo (text: string, checked: boolean): Promise<void> {
     await this.rowToDo(text).hover()
     await expect(this.checkboxToDo(text)).toBeChecked({ checked, timeout: 5000 })
+  }
+
+  // Pastes HTML with the image inlined as base64, like Google Docs and Word put it on the clipboard.
+  async pasteHtmlWithDataImage (text: string): Promise<void> {
+    const dataUrl = `data:image/jpeg;base64,${readFileSync(path.join(__dirname, '../../files/cat.jpeg')).toString('base64')}`
+    await this.inputContentParapraph().click()
+    await this.inputContent().evaluate((editor, html) => {
+      const data = new DataTransfer()
+      data.setData('text/html', html)
+      editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    }, `<p>${text}</p><p><img src="${dataUrl}"></p>`)
   }
 
   async addImageToDocument (page: Page): Promise<void> {

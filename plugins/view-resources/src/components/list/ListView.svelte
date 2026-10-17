@@ -13,13 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, DocumentQuery, FindOptions, Ref, Space } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Class, Doc, DocumentQuery, FindOptions, Ref, Space } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { ActionContext } from '@hcengineering/presentation'
-  import { AnyComponent, Scroller, resizeObserver } from '@hcengineering/ui'
-  import { BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { AnyComponent, BlankViewProps } from '@hcengineering/ui'
+  import { BlankView, Scroller, resizeObserver } from '@hcengineering/ui'
+  import type { BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
   import { onMount } from 'svelte'
-  import { ListSelectionProvider, SelectDirection, focusStore } from '../..'
+  import type { SelectDirection } from '../..'
+  import { ListSelectionProvider, focusStore } from '../..'
 
   import List from './List.svelte'
 
@@ -40,6 +42,9 @@
   export let viewOptionsConfig: ViewOptionModel[] | undefined = undefined
   export let props: Record<string, any> = {}
   export let baseMenuClass: Ref<Class<Doc>> | undefined = undefined
+  export let emptyState: BlankViewProps | undefined = undefined
+
+  let empty = false
 
   let list: List
   let scroll: Scroller
@@ -68,18 +73,24 @@
   use:resizeObserver={(evt) => {
     listWidth = evt.clientWidth
   }}
-  class="w-full h-full py-4 clear-mins"
+  class="w-full h-full py-4 clear-mins relative"
 >
+  {#if emptyState !== undefined && empty}
+    <div class="list-empty">
+      <BlankView {...emptyState} />
+    </div>
+  {/if}
   <Scroller
     bind:this={scroll}
     bind:divScroll
     fade={{ multipler: { top: 2.75 * viewOptions.groupBy.length, bottom: 0 } }}
-    padding={'0 1rem'}
+    padding="0 1rem"
     noFade
     checkForHeaders
   >
     <List
       bind:this={list}
+      bind:empty
       {_class}
       {space}
       {query}
@@ -115,3 +126,13 @@
     />
   </Scroller>
 </div>
+
+<style lang="scss">
+  .list-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+</style>

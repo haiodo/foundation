@@ -13,19 +13,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Timestamp } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { Timestamp } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import ui, {
     Label,
     areDatesEqual,
     ticker,
     Header,
-    ButtonIcon,
-    ButtonBase,
     IconChevronLeft,
     IconChevronRight,
     getFormattedDate
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
 
   export let currentDate: Date = new Date()
   // Step for navigation: number of days to shift, or 'month' for a calendar-month step.
@@ -60,29 +60,29 @@
   $: isToday = areDatesEqual(currentDate, new Date($ticker))
 </script>
 
-<Header adaptive={'disabled'}>
+<Header adaptive="disabled">
   <div class="heading-medium-20 line-height-auto overflow-label pl-2">
     <Label label={getTitle(currentDate, $ticker)} />
   </div>
 
   <svelte:fragment slot="actions" let:doubleRow>
     <slot />
-    <ButtonIcon
+    <IconButton
       icon={IconChevronLeft}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnPrev'}
+      kind="secondary"
+      size="small"
+      data-id="btnPrev"
+      tooltip={{ label: ui.string.Back }}
       on:click={() => {
         inc(-1)
       }}
     />
-    <ButtonBase
-      label={!doubleRow ? ui.string.Today : undefined}
-      title={!doubleRow ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
-      type={!doubleRow ? 'type-button' : 'type-button-icon'}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnToday'}
+    <Button
+      label={!doubleRow ? ui.string.TodayDate : undefined}
+      labelParams={{ date: getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) }}
+      kind="secondary"
+      size="small"
+      data-id="btnToday"
       inheritFont
       hasMenu
       disabled={isToday}
@@ -90,11 +90,12 @@
         inc(0)
       }}
     />
-    <ButtonIcon
+    <IconButton
       icon={IconChevronRight}
-      kind={'secondary'}
-      size={'small'}
-      dataId={'btnNext'}
+      kind="secondary"
+      size="small"
+      data-id="btnNext"
+      tooltip={{ label: ui.string.Next }}
       on:click={() => {
         inc(1)
       }}

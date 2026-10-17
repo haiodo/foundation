@@ -15,9 +15,9 @@
 -->
 <script lang="ts">
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { Vacancy } from '@hcengineering/recruit'
+  import type { Vacancy } from '@hcengineering/recruit'
   import { Icon, getPlatformAvatarColorForTextDef, themeStore, tooltip } from '@hcengineering/ui'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { ObjectPresenterType } from '@hcengineering/view'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
   import { createEventDispatcher, onMount } from 'svelte'
 
@@ -46,7 +46,7 @@
     <div class="flex-between flex-gap-2 w-full">
       <DocNavLink {disabled} object={value} {accent} {noUnderline} component={recruit.component.EditVacancy}>
         <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
-          <div class="icon"><Icon icon={recruit.icon.Vacancy} size={'small'} /></div>
+          <div class="icon"><Icon icon={recruit.icon.Vacancy} size="small" /></div>
           <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>
             {value.name}
           </span>

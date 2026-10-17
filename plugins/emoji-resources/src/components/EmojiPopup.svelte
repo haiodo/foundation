@@ -1,6 +1,7 @@
 <script lang="ts">
   //
   // © 2025 Hardcore Engineering, Inc. All Rights Reserved.
+  // Copyright © 2026 Intabia Fusion.
   // Licensed under the Eclipse Public License v2.0 (SPDX: EPL-2.0).
   //
   import { createEventDispatcher, onMount, onDestroy } from 'svelte'
@@ -11,10 +12,10 @@
     deviceOptionsStore as deviceInfo,
     showPopup,
     eventToHTMLElement,
-    ButtonBase,
     closeTooltip,
     Icon
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { getEmojiByShortCode, getEmojiSkins, getUnicodeEmojiByShortCode } from '../utils'
   import {
     searchEmoji,
@@ -28,11 +29,13 @@
   } from '../store'
   import type { EmojiWithGroup } from '@hcengineering/emoji'
   import ActionsPopup from './ActionsPopup.svelte'
+  import EmojiGlyph from './EmojiGlyph.svelte'
   import SkinTonePopup from './SkinTonePopup.svelte'
   import EmojiGroup from './EmojiGroup.svelte'
   import emojiPlugin, { isCustomEmoji } from '@hcengineering/emoji'
-  import { emojiCategories, EmojiCategory } from '../types'
-  import { Ref, Blob } from '@hcengineering/core'
+  import type { EmojiCategory } from '../types'
+  import { emojiCategories } from '../types'
+  import type { Ref, Blob } from '@hcengineering/core'
 
   export let embedded = false
   export let selected: string | Ref<Blob> | undefined
@@ -203,7 +206,7 @@
       if (em.id === 'frequently-used') {
         emojiCategories[index].emojis = getFrequentlyEmojis()
       }
-      if (em.emojisString !== undefined && Array.isArray(em.emojisString) && em.emojis === undefined) {
+      if (em.emojisString !== undefined && Array.isArray(em.emojisString)) {
         const tempEmojis: string[] = em.emojisString
         const emojis: EmojiWithGroup[] = []
         tempEmojis.forEach((te) => {
@@ -219,6 +222,10 @@
       (em) => em.categories !== undefined || (Array.isArray(em.emojis) && em.emojis.length > 0)
     )
     currentCategory = emojisCat.find((ec) => ec.emojis !== undefined) ?? emojisCat[0]
+  }
+
+  $: if ($unicodeEmojiStore.length > 0 || $customEmojiStore.length > 0) {
+    initEmoji()
   }
 
   onMount(() => {
@@ -266,7 +273,7 @@
     <SearchInput
       value={$searchEmoji}
       placeholder={emojiPlugin.string.SearchDots}
-      width={'100%'}
+      width="100%"
       autoFocus
       delay={50}
       on:change={(result) => {
@@ -274,17 +281,16 @@
         else if (result.detail !== '') currentCategory = searchCategory[0]
       }}
     />
-    <ButtonBase
-      type={'type-button-icon'}
+    <IconButton
+      icon={EmojiGlyph}
+      iconProps={{ emoji: getUnicodeEmojiByShortCode(':hand:', skinTone)?.emoji, fontSize: '1.5rem' }}
       hasMenu
       pressed={shownSTM}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       tooltip={{ label: emojiPlugin.string.DefaultSkinTone }}
       on:click={showSkinMenu}
-    >
-      <span style:font-size={'1.5rem'} class="emoji">{getUnicodeEmojiByShortCode(':hand:', skinTone)?.emoji}</span>
-    </ButtonBase>
+    />
   </div>
   <Scroller
     bind:divScroll={scrollElement}

@@ -13,11 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { MasterTag } from '@hcengineering/card'
-  import { Class, ClassifierKind, Doc, Ref } from '@hcengineering/core'
+  import type { MasterTag } from '@hcengineering/card'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { ClassifierKind } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { ClassHierarchy } from '@hcengineering/setting-resources'
-  import { ButtonIcon, getCurrentLocation, Icon, IconAdd, Label, navigate, showPopup } from '@hcengineering/ui'
+  import { getCurrentLocation, Icon, IconAdd, Label, navigate, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import card from '../../plugin'
   import CreateTag from '../CreateTag.svelte'
   import TagsHierarchy from './TagsHierarchy.svelte'
@@ -58,11 +60,12 @@
 <div class="hulyTableAttr-header font-medium-12">
   <Icon icon={card.icon.Tag} size="small" />
   <span><Label label={card.string.Tags} /></span>
-  <ButtonIcon
+  <IconButton
     kind="primary"
     icon={IconAdd}
     size="small"
-    dataId={'btnAdd'}
+    data-id="btnAdd"
+    tooltip={{ label: card.string.AddTag }}
     on:click={() => {
       showPopup(CreateTag, {
         parent: masterTag,

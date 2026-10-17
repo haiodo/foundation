@@ -15,9 +15,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
 
-  import { DocumentQuery, Ref } from '@hcengineering/core'
+  import type { DocumentQuery, Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { TestCase, TestProject } from '@hcengineering/test-management'
+  import type { TestCase, TestProject } from '@hcengineering/test-management'
   import { Button, Dialog, Label } from '@hcengineering/ui'
   import { ComponentNavigator } from '@hcengineering/workbench-resources'
   import view from '@hcengineering/view'
@@ -88,8 +88,8 @@
   <svelte:fragment slot="footerRight">
     <div class="p-2">
       <div class="buttons-group">
-        <Button kind={'secondary'} label={testManagement.string.Cancel} on:click={handleClose} />
-        <Button kind={'primary'} label={testManagement.string.Save} on:click={handleSave} />
+        <Button kind="secondary" label={testManagement.string.Cancel} on:click={handleClose} />
+        <Button kind="primary" label={testManagement.string.Save} on:click={handleSave} />
       </div>
     </div>
   </svelte:fragment>

@@ -13,28 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccessLevel, Calendar, Event, generateEventId, getAllEvents } from '@hcengineering/calendar'
-  import { getCurrentEmployee } from '@hcengineering/contact'
-  import {
-    Class,
-    Doc,
-    DocumentQuery,
-    FindOptions,
-    Ref,
-    SortingOrder,
-    Timestamp,
-    getCurrentAccount
-  } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Calendar, Event } from '@hcengineering/calendar'
+  import { AccessLevel, generateEventId, getAllEvents } from '@hcengineering/calendar'
+  import { getCurrentEmployee, getCurrentEmployeeSpace } from '@hcengineering/contact'
+  import type { Class, Doc, DocumentQuery, FindOptions, Ref, Timestamp } from '@hcengineering/core'
+  import { SortingOrder, getCurrentAccount } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
+  import type { AnyComponent, AnySvelteComponent } from '@hcengineering/ui'
   import {
-    AnyComponent,
     MonthCalendar,
     YearCalendar,
     areDatesEqual,
     getWeekStart,
     showPopup,
-    AnySvelteComponent,
     deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
 
@@ -266,7 +258,7 @@
           participants: [me],
           modifiedOn: Date.now(),
           date: e.detail.date.getTime(),
-          space: calendar.space.Calendar,
+          space: getCurrentEmployeeSpace(),
           user: myPrimaryId,
           dueDate: new Date(e.detail.date).setMinutes(new Date(e.detail.date).getMinutes() + 30)
         }
@@ -339,7 +331,7 @@
 {/if}
 {#if mode === CalendarMode.Year}
   <YearCalendar
-    cellHeight={'2.5rem'}
+    cellHeight="2.5rem"
     bind:selectedDate
     bind:currentDate
     on:change={(e) => {
@@ -355,12 +347,12 @@
     </svelte:fragment>
   </YearCalendar>
 {:else if mode === CalendarMode.Month}
-  <MonthCalendar cellHeight={'8.5rem'} bind:selectedDate bind:currentDate>
+  <MonthCalendar cellHeight="8.5rem" bind:selectedDate bind:currentDate>
     <svelte:fragment slot="cell" let:date let:today let:selected let:wrongMonth>
       <Day
         events={findEvents(objects, date)}
         {date}
-        size={'huge'}
+        size="huge"
         {today}
         {selected}
         {wrongMonth}

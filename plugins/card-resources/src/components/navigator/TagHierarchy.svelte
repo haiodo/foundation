@@ -14,10 +14,12 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { MasterTag } from '@hcengineering/card'
-  import { Class, Doc, Ref, Space } from '@hcengineering/core'
+  import type { MasterTag } from '@hcengineering/card'
+  import type { Class, Doc, Ref, Space } from '@hcengineering/core'
   import { IconWithEmoji, getClient } from '@hcengineering/presentation'
-  import { Action, ButtonIcon, NavItem, getCurrentLocation, navigate } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { NavItem, getCurrentLocation, navigate } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import card from '../../plugin'
 
@@ -91,14 +93,12 @@
     <svelte:fragment slot="actions">
       {#if getItemActions !== undefined}
         {#each getItemActions(clazz._id) as action}
-          <ButtonIcon
+          <IconButton
             icon={action.icon ?? view.icon.Edit}
             size="extra-small"
             kind="tertiary"
             tooltip={{ label: action.label }}
             on:click={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
               void action.action(action.props, e)
             }}
           />

@@ -68,6 +68,7 @@ import { KanbanSwimLaneActions } from '@hcengineering/kanban'
 import ModificationDatePresenter from './components/issues/ModificationDatePresenter.svelte'
 import NotificationIssuePresenter from './components/issues/NotificationIssuePresenter.svelte'
 import PriorityEditor from './components/issues/PriorityEditor.svelte'
+import SubtaskSection from './components/subtasks/SubtaskSection.svelte'
 import PriorityFilterValuePresenter from './components/issues/PriorityFilterValuePresenter.svelte'
 import PriorityInlineEditor from './components/issues/PriorityInlineEditor.svelte'
 import PriorityPresenter from './components/issues/PriorityPresenter.svelte'
@@ -79,6 +80,7 @@ import StatusFilterValuePresenter from './components/issues/StatusFilterValuePre
 import StatusPresenter from './components/issues/StatusPresenter.svelte'
 import TitlePresenter from './components/issues/TitlePresenter.svelte'
 import ParentIssuePresenter from './components/issues/ParentIssuePresenter.svelte'
+import ParentIssueSelector from './components/issues/ParentIssueSelector.svelte'
 import LabelsView from './components/LabelsView.svelte'
 import EditMilestone from './components/milestones/EditMilestone.svelte'
 import MilestoneDatePresenter from './components/milestones/MilestoneDatePresenter.svelte'
@@ -92,6 +94,7 @@ import SetDueDateActionPopup from './components/SetDueDateActionPopup.svelte'
 import SetParentIssueActionPopup from './components/SetParentIssueActionPopup.svelte'
 import SettingsRelatedTargets from './components/SettingsRelatedTargets.svelte'
 import CreateIssueTemplate from './components/templates/CreateIssueTemplate.svelte'
+import RemoveRelationButton from './components/issues/edit/RemoveRelationButton.svelte'
 import {
   getIssueIdByIdentifier,
   getIssueTitle,
@@ -127,6 +130,7 @@ import ComponentSelector from './components/components/ComponentSelector.svelte'
 
 import IssueTemplatePresenter from './components/templates/IssueTemplatePresenter.svelte'
 import IssueTemplates from './components/templates/IssueTemplates.svelte'
+import ReportedTimeListPresenter from './components/issues/timereport/ReportedTimeListPresenter.svelte'
 
 import {
   AggregationManager,
@@ -146,6 +150,7 @@ import {
   getAllPriority,
   getComponentTitle,
   getIssueChatTitle,
+  getIssueDefaultStatuses,
   getIssueStatusCategories,
   getMilestoneTitle,
   getVisibleFilters,
@@ -153,6 +158,7 @@ import {
   issueStatusSort,
   milestoneSort,
   moveIssuesToAnotherMilestone,
+  reportedTimeApplier,
   subIssueQuery
 } from './utils'
 
@@ -160,6 +166,7 @@ import { componentStore, grouppingComponentManager } from './component'
 import DeleteComponentPresenter from './components/components/DeleteComponentPresenter.svelte'
 import IssueStatusIcon from './components/issues/IssueStatusIcon.svelte'
 import MoveIssues from './components/issues/Move.svelte'
+import ChangeTaskTypePopup from './components/issues/ChangeTaskType.svelte'
 import PriorityIconPresenter from './components/issues/PriorityIconPresenter.svelte'
 import StatusRefPresenter from './components/issues/StatusRefPresenter.svelte'
 import TimeSpendReportPopup from './components/issues/timereport/TimeSpendReportPopup.svelte'
@@ -172,20 +179,22 @@ import ProjectSpacePresenter from './components/projects/ProjectSpacePresenter.s
 
 import { get } from 'svelte/store'
 import { settingId } from '@hcengineering/setting'
-import type { TaskType } from '@hcengineering/task'
-import { getAllStates } from '@hcengineering/task-resources'
+import task, { type TaskType } from '@hcengineering/task'
+import { getAllStates, taskTypeStore } from '@hcengineering/task-resources'
 import view, { type Filter } from '@hcengineering/view'
 import EstimationValueEditor from './components/issues/timereport/EstimationValueEditor.svelte'
 import TimePresenter from './components/issues/timereport/TimePresenter.svelte'
 import { getTargetObjectFromUrl } from '@hcengineering/text-editor-resources'
 import contact from '@hcengineering/contact'
+import { createIssue } from './createIssue'
+import { hasAlternativeTaskTypes } from './taskTypeChange'
 
 export { default as AssigneeEditor } from './components/issues/AssigneeEditor.svelte'
-export { default as SubIssueList } from './components/issues/edit/SubIssueList.svelte'
 export { default as IssueStatusIcon } from './components/issues/IssueStatusIcon.svelte'
 export { default as StatusPresenter } from './components/issues/StatusPresenter.svelte'
 
 export { activeProjects, CreateProject, IssuePresenter, PriorityEditor, StatusEditor, TitlePresenter }
+export { createIssue }
 
 export async function queryIssue<D extends Issue> (
   _class: Ref<Class<D>>,
@@ -238,6 +247,29 @@ async function move (issues: Issue | Issue[]): Promise<void> {
   showPopup(MoveIssues, { selected: issues }, 'top')
 }
 
+async function changeTaskType (issue: Issue): Promise<void> {
+  showPopup(ChangeTaskTypePopup, { value: issue }, 'top')
+}
+
+async function canChangeTaskType (_doc: Doc | Doc[] | undefined): Promise<boolean> {
+  const doc = Array.isArray(_doc) ? _doc[0] : _doc
+  if (doc === undefined) return false
+
+  const client = getClient()
+  const hierarchy = client.getHierarchy()
+  if (!hierarchy.isDerived(doc._class, tracker.class.Issue)) return false
+
+  const project = get(activeProjects).get((doc as Issue).space)
+  if (project === undefined) return false
+
+  return hasAlternativeTaskTypes(
+    hierarchy,
+    get(taskTypeStore),
+    project.type,
+    client.getModel().findAllSync(task.class.TaskTypeDescriptor, {})
+  )
+}
+
 async function editWorkflowStatuses (project: Project): Promise<void> {
   const loc = getCurrentLocation()
   loc.path[2] = settingId
@@ -253,29 +285,40 @@ async function editProject (project: Project | undefined): Promise<void> {
 }
 
 async function deleteIssue (issue: Issue | Issue[]): Promise<void> {
-  const issueCount = Array.isArray(issue) ? issue.length : 1
-  let subissues: number = 0
-  if (Array.isArray(issue)) {
-    issue.forEach((it) => {
-      subissues += it.subIssues
-    })
-  } else {
-    subissues = issue.subIssues
-  }
+  const issueArray = Array.isArray(issue) ? issue : [issue]
+  const issueCount = issueArray.length
+  const issueIds = issueArray.map((it) => it._id)
+
+  const allSubIssues = await getClient().findAll<Issue>(tracker.class.Issue, {
+    attachedTo: { $in: issueIds }
+  })
+
+  const subissues = allSubIssues.length
+  const hasSubIssues = subissues > 0
+
   showPopup(contact.component.DeleteConfirmationPopup, {
     object: issue,
     title: tracker.string.DeleteIssue,
     titleParams: { issueCount },
     confirmation: tracker.string.DeleteIssueConfirm,
-    confirmationParams: { issueCount, subIssueCount: subissues },
+    confirmationParams: { issueCount },
+    extraConfirmation: hasSubIssues ? tracker.string.DeleteIssueWithSubIssuesConfirm : undefined,
+    extraConfirmationParams: hasSubIssues ? { subIssueCount: subissues } : undefined,
+    extraObjects: hasSubIssues ? allSubIssues : undefined,
     deleteAction: async () => {
-      const objs = Array.isArray(issue) ? issue : [issue]
-
       const target = await getTargetObjectFromUrl(getCurrentLocation())
-      const deletingFromTargetIssuePage = objs.some((obj) => obj._id === target?._id)
+      const deletingFromTargetIssuePage = issueArray.some((obj) => obj._id === target?._id)
 
       try {
-        await deleteObjects(getClient(), objs as unknown as Doc[])
+        if (allSubIssues.length > 0) {
+          const ops = getClient().apply()
+          for (const subIssue of allSubIssues) {
+            await ops.update(subIssue, { attachedTo: tracker.ids.NoParent })
+          }
+          await ops.commit()
+        }
+
+        await deleteObjects(getClient(), issueArray as unknown as Doc[])
       } catch (err: any) {
         Analytics.handleError(err)
       }
@@ -415,6 +458,7 @@ async function openIssuesOfTaskType (taskType: TaskType): Promise<void> {
 
 export default async (): Promise<Resources> => ({
   component: {
+    SubtaskSection,
     NopeComponent,
     Issues,
     MyIssues,
@@ -499,13 +543,17 @@ export default async (): Promise<Resources> => ({
     IssueStatusPresenter,
     LabelsView,
     ParentIssuePresenter,
-    TimeSpendReportList
+    ParentIssueSelector,
+    TimeSpendReportList,
+    RemoveRelationButton,
+    ReportedTimeListPresenter
   },
   completion: {
     IssueQuery: async (client: Client, query: string, filter?: { in?: RelatedDocument[], nin?: RelatedDocument[] }) =>
       await queryIssue(tracker.class.Issue, client, query, filter)
   },
   function: {
+    CreateIssue: createIssue,
     IssueIdentifierProvider: issueIdentifierProvider,
     IssueTitleProvider: issueTitleProvider,
     ComponentTitleProvider: getComponentTitle,
@@ -526,19 +574,24 @@ export default async (): Promise<Resources> => ({
       query: DocumentQuery<Doc<Space>> | undefined,
       onUpdate: () => void,
       queryId: Ref<Doc<Space>>,
-      attr: Attribute<Status>
-    ) => await getAllStates(query, onUpdate, queryId, attr, false),
+      attr: Attribute<Status>,
+      space?: Ref<Space>
+    ) => await getAllStates(query, onUpdate, queryId, attr, space, false),
     GetVisibleFilters: getVisibleFilters,
     IssueChatTitleProvider: getIssueChatTitle,
     IsProjectJoined: async (project: Project) => project.members.includes(getCurrentAccount().uuid),
     GetIssueStatusCategories: getIssueStatusCategories,
+    GetIssueDefaultStatuses: getIssueDefaultStatuses,
     SetComponentStore: setStore,
     ComponentFilterFunction: filterComponents,
+    CanChangeTaskType: canChangeTaskType,
     OpenIssuesOfTaskType: openIssuesOfTaskType,
-    FormatIssueMarkdownValue: formatIssueValue
+    FormatIssueMarkdownValue: formatIssueValue,
+    ReportedTimeApplier: reportedTimeApplier
   },
   actionImpl: {
     Move: move,
+    ChangeTaskType: changeTaskType,
     EditWorkflowStatuses: editWorkflowStatuses,
     EditProject: editProject,
     DeleteMilestone: deleteMilestone,

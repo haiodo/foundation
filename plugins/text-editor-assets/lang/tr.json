@@ -1,4 +1,7 @@
 {
+  "status": {
+    "ImagePasteNotSupported": "Buraya görsel yapıştırılamaz. Görselleri kopyalanan içerikten kaldırıp tekrar deneyin."
+  },
   "string": {
     "TableOfContents": "İçindekiler",
     "Suggested": "ÖNERİLEN",
@@ -81,6 +84,7 @@
     "UnableToLoadEmbeddedContent": "Bağlantı önizlemesi izin ayarları veya desteklenmeyen içerik nedeniyle yüklenemedi",
     "CannotConnectToCollaborationService": "İşbirliği servisine bağlanılamıyor",
     "SourceURL": "Kaynak URL",
-    "SelectedDocuments": "Seçilen belgeler ({count, plural, =1 {1 öğe} other {# öğe}})"
+    "SelectedDocuments": "Seçilen belgeler ({count, plural, =1 {1 öğe} other {# öğe}})",
+    "LatestVersion": "En son"
   }
 }

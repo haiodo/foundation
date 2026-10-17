@@ -13,14 +13,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import calendar, { Calendar } from '@hcengineering/calendar'
+  import type { Calendar } from '@hcengineering/calendar'
+  import calendar from '@hcengineering/calendar'
   import type { Organization, Person } from '@hcengineering/contact'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
-  import core, { Class, Client, DateRangeMode, Doc, generateId, Markup, PersonId, Ref } from '@hcengineering/core'
-  import { getResource, OK, Resource, Severity, Status } from '@hcengineering/platform'
+  import type { Class, Client, Doc, Markup, PersonId, Ref } from '@hcengineering/core'
+  import core, { DateRangeMode, generateId } from '@hcengineering/core'
+  import type { Resource, Status } from '@hcengineering/platform'
+  import { getResource, OK, Severity } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import { UserBox, UserBoxList } from '@hcengineering/contact-resources'
-  import { Applicant, Candidate, RecruitEvents, Review } from '@hcengineering/recruit'
+  import type { Applicant, Candidate, Review } from '@hcengineering/recruit'
+  import { RecruitEvents } from '@hcengineering/recruit'
   import { EmptyMarkup } from '@hcengineering/text'
   import { StyledTextArea } from '@hcengineering/text-editor-resources'
   import { DateRangePresenter, EditBox, Status as StatusControl } from '@hcengineering/ui'
@@ -31,7 +35,6 @@
   import IconCompany from '../icons/Company.svelte'
   import { Analytics } from '@hcengineering/analytics'
 
-  // export let space: Ref<Project>
   export let candidate: Ref<Person>
   export let date: Date | undefined = undefined
   export let preserveCandidate = false
@@ -94,7 +97,7 @@
 
     const incResult = await client.update(sequence, { $inc: { sequence: 1 } }, true)
 
-    const candidateInstance = await client.findOne(contact.class.Person, { _id: doc.attachedTo as Ref<Person> })
+    const candidateInstance = await client.findOne(contact.class.Person, { _id: doc.attachedTo })
     if (candidateInstance === undefined) {
       throw new Error('contact not found')
     }
@@ -154,7 +157,7 @@
     }
   }
 
-  $: validate(doc, doc._class)
+  $: void validate(doc, doc._class)
   const updateStart = (result: any): void => {
     if (result.detail !== undefined) {
       dueDate = result.detail
@@ -168,16 +171,16 @@
   labelProps={{ label: '' }}
   okAction={createReview}
   canSave={status.severity === Severity.OK && title.trim().length > 0 && doc.attachedTo !== undefined}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
   on:changeContent
 >
   <StatusControl slot="error" {status} />
-  <EditBox placeholder={recruit.string.Title} bind:value={title} kind={'large-style'} autoFocus />
-  <EditBox placeholder={recruit.string.Location} bind:value={location} kind={'small-style'} />
-  <StyledTextArea bind:content={description} placeholder={recruit.string.AddDescription} kind={'emphasized'} />
+  <EditBox placeholder={recruit.string.Title} bind:value={title} kind="large-style" autoFocus />
+  <EditBox placeholder={recruit.string.Location} bind:value={location} kind="small-style" />
+  <StyledTextArea bind:content={description} placeholder={recruit.string.AddDescription} kind="emphasized" />
   <svelte:fragment slot="pool">
     {#if !preserveCandidate}
       <UserBox
@@ -185,8 +188,8 @@
         bind:value={doc.attachedTo}
         label={recruit.string.Talent}
         placeholder={recruit.string.Talents}
-        kind={'regular'}
-        size={'large'}
+        kind="regular"
+        size="large"
         create={{ component: recruit.component.CreateCandidate, label: recruit.string.CreateTalent }}
       />
     {/if}
@@ -195,8 +198,8 @@
       bind:value={company}
       label={recruit.string.Company}
       icon={IconCompany}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       showNavigate={false}
       create={{ component: contact.component.CreateOrganization, label: contact.string.CreateOrganization }}
     />
@@ -205,9 +208,9 @@
       bind:value={application}
       label={recruit.string.Application}
       placeholder={recruit.string.ApplicationCreateLabel}
-      kind={'regular'}
-      size={'large'}
-      searchField={'number'}
+      kind="regular"
+      size="large"
+      searchField="number"
       showNavigate={false}
       allowCategory={[recruit.completion.ApplicationCategory]}
     />
@@ -216,8 +219,8 @@
       labelNull={recruit.string.StartDate}
       mode={DateRangeMode.DATETIME}
       editable
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       on:change={updateStart}
     />
     <DateRangePresenter
@@ -225,9 +228,9 @@
       labelNull={recruit.string.DueDate}
       mode={DateRangeMode.DATETIME}
       editable
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
-    <UserBoxList bind:items={doc.participants} label={calendar.string.Participants} kind={'regular'} size={'large'} />
+    <UserBoxList bind:items={doc.participants} label={calendar.string.Participants} kind="regular" size="large" />
   </svelte:fragment>
 </Card>

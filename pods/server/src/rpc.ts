@@ -1,11 +1,9 @@
-import { getClient as getAccountClientRaw, type AccountClient } from '@hcengineering/account-client'
-import contact, {
-  AvatarType,
-  combineName,
-  type Person,
-  type SocialIdentity,
-  type SocialIdentityRef
-} from '@hcengineering/contact'
+import {
+  getClient as getAccountClientRaw,
+  type AccountClient,
+  type ApiKeyOperation
+} from '@hcengineering/account-client'
+import { ensureEmployeeForPerson } from '@hcengineering/contact'
 import core, {
   buildSocialIdString,
   generateId,
@@ -14,7 +12,6 @@ import core, {
   type Space,
   systemAccountUuid,
   type Timestamp,
-  TxFactory,
   TxOperations,
   TxProcessor,
   type AttachedData,
@@ -28,20 +25,34 @@ import core, {
   type SearchQuery,
   type TxCUD,
   type TxDomainEvent,
+  type TxMeta,
   type DocumentUpdate,
   type Mixin,
   type MixinData,
   type MixinUpdate,
   type SocialIdType,
-  AccountRole
+  AccountRole,
+  type Account,
+  type AccountUuid,
+  type Person as GlobalPerson,
+  type SocialId,
+  type Client,
+  type FindOptions,
+  type FindResult,
+  type DocumentQuery,
+  type Tx,
+  type TxResult,
+  type WithLookup
 } from '@hcengineering/core'
 import { rpcJSONReplacer, type RateLimitInfo } from '@hcengineering/rpc'
+import platform, { PlatformError, Severity, Status, unknownError } from '@hcengineering/platform'
 import {
   wrapPipeline,
   type ClientSessionCtx,
   type ConnectionSocket,
   type Session,
-  type SessionManager
+  type SessionManager,
+  type StorageAdapter
 } from '@hcengineering/server-core'
 import { decodeToken } from '@hcengineering/server-token'
 
@@ -51,11 +62,9 @@ import type { OutgoingHttpHeaders } from 'http2'
 import { compress } from 'snappy'
 import { promisify } from 'util'
 import { gzip } from 'zlib'
+import { isOperationGranted, makeUploadMarkup, operations } from './opsApi'
 import { retrieveJson } from './utils'
 
-import { unknownError } from '@hcengineering/platform'
-
-export const COMMUNICATION_DOMAIN = 'communication' as OperationDomain
 interface RPCClientInfo {
   client: ConnectionSocket
   session: Session
@@ -164,7 +173,13 @@ async function sendJson (
   res.end(body)
 }
 
-export function registerRPC (app: Express, sessions: SessionManager, ctx: MeasureContext, accountsUrl: string): void {
+export function registerRPC (
+  app: Express,
+  sessions: SessionManager,
+  ctx: MeasureContext,
+  accountsUrl: string,
+  storageAdapter: StorageAdapter
+): void {
   const rpcSessions = new Map<string, RPCClientInfo>()
 
   function getAccountClient (token?: string): AccountClient {
@@ -189,7 +204,7 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
         return
       }
       let token = req.headers.authorization as string
-      if (token === null) {
+      if (token === undefined) {
         sendError(res, 401, { message: 'Missing Authorization header' })
         return
       }
@@ -205,7 +220,11 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       let transactorRpc = rpcSessions.get(token)
 
       if (transactorRpc === undefined) {
-        const cs: ConnectionSocket = createClosingSocket(token, rpcSessions)
+        const cs: ConnectionSocket = createClosingSocket(token, rpcSessions, {
+          rpc: true,
+          account: decodedToken.account,
+          service: decodedToken.extra?.service
+        })
         const s = await sessions.addSession(ctx, cs, decodedToken, token, token)
         if (!('session' in s)) {
           sendError(res, 403, {
@@ -249,7 +268,19 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
         )
       }
     } catch (err: any) {
-      sendError(res, 500, { message: 'Failed to execute operation', error: err.message })
+      if (err instanceof PlatformError) {
+        const statusCode =
+          err.status.code === platform.status.BadRequest
+            ? 400
+            : err.status.code === platform.status.Unauthorized
+              ? 401
+              : err.status.code === platform.status.Forbidden || err.status.code === platform.status.PlanLimitExceeded
+                ? 403
+                : 500
+        sendError(res, statusCode, { message: err.message, error: err.status })
+      } else {
+        sendError(res, 500, { message: 'Failed to execute operation', error: err.message })
+      }
     }
   }
 
@@ -318,6 +349,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
     })
   })
 
+  // These convenience routes write through the pipeline: they must run under the caller's session data,
+  // otherwise wrapPipeline substitutes the system account and space security / api key grants are skipped.
   app.post('/api/v1/create/:workspaceId', (req, res) => {
     void withSession(req, res, 'v1-create', async (ctx, session, rateLimit) => {
       const request: {
@@ -327,10 +360,12 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
         id?: Ref<any>
         modifiedOn?: Timestamp
         modifiedBy?: PersonId
+        meta?: TxMeta
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
-      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true)
+      session.includeSessionContext(ctx)
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
       const ops = new TxOperations(client, pid)
 
       await sendJson(
@@ -342,7 +377,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
           request.attributes,
           request.id ?? generateId(),
           request.modifiedOn,
-          request.modifiedBy ?? pid
+          request.modifiedBy ?? pid,
+          request.meta
         ),
         rateLimitToHeaders(rateLimit)
       )
@@ -361,10 +397,12 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
         id?: Ref<any>
         modifiedOn?: Timestamp
         modifiedBy?: PersonId
+        meta?: TxMeta
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
-      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true)
+      session.includeSessionContext(ctx)
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
       const ops = new TxOperations(client, pid)
 
       await sendJson(
@@ -379,7 +417,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
           request.attributes,
           request.id ?? generateId(),
           request.modifiedOn,
-          request.modifiedBy ?? pid
+          request.modifiedBy ?? pid,
+          request.meta
         ),
         rateLimitToHeaders(rateLimit)
       )
@@ -402,7 +441,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
-      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true)
+      session.includeSessionContext(ctx)
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
       const rops = new TxOperations(client, pid)
 
       const hierarchy = ctx.pipeline.context.hierarchy
@@ -448,7 +488,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
-      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true)
+      session.includeSessionContext(ctx)
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
       const ops = new TxOperations(client, pid)
 
       await sendJson(
@@ -480,7 +521,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
-      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true)
+      session.includeSessionContext(ctx)
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
       const ops = new TxOperations(client, pid)
 
       await sendJson(
@@ -515,7 +557,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
-      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true)
+      session.includeSessionContext(ctx)
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
       const ops = new TxOperations(client, pid)
 
       if (ctx.pipeline.context.hierarchy.isDerived(request._class, core.class.AttachedDoc)) {
@@ -545,20 +588,40 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
     })
   })
 
-  /**
-   * @deprecated Use /api/v1/tx/:workspaceIdd instead
-   */
-  app.post('/api/v1/event/:workspaceId', (req, res) => {
-    void withSession(req, res, 'domainRequest', async (ctx, session) => {
-      const event: any = (await retrieveJson(req)) ?? {}
+  // Runs one high-level operation (create/update issue, post a comment, create/update a document -
+  // see pods/server/src/opsApi.ts) for the webhook API-key integration. The `ops` grant is checked
+  // here; `ApiKeyPermissionsMiddleware` separately scopes the resulting txes to the key's spaces.
+  app.post('/api/v1/ops/:operation/:workspaceId', (req, res) => {
+    void withSession(req, res, 'v1-ops', async (ctx, session, rateLimit) => {
+      const operation = req.params.operation as ApiKeyOperation
+      const executor = operations[operation]
+      if (executor === undefined) {
+        throw new PlatformError(
+          new Status(Severity.ERROR, platform.status.BadRequest, { message: `unknown operation: "${operation}"` })
+        )
+      }
+      if (!isOperationGranted(session.token.extra, operation)) {
+        throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+      }
+      const payload = ((await retrieveJson(req)) ?? {}) as Record<string, unknown>
 
-      const { result } = await session.domainRequestRaw(ctx, COMMUNICATION_DOMAIN, {
-        event
-      })
-      await sendJson(req, res, result.value)
+      const pid = session.getRawAccount().primarySocialId
+      // Run as the caller, not as the pipeline's system identity - otherwise ApiKeyPermissionsMiddleware
+      // and SpaceSecurityMiddleware see an admin system account and every grant on the key is ignored.
+      session.includeSessionContext(ctx)
+      // Operation names are checked here, so this is the only route a key carrying them may write on.
+      ctx.ctx.contextData.opsApi = true
+      const client = wrapPipeline(ctx.ctx, ctx.pipeline, session.workspace, true, ctx.ctx.contextData)
+      const ops = new TxOperations(client, pid)
+      const uploadMarkup = makeUploadMarkup(ctx.ctx, storageAdapter, session.workspace)
+
+      await sendJson(req, res, await executor(ops, payload, uploadMarkup), rateLimitToHeaders(rateLimit))
     })
   })
 
+  /**
+   * @deprecated Use /api/v1/tx/:workspaceIdd instead
+   */
   app.get('/api/v1/account/:workspaceId', (req, res) => {
     void withSession(req, res, 'account', async (ctx, session, rateLimit) => {
       const result = session.getRawAccount()
@@ -604,10 +667,26 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       const query: SearchQuery = {
         query: req.query.query as string,
         classes: req.query.classes !== undefined ? JSON.parse(req.query.classes as string) : undefined,
-        spaces: req.query.spaces !== undefined ? JSON.parse(req.query.spaces as string) : undefined
+        spaces: req.query.spaces !== undefined ? JSON.parse(req.query.spaces as string) : undefined,
+        filters: req.query.filters !== undefined ? JSON.parse(req.query.filters as string) : undefined
       }
       const options: SearchOptions = {
-        limit: req.query.limit !== undefined ? parseInt(req.query.limit as string) : undefined
+        limit: req.query.limit !== undefined ? parseInt(req.query.limit as string) : undefined,
+        cursor: req.query.cursor as string | undefined,
+        sort: req.query.sort as SearchOptions['sort'],
+        // A comma separated list: `searchIn=title,identifier`
+        searchIn:
+          req.query.searchIn !== undefined
+            ? ((req.query.searchIn as string).split(',') as SearchOptions['searchIn'])
+            : undefined,
+        fuzzy: req.query.fuzzy !== undefined ? req.query.fuzzy === 'true' : undefined,
+        // Either `true` or a JSON object, so the bare flag survives the query string.
+        highlight:
+          req.query.highlight === undefined
+            ? undefined
+            : req.query.highlight === 'true'
+              ? true
+              : JSON.parse(req.query.highlight as string)
       }
       const result = await session.searchFulltextRaw(ctx, query, options)
       await sendJson(req, res, result, rateLimitToHeaders(rateLimit), true)
@@ -659,85 +738,62 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
       const accountClient = getAccountClient(token)
 
       const { uuid, socialId } = await accountClient.ensurePerson(socialType, socialValue, firstName, lastName)
-      const primaryPersonId =
+
+      const primarySocialId =
         session.getUser() === systemAccountUuid ? core.account.System : pickPrimarySocialId(session.getSocialIds())._id
-      const txFactory: TxFactory = new TxFactory(primaryPersonId)
 
-      let [person] = await session.findAllRaw(ctx, contact.class.Person, { personUuid: uuid }, { limit: 1 })
-      let personRef: Ref<Person> = person?._id
-
-      if (personRef === undefined) {
-        const createPersonTx = txFactory.createTxCreateDoc(contact.class.Person, contact.space.Contacts, {
-          avatarType: AvatarType.COLOR,
-          name: combineName(firstName, lastName),
-          personUuid: uuid
-        })
-        const createUniquePersonTx = txFactory.createTxApplyIf(
-          core.space.Workspace,
-          socialId,
-          [],
-          [
-            {
-              _class: contact.class.Person,
-              query: { personUuid: uuid }
-            }
-          ],
-          [createPersonTx],
-          'createLocalPerson'
-        )
-
-        await session.txRaw(ctx, createUniquePersonTx)
-        personRef = createPersonTx.objectId
-        if (options?.addGuestEmployee === true) {
-          ;[person] = await session.findAllRaw(ctx, contact.class.Person, { personUuid: uuid }, { limit: 1 })
-        }
-      }
-
-      if (person !== undefined && options?.addGuestEmployee === true) {
-        const h = ctx.pipeline.context.hierarchy
-        if (!h.hasMixin(person, contact.mixin.Employee)) {
-          const op = txFactory.createTxMixin(person._id, contact.class.Person, person.space, contact.mixin.Employee, {
-            active: true,
-            role: AccountRole.Guest
-          })
-          await session.txRaw(ctx, op)
-        }
-      }
-
-      const [socialIdentity] = await session.findAllRaw(
-        ctx,
-        contact.class.SocialIdentity,
-        {
-          attachedTo: personRef,
-          type: socialType,
-          value: socialValue
+      // Adapter wrapping server Session as a Client for ensureEmployeeForPerson
+      const clientAdapter: Pick<Client, 'findOne' | 'findAll' | 'tx'> = {
+        findOne: async <T extends Doc>(
+          _class: Ref<Class<T>>,
+          query: DocumentQuery<T>,
+          opts?: FindOptions<T>
+        ): Promise<WithLookup<T> | undefined> => {
+          const result = await session.findAllRaw(ctx, _class, query, { ...(opts ?? {}), limit: 1 })
+          return result[0]
         },
-        { limit: 1 }
-      )
-
-      if (socialIdentity === undefined) {
-        const data: AttachedData<SocialIdentity> = {
-          key: buildSocialIdString({ type: socialType, value: socialValue }),
-          type: socialType,
-          value: socialValue,
-          isDeleted: false
-        }
-
-        const addSocialIdentityTx = txFactory.createTxCollectionCUD(
-          contact.class.Person,
-          personRef,
-          contact.space.Contacts,
-          'socialIds',
-          txFactory.createTxCreateDoc(
-            contact.class.SocialIdentity,
-            contact.space.Contacts,
-            data as Data<SocialIdentity>,
-            socialId as SocialIdentityRef
-          )
-        )
-
-        await session.txRaw(ctx, addSocialIdentityTx)
+        findAll: async <T extends Doc>(
+          _class: Ref<Class<T>>,
+          query: DocumentQuery<T>,
+          opts?: FindOptions<T>
+        ): Promise<FindResult<T>> => {
+          return await session.findAllRaw(ctx, _class, query, opts)
+        },
+        tx: async (tx: Tx): Promise<TxResult> => (await session.txRaw(ctx, tx)).result
       }
+
+      const socialIdEntry: SocialId = {
+        _id: socialId,
+        type: socialType,
+        value: socialValue,
+        key: buildSocialIdString({ type: socialType, value: socialValue }),
+        verifiedOn: Date.now(),
+        isDeleted: false
+      }
+
+      const account: Account = {
+        uuid: uuid as AccountUuid,
+        primarySocialId,
+        role: options?.addGuestEmployee === true ? AccountRole.Guest : AccountRole.User,
+        socialIds: [socialId],
+        fullSocialIds: [socialIdEntry]
+      }
+
+      const globalPerson: GlobalPerson = {
+        uuid,
+        firstName,
+        lastName
+      }
+
+      const personRef = await ensureEmployeeForPerson(
+        ctx.ctx,
+        account,
+        account,
+        clientAdapter,
+        [socialIdEntry],
+        globalPerson,
+        { createEmployee: options?.addGuestEmployee === true, roleOverride: 'GUEST' }
+      )
 
       const result = { uuid, socialId, localPerson: personRef }
 
@@ -754,18 +810,22 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
   })
 }
 
-function createClosingSocket (rawToken: string, rpcSessions: Map<string, RPCClientInfo>): ConnectionSocket {
+function createClosingSocket (
+  rawToken: string,
+  rpcSessions: Map<string, RPCClientInfo>,
+  data: Record<string, any> = {}
+): ConnectionSocket {
   return {
     id: rawToken,
     isClosed: false,
     close: () => {
       rpcSessions.delete(rawToken)
     },
-    send: async (ctx, msg, binary, compression) => {},
+    send: async (ctx, msg, binary, compression, memo) => {},
     isBackpressure: () => false,
     backpressure: async (ctx) => {},
     sendPong: () => {},
-    data: () => ({}),
+    data: () => data,
     readRequest: (buffer, binary) => ({ method: '', params: [], id: -1, time: Date.now() }),
     checkState: () => true
   }

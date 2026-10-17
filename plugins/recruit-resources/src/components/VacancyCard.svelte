@@ -14,11 +14,12 @@
 -->
 <script lang="ts">
   import attachment from '@hcengineering/attachment'
-  import contact, { Channel, Organization } from '@hcengineering/contact'
+  import type { Channel, Organization } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import { ChannelsEditor } from '@hcengineering/contact-resources'
-  import { Ref, WithLookup } from '@hcengineering/core'
+  import type { Ref, WithLookup } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Vacancy } from '@hcengineering/recruit'
+  import type { Vacancy } from '@hcengineering/recruit'
   import { Component, Label } from '@hcengineering/ui'
   import { DocNavLink } from '@hcengineering/view-resources'
   import recruit from '../plugin'
@@ -30,7 +31,7 @@
   export let inline: boolean = false
   let company: Organization | undefined
 
-  $: getOrganization(vacancy, vacancy?.company)
+  $: void getOrganization(vacancy, vacancy?.company)
   const client = getClient()
 
   async function getOrganization (
@@ -68,7 +69,7 @@
   {#if !inline}
     <div class="label uppercase"><Label label={recruit.string.Vacancy} /></div>
     <div class="flex-center logo">
-      <VacancyIcon size={'large'} />
+      <VacancyIcon size="large" />
     </div>
   {/if}
   {#if vacancy}
@@ -77,7 +78,7 @@
       <div class="name">
         {#if inline}
           <div class="flex-row-center">
-            <VacancyIcon size={'small'} />
+            <VacancyIcon size="small" />
             <span class="ml-2">
               {vacancy.name}
             </span>
@@ -109,7 +110,7 @@
         <ChannelsEditor
           attachedTo={channels[0].attachedTo}
           attachedClass={channels[0].attachedToClass}
-          length={'short'}
+          length="short"
           editable={false}
         />
       {/if}

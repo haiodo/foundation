@@ -14,10 +14,11 @@
 -->
 <script lang="ts">
   import { Button, ToggleWithLabel } from '@hcengineering/ui'
-  import { Viewlet } from '@hcengineering/view'
+  import type { Viewlet } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import view from '../plugin'
-  import { AttributeConfig, Config, isAttribute } from '../viewOptions'
+  import type { AttributeConfig, Config } from '../viewOptions'
+  import { isAttribute } from '../viewOptions'
 
   export let viewlet: Viewlet
   export let items: Array<Config | AttributeConfig> = []
@@ -64,8 +65,8 @@
   <Button
     on:click={() => dispatch('restoreDefaults')}
     label={view.string.RestoreDefaults}
-    size={'x-small'}
-    kind={'link'}
+    size="x-small"
+    kind="link"
     noFocus
   />
 </div>
@@ -91,7 +92,7 @@
       on:dragend={dragEnd}
     >
       <ToggleWithLabel
-        on={item.enabled}
+        bind:on={item.enabled}
         label={item.label}
         on:change={(e) => {
           change(item, e.detail)

@@ -1,101 +1,77 @@
-import { expect, test } from '@playwright/test'
-import { ApiEndpoint } from '../API/Api'
+import { expect, test, type Browser, type SharedWorkspace } from '../fixtures'
+import { connectOwner, joinWorkspace, openMemberPage } from '../API/ChatApi'
 import { ChannelPage } from '../model/channel-page'
-import { LeftSideMenuPage } from '../model/left-side-menu-page'
-import { LoginPage } from '../model/login-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
-import { SignUpData } from '../model/common-types'
-import {
-  PlatformURI,
-  createAccount,
-  generateTestData,
-  generateUser,
-  getInviteLink,
-  getSecondPageByInvite
-} from '../utils'
+import { generateUser, loginByToken } from '../utils'
+
+test.describe.configure({ mode: 'parallel' })
 
 test.describe('Pulse — typing indicator and document presence', () => {
-  let leftSideMenuPage: LeftSideMenuPage
   let channelPage: ChannelPage
-  let loginPage: LoginPage
-  let api: ApiEndpoint
-  let newUser2: SignUpData
-  let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
+  let shared: SharedWorkspace
+  let channelName: string
 
-  test.beforeEach(async ({ page, request }) => {
-    data = generateTestData()
-    newUser2 = generateUser()
-
-    leftSideMenuPage = new LeftSideMenuPage(page)
+  test.beforeEach(async ({ page, sharedWorkspace }, testInfo) => {
+    // Both tests bring a second user, who takes a seat.
+    shared = await sharedWorkspace(1)
     channelPage = new ChannelPage(page)
-    loginPage = new LoginPage(page)
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    channelName = `pulse-${testInfo.testId}${testInfo.retry}`
+    await loginByToken(page, shared.token, shared.ws, 'chunter')
   })
 
-  test('Second user sees typing indicator while first user types in general channel', async ({
-    browser,
-    page,
-    request
-  }) => {
-    const linkText = await getInviteLink(page)
-    await createAccount(request, newUser2)
-    using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
-    const page2 = _page2.page
+  // Presence lives per channel, and `general` still shows whoever the worker's earlier tests had
+  // open in it within the presence TTL - so each test gets a channel of its own.
+  async function openSecondUser (browser: Browser): ReturnType<typeof openMemberPage> {
+    const member = await joinWorkspace(shared.ws, generateUser())
+    const owner = await connectOwner(shared.ws, `${shared.data.lastName} ${shared.data.firstName}`)
+    await owner.createChannel(channelName, [member.account])
+    return await openMemberPage(browser, member, 'chunter')
+  }
 
-    const channelPageSecond = new ChannelPage(page2)
-    const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
+  test('Second user sees typing indicator while first user types in a channel', async ({ browser }) => {
+    const second = await openSecondUser(browser)
+    try {
+      const channelPageSecond = new ChannelPage(second.page)
 
-    await leftSideMenuPage.clickChunter()
-    await channelPage.clickChooseChannel('general')
+      await channelPage.clickChooseChannel(channelName)
+      await channelPageSecond.clickChooseChannel(channelName)
 
-    await leftSideMenuPageSecond.clickChunter()
-    await channelPageSecond.clickChooseChannel('general')
+      await channelPage.inputMessage().click()
+      await channelPage.inputMessage().pressSequentially('hello there', { delay: 80 })
 
-    await channelPage.inputMessage().click()
-    await channelPage.inputMessage().pressSequentially('hello there', { delay: 80 })
+      const typingInfo = second.page.locator('span[data-id="channel-typing-info"]')
+      await expect(typingInfo).toContainText(shared.data.firstName, { timeout: 8000 })
 
-    const typingInfo = page2.locator('span[data-id="channel-typing-info"]')
-    await expect(typingInfo).toContainText(data.firstName, { timeout: 8000 })
-
-    await channelPage.buttonSendMessage().click()
-    await expect(typingInfo).not.toContainText(data.firstName, { timeout: 10000 })
+      await channelPage.buttonSendMessage().click()
+      await expect(typingInfo).not.toContainText(shared.data.firstName, { timeout: 10000 })
+    } finally {
+      await second.context.close()
+    }
   })
 
-  test('First user sees second user as document presence viewer in general channel', async ({
-    browser,
-    page,
-    request
-  }) => {
-    const linkText = await getInviteLink(page)
-    await createAccount(request, newUser2)
+  test('First user sees second user as document presence viewer in a channel', async ({ browser }) => {
+    const second = await openSecondUser(browser)
+    try {
+      const channelPageSecond = new ChannelPage(second.page)
 
-    await leftSideMenuPage.clickChunter()
-    await channelPage.clickChooseChannel('general')
+      await channelPage.clickChooseChannel(channelName)
 
-    // Presence avatars on page1 should be empty (only self — filtered out)
-    const presenceFirst = page.locator('[data-id="document-presence"]')
-    await expect(presenceFirst).toHaveCount(1)
-    await expect(presenceFirst.locator('.hulyCombineAvatar, .avatar-button')).toHaveCount(0)
+      // Presence avatars on page1 should be empty (only self — filtered out)
+      const presenceFirst = channelPage.page.locator('[data-id="document-presence"]')
+      await expect(presenceFirst).toHaveCount(1)
+      await expect(presenceFirst.locator('.hulyCombineAvatar, .avatar-button')).toHaveCount(0)
 
-    // Second user joins and opens the same channel
-    using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
-    const page2 = _page2.page
-    const channelPageSecond = new ChannelPage(page2)
-    const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
-    await leftSideMenuPageSecond.clickChunter()
-    await channelPageSecond.clickChooseChannel('general')
+      // Second user opens the same channel
+      await channelPageSecond.clickChooseChannel(channelName)
 
-    // First user should now see second user avatar via DocumentPresence
-    await expect(presenceFirst.locator('.hulyCombineAvatar, .avatar-button')).toHaveCount(1, { timeout: 10000 })
+      // First user should now see second user avatar via DocumentPresence
+      await expect(presenceFirst.locator('.hulyCombineAvatar, .avatar-button')).toHaveCount(1, { timeout: 10000 })
 
-    // When second user leaves the channel (switches to another), TTL expires and avatar should disappear
-    await channelPageSecond.clickChooseChannel('random')
-    await expect(presenceFirst.locator('.hulyCombineAvatar, .avatar-button')).toHaveCount(0, { timeout: 20000 })
+      // Presence disappears only once its TTL expires, not immediately - hence the 20s
+      // timeout.
+      await channelPageSecond.clickChooseChannel('random')
+      await expect(presenceFirst.locator('.hulyCombineAvatar, .avatar-button')).toHaveCount(0, { timeout: 20000 })
+    } finally {
+      await second.context.close()
+    }
   })
 })

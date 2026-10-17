@@ -14,19 +14,17 @@
 -->
 <script lang="ts">
   import { EmployeeBox, getPersonRefByPersonIdCb } from '@hcengineering/contact-resources'
-  import core, { Class, Doc, Mixin, Ref } from '@hcengineering/core'
-  import { AttributeBarEditor, createQuery, getClient, KeyedAttribute } from '@hcengineering/presentation'
-  import { Person } from '@hcengineering/contact'
+  import type { Class, Doc, Mixin, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import { AttributeBarEditor, createQuery, getClient } from '@hcengineering/presentation'
+  import type { Person } from '@hcengineering/contact'
   import tags from '@hcengineering/tags'
-  import type { Issue } from '@hcengineering/tracker'
-  import { Component, Label } from '@hcengineering/ui'
-  import {
-    getDocMixins,
-    getFiltredKeys,
-    isCollectionAttr,
-    ObjectBox,
-    restrictionStore
-  } from '@hcengineering/view-resources'
+  import task from '@hcengineering/task'
+  import type { Issue, TimeSpendReport } from '@hcengineering/tracker'
+  import { reduceChildInfoTree } from '@hcengineering/tracker'
+  import { Component, Label, floorFractionDigits } from '@hcengineering/ui'
+  import { getDocMixins, getFiltredKeys, isCollectionAttr, ObjectBox } from '@hcengineering/view-resources'
 
   import tracker from '../../../plugin'
   import ComponentEditor from '../../components/ComponentEditor.svelte'
@@ -34,20 +32,28 @@
   import AssigneeEditor from '../AssigneeEditor.svelte'
   import DueDateEditor from '../DueDateEditor.svelte'
   import PriorityEditor from '../PriorityEditor.svelte'
-  import RelationEditor from '../RelationEditor.svelte'
   import StatusEditor from '../StatusEditor.svelte'
+  import TaskTypeEditor from '../TaskTypeEditor.svelte'
+  import EstimationValueEditor from '../timereport/EstimationValueEditor.svelte'
+  import ReportedTimeEditor from '../timereport/ReportedTimeEditor.svelte'
+  import TimePresenter from '../timereport/TimePresenter.svelte'
 
   export let issue: Issue
   export let showAllMixins: boolean = false
   export let readonly = false
 
-  const query = createQuery()
-  let showIsBlocking = false
-  let blockedBy: Doc[]
-  $: query.query(tracker.class.Issue, { blockedBy: { _id: issue._id, _class: issue._class } }, (result) => {
-    blockedBy = result
-    showIsBlocking = result.length > 0
-  })
+  // Both reported-time editors below read the same reports, so they share one query.
+  const reportsQuery = createQuery()
+  let reports: TimeSpendReport[] | undefined = undefined
+
+  $: reportsQuery.query(
+    tracker.class.TimeSpendReport,
+    { attachedTo: issue._id },
+    (res) => {
+      reports = res
+    },
+    { projection: { date: 1, value: 1, workslot: 1 } }
+  )
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
@@ -63,7 +69,11 @@
     'milestone',
     'relations',
     'blockedBy',
-    'identifier'
+    'identifier',
+    'estimation',
+    'reportedTime',
+    'remainingTime',
+    'kind'
   ]
 
   const allowedCollections = ['collaborators']
@@ -86,7 +96,7 @@
     const filtredKeys = getFiltredKeys(
       hierarchy,
       mixin,
-      [],
+      ignoreKeys,
       hierarchy.isMixin(mixinClass.extends as Ref<Class<Doc>>) ? mixinClass.extends : issue._class
     )
     return filtredKeys.filter((key) => !isCollectionAttr(hierarchy, key) || allowedCollections.includes(key.key))
@@ -101,6 +111,18 @@
   } else {
     creatorPersonRef = undefined
   }
+
+  $: childInfos = issue.childInfo ?? []
+  $: treeInfo = reduceChildInfoTree(childInfos, 0, 0)
+  $: hasSubtasks = (issue.subIssues ?? 0) > 0
+  $: estimationTotal = floorFractionDigits((issue.estimation ?? 0) + (treeInfo?.totalEstimation ?? 0), 3)
+  $: reportedTotal = floorFractionDigits((issue.reportedTime ?? 0) + (treeInfo?.totalReportedTime ?? 0), 3)
+  $: remainingTotal = floorFractionDigits(estimationTotal - reportedTotal, 3)
+
+  function updateEstimation (val: number | undefined): void {
+    if (val === undefined) return
+    void client.update(issue, { estimation: val })
+  }
 </script>
 
 <div class="popupPanel-body__aside-grid">
@@ -111,12 +133,12 @@
     <ObjectBox
       _class={tracker.class.IssueTemplate}
       value={issue.template?.template}
-      size={'small'}
-      kind={'link'}
-      width={'100%'}
+      size="small"
+      kind="link"
+      width="100%"
       label={tracker.string.NoIssueTemplate}
       icon={tracker.icon.Issues}
-      searchField={'title'}
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       readonly
@@ -128,37 +150,12 @@
     <Label label={tracker.string.Status} />
   </span>
 
-  <StatusEditor value={issue} size={'medium'} iconSize={'small'} shouldShowLabel isEditable={!readonly} />
-
-  {#if issue.blockedBy?.length}
-    <span class="labelTop">
-      <Label label={tracker.string.BlockedBy} />
-    </span>
-    <RelationEditor value={issue} type="blockedBy" {readonly} disabled={$restrictionStore.disableNavigation} />
-  {/if}
-  {#if showIsBlocking}
-    <span class="labelTop">
-      <Label label={tracker.string.Blocks} />
-    </span>
-    <RelationEditor
-      value={issue}
-      type="isBlocking"
-      {blockedBy}
-      {readonly}
-      disabled={$restrictionStore.disableNavigation}
-    />
-  {/if}
-  {#if issue.relations?.length}
-    <span class="labelTop">
-      <Label label={tracker.string.Related} />
-    </span>
-    <RelationEditor value={issue} type="relations" {readonly} disabled={$restrictionStore.disableNavigation} />
-  {/if}
+  <StatusEditor value={issue} size="medium" iconSize="small" shouldShowLabel isEditable={!readonly} />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Priority} />
   </span>
-  <PriorityEditor value={issue} size={'medium'} shouldShowLabel isEditable={!readonly} width={'100%'} />
+  <PriorityEditor value={issue} size="medium" shouldShowLabel isEditable={!readonly} width="100%" />
 
   <span class="labelOnPanel">
     <Label label={core.string.CreatedBy} />
@@ -166,10 +163,10 @@
   <EmployeeBox
     value={creatorPersonRef}
     label={core.string.CreatedBy}
-    kind={'link'}
-    size={'medium'}
-    avatarSize={'card'}
-    width={'100%'}
+    kind="link"
+    size="medium"
+    avatarSize="card"
+    width="100%"
     showNavigate={false}
     readonly
   />
@@ -177,7 +174,7 @@
   <span class="labelOnPanel">
     <Label label={tracker.string.Assignee} />
   </span>
-  <AssigneeEditor object={issue} size={'medium'} avatarSize={'card'} width="100%" {readonly} />
+  <AssigneeEditor object={issue} size="medium" avatarSize="card" width="100%" {readonly} />
 
   <span class="labelTop">
     <Label label={tracker.string.Labels} />
@@ -190,23 +187,109 @@
   <div class="divider" />
 
   <span class="labelOnPanel">
+    <Label label={task.string.TaskType} />
+  </span>
+  <TaskTypeEditor value={issue} size="medium" iconSize="small" isEditable={!readonly} width="100%" />
+
+  <span class="labelOnPanel">
     <Label label={tracker.string.Component} />
   </span>
-  <ComponentEditor value={issue} space={issue.space} size={'medium'} isEditable={!readonly} />
+  <ComponentEditor value={issue} space={issue.space} size="medium" isEditable={!readonly} />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Milestone} />
   </span>
-  <MilestoneEditor value={issue} space={issue.space} size={'medium'} isEditable={!readonly} />
+  <MilestoneEditor value={issue} space={issue.space} size="medium" isEditable={!readonly} />
 
-  {#if issue.dueDate !== null}
+  {#if issue.dueDate != null}
     <div class="divider" />
 
     <span class="labelOnPanel">
       <Label label={tracker.string.DueDate} />
     </span>
-    <DueDateEditor value={issue} width={'100%'} editable={!readonly} />
+    <DueDateEditor value={issue} width="100%" editable={!readonly} />
   {/if}
+
+  {#if hasSubtasks}
+    <div class="divider" />
+    <span class="labelOnPanel"><Label label={tracker.string.EstimationTask} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <EstimationValueEditor
+        placeholder={tracker.string.EstimationTask}
+        value={issue.estimation}
+        object={issue}
+        onChange={updateEstimation}
+        kind="link"
+        {readonly}
+      />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.EstimationSubtask} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={treeInfo.totalEstimation} />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.EstimationTotalTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={estimationTotal} />
+    </div>
+
+    <div class="divider" />
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedTaskTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <ReportedTimeEditor
+        placeholder={tracker.string.ReportedTime}
+        object={issue}
+        value={issue.reportedTime}
+        {reports}
+        showChildIssues={false}
+        kind="link"
+        {readonly}
+      />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedSubtaskTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={floorFractionDigits(treeInfo.totalReportedTime, 3)} />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedTotalTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={reportedTotal} />
+    </div>
+  {:else}
+    <div class="divider" />
+    <span class="labelOnPanel"><Label label={tracker.string.Estimation} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <EstimationValueEditor
+        placeholder={tracker.string.Estimation}
+        value={issue.estimation}
+        object={issue}
+        onChange={updateEstimation}
+        kind="link"
+        {readonly}
+      />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <ReportedTimeEditor
+        placeholder={tracker.string.ReportedTime}
+        object={issue}
+        value={issue.reportedTime}
+        {reports}
+        kind="link"
+        {readonly}
+      />
+    </div>
+  {/if}
+
+  <div class="divider" />
+  <span class="labelOnPanel"><Label label={tracker.string.RemainingTime} /></span>
+  <div class="flex flex-grow min-w-0 time-value">
+    <TimePresenter value={hasSubtasks ? remainingTotal : issue.remainingTime} />
+  </div>
 
   {#if keys.length > 0}
     <div class="divider" />
@@ -218,7 +301,7 @@
         _class={issue._class}
         object={issue}
         showHeader={true}
-        size={'medium'}
+        size="medium"
       />
     {/each}
   {/if}
@@ -233,7 +316,7 @@
         _class={issue._class}
         object={issue}
         showHeader={true}
-        size={'medium'}
+        size="medium"
       />
     {/each}
   {/if}
@@ -250,9 +333,22 @@
           {readonly}
           object={hierarchy.as(issue, mixin._id)}
           showHeader={true}
-          size={'medium'}
+          size="medium"
         />
       {/each}
     {/if}
   {/each}
 </div>
+
+<style lang="scss">
+  .time-value {
+    padding: 0 0.75rem;
+
+    // The hover background belongs to the button, so the padding has to live there; the negative
+    // margin keeps the value itself aligned with the plain ones above and below.
+    :global(.link-container) {
+      padding: 0 0.75rem;
+      margin: 0 -0.75rem;
+    }
+  }
+</style>

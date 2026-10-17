@@ -14,20 +14,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { TaskType } from '@hcengineering/task'
+  import type { TaskType } from '@hcengineering/task'
   import { IconWithEmoji } from '@hcengineering/presentation'
-  import {
-    ColorDefinition,
-    Icon,
-    IconSize,
-    getColorNumberByText,
-    getPlatformColorDef,
-    themeStore
-  } from '@hcengineering/ui'
+  import type { ColorDefinition, IconSize } from '@hcengineering/ui'
+  import { Icon, getColorNumberByText, getPlatformColorDef, resolvePaletteColor, themeStore } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { createEventDispatcher, onMount } from 'svelte'
 
-  export let value: TaskType | undefined
+  export let value: Pick<TaskType, 'icon' | 'color' | 'name'> | undefined
   export let size: IconSize = 'small'
   export let inline: boolean = false
 
@@ -38,9 +32,7 @@
   }
 
   $: color = getPlatformColorDef(
-    value?.color !== undefined && typeof value?.color !== 'string'
-      ? value?.color
-      : getColorNumberByText(value?.name ?? ''),
+    resolvePaletteColor(value?.color) ?? getColorNumberByText(value?.name ?? ''),
     $themeStore.dark
   )
   $: dispatchAccentColor(color)

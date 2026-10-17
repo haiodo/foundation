@@ -1,6 +1,8 @@
 <script lang="ts">
-  import core, { Association, Class, Data, Doc, Ref } from '@hcengineering/core'
-  import { IntlString, translate } from '@hcengineering/platform'
+  import type { Association, Class, Data, Doc, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { translate } from '@hcengineering/platform'
   import { createQuery, getClient, MessageBox } from '@hcengineering/presentation'
   import {
     Breadcrumb,
@@ -109,12 +111,12 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={settings.icon.Relations} label={core.string.Relations} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={settings.icon.Relations} label={core.string.Relations} size="large" isCurrent />
 
     <svelte:fragment slot="actions">
       {#if isAssociation(selected)}
-        <Button icon={IconDelete} label={view.string.Delete} kind={'dangerous'} on:click={() => remove(selected)} />
+        <Button icon={IconDelete} label={view.string.Delete} kind="dangerous" on:click={() => remove(selected)} />
       {/if}
     </svelte:fragment>
   </Header>
@@ -125,8 +127,8 @@
         <Button
           icon={view.icon.Add}
           label={core.string.AddRelation}
-          justify={'left'}
-          width={'100%'}
+          justify="left"
+          width="100%"
           on:click={createRelation}
         />
       </div>
@@ -147,7 +149,7 @@
         {/each}
       </div>
     </div>
-    <Separator name={'workspaceSettings'} index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="workspaceSettings" index={0} color="var(--theme-divider-color)" />
     {#if selected !== undefined}
       <AssociationEditor
         {exclude}

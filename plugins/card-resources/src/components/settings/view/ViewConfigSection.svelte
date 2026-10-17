@@ -13,16 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import presentation from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
-  import { ButtonIcon, Icon, IconAdd, IconDelete, Label } from '@hcengineering/ui'
+  import { Icon, IconAdd, IconDelete, Label } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import setting from '@hcengineering/setting'
-  import { Class, Doc, Ref, generateId } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import DescriptorBox from './DescriptorBox.svelte'
   import card from '../../../plugin'
-  import { MasterTag, Tag } from '@hcengineering/card'
-  import view, { MasterDetailConfig, ViewletDescriptor } from '@hcengineering/view'
+  import type { MasterTag, Tag } from '@hcengineering/card'
+  import type { MasterDetailConfig, ViewletDescriptor } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import RelatedTagSelect from './RelatedTagSelect.svelte'
-  import { Asset } from '@hcengineering/platform'
+  import type { Asset } from '@hcengineering/platform'
 
   export let tag: MasterTag | Tag
 
@@ -67,7 +71,14 @@
   <div class="hulyTableAttr-header font-medium-12">
     <Icon icon={sectionIcon} size="small" />
     <span><Label label={card.string.MasterDetailViews} /></span>
-    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnAddViewConfig'} on:click={addViewConfig} />
+    <IconButton
+      kind="primary"
+      icon={IconAdd}
+      size="small"
+      data-id="btnAddViewConfig"
+      tooltip={{ label: presentation.string.Add }}
+      on:click={addViewConfig}
+    />
   </div>
 
   {#if viewConfigs.length > 0}
@@ -95,11 +106,12 @@
               }}
             />
           </div>
-          <ButtonIcon
-            kind={'tertiary'}
+          <IconButton
+            kind="tertiary"
             icon={IconDelete}
             size="small"
             disabled={viewConfigs.length === 1}
+            tooltip={{ label: presentation.string.Delete }}
             on:click={() => {
               removeViewConfig(index)
             }}

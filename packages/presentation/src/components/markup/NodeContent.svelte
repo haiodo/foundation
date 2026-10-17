@@ -13,15 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref, Blob } from '@hcengineering/core'
-  import { AttrValue, MarkupNode, MarkupNodeType } from '@hcengineering/text'
+  import type { Class, Doc, Ref, Blob } from '@hcengineering/core'
+  import type { AttrValue, MarkupNode } from '@hcengineering/text'
+  import { MarkupNodeType } from '@hcengineering/text'
 
   import CodeBlockNode from './CodeBlockNode.svelte'
   import ObjectNode from './ObjectNode.svelte'
   import MarkdownNode from './MarkdownNode.svelte'
   import Node from './Node.svelte'
   import { getBlobRef } from '../../preview'
-  import { ParsedTextWithEmojis } from '@hcengineering/emoji'
+  import type { ParsedTextWithEmojis } from '@hcengineering/emoji'
 
   export let node: MarkupNode
   export let singleTextNode = false
@@ -153,9 +154,10 @@
     {@const objectId = toString(attrs.id)}
     {@const objectClass = toString(attrs.objectclass)}
     {@const objectLabel = toString(attrs.label)}
+    {@const highlight = toString(attrs.highlight)}
 
     {#if objectClass !== undefined && objectId !== undefined}
-      <ObjectNode _id={toRef(objectId)} _class={toClassRef(objectClass)} title={objectLabel} />
+      <ObjectNode _id={toRef(objectId)} _class={toClassRef(objectClass)} title={objectLabel} {highlight} />
     {:else if nodes.length > 0}
       {#each nodes as node}
         <Node {parseEmojisFunction} {node} {preview} />

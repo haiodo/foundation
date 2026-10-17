@@ -23,7 +23,7 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <Icon icon={recruit.icon.Vacancy} size={'medium'} />
+    <Icon icon={recruit.icon.Vacancy} size="medium" />
   </div>
   <span class="overflow-label">
     {value.name}

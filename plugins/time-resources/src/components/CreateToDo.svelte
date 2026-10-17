@@ -67,23 +67,23 @@
   <ModernEditbox
     label={time.string.CreateToDo}
     width={fullSize ? '100%' : ''}
-    size={'medium'}
+    size="medium"
     autoAction={false}
     {disabled}
     bind:value
     on:keydown={(e) => {
       if (e.key === 'Enter') {
         disabled = true
-        save().finally(() => (disabled = false))
+        void save().finally(() => (disabled = false))
         e.preventDefault()
         e.stopPropagation()
       }
     }}
   >
     {#if disabled}
-      <Spinner size={'small'} />
+      <Spinner size="small" />
     {:else}
-      <ActionIcon icon={IconAdd} action={openPopup} size={'small'} />
+      <ActionIcon icon={IconAdd} action={openPopup} size="small" />
     {/if}
   </ModernEditbox>
 </div>

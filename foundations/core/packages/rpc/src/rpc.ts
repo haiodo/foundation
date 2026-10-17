@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type { Account } from '@hcengineering/core'
+import type { Account, ClientKind } from '@hcengineering/core'
 import platform, { PlatformError, Severity, Status } from '@hcengineering/platform'
 import { Packr } from 'msgpackr'
 
@@ -41,6 +41,7 @@ export interface Request<P extends any[]> {
 export interface HelloRequest extends Request<any[]> {
   binary?: boolean
   compression?: boolean
+  client?: ClientKind
 }
 /**
  * @public
@@ -90,14 +91,15 @@ export function rpcJSONReplacer (key: string, value: any): any {
 
 export function rpcJSONReceiver (key: string, value: any): any {
   if (typeof value === 'object' && value !== null) {
-    if (value.dataType === 'TotalArray') {
+    // Array check: a document holding the same dataType must not be boxed by Object.assign.
+    if (value.dataType === 'TotalArray' && Array.isArray(value.value)) {
       return Object.assign(value.value, { total: value.total, lookupMap: value.lookupMap })
     } else if (
       'domain' in value &&
       typeof value.domain === 'string' &&
       'value' in value &&
-      value.value != null &&
-      value.value.dataType === 'TotalArray'
+      value.value?.dataType === 'TotalArray' &&
+      Array.isArray(value.value.value)
     ) {
       return {
         ...value,
@@ -116,6 +118,11 @@ export interface RateLimitInfo {
   reset: number // in milliseconds
   retryAfter?: number // in milliseconds
 }
+
+// Platform-event names the connection broadcasts so the UI can show network state.
+export const RateLimitUpdatedEvent = 'rate-limit-updated' // data: RateLimitInfo | undefined
+export const ConnectionStatusEvent = 'connection-status' // data: boolean (connected)
+export const ConnectionStatsEvent = 'connection-stats'
 
 /**
  * Response object define a server response on transaction request.
@@ -138,13 +145,42 @@ export interface Response<R> {
   queue?: number
 }
 
+// msgpackr keeps one module-scoped arena and only drops it past 1Gb (pack.js:209), so a single
+// oversized response parked 45.7Mb for the life of a 512Mb pod (FUSIO-1344). Growth is coarse
+// (8Mb -> 32Mb), hence the 16Mb line. Packed model, the largest routine message, is 1.31Mb.
+const packrArenaSize = 8 * 1024 * 1024
+const packrArenaMax = 16 * 1024 * 1024
+
+/** The one method of node's Buffer this needs - the package is isomorphic, so no @types/node. */
+interface ArenaAllocator {
+  allocUnsafeSlow?: (size: number) => Uint8Array
+}
+
+function allocPackrArena (): Uint8Array {
+  // msgpackr's own allocator (pack.js:8); it writes strings via Buffer.utf8Write, which a plain
+  // Uint8Array lacks.
+  const allocator = (globalThis as { Buffer?: ArenaAllocator }).Buffer
+  return allocator?.allocUnsafeSlow?.(packrArenaSize) ?? new Uint8Array(packrArenaSize)
+}
+
 export class RPCHandler {
   packr = new Packr({ structuredClone: true, bundleStrings: true, copyBuffers: false })
+  constructor () {
+    this.packr.useBuffer(allocPackrArena())
+  }
+
   protoSerialize (object: object, binary: boolean): any {
     if (!binary) {
       return JSON.stringify(object, rpcJSONReplacer)
     }
-    return new Uint8Array(this.packr.pack(object))
+    const packed = this.packr.pack(object)
+    // A copy, not a view: `pack` returns a subarray of the arena replaced below.
+    const res = new Uint8Array(packed)
+    // `.buffer` is the whole arena, not the slice: its grown size, not the message size.
+    if (packed.buffer.byteLength > packrArenaMax) {
+      this.packr.useBuffer(allocPackrArena())
+    }
+    return res
   }
 
   protoDeserialize (data: any, binary: boolean): any {
@@ -162,7 +198,13 @@ export class RPCHandler {
         }
       }
     }
-    return this.packr.unpack(new Uint8Array(data))
+    const bytes = new Uint8Array(data)
+    // A frame the server packed before it switched this session to binary (hello still in flight):
+    // JSON always starts with '{', this packr's messages with a record definition (0xd4).
+    if (bytes[0] === 0x7b) {
+      return JSON.parse(new TextDecoder().decode(bytes), rpcJSONReceiver)
+    }
+    return this.packr.unpack(bytes)
   }
 
   /**

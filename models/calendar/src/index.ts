@@ -15,6 +15,7 @@
 
 import {
   type AccessLevel,
+  type BusySlot,
   calendarId,
   type PrimaryCalendar,
   type Calendar,
@@ -28,14 +29,14 @@ import {
   type ScheduleAvailability,
   type Visibility
 } from '@hcengineering/calendar'
-import { type Contact, type Employee } from '@hcengineering/contact'
+import { type Contact, type Employee, type Person } from '@hcengineering/contact'
 import {
   DateRangeMode,
   IndexKind,
-  type SystemSpace,
   type Domain,
   type Markup,
   type Ref,
+  type Space,
   type Timestamp,
   type PersonId,
   AccountRole
@@ -77,6 +78,7 @@ export { calendarOperation } from './migration'
 
 export const DOMAIN_CALENDAR = 'calendar' as Domain
 export const DOMAIN_EVENT = 'event' as Domain
+export const DOMAIN_BUSY = 'busy' as Domain
 
 @Model(calendar.class.Calendar, core.class.Doc, DOMAIN_CALENDAR)
 @UX(calendar.string.Calendar, calendar.icon.Calendar)
@@ -99,47 +101,49 @@ export class TExternalCalendar extends TCalendar implements ExternalCalendar {
 @Model(calendar.class.Event, core.class.AttachedDoc, DOMAIN_EVENT)
 @UX(calendar.string.Event, calendar.icon.Calendar)
 export class TEvent extends TAttachedDoc implements Event {
-  declare space: Ref<SystemSpace>
+  declare space: Ref<Space>
 
   @Prop(TypeRef(calendar.class.Calendar), calendar.string.Calendar)
-    calendar!: Ref<Calendar>
+  calendar!: Ref<Calendar>
 
+  // Participant copies and a series master are all looked up by `eventId` on every event change.
+  @Index(IndexKind.Indexed)
   eventId!: string
 
   @Prop(TypeString(), calendar.string.Title)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeMarkup(), calendar.string.Description)
   @Index(IndexKind.FullText)
-    description!: Markup
+  description!: Markup
 
   @Prop(TypeString(), calendar.string.Location, { icon: calendar.icon.Location })
   @Index(IndexKind.FullText)
-    location?: string
+  location?: string
 
   @Prop(TypeBoolean(), calendar.string.AllDay)
   @ReadOnly()
-    allDay!: boolean
+  allDay!: boolean
 
   @Prop(TypeDate(DateRangeMode.DATETIME), calendar.string.Date)
-    date!: Timestamp
+  date!: Timestamp
 
   @Prop(TypeDate(DateRangeMode.DATETIME), calendar.string.DueTo)
-    dueDate!: Timestamp
+  dueDate!: Timestamp
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(ArrOf(TypeRef(contact.class.Contact)), calendar.string.Participants)
-    participants!: Ref<Contact>[]
+  participants!: Ref<Contact>[]
 
   @Prop(ArrOf(TypeTimestamp()), calendar.string.Reminders)
-    reminders?: number[]
+  reminders?: number[]
 
   @Prop(ArrOf(TypeString()), calendar.string.ExternalParticipants)
   @Index(IndexKind.Indexed)
-    externalParticipants?: string[]
+  externalParticipants?: string[]
 
   access!: AccessLevel
 
@@ -148,7 +152,7 @@ export class TEvent extends TAttachedDoc implements Event {
   timeZone?: string
 
   @Index(IndexKind.Indexed)
-    user!: PersonId
+  user!: PersonId
 
   blockTime!: boolean
 }
@@ -174,6 +178,25 @@ export class TReccuringInstance extends TReccuringEvent implements ReccuringInst
   recurringEventId!: Ref<ReccuringEvent>
   isCancelled?: boolean
   virtual?: boolean
+}
+
+@Model(calendar.class.BusySlot, core.class.Doc, DOMAIN_BUSY)
+export class TBusySlot extends TDoc implements BusySlot {
+  @Index(IndexKind.Indexed)
+  person!: Ref<Person>
+
+  @Index(IndexKind.Indexed)
+  eventId!: string
+
+  date!: Timestamp
+  dueDate!: Timestamp
+  allDay!: boolean
+  title?: string
+  timeZone?: string
+  // Unset on a plain slot: the client tells recurring from plain by `rules: { $exists: ... }`.
+  rules?: RecurringRule[]
+  exdate?: Timestamp[]
+  rdate?: Timestamp[]
 }
 
 @Model(calendar.class.Schedule, core.class.Doc, DOMAIN_CALENDAR)
@@ -202,6 +225,7 @@ export function createModel (builder: Builder): void {
     TReccuringInstance,
     TEvent,
     TSchedule,
+    TBusySlot,
     TCalendarEventPresenter,
     TPrimaryCalendar
   )
@@ -308,23 +332,6 @@ export function createModel (builder: Builder): void {
     calendar.category.Calendar
   )
 
-  // createAction(
-  //   builder,
-  //   {
-  //     action: calendar.actionImpl.SaveEventReminder,
-  //     label: calendar.string.RemindMeAt,
-  //     icon: calendar.icon.Reminder,
-  //     input: 'focus',
-  //     category: calendar.category.Calendar,
-  //     target: calendar.class.Event,
-  //     context: {
-  //       mode: 'context',
-  //       group: 'create'
-  //     }
-  //   },
-  //   calendar.action.SaveEventReminder
-  // )
-
   createAction(
     builder,
     {
@@ -347,6 +354,12 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(calendar.class.Event, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: calendar.component.EventPresenter
+  })
+
+  builder.createDoc(core.class.DomainIndexConfiguration, core.space.Model, {
+    domain: DOMAIN_BUSY,
+    indexes: [{ keys: { person: 1, dueDate: 1 } }],
+    disabled: [{ modifiedOn: 1 }, { modifiedBy: 1 }, { createdBy: 1 }, { createdOn: -1 }, { space: 1 }]
   })
 
   builder.createDoc(core.class.DomainIndexConfiguration, core.space.Model, {

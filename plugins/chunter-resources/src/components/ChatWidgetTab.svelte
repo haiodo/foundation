@@ -13,64 +13,33 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Action, Menu, ModernTab, showPopup } from '@hcengineering/ui'
-  import { Widget } from '@hcengineering/workbench'
+  import type { Action } from '@hcengineering/ui'
+  import { Menu, ModernTab, showPopup } from '@hcengineering/ui'
+  import type { Widget } from '@hcengineering/workbench'
   import { getResource } from '@hcengineering/platform'
-  import { ChatWidgetTab } from '@hcengineering/chunter'
-  import { InboxNotification } from '@hcengineering/notification'
-  import {
-    getNotificationsCount,
-    InboxNotificationsClientImpl,
-    isActivityNotification,
-    isMentionNotification,
-    NotifyMarker
-  } from '@hcengineering/notification-resources'
-  import chunter from '../plugin'
-  import { onDestroy } from 'svelte'
-  import { getClient } from '@hcengineering/presentation'
+  import type { ChatWidgetTab } from '@hcengineering/chunter'
+  import { NotificationClientImpl, NotifyMarker } from '@hcengineering/notification-resources'
 
   export let tab: ChatWidgetTab
   export let widget: Widget
   export let selected = false
   export let actions: Action[] = []
 
-  const client = getClient()
-  const hierarchy = client.getHierarchy()
-  const notificationClient = InboxNotificationsClientImpl.getClient()
-  const contextByDocStore = notificationClient.contextByDoc
+  const notificationClient = NotificationClientImpl.getClient()
+  const unreadByDoc = notificationClient.unreadByDoc
 
   $: icon = tab.icon ?? widget.icon
 
-  $: if (tab.iconComponent) {
+  $: if (tab.iconComponent != null) {
     void getResource(tab.iconComponent).then((res) => {
       icon = res
     })
   }
-  let notifications: InboxNotification[] = []
 
   let count: number = 0
 
   $: objectId = tab.data.thread ?? tab.data._id
-  $: context = objectId ? $contextByDocStore.get(objectId) : undefined
-
-  const unsubscribe = notificationClient.inboxNotificationsByContext.subscribe((res) => {
-    if (context === undefined) {
-      count = 0
-      return
-    }
-
-    notifications = (res.get(context._id) ?? []).filter((n) => {
-      if (isActivityNotification(n)) return true
-
-      return isMentionNotification(n) && hierarchy.isDerived(n.mentionedInClass, chunter.class.ChatMessage)
-    })
-  })
-
-  $: count = getNotificationsCount(context, notifications)
-
-  onDestroy(() => {
-    unsubscribe()
-  })
+  $: count = objectId != null ? ($unreadByDoc.get(objectId)?.unreadMessagesCount ?? 0) : 0
 
   function handleMenu (event: CustomEvent<MouseEvent>): void {
     if (actions.length === 0) {
@@ -89,6 +58,7 @@
   highlighted={selected}
   orientation="vertical"
   kind={tab.isPinned ? 'secondary' : 'primary'}
+  italic={tab.isPinned !== true && tab.isKept !== true}
   {icon}
   iconProps={tab.iconProps}
   canClose={!tab.isPinned}

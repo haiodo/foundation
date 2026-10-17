@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Enum } from '@hcengineering/core'
+  import type { Enum } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import presentation, { getClient, MessageBox } from '@hcengineering/presentation'
   import {
     IconAdd,
@@ -23,19 +24,20 @@
     Modal,
     ModernEditbox,
     Label,
-    ButtonIcon,
     IconMoreV,
     IconMoreV2,
     eventToHTMLElement,
     ModernPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import setting from '../plugin'
   import EnumValuesList from './EnumValuesList.svelte'
   import IconBulletList from './icons/BulletList.svelte'
   import Report from './icons/Report.svelte'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
 
   export let value: Enum | undefined
   export let name: string = value?.name ?? ''
@@ -115,7 +117,7 @@
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
       if (file !== null) {
-        processFile(file)
+        void processFile(file)
       }
     }
     inputFile.value = ''
@@ -128,18 +130,17 @@
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
       if (file !== null) {
-        processFile(file)
+        void processFile(file)
       }
     }
   }
   function pasteAction (evt: ClipboardEvent): void {
     const items = evt.clipboardData?.items ?? []
-    for (const index in items) {
-      const item = items[index]
+    for (const item of items) {
       if (item.kind === 'file') {
         const blob = item.getAsFile()
         if (blob !== null) {
-          processFile(blob)
+          void processFile(blob)
         }
       }
     }
@@ -164,7 +165,7 @@
       icon: Report,
       label: setting.string.ImportEnumCopy,
       action: () => {
-        handleClipboard()
+        void handleClipboard()
       }
     }
   ]
@@ -217,14 +218,14 @@
 
 <Modal
   label={title}
-  type={'type-popup'}
+  type="type-popup"
   okLabel={presentation.string.Save}
   okAction={save}
   canSave={name.trim().length > 0 && values.length > 0}
   onCancel={showConfirmationDialog}
 >
   <div class="flex-col">
-    <ModernEditbox bind:value={name} label={setting.string.EnumTitle} kind={'ghost'} size={'large'} width={'100%'} />
+    <ModernEditbox bind:value={name} label={setting.string.EnumTitle} kind="ghost" size="large" width="100%" />
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
       class="hulyTableAttr-container mt-6"
@@ -238,13 +239,14 @@
       on:drop|preventDefault|stopPropagation={fileDrop}
     >
       <div class="hulyTableAttr-header font-medium-12">
-        <IconBulletList size={'small'} />
+        <IconBulletList size="small" />
         <span><Label label={setting.string.Options} /></span>
         <div class="buttons-group tertiary-textColor">
-          <ButtonIcon
-            kind={'tertiary'}
+          <IconButton
+            tooltip={{ label: view.string.MoreActions }}
+            kind="tertiary"
             icon={IconMoreV}
-            size={'small'}
+            size="small"
             pressed={opened}
             inheritColor
             hasMenu
@@ -252,10 +254,10 @@
               openPopup(ev)
             }}
           />
-          <ButtonIcon
-            kind={'primary'}
+          <IconButton
+            kind="primary"
             icon={IconAdd}
-            size={'small'}
+            size="small"
             tooltip={{ label: setting.string.Add }}
             on:click={() => {
               if (newItem) {
@@ -281,12 +283,12 @@
           {#if newItem}
             <div class="hulyTableAttr-content__row hovered">
               <div class="hulyTableAttr-content__row-dragMenu">
-                <IconMoreV2 size={'small'} />
+                <IconMoreV2 size="small" />
               </div>
               <div class="hulyTableAttr-content__row-label font-regular-14 accent grow">
                 <ModernEditbox
-                  kind={'ghost'}
-                  size={'small'}
+                  kind="ghost"
+                  size="small"
                   label={setting.string.EnterOptionTitle}
                   on:keydown={handleKeydown}
                   on:blur={() => {
@@ -296,7 +298,7 @@
                     newItem = false
                   }}
                   bind:value={newValue}
-                  width={'100%'}
+                  width="100%"
                   autoFocus
                 />
               </div>
@@ -305,10 +307,11 @@
                   <Label label={presentation.string.Match} />
                 </div>
               {/if}
-              <ButtonIcon
-                kind={'tertiary'}
+              <IconButton
+                tooltip={{ label: setting.string.Delete }}
+                kind="tertiary"
                 icon={IconDelete}
-                size={'small'}
+                size="small"
                 on:click={() => {
                   newValue = ''
                   newItem = false

@@ -59,7 +59,7 @@
 >
   <div class="flex-between header">
     <div class="flex-row-center gap-1-5">
-      <Button icon={IconClose} kind={'ghost'} size={'medium'} on:click={() => dispatch('close')} />
+      <Button icon={IconClose} kind="ghost" size="medium" on:click={() => dispatch('close')} />
       {#if label}
         <span class="title" use:tooltip={{ label }}><Label {label} /></span>
       {/if}
@@ -76,10 +76,10 @@
         <Button
           focusIndex={100010}
           icon={fullSize ? IconMinimize : IconMaximize}
-          kind={'ghost'}
-          size={'medium'}
+          kind="ghost"
+          size="medium"
           selected={fullSize}
-          id={'btnDialogFullScreen'}
+          id="btnDialogFullScreen"
           showTooltip={{ label: fullSize ? ui.string.NormalSize : ui.string.FullSize }}
           noFocus
           on:click={() => (toggleFullSize = !toggleFullSize)}

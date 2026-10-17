@@ -54,7 +54,7 @@ export async function performGithubAccountMigrations (
   txes: Tx[],
   region: string | null
 ): Promise<void> {
-  const token = generateToken(systemAccountUuid, undefined, { service: 'tool', admin: 'true' })
+  const token = generateToken(systemAccountUuid, undefined, { service: 'tool' })
   const githubToken = generateToken(systemAccountUuid, undefined, { service: 'github' })
   const accountClient = getAccountClient(token)
 
@@ -145,7 +145,7 @@ export async function performGithubAccountMigrations (
         if (systemAccounts.includes(account._id as any)) {
           ;(socialKeyByAccount as any)[account._id] = account._id
         } else {
-          socialKeyByAccount[account._id] = buildSocialIdString(getSocialKeyByOldEmail(account.email)) as any
+          socialKeyByAccount[account._id] = buildSocialIdString(getSocialKeyByOldEmail(account.email))
         }
       }
 

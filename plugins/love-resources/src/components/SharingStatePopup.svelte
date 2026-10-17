@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { Button, Icon, IconStop, Label } from '@hcengineering/ui'
   import { Track } from 'livekit-client'
   import { createEventDispatcher, onMount } from 'svelte'
@@ -80,7 +80,7 @@
       <div class="p-2 flex-between flex-grow flex-gap-2">
         <div class="flex-row-center flex-gap-2">
           <div class="icon">
-            <Icon icon={IconShare} size={'small'} />
+            <Icon icon={IconShare} size="small" />
           </div>
           <div class="flex-col">
             <span class="label overflow-label font-medium caption-color">
@@ -99,10 +99,10 @@
 
         <Button
           label={love.string.StopShare}
-          kind={'negative'}
+          kind="negative"
           icon={IconStop}
           iconProps={{ size: 'large' }}
-          padding={'0 .5rem 0 .25rem'}
+          padding="0 .5rem 0 .25rem"
           on:click={handleStop}
         />
       </div>

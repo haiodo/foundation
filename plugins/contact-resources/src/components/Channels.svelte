@@ -14,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Channel } from '@hcengineering/contact'
+  import type { Channel } from '@hcengineering/contact'
   import type { AttachedData, Doc, Ref } from '@hcengineering/core'
   import presentation from '@hcengineering/presentation'
   import { CircleButton, eventToHTMLElement, IconAdd, Label, showPopup } from '@hcengineering/ui'
@@ -33,7 +33,7 @@
   <div id="channels-edit" class="flex-row-center">
     <CircleButton
       icon={IconAdd}
-      size={'small'}
+      size="small"
       selected
       on:click={(ev) =>
         showPopup(contact.component.SocialEditor, { values: channels }, eventToHTMLElement(ev), (result) => {
@@ -46,11 +46,11 @@
   </div>
 {:else}
   <div class="flex-row-center min-w-min">
-    <ChannelsView value={channels} size={'small'} {integrations} on:click />
+    <ChannelsView value={channels} size="small" {integrations} on:click />
     <div id="channels-edit" class="ml-1">
       <CircleButton
         icon={contact.icon.Edit}
-        size={'small'}
+        size="small"
         selected
         on:click={(ev) =>
           showPopup(contact.component.SocialEditor, { values: channels }, eventToHTMLElement(ev), (result) => {

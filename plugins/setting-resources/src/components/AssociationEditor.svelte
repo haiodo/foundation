@@ -13,20 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Association, Class, Data, Doc, Ref } from '@hcengineering/core'
-  import { getEmbeddedLabel, IntlString } from '@hcengineering/platform'
+  import type { Association, Class, Data, Doc, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import {
-    Button,
-    ButtonKind,
-    ButtonSize,
-    DropdownIntlItem,
-    DropdownLabelsIntl,
-    EditBox,
-    Label,
-    NestedDropdown,
-    Toggle
-  } from '@hcengineering/ui'
+  import type { ButtonKind, ButtonSize, DropdownIntlItem } from '@hcengineering/ui'
+  import { Button, DropdownLabelsIntl, EditBox, Label, NestedDropdown, Toggle } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import card from '@hcengineering/card'
   import { createEventDispatcher } from 'svelte'
@@ -175,7 +168,7 @@
     <div class="flex-col p-4 flex-gap-2">
       <div class="flex-col-center">A</div>
       <div>
-        <EditBox bind:value={nameA} placeholder={core.string.Name} kind={'default'} />
+        <EditBox bind:value={nameA} placeholder={core.string.Name} kind="default" />
       </div>
       <div>
         {#if editable}
@@ -214,7 +207,7 @@
     <div class="flex-col p-4 flex-gap-2">
       <div class="flex-col-center">B</div>
       <div>
-        <EditBox bind:value={nameB} placeholder={core.string.Name} kind={'default'} />
+        <EditBox bind:value={nameB} placeholder={core.string.Name} kind="default" />
       </div>
       <div>
         {#if editable}
@@ -239,6 +232,6 @@
   </div>
 
   <div class="flex-col-reverse">
-    <Button label={presentation.string.Save} kind={'primary'} size={'medium'} on:click={save} />
+    <Button label={presentation.string.Save} kind="primary" size="medium" on:click={save} />
   </div>
 </div>

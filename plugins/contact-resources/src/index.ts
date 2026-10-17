@@ -35,8 +35,9 @@ import {
   type RelatedDocument,
   type WithLookup
 } from '@hcengineering/core'
+import { planLimits } from '@hcengineering/billing-resources'
 import login from '@hcengineering/login'
-import { getResource, type IntlString, type Resources } from '@hcengineering/platform'
+import platform, { PlatformError, getResource, type IntlString, type Resources } from '@hcengineering/platform'
 import { MessageBox, getBlobRef, getClient, type ObjectSearchResult, isDisabled } from '@hcengineering/presentation'
 import {
   getPlatformAvatarColorByName,
@@ -84,6 +85,7 @@ import EditMember from './components/EditMember.svelte'
 import EditOrganization from './components/EditOrganization.svelte'
 import EditOrganizationPanel from './components/EditOrganizationPanel.svelte'
 import EditPerson from './components/EditPerson.svelte'
+import PersonHeaderActions from './components/person/PersonHeaderActions.svelte'
 import EditableAvatar from './components/EditableAvatar.svelte'
 import EmployeeArrayEditor from './components/EmployeeArrayEditor.svelte'
 import EmployeeBox from './components/EmployeeBox.svelte'
@@ -132,12 +134,14 @@ import CollaboratorPresenter from './components/collaborator/CollaboratorPresent
 
 import { get } from 'svelte/store'
 import { canMergePersons, canResendInvitation } from './visibilityTester'
+import { personIdSort } from './personIdSort'
 import contact from './plugin'
 import {
   channelIdentifierProvider,
   channelTitleProvider,
   contactTitleProvider,
   employeeSort,
+  personSort,
   filterChannelHasMessagesResult,
   filterChannelHasNewMessagesResult,
   filterChannelInResult,
@@ -153,12 +157,13 @@ import {
   grouppingPersonManager,
   permissionsStore,
   resolveLocation,
-  resolveLocationData
+  resolveLocationData,
+  collaboratorsApplier
 } from './utils'
 
 export * from './utils'
 export { employeeByIdStore } from './utils'
-export * from './assignee'
+export type * from './assignee'
 export * from './translation'
 export {
   PersonIdArrayEditor,
@@ -293,7 +298,20 @@ async function resendInvite (doc: Person): Promise<void> {
     message: contact.string.ResendInviteDescr,
     action: async () => {
       const _resendInvite = await getResource(login.function.ResendInvite)
-      await _resendInvite(emailSocialId?.value, AccountRole.User)
+      try {
+        await _resendInvite(emailSocialId?.value, AccountRole.User)
+      } catch (err: any) {
+        if (err instanceof PlatformError && err.status.code === platform.status.PlanLimitExceeded) {
+          showPopup(MessageBox, {
+            label: contact.string.ResendInvite,
+            message: contact.string.SeatLimitReached,
+            params: { limit: get(planLimits)?.usersLimit ?? 0 },
+            canSubmit: false
+          })
+          return
+        }
+        throw err
+      }
     }
   })
 }
@@ -310,7 +328,7 @@ async function kickEmployee (doc: Person): Promise<void> {
 
       if (doc.personUuid != null) {
         const leaveWorkspace = await getResource(login.function.LeaveWorkspace)
-        await leaveWorkspace(doc.personUuid as AccountUuid)
+        await leaveWorkspace(doc.personUuid)
       }
     }
   })
@@ -364,6 +382,7 @@ export default async (): Promise<Resources> => ({
     CollaborationUserAvatar,
     CreateOrganization,
     EditPerson,
+    PersonHeaderActions,
     EditOrganization,
     SocialEditor,
     Contacts,
@@ -427,7 +446,9 @@ export default async (): Promise<Resources> => ({
           color: getPersonColor(person, name)
         }
       }
-      const blobRef = await getBlobRef(person.avatar, undefined, width)
+
+      const effectiveWidth = width ?? 128
+      const blobRef = await getBlobRef(person.avatar, undefined, effectiveWidth)
       return {
         url: blobRef.src,
         srcSet: blobRef.srcset,
@@ -450,6 +471,8 @@ export default async (): Promise<Resources> => ({
       url: person.avatarProps?.url
     }),
     EmployeeSort: employeeSort,
+    PersonSort: personSort,
+    PersonIdSort: personIdSort,
     FilterChannelInResult: filterChannelInResult,
     FilterChannelNinResult: filterChannelNinResult,
     FilterChannelHasMessagesResult: filterChannelHasMessagesResult,
@@ -466,6 +489,7 @@ export default async (): Promise<Resources> => ({
     ChannelTitleProvider: channelTitleProvider,
     ChannelIdentifierProvider: channelIdentifierProvider,
     CanResendInvitation: canResendInvitation,
+    CollaboratorsApplier: collaboratorsApplier,
     CanMergePersons: canMergePersons,
     PersonsSpecialVisibleIf: () => !isDisabled(`${contactId}.persons`),
     CompaniesSpecialVisibleIf: () => !isDisabled(`${contactId}.companies`)

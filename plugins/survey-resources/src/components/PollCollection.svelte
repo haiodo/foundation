@@ -17,9 +17,10 @@
 <script lang="ts">
   import type { Class, Doc, Ref, Space } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Survey } from '@hcengineering/survey'
+  import type { Survey } from '@hcengineering/survey'
   import { Button, IconAdd, Label, Section, navigate, showPopup, Scroller } from '@hcengineering/ui'
-  import view, { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { Table, ViewletSelector, ViewletSettingButton, getObjectLinkFragment } from '@hcengineering/view-resources'
   import SurveyPopup from './SurveyPopup.svelte'
   import survey from '../plugin'
@@ -55,7 +56,7 @@
     }
 
     const hierarchy = client.getHierarchy()
-    const panel = hierarchy.classHierarchyMixin(poll._class as Ref<Class<Doc>>, view.mixin.ObjectPanel)
+    const panel = hierarchy.classHierarchyMixin(poll._class, view.mixin.ObjectPanel)
     const loc = await getObjectLinkFragment(hierarchy, poll, {}, panel?.component)
     navigate(loc)
   }
@@ -71,9 +72,9 @@
         bind:loading
         viewletQuery={{ _id: survey.viewlet.TablePoll }}
       />
-      <ViewletSettingButton kind={'tertiary'} bind:viewlet />
+      <ViewletSettingButton kind="tertiary" bind:viewlet />
       {#if !readonly}
-        <Button id={survey.string.CreatePoll} icon={IconAdd} kind={'ghost'} on:click={selectSurvey} />
+        <Button id={survey.string.CreatePoll} icon={IconAdd} kind="ghost" on:click={selectSurvey} />
       {/if}
     </div>
   </svelte:fragment>

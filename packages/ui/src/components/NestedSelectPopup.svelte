@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
   import ui, {
     EditWithIcon,
@@ -84,7 +84,7 @@
 >
   {#if isTopLevel}
     <div class="header">
-      <EditWithIcon icon={IconSearch} size={'large'} width={'100%'} bind:value={search} {placeholder} autoFocus />
+      <EditWithIcon icon={IconSearch} size="large" width="100%" bind:value={search} {placeholder} autoFocus />
     </div>
   {:else}
     <div class="menu-space" />

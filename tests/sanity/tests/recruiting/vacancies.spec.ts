@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { VacanciesPage } from '../model/recruiting/vacancies-page'
@@ -29,7 +29,7 @@ test.describe('Vacancy tests', () => {
     await settingsPage.selectPopupAp('Settings')
     const wsPage: WorkspaceSettingsPage = new WorkspaceSettingsPage(page)
     await wsPage.owners().click()
-    await settingsPage.checkOpened('Owners')
+    await settingsPage.checkOpened('Members')
     const count = await page.locator('div[id="workbench:component:WorkbenchTabs"] div.container.main').count()
     for (let i = 1; i < count; i++) {
       await page.locator('div[id="workbench:component:WorkbenchTabs"] div.container.main:first-child button').click()
@@ -45,29 +45,6 @@ test.describe('Vacancy tests', () => {
     await vacanciesPage.navigateToSoftwareEngineerVacancies()
     await vacanciesPage.selectApplicationsTab()
     await vacanciesPage.verifyApplicantsVisibility()
-
-    // test('application-search', async ({ page }) => {
-    // TODO: Application search is broken, since indexer now index from child to parent.
-    //   await page.locator('[id="app-recruit\\:string\\:RecruitApplication"]').click()
-
-    //   await page.locator('text=Vacancies').click()
-    //   await page.click('text=Software Engineer')
-
-    //   await expect(page.locator('text=M. Marina')).toBeVisible()
-    //   expect(await page.locator('.antiTable-body__row').count()).toBeGreaterThan(2)
-
-    //   const searchBox = page.locator('[placeholder="Search"]')
-    //   await searchBox.fill('Frontend Engineer')
-    //   await searchBox.press('Enter')
-
-    //   await expect(page.locator('.antiTable-body__row')).toHaveCount(1)
-
-    //   await searchBox.fill('')
-    //   await searchBox.press('Enter')
-
-    //   await expect(page.locator('text=M. Marina')).toBeVisible()
-    //   expect(await page.locator('.antiTable-body__row').count()).toBeGreaterThan(2)
-    // })
   })
 
   test('Edit a Vacancy', async () => {

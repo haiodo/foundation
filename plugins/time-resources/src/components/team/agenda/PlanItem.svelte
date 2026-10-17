@@ -1,7 +1,7 @@
 <script lang="ts">
   import calendarPlugin from '@hcengineering/calendar'
   import { Icon, Label, DatePresenter, IconArrowRight } from '@hcengineering/ui'
-  import { WorkSlotMapping } from '../../../types'
+  import type { WorkSlotMapping } from '../../../types'
   import ToDoPresenter from '../../ToDoPresenter.svelte'
   import TimePresenter from '../../presenters/TimePresenter.svelte'
   import { DateRangeMode } from '@hcengineering/core'
@@ -18,7 +18,7 @@
 <div class="item flex-between items-baseline">
   <div class="flex-col ml-0-5">
     {#if item.todo !== undefined}
-      <ToDoPresenter value={item.todo} showCheck />
+      <ToDoPresenter value={item.todo} showCheck readonly />
     {:else}
       <div class="overflow-label flex-no-shrink">
         <Label label={calendarPlugin.string.Busy} />
@@ -30,7 +30,7 @@
           <div class="flex-row-center">
             <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.date} />
             <div class="p-1">
-              <Icon icon={IconArrowRight} size={'small'} />
+              <Icon icon={IconArrowRight} size="small" />
             </div>
             <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.dueDate} />
           </div>

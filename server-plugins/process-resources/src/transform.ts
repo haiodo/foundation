@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,12 +14,13 @@
 // limitations under the License.
 //
 
+import cardPlugin from '@hcengineering/card'
 import contact, { Employee, Person } from '@hcengineering/contact'
 import core, { Doc, matchQuery, Ref, Timestamp } from '@hcengineering/core'
 import { Execution, parseContext } from '@hcengineering/process'
 import { ProcessControl } from '@hcengineering/server-process'
+import { markupToText } from '@hcengineering/text-core'
 import { getContextValue } from './utils'
-import cardPlugin from '@hcengineering/card'
 
 // #region ArrayReduce
 
@@ -52,13 +54,33 @@ export async function FirstMatchValue (
   }
   if (!Array.isArray(value)) return value
   const { _class, ...otherProps } = props
-  if (_class == null) return
   if (value.length === 0) return
   if (typeof value[0] === 'string') {
+    if (_class == null) return
     const docs = await control.client.findAll(_class, { _id: { $in: value } })
     return matchQuery(docs, otherProps, core.class.Doc, control.client.getHierarchy(), true)[0]?._id
   } else if (typeof value[0] === 'object') {
     return matchQuery(value, otherProps, core.class.Doc, control.client.getHierarchy(), true)[0]
+  }
+}
+
+export async function AllMatchValue (
+  value: any[],
+  props: Record<string, any>,
+  control: ProcessControl
+): Promise<any[] | undefined> {
+  if (value == null) {
+    return
+  }
+  if (!Array.isArray(value)) return value
+  const { _class, ...otherProps } = props
+  if (_class == null) return
+  if (value.length === 0) return
+  if (typeof value[0] === 'string') {
+    const docs = await control.client.findAll(_class, { _id: { $in: value } })
+    return matchQuery(docs, otherProps, core.class.Doc, control.client.getHierarchy(), true).map((p) => p._id)
+  } else if (typeof value[0] === 'object') {
+    return matchQuery(value, otherProps, core.class.Doc, control.client.getHierarchy(), true)
   }
 }
 
@@ -72,9 +94,7 @@ export async function Insert (
   control: ProcessControl,
   execution: Execution
 ): Promise<any[]> {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   if (props.value == null) return value
   const context = parseContext(props.value)
@@ -93,9 +113,7 @@ export async function Remove (
   control: ProcessControl,
   execution: Execution
 ): Promise<any[]> {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   if (props.value == null) return value
   const context = parseContext(props.value)
@@ -108,17 +126,13 @@ export async function Remove (
 }
 
 export function RemoveFirst (value: any[]): any[] {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   return value.slice(1)
 }
 
 export function RemoveLast (value: any[]): any[] {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   return value.slice(0, -1)
 }
@@ -195,12 +209,16 @@ export async function Append (
 
 export function Replace (value: string, props: Record<string, string>): string {
   if (typeof value !== 'string') return value
-  return value.replace(props.search, props.replacement)
+  const search = props.search ?? props.from ?? props.target
+  if (search == null) return value
+  return value.replace(search, props.replacement ?? props.to ?? '')
 }
 
 export function ReplaceAll (value: string, props: Record<string, string>): string {
   if (typeof value !== 'string') return value
-  return value.replaceAll(props.search, props.replacement)
+  const search = props.search ?? props.from ?? props.target
+  if (search == null) return value
+  return value.replaceAll(search, props.replacement ?? props.to ?? '')
 }
 
 export function Split (value: string, props: Record<string, string>): string {
@@ -224,8 +242,8 @@ export function FirstWorkingDayAfter (val: Timestamp): Timestamp {
   const value = new Date(val)
   const day = value.getUTCDay()
   if (day === 6 || day === 0) {
-    const date = value.getDate() + (day === 6 ? 2 : 1)
-    const res = value.setDate(date)
+    const date = value.getUTCDate() + (day === 6 ? 2 : 1)
+    const res = value.setUTCDate(date)
     return res
   }
   return val
@@ -425,6 +443,40 @@ export function Floor (value: number): number {
   return value
 }
 
+export async function Min (
+  value: number,
+  props: Record<string, any>,
+  control: ProcessControl,
+  execution: Execution
+): Promise<number> {
+  const context = parseContext(props.value)
+  if (context !== undefined) {
+    const val = await getContextValue(props.value, control, execution)
+    if (typeof val !== 'number') return value
+    return Math.min(value, val)
+  } else if (typeof value === 'number' && typeof props.value === 'number') {
+    return Math.min(value, props.value)
+  }
+  return value
+}
+
+export async function Max (
+  value: number,
+  props: Record<string, any>,
+  control: ProcessControl,
+  execution: Execution
+): Promise<number> {
+  const context = parseContext(props.value)
+  if (context !== undefined) {
+    const val = await getContextValue(props.value, control, execution)
+    if (typeof val !== 'number') return value
+    return Math.max(value, val)
+  } else if (typeof value === 'number' && typeof props.value === 'number') {
+    return Math.max(value, props.value)
+  }
+  return value
+}
+
 // #endregion
 
 // #region Func
@@ -537,6 +589,27 @@ export function MonthFromDate (value: Date): number {
 
 export function DayFromDate (value: Date): number {
   return new Date(value).getDate()
+}
+
+export function StringFromMarkup (value: string): string {
+  return markupToText(value)
+}
+
+export function MarkupFromString (value: string): string {
+  return value
+}
+
+export function StringFromIdentifier (value: string): string {
+  return value
+}
+
+export function StringFromEnum (value: string): string {
+  if (value == null) return ''
+  return String(value)
+}
+
+export function EnumFromString (value: string): string {
+  return value
 }
 
 // #endregion

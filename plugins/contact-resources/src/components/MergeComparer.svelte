@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person } from '@hcengineering/contact'
-  import { Doc, Mixin, Ref } from '@hcengineering/core'
+  import type { Person } from '@hcengineering/contact'
+  import type { Doc, Mixin, Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Label, RadioButton } from '@hcengineering/ui'
   import { FixedColumn } from '@hcengineering/view-resources'
@@ -47,7 +47,7 @@
 
 {#if !isEqual(value, targetEmp, key)}
   <div class="box flex-row-center flex-gap-4 flex-grow">
-    <FixedColumn key={'mergeLabel'} addClass={'ml-4'}>
+    <FixedColumn key="mergeLabel" addClass="ml-4">
       {#if attribute?.label}
         <Label label={attribute.label} />
       {:else}
@@ -55,7 +55,7 @@
       {/if}
     </FixedColumn>
 
-    <FixedColumn key={'mergeFirst'} addClass="flex-row-center flex-gap-2 cursor-pointer">
+    <FixedColumn key="mergeFirst" addClass="flex-row-center flex-gap-2 cursor-pointer">
       <RadioButton
         bind:group={selected}
         value={false}
@@ -67,7 +67,7 @@
       </RadioButton>
     </FixedColumn>
 
-    <FixedColumn key={'mergeSecond'} addClass="flex-row-center flex-gap-2 cursor-pointer">
+    <FixedColumn key="mergeSecond" addClass="flex-row-center flex-gap-2 cursor-pointer">
       <RadioButton
         bind:group={selected}
         value={true}

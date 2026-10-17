@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import documents, { ProjectDocumentTree, type DocumentSpace, type Project } from '@hcengineering/controlled-documents'
-  import { type Doc, type Ref } from '@hcengineering/core'
+  import type { Doc, Ref } from '@hcengineering/core'
   import { getPlatformColorForTextDef, themeStore } from '@hcengineering/ui'
   import { TreeNode } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -54,7 +54,7 @@
   selected={selected === undefined}
   empty={root.length === 0}
   {collapsedPrefix}
-  type={'nested-selectable'}
+  type="nested-selectable"
   on:click={() => {
     dispatch('selected', space)
   }}

@@ -13,15 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { EnumOf } from '@hcengineering/core'
+  import type { EnumOf } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import { DropdownLabels, DropdownTextItem, ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import type { DropdownTextItem, ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import { DropdownLabels } from '@hcengineering/ui'
 
   export let label: IntlString
   export let value: string
   export let type: EnumOf
-  // export let focus: boolean
   export let onChange: (value: string) => void
   export let kind: ButtonKind = 'link'
   export let size: ButtonSize = 'large'
@@ -53,7 +54,7 @@
   {items}
   {label}
   useFlexGrow={true}
-  justify={'left'}
+  justify="left"
   {size}
   {kind}
   {width}

@@ -1,5 +1,7 @@
-import { AccountUuid, Ref, Timestamp, generateId } from '@hcengineering/core'
+import { AccountUuid, Data, Ref, Timestamp, generateId } from '@hcengineering/core'
+import { Person } from '@hcengineering/contact'
 import calendar, {
+  BusySlot,
   Calendar,
   PrimaryCalendar,
   Event,
@@ -74,9 +76,7 @@ function generateWeeklyValues (rule: RecurringRule, currentDate: Date, from: Tim
   let { byDay, bySetPos } = rule
   let i = 0
 
-  if (byDay === undefined) {
-    byDay = [getWeekday(currentDate)]
-  }
+  byDay ??= [getWeekday(currentDate)]
 
   while (true) {
     const next = new Date(currentDate).setDate(currentDate.getDate() + (interval ?? 1) * 7)
@@ -160,17 +160,15 @@ function generateMonthlyValues (rule: RecurringRule, currentDate: Date, from: Ti
       for (const day of byMonthDay) {
         const originalDate = new Date(currentDate.getTime())
         const sameDate = new Date(
-          Date.UTC(
-            currentDate.getUTCFullYear(),
-            currentDate.getUTCMonth(),
-            day,
-            originalDate.getUTCHours(),
-            originalDate.getUTCMinutes(),
-            originalDate.getUTCSeconds(),
-            originalDate.getUTCMilliseconds()
-          )
+          currentDate.getFullYear(),
+          currentDate.getMonth(),
+          day,
+          originalDate.getHours(),
+          originalDate.getMinutes(),
+          originalDate.getSeconds(),
+          originalDate.getMilliseconds()
         )
-        if (sameDate.getUTCMonth() === currentDate.getUTCMonth()) {
+        if (sameDate.getMonth() === currentDate.getMonth()) {
           // Valid day for this month
           candidates.push(sameDate)
         }
@@ -435,7 +433,7 @@ export function getPrimaryCalendar (
   acc: AccountUuid
 ): Ref<Calendar> {
   if (preference?.attachedTo !== undefined) {
-    const pref = calendars.find((p) => p._id === preference.attachedTo && p)
+    const pref = calendars.find((p) => p._id === preference.attachedTo)
     if (pref !== undefined) return pref._id
   }
   for (const _calendar of calendars) {
@@ -448,4 +446,105 @@ export function getPrimaryCalendar (
     }
   }
   return `${acc}_calendar` as Ref<Calendar>
+}
+
+/**
+ * @public
+ *
+ * Slot fields mirroring an event. Shared by the server trigger and the migration: both must write
+ * the very same shape, or `getDiffUpdate` (which skips `undefined`) freezes the difference forever.
+ *
+ * `overrides` are the occurrence starts a series gave away to persisted instances - the slot has no
+ * notion of an instance, so a master must exclude them the same way `getAllEvents` does.
+ */
+export function busySlotData (event: Event, person: Ref<Person>, overrides: Timestamp[] = []): Data<BusySlot> {
+  const rec = event as ReccuringEvent
+  // An override replaces exactly one occurrence, but it inherits `rules` from the master it was
+  // cut out of - keeping them would block the whole series at the overridden time.
+  const single = (event as ReccuringInstance).recurringEventId !== undefined
+  return {
+    person,
+    eventId: event.eventId,
+    date: event.date,
+    dueDate: event.dueDate,
+    allDay: event.allDay,
+    // Empty rather than undefined: getDiffUpdate skips undefined, so turning a public event
+    // private would otherwise leave its title on the slot forever.
+    title: event.visibility === 'public' ? event.title : '',
+    timeZone: event.timeZone,
+    // Left unset, not emptied: the client splits slots into plain and recurring by
+    // `rules: { $exists: ... }`, and an override is a single occurrence like any plain one.
+    rules: single ? undefined : rec.rules,
+    exdate: single
+      ? undefined
+      : rec.rules !== undefined
+        ? Array.from(new Set([...(rec.exdate ?? []), ...overrides]))
+        : rec.exdate,
+    rdate: single ? undefined : rec.rdate
+  }
+}
+
+/**
+ * @public
+ *
+ * Expands busy slots into plain intervals within the window, merging overlaps
+ * per person. Recurring slots are expanded from their rules.
+ */
+export function getBusyIntervals (
+  slots: BusySlot[],
+  from: Timestamp,
+  to: Timestamp
+): Map<Ref<Person>, { date: Timestamp, dueDate: Timestamp }[]> {
+  const res = new Map<Ref<Person>, { date: Timestamp, dueDate: Timestamp }[]>()
+  for (const slot of slots) {
+    const intervals = res.get(slot.person) ?? []
+    for (const value of getSlotOccurrences(slot, from, to)) {
+      intervals.push({ date: Math.max(from, value), dueDate: Math.min(to, value + slot.dueDate - slot.date) })
+    }
+    res.set(slot.person, intervals)
+  }
+  for (const [person, intervals] of res) {
+    // A recurring slot may have no occurrence inside the window at all - such a person is free.
+    if (intervals.length === 0) res.delete(person)
+    else res.set(person, mergeIntervals(intervals))
+  }
+  return res
+}
+
+function getSlotOccurrences (slot: BusySlot, from: Timestamp, to: Timestamp): Timestamp[] {
+  const duration = slot.dueDate - slot.date
+  if ((slot.rules ?? []).length === 0 && (slot.rdate ?? []).length === 0) {
+    return slot.date < to && slot.dueDate > from ? [slot.date] : []
+  }
+  const values = new Set<Timestamp>()
+  // A slot starting before `from` may still be running inside the window.
+  const start = from - duration
+  for (const rule of slot.rules ?? []) {
+    for (const value of generateRecurringValues(rule, slot.date, start, to)) {
+      values.add(value)
+    }
+  }
+  for (const date of slot.rdate ?? []) {
+    if (date >= start && date <= to) values.add(date)
+  }
+  for (const date of slot.exdate ?? []) {
+    values.delete(date)
+  }
+  return Array.from(values).filter((it) => it + duration > from)
+}
+
+function mergeIntervals (
+  intervals: { date: Timestamp, dueDate: Timestamp }[]
+): { date: Timestamp, dueDate: Timestamp }[] {
+  intervals.sort((a, b) => a.date - b.date)
+  const res: { date: Timestamp, dueDate: Timestamp }[] = []
+  for (const interval of intervals) {
+    const last = res[res.length - 1]
+    if (last !== undefined && interval.date <= last.dueDate) {
+      last.dueDate = Math.max(last.dueDate, interval.dueDate)
+    } else {
+      res.push({ ...interval })
+    }
+  }
+  return res
 }

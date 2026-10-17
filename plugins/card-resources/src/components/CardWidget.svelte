@@ -14,12 +14,11 @@
 -->
 <script lang="ts">
   import { closeWidget } from '@hcengineering/workbench-resources'
-  import { Widget, WidgetTab } from '@hcengineering/workbench'
-  import { createQuery, createNotificationContextsQuery, getClient } from '@hcengineering/presentation'
-  import { NotificationContext } from '@hcengineering/communication-types'
+  import type { Widget, WidgetTab } from '@hcengineering/workbench'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
-  import { Card } from '@hcengineering/card'
-  import { Ref } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
   import { Button, EditBox, Header, IconClose, IconMoreH } from '@hcengineering/ui'
 
   import card from '../plugin'
@@ -34,12 +33,9 @@
   export let width: string
 
   const query = createQuery()
-  const contextsQuery = createNotificationContextsQuery()
   const dispatch = createEventDispatcher()
 
   let doc: Card | undefined = undefined
-  let context: NotificationContext | undefined = undefined
-  let isContextLoaded = false
 
   let title: string = ''
   let isTitleEditing = false
@@ -65,12 +61,6 @@
       { limit: 1 }
     )
 
-  $: tab?.id &&
-    contextsQuery.query({ cardId: tab.id as Ref<Card>, limit: 1 }, (res) => {
-      context = res.getResult()[0]
-      isContextLoaded = true
-    })
-
   async function saveTitle (ev: Event): Promise<void> {
     ev.preventDefault()
     isTitleEditing = false
@@ -95,14 +85,14 @@
 
 {#if widget && tab?.id}
   <div class="card-widget" style:height bind:clientWidth>
-    <Header type={'type-panel'} noPrint adaptive="disabled">
+    <Header type="type-panel" noPrint adaptive="disabled">
       <svelte:fragment slot="beforeTitle">
         <Button
-          id={'btnPClose'}
+          id="btnPClose"
           focusIndex={10001}
           icon={IconClose}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           noPrint
           on:click={() => {
             dispatch('close')
@@ -135,12 +125,12 @@
       </div>
       <svelte:fragment slot="extra">
         {#if doc}
-          <TagsEditor {doc} dropdownTags={clientWidth < 512} id={'cardSidebar-tags'} />
+          <TagsEditor {doc} dropdownTags={clientWidth < 512} id="cardSidebar-tags" />
         {/if}
       </svelte:fragment>
     </Header>
     {#if doc}
-      <EditCardNewContent _id={doc._id} {doc} {context} {isContextLoaded} />
+      <EditCardNewContent _id={doc._id} {doc} />
     {/if}
   </div>
 {/if}

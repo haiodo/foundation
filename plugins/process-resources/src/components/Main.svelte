@@ -15,12 +15,12 @@
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
   import { createQuery } from '@hcengineering/presentation'
-  import { Process } from '@hcengineering/process'
+  import type { Process } from '@hcengineering/process'
   import { Separator, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { SpecialView } from '@hcengineering/workbench-resources'
   import { onDestroy } from 'svelte'
   import plugin from '../plugin'
-  import { Special } from '../types'
+  import type { Special } from '../types'
   import Navigator from './Navigator.svelte'
   import RunProcessCardPopup from './RunProcessCardPopup.svelte'
 
@@ -59,10 +59,10 @@
   {#if $deviceInfo.navigator.visible}
     <Navigator {processes} {currentSpace} {specials} />
     <Separator
-      name={'workbench'}
+      name="workbench"
       float={$deviceInfo.navigator.float}
       index={0}
-      color={'transparent'}
+      color="transparent"
       separatorSize={0}
       short
     />

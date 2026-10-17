@@ -71,7 +71,17 @@ export class S3Service implements StorageAdapter {
   expireTime: number
   client: S3
   constructor (readonly opt: S3Config) {
-    const endpoint = Number.isInteger(opt.port) ? `${opt.endpoint}:${opt.port}` : opt.endpoint
+    let endpoint = opt.endpoint
+    if (Number.isInteger(opt.port)) {
+      try {
+        const u = new URL(opt.endpoint)
+        u.port = String(opt.port)
+        endpoint = u.toString()
+        if (endpoint.endsWith('/') && !opt.endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1)
+      } catch {
+        endpoint = `${opt.endpoint}:${opt.port}`
+      }
+    }
     this.client = new S3({
       endpoint,
       credentials: {
@@ -180,7 +190,7 @@ export class S3Service implements StorageAdapter {
         })
         const buckets = await this.client.listBuckets()
         return (buckets.Buckets ?? [])
-          .filter((it) => it.Name !== undefined && it.Name.endsWith(productPostfix))
+          .filter((it) => it.Name?.endsWith(productPostfix) === true)
           .map((it) => {
             let name = (it.Name ?? '') as WorkspaceDataId
             name = name.slice(0, name.length - productPostfix.length) as WorkspaceDataId
@@ -363,7 +373,8 @@ export class S3Service implements StorageAdapter {
         return readable
       }
     } catch (err: any) {
-      // In case of error return undefined
+      // Only a missing key is NoSuchKey; an S3 outage must not look like a missing file
+      if (err?.name !== 'NoSuchKey' && err?.name !== 'NotFound' && err?.$metadata?.httpStatusCode !== 404) throw err
       throw new NoSuchKeyError(`uuid=${wsIds.uuid} dataId=${wsIds.dataId} missing ${objectName}`, err)
     }
   }
@@ -461,7 +472,7 @@ export class S3Service implements StorageAdapter {
     offset: number,
     length?: number
   ): Promise<Readable> {
-    const range = length !== undefined ? `bytes=${offset}-${offset + length}` : `bytes=${offset}-`
+    const range = length !== undefined ? `bytes=${offset}-${offset + length - 1}` : `bytes=${offset}-`
     return await this.doGet(ctx, wsIds, objectName, range)
   }
 

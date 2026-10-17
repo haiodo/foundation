@@ -25,7 +25,7 @@
   $: loadingProps = leads !== undefined ? { length: leads } : undefined
 
   const createLead = (ev: MouseEvent): void => {
-    showPopup(CreateLead, { candidate: objectId, preserveCandidate: true }, ev.target as HTMLElement)
+    showPopup(CreateLead, { customer: objectId, preserveCustomer: true }, ev.target as HTMLElement)
   }
   let wSection: number
 </script>
@@ -35,7 +35,7 @@
     <span class="antiSection-header__title">
       <Label label={lead.string.Leads} />
     </span>
-    <Button icon={IconAdd} kind={'ghost'} on:click={createLead} />
+    <Button icon={IconAdd} kind="ghost" on:click={createLead} />
   </div>
   {#if leads !== undefined && leads > 0}
     {#if wSection < 640}

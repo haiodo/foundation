@@ -14,15 +14,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { Card, SpaceSelector, createQuery, getClient } from '@hcengineering/presentation'
-  import { Component, Issue, Milestone, Project } from '@hcengineering/tracker'
+  import type { Component, Issue, Milestone, Project } from '@hcengineering/tracker'
   import ui, { Button, IconForward, Label, Spinner, Toggle, tooltip } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import { componentStore } from '../../component'
   import tracker from '../../plugin'
-  import { ComponentToUpdate, IssueToUpdate, collectIssues, moveIssueToSpace } from '../../utils'
+  import type { ComponentToUpdate, IssueToUpdate } from '../../utils'
+  import { collectIssues, moveIssueToSpace } from '../../utils'
   import ProjectPresenter from '../projects/ProjectPresenter.svelte'
   import IssuePresenter from './IssuePresenter.svelte'
   import PriorityEditor from './PriorityEditor.svelte'
@@ -116,16 +117,20 @@
   let toMove: Issue[] = []
   let loading = true
   $: {
-    collectIssues(client, docs).then((res) => {
+    void collectIssues(client, docs).then((res) => {
       toMove = res
       loading = false
     })
   }
 
-  $: if (keepOriginalAttribytes) {
-    setOriginalAttributes()
-  } else if (targetProject !== undefined) {
-    setReplacementAttributres(targetProject)
+  // Both branches iterate `toMove`, so it belongs in the dependencies: a target picked before
+  // `collectIssues` resolved used to leave `issueToUpdate` empty and the toggle disabled for good.
+  $: if (toMove.length > 0) {
+    if (keepOriginalAttribytes) {
+      setOriginalAttributes()
+    } else if (targetProject !== undefined) {
+      setReplacementAttributres(targetProject)
+    }
   }
 
   const componentQuery = createQuery()
@@ -166,6 +171,8 @@
       }
       issueToUpdate.set(issue._id, upd)
     }
+    // Svelte 4 does not see a Map mutated via .set(): reassign to retrigger isManageAttributesAvailable.
+    issueToUpdate = issueToUpdate
   }
 
   function setReplacementAttributres (currentSpace: Project) {
@@ -205,6 +212,8 @@
       }
       issueToUpdate.set(issue._id, upd)
     }
+    // Same as setOriginalAttributes: force reactivity after mutating the Map in place.
+    issueToUpdate = issueToUpdate
   }
 
   $: spaceQuery = originProject ? { type: originProject.type, archived: false } : { archived: false }
@@ -244,7 +253,7 @@
   </svelte:fragment>
   <svelte:fragment slot="subheader">
     {#if !showManageAttributes}
-      <span class="content-halfcontent-color overflow-label" style:margin-top={'-.5rem'}>
+      <span class="content-halfcontent-color overflow-label" style:margin-top="-.5rem">
         <Label label={tracker.string.MoveIssuesDescription} />
       </span>
     {/if}
@@ -258,17 +267,17 @@
           query={spaceQuery}
           label={hierarchy.getClass(tracker.class.Project).label}
           bind:space
-          kind={'regular'}
-          size={'large'}
+          kind="regular"
+          size="large"
           component={ProjectPresenter}
           defaultIcon={tracker.icon.Home}
         />
         <Button
           label={tracker.string.ManageAttributes}
           iconRight={IconForward}
-          kind={'ghost'}
-          size={'small'}
-          padding={'0 1rem'}
+          kind="ghost"
+          size="small"
+          padding="0 1rem"
           disabled={!isManageAttributesAvailable}
           on:click={() => {
             if (!isManageAttributesAvailable) {
@@ -296,9 +305,9 @@
       {#key keepOriginalAttribytes}
         {#if issue.space !== targetProject._id && upd.component !== undefined}
           <div class="flex-row-center min-h-9 gap-1-5 content-color">
-            <PriorityEditor value={issue} isEditable={false} kind={'list'} size={'small'} shouldShowLabel={false} />
-            <IssuePresenter value={issue} disabled kind={'list'} />
-            <TitlePresenter disabled value={issue} showParent={false} maxWidth={'7.5rem'} />
+            <PriorityEditor value={issue} isEditable={false} kind="list" size="small" shouldShowLabel={false} />
+            <IssuePresenter value={issue} disabled kind="list" />
+            <TitlePresenter disabled value={issue} showParent={false} maxWidth="7.5rem" />
           </div>
           {#if targetComponent === undefined}
             {#key upd.component}
@@ -333,6 +342,6 @@
     </div>
   </svelte:fragment>
   <svelte:fragment slot="buttons">
-    <Button label={ui.string.Cancel} size={'large'} disabled={processing} on:click={() => dispatch('close')} />
+    <Button label={ui.string.Cancel} size="large" disabled={processing} on:click={() => dispatch('close')} />
   </svelte:fragment>
 </Card>

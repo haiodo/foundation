@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, eventToHTMLElement, Icon, Label, showPopup } from '@hcengineering/ui'
-  import { Ref, Doc, ArrOf, RefTo } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Ref, Doc, ArrOf, RefTo } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
 
   import ArrayEditorPopup from './ArrayEditorPopup.svelte'
   import { getClient } from '@hcengineering/presentation'
@@ -34,10 +34,10 @@
   $: icon = hierarchy.getClass(_clazz).icon
 </script>
 
-<Button kind={'link'} size={'medium'} justify={'left'} width={'100%'} on:click={openPopup}>
+<Button kind="link" size="medium" justify="left" width="100%" on:click={openPopup}>
   <svelte:fragment slot="content">
     {#if icon !== undefined}
-      <div class="btn-icon"><Icon {icon} size={'small'} /></div>
+      <div class="btn-icon"><Icon {icon} size="small" /></div>
     {/if}
     {#if value?.length > 0}
       <div class="flex-row-center flex-nowrap pointer-events-none">

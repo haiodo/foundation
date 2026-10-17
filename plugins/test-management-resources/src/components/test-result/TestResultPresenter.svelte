@@ -16,8 +16,8 @@
 -->
 
 <script lang="ts">
-  import { TestCase, TestResult } from '@hcengineering/test-management'
-  import { WithLookup } from '@hcengineering/core'
+  import type { TestCase, TestResult } from '@hcengineering/test-management'
+  import type { WithLookup } from '@hcengineering/core'
   import { Icon, tooltip } from '@hcengineering/ui'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
 
@@ -31,7 +31,7 @@
   export let shouldShowAvatar = true
 
   let testCase: TestCase | undefined = undefined
-  $: testCase = value?.$lookup?.testCase as TestCase | undefined
+  $: testCase = value?.$lookup?.testCase
   $: title = testCase?.name ?? value?.name
 </script>
 

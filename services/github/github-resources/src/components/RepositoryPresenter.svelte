@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
-  import { GithubIntegrationRepository } from '@hcengineering/github'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { GithubIntegrationRepository } from '@hcengineering/github'
   import { translateCB } from '@hcengineering/platform'
   import { Icon, themeStore } from '@hcengineering/ui'
   import github from '../plugin'
@@ -45,7 +45,7 @@
     <div class="flex-row-center">
       {#if shouldShowAvatar}
         <div class="icon ml-2">
-          <Icon icon={github.icon.Github} size={'small'} />
+          <Icon icon={github.icon.Github} size="small" />
         </div>
       {/if}
       <span title={label} class="nowrap" class:no-underline={disabled || noUnderline} class:fs-bold={accent}>

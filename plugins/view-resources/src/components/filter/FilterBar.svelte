@@ -13,11 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, DocumentQuery, Ref, Space, getCurrentAccount } from '@hcengineering/core'
+  import type { Class, Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
   import { getClient, reduceCalls } from '@hcengineering/presentation'
   import { Button, IconAdd, eventToHTMLElement, getCurrentLocation, showPopup } from '@hcengineering/ui'
-  import { Filter, FilteredView, ViewOptions, Viewlet } from '@hcengineering/view'
+  import type { Filter, FilteredView, ViewOptions, Viewlet } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import { filterStore, removeFilter, selectedFilterStore, updateFilter } from '../../filter'
   import view from '../../plugin'
@@ -86,7 +87,7 @@
       if (mode === undefined) continue
       const result = await getResource(mode.result)
       const newValue = await result(filter, () => {
-        makeQuery(query, filters)
+        void makeQuery(query, filters)
       })
 
       let filterKey = filter.key.key
@@ -141,7 +142,7 @@
     dispatch('change', newQuery)
   })
 
-  $: makeQuery(query, $filterStore)
+  $: void makeQuery(query, $filterStore)
 
   let visible: boolean = false
   $: if (_class) {
@@ -176,7 +177,7 @@
           {space}
           {filter}
           on:change={() => {
-            makeQuery(query, $filterStore)
+            void makeQuery(query, $filterStore)
             updateFilter(filter)
           }}
           on:remove={() => {
@@ -185,7 +186,7 @@
         />
       {/each}
       <div class="add-filter">
-        <Button size={'small'} icon={IconAdd} kind={'ghost'} on:click={add} />
+        <Button size="small" icon={IconAdd} kind="ghost" on:click={add} />
       </div>
     </div>
 
@@ -194,7 +195,7 @@
         <Button
           icon={view.icon.Views}
           label={view.string.SaveAs}
-          width={'fit-content'}
+          width="fit-content"
           on:click={async () => {
             await saveFilteredView()
           }}
@@ -203,7 +204,7 @@
           <Button
             icon={view.icon.Views}
             label={view.string.Save}
-            width={'fit-content'}
+            width="fit-content"
             on:click={async () => {
               await saveCurrentFilteredView($selectedFilterStore)
             }}

@@ -1,0 +1,43 @@
+{
+  "name": "@hcengineering/test-base",
+  "version": "0.7.0",
+  "main": "lib/index.js",
+  "types": "types/index.d.ts",
+  "author": "Copyright \u00a9 2026 Intabia Fusion.",
+  "template": "@hcengineering/node-package",
+  "license": "EPL-2.0",
+  "scripts": {
+    "build": "compile",
+    "build:watch": "compile",
+    "format": "format src",
+    "test": "jest --passWithNoTests --silent --forceExit",
+    "_phase:build": "compile build",
+    "_phase:test": "jest --passWithNoTests --silent --forceExit",
+    "_phase:format": "format src",
+    "_phase:bundle": "pnpm run bundle",
+    "bundle": "node ../../common/scripts/esbuild.js --entry=src/main.ts --keep-names=true --external=snappy --sourcemap=external"
+  },
+  "devDependencies": {
+    "@hcengineering/platform-rig": "workspace:^0.7.19",
+    "@types/jest": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "jest": "catalog:",
+    "prettier": "catalog:",
+    "ts-jest": "catalog:",
+    "typescript": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
+  },
+  "dependencies": {
+    "@hcengineering/account-client": "workspace:^0.7.21",
+    "@hcengineering/tool": "workspace:^0.7.0"
+  }
+}

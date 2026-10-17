@@ -17,7 +17,8 @@
   import login, { loginId } from '@hcengineering/login'
   import { getClient, createQuery, isDisabled } from '@hcengineering/presentation'
   import settingPlg from '../plugin'
-  import setting, { SettingsCategory, SettingsEvents } from '@hcengineering/setting'
+  import type { SettingsCategory } from '@hcengineering/setting'
+  import setting, { settingId, SettingsEvents } from '@hcengineering/setting'
   import {
     Component,
     Label,
@@ -44,8 +45,9 @@
     logOut
   } from '@hcengineering/workbench-resources'
   import workbench from '@hcengineering/workbench'
-  import { ComponentType, onDestroy, onMount } from 'svelte'
-  import { clearSettingsStore, settingsStore, type SettingsStore } from '../store'
+  import type { ComponentType } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
+  import { clearSettingsStore, settingsStore } from '../store'
   import { Analytics } from '@hcengineering/analytics'
 
   export let workbenchWidth: number = 0
@@ -91,10 +93,27 @@
   function findCategory (name: string): SettingsCategory | undefined {
     return categories.find((x) => x.name === name)
   }
+  // Without a selected category the content panel is empty, so open the first one. A narrow screen shows the
+  // category list instead.
+  $: if (categoryId === undefined && categories.length > 0 && !$deviceInfo.navigator.float) {
+    openFirstCategory()
+  }
+
+  function openFirstCategory (): void {
+    const loc = getCurrentResolvedLocation()
+    const first = categories.find((it) => it.component !== undefined)
+    if (loc.path[2] !== settingId || first === undefined) return
+    loc.path[3] = first.name
+    loc.path.length = 4
+    navigate(loc, true)
+  }
+
   function selectCategory (id: string): void {
     clearSettingsStore()
     const loc = getCurrentResolvedLocation()
     if (loc.path[3] === id) {
+      // Deselecting would only reopen the first category
+      if (!$deviceInfo.navigator.float) return
       loc.path.length = 3
     } else {
       loc.path[3] = id
@@ -117,11 +136,8 @@
     showPopup(login.component.InviteLink, {})
   }
 
-  const updatedStore = (ss: SettingsStore): ComponentType | AnyComponent | null => {
-    asideProps = ss.props ?? null
-    return ss.component === undefined ? null : ss.component
-  }
-  $: asideComponent = updatedStore($settingsStore)
+  $: asideProps = $settingsStore.props ?? null
+  $: asideComponent = $settingsStore.component === undefined ? null : $settingsStore.component
   let moveASide: boolean = false
   $: if (workbenchWidth < deviceWidths[3] && !moveASide) moveASide = true
   else if (workbenchWidth >= deviceWidths[3] && moveASide) moveASide = false
@@ -203,35 +219,23 @@
         <NavItem icon={setting.icon.Signout} label={setting.string.Signout} on:click={signOut} />
       </NavFooter>
     </div>
-    <Separator
-      name={'setting'}
-      float={$deviceInfo.navigator.float ? 'navigator' : true}
-      index={0}
-      color={'transparent'}
-    />
+    <Separator name="setting" float={$deviceInfo.navigator.float ? 'navigator' : true} index={0} color="transparent" />
   </div>
-  <Separator
-    name={'setting'}
-    float={$deviceInfo.navigator.float}
-    index={0}
-    color={'transparent'}
-    separatorSize={0}
-    short
-  />
+  <Separator name="setting" float={$deviceInfo.navigator.float} index={0} color="transparent" separatorSize={0} short />
 {/if}
 
 <div
   bind:this={replacedPanel}
   class="antiPanel-component filledNav"
   class:border-right={category?.component === undefined}
-  style:flex-direction={'row'}
+  style:flex-direction="row"
 >
   {#if category}
     <Component is={category.component} props={{ kind: 'content' }} />
   {/if}
 </div>
 {#if asideComponent != null && !moveASide}
-  <Separator name={'setting'} index={1} color={'transparent'} separatorSize={0} short />
+  <Separator name="setting" index={1} color="transparent" separatorSize={0} short />
   <div class="hulySidePanel-container">
     {#key asideProps}
       {#if typeof asideComponent === 'string'}

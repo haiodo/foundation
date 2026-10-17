@@ -13,12 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ThreadMessage } from '@hcengineering/chunter'
-  import { Action, Label, languageStore } from '@hcengineering/ui'
+  import type { ThreadMessage } from '@hcengineering/chunter'
+  import type { Action } from '@hcengineering/ui'
+  import { Label, languageStore } from '@hcengineering/ui'
   import { getDocLinkTitle } from '@hcengineering/view-resources'
   import { getClient } from '@hcengineering/presentation'
-  import activity from '@hcengineering/activity'
-  import { AttachmentImageSize } from '@hcengineering/attachment-resources'
+  import activity, { type ActivityMessageViewType } from '@hcengineering/activity'
+  import type { AttachmentImageSize } from '@hcengineering/attachment-resources'
 
   import chunter from '../../plugin'
   import ChatMessagePresenter from '../chat-message/ChatMessagePresenter.svelte'
@@ -35,12 +36,14 @@
   export let actions: Action[] = []
   export let hoverable = true
   export let inline = false
-  export let withShowMore: boolean = true
   export let hoverStyles: 'filledHover' = 'filledHover'
   export let attachmentImageSize: AttachmentImageSize = 'x-large'
   export let videoPreload = false
   export let readonly = false
   export let padding: string | null = null
+  export let timeFormat: 'time' | 'full' = 'time'
+  export let type: ActivityMessageViewType = 'default'
+  export let showChannel: boolean = false
   export let onClick: (() => void) | undefined = undefined
 
   const client = getClient()
@@ -72,10 +75,12 @@
     {actions}
     {hoverable}
     {hoverStyles}
-    {withShowMore}
     {attachmentImageSize}
     {videoPreload}
     {padding}
+    {timeFormat}
+    {type}
+    {showChannel}
     {onClick}
     {readonly}
   />

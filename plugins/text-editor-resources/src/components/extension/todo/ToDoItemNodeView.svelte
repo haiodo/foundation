@@ -1,12 +1,14 @@
 <script lang="ts">
-  import contact, { Employee, Person } from '@hcengineering/contact'
+  import type { Employee, Person } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
   import { type Class, type Doc, type Ref, type Space, SortingOrder } from '@hcengineering/core'
   import { MessageBox, createQuery, getClient } from '@hcengineering/presentation'
   import { makeRank } from '@hcengineering/rank'
-  import time, { ToDo, ToDoPriority } from '@hcengineering/time'
+  import type { ToDo } from '@hcengineering/time'
+  import time, { ToDoPriority } from '@hcengineering/time'
   import { CheckBox, getEventPositionElement, showPopup, Component } from '@hcengineering/ui'
   import { onDestroy, onMount } from 'svelte'
-  import { NodeViewProps } from '../../node-view'
+  import type { NodeViewProps } from '../../node-view'
   import NodeViewWrapper from '../../node-view/NodeViewWrapper.svelte'
   import NodeViewContent from '../../node-view/NodeViewContent.svelte'
 
@@ -87,7 +89,7 @@
   }
 
   async function assignTodo (user: Ref<Employee>): Promise<void> {
-    if (todo !== undefined && todo.user === user) return
+    if (todo?.user === user) return
     if (objectId === undefined || objectClass === undefined || objectSpace === undefined) return
 
     const title = node.textBetween(0, node.content.size, undefined, ' ')
@@ -213,23 +215,23 @@
     class:focused
   >
     {#if todoable}
-      <div class="flex-center assignee" contenteditable="false">
+      <div class="flex-center assignee" class:cursor-pointer={!readonly} contenteditable="false">
         <Component
           is={contact.component.EmployeePresenter}
           props={{
             value: userId,
-            disabled: readonly,
             avatarSize: 'card',
             shouldShowName: false,
-            shouldShowPlaceholder: true,
+            shouldShowPlaceholder: !readonly,
             onEmployeeEdit: handleAssigneeEdit
           }}
+          disabled={readonly}
         />
       </div>
     {/if}
 
     <div class="flex-center todo-check" contenteditable="false">
-      <CheckBox {readonly} {checked} on:value={markDone} kind={'positive'} size={'medium'} />
+      <CheckBox {readonly} {checked} on:value={markDone} kind="positive" size="medium" />
     </div>
 
     <NodeViewContent style="outline: none;" class="flex-grow" />
@@ -241,7 +243,6 @@
     .assignee {
       z-index: 50;
       width: 1.25rem;
-      cursor: pointer;
     }
     .assignee,
     .todo-check {

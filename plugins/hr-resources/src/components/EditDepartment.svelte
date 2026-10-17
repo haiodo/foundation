@@ -17,9 +17,11 @@
   import { createFocusManager, EditBox, FocusHandler } from '@hcengineering/ui'
 
   import { ChannelsEditor, EditableAvatar } from '@hcengineering/contact-resources'
-  import core, { getCurrentAccount, Ref } from '@hcengineering/core'
-  import { Department } from '@hcengineering/hr'
-  import setting, { IntegrationType } from '@hcengineering/setting'
+  import type { Ref } from '@hcengineering/core'
+  import core, { getCurrentAccount } from '@hcengineering/core'
+  import type { Department } from '@hcengineering/hr'
+  import type { IntegrationType } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
   import { createEventDispatcher, onMount } from 'svelte'
   import hr from '../plugin'
   import Members from './Members.svelte'
@@ -79,7 +81,7 @@
       {#key object}
         <EditableAvatar
           person={object}
-          size={'x-large'}
+          size="x-large"
           icon={hr.icon.Department}
           bind:this={avatarEditor}
           on:done={onAvatarDone}

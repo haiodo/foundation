@@ -13,43 +13,45 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact from '@hcengineering/contact'
-  import { isArchivingMode, systemAccountUuid, WorkspaceInfoWithStatus } from '@hcengineering/core'
+  import type { WorkspaceInfoWithStatus } from '@hcengineering/core'
+  import { isArchivingMode, systemAccountUuid } from '@hcengineering/core'
   import login from '@hcengineering/login'
-  import { getMetadata, getResource } from '@hcengineering/platform'
-  import presentation, { createQuery, decodeTokenPayload, hasResource, isAdminUser } from '@hcengineering/presentation'
+  import { getResource } from '@hcengineering/platform'
+  import presentation, {
+    canLeaveWorkspace,
+    createQuery,
+    hasResource,
+    getCurrentWorkspaceUuid
+  } from '@hcengineering/presentation'
+  import type { Location } from '@hcengineering/ui'
   import {
     closePopup,
-    Component,
-    fetchMetadataLocalStorage,
     getCurrentLocation,
-    Icon,
     IconCheck,
     isSameSegments,
     Label,
     Loading,
-    Location,
     locationStorageKeyId,
     locationToUrl,
     navigate,
     resolvedLocationStore,
-    SearchEdit,
-    ticker
+    SearchEdit
   } from '@hcengineering/ui'
   import { workbenchId } from '@hcengineering/workbench'
-  import { onDestroy, onMount } from 'svelte'
-
-  import { Analytics } from '@hcengineering/analytics'
+  import { onMount } from 'svelte'
   import type { PersonRating } from '@hcengineering/rating'
   import ratingPlugin from '@hcengineering/rating'
+
   import { workspacesStore } from '../utils'
-  // import Drag from './icons/Drag.svelte'
+  import { crossWorkspaceNotificationStore } from '../workbench'
 
   onMount(() => {
     void getResource(login.function.GetWorkspaces).then(async (f) => {
       $workspacesStore = await f()
     })
   })
+
+  const currentWorkspaceUuid = getCurrentWorkspaceUuid()
 
   const levelQuery = createQuery()
 
@@ -71,9 +73,12 @@
   async function clickHandler (e: MouseEvent, wsUrl: string): Promise<void> {
     if (!e.metaKey && !e.ctrlKey) {
       e.preventDefault()
-      closePopup()
-      closePopup()
       const current = getCurrentLocation()
+      if (wsUrl !== current.path[1]) {
+        if (!(await canLeaveWorkspace())) return
+      }
+      closePopup()
+      closePopup()
       if (wsUrl !== current.path[1]) {
         let last: Location | undefined
         try {
@@ -119,39 +124,20 @@
     }
   }
 
-  $: isAdmin = isAdminUser()
-
   let search: string = ''
 
-  const _endpoint: string = fetchMetadataLocalStorage(login.metadata.LoginEndpoint) ?? ''
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
+  $: workspacesNotification = $crossWorkspaceNotificationStore
 
-  let endpoint = _endpoint.replace(/^ws/g, 'http')
-  if (endpoint.endsWith('/')) {
-    endpoint = endpoint.substring(0, endpoint.length - 1)
-  }
-
-  let data: any
-  onDestroy(
-    ticker.subscribe(() => {
-      void fetch(endpoint + `/api/v1/statistics?token=${token}`, {})
-        .then(async (json) => {
-          data = await json.json()
-        })
-        .catch((err: any) => {
-          Analytics.handleError(err)
-        })
+  $: sortedWorkspaces = $workspacesStore
+    .filter((it) => search === '' || (it.name?.includes(search) ?? false) || it.url.includes(search))
+    .sort((a, b) => {
+      if (a.uuid === currentWorkspaceUuid) return -1
+      if (b.uuid === currentWorkspaceUuid) return 1
+      const aName = (a.name ?? a.url).toLowerCase()
+      const bName = (b.name ?? b.url).toLowerCase()
+      return aName.localeCompare(bName)
     })
-  )
-
-  $: activeSessions =
-    (data?.statistics?.activeSessions as Record<
-    string,
-    Array<{
-      userId: string
-      data?: Record<string, any>
-    }>
-    >) ?? {}
+    .slice(0, 500)
 </script>
 
 {#if $workspacesStore.length}
@@ -159,47 +145,32 @@
   <div class="antiPopup" on:keydown={keyDown}>
     <div class="ap-space x2" />
 
-    <div class="p-2 ml-2 mr-2 mb-2 flex-grow flex flex-col">
-      <div class="text-lg font-bold">
-        {getMetadata(presentation.metadata.WorkspaceName) ?? ''}
-      </div>
-      {#if hasRating}
-        <div class="flex-row-center text-sm">
-          <Component
-            is={ratingPlugin.component.RatingRing}
-            props={{ rating: sysRating?.rating ?? 0, showValues: true }}
-          />
-        </div>
-        <div class="flex-row-center mt-2">
-          <Component is={ratingPlugin.component.RatingActivities} props={{ rating: sysRating }} />
-        </div>
-      {/if}
-    </div>
+    <!--    <div class="p-2 ml-2 mr-2 mb-2 flex-grow flex flex-col">-->
+    <!--      <div class="text-lg font-bold">-->
+    <!--        {getMetadata(presentation.metadata.WorkspaceName) ?? ''}-->
+    <!--      </div>-->
+    <!--      {#if hasRating}-->
+    <!--        <div class="flex-row-center text-sm">-->
+    <!--          <Component-->
+    <!--            is={ratingPlugin.component.RatingRing}-->
+    <!--            props={{ rating: sysRating?.rating ?? 0, showValues: true }}-->
+    <!--          />-->
+    <!--        </div>-->
+    <!--        <div class="flex-row-center mt-2">-->
+    <!--          <Component is={ratingPlugin.component.RatingActivities} props={{ rating: sysRating }} />-->
+    <!--        </div>-->
+    <!--      {/if}-->
+    <!--    </div>-->
 
-    {#if isAdmin}
+    {#if $workspacesStore.length > 8}
       <div class="p-2 ml-2 mr-2 mb-2 flex-grow flex-row-center">
-        <SearchEdit bind:value={search} width={'100%'} />
-        {#if isAdminUser()}
-          <div class="p-1">
-            {#if $workspacesStore.length > 500}
-              500 /
-            {/if}
-            {$workspacesStore.length}
-          </div>
-        {/if}
-      </div>
-      <div class="p-2 ml-2 mb-4 select-text flex-col bordered">
-        {decodeTokenPayload(getMetadata(presentation.metadata.Token) ?? '').workspace ?? ''}
+        <SearchEdit bind:value={search} width="100%" />
       </div>
     {/if}
     <div class="ap-scroll">
       <div class="ap-box">
-        {#each $workspacesStore
-          .filter((it) => search === '' || (it.name?.includes(search) ?? false) || it.url.includes(search))
-          .slice(0, 500) as ws, i}
+        {#each sortedWorkspaces as ws, i}
           {@const wsName = ws.name ?? ws.url}
-          {@const _activeSession = activeSessions[ws.uuid]}
-          {@const lastUsageDays = Math.round((Date.now() - (ws.lastVisit ?? 0)) / (1000 * 3600 * 24))}
           <a
             class="stealth"
             href={getWorkspaceLink(ws)}
@@ -210,7 +181,6 @@
             <button
               bind:this={btns[i]}
               class="ap-menuItem flex-row-center flex-grow"
-              class:active={isAdmin && (_activeSession?.length ?? 0) > 0}
               class:hover={btns[i] === activeElement}
               on:mousemove={() => {
                 focusTarget(btns[i])
@@ -220,55 +190,27 @@
               <!-- <div class="logo empty" /> -->
               <!-- <div class="flex-col flex-grow"> -->
               <div class="flex-col flex-grow">
-                <span class="label overflow-label flex flex-grow flex-between">
-                  {wsName}
-                  {#if isArchivingMode(ws.mode)}
-                    - <Label label={presentation.string.Archived} />
-                  {/if}
-                  {#if isAdmin}
-                    {#if ws.region != null && ws.region !== ''}
-                      - ({ws.region})
+                <div class="flex-presenter flex-gap-2">
+                  <span class="label overflow-label flex flex-grow flex-between">
+                    {wsName}
+                    {#if isArchivingMode(ws.mode)}
+                      - <Label label={presentation.string.Archived} />
                     {/if}
-                  {/if}
-                  {#if isAdmin && ws.lastVisit != null && ws.lastVisit !== 0}
-                    <div class="text-sm">
-                      {#if ws.backupInfo != null}
-                        {@const sz = Math.max(
-                          ws.backupInfo.backupSize,
-                          ws.backupInfo.dataSize + ws.backupInfo.blobsSize
-                        )}
-                        {@const szGb = Math.round((sz * 100) / 1024) / 100}
-                        {#if szGb > 0}
-                          {Math.round((sz * 100) / 1024) / 100}Gb -
-                        {:else}
-                          {Math.round(sz)}Mb -
-                        {/if}
-                      {/if}
-                      ({lastUsageDays} days)
-                    </div>
-                  {/if}
-                </span>
-                {#if isAdmin && wsName !== ws.url}
-                  <span class="text-xs">
-                    ({ws.url})
                   </span>
-                {/if}
-                {#if isAdmin && (_activeSession?.length ?? 0) > 0}
-                  <span class="text-xs flex-row-center">
-                    <div class="mr-1">
-                      <Icon icon={contact.icon.Person} size={'x-small'} />
-                    </div>
-                    {_activeSession?.length ?? 0}
-                  </span>
-                {/if}
+                </div>
               </div>
               <!-- <span class="description overflow-label">Description</span> -->
               <!-- </div> -->
               <div class="ap-check">
                 {#if $resolvedLocationStore.path[1] === ws.url}
-                  <IconCheck size={'small'} />
+                  <IconCheck size="small" />
                 {/if}
               </div>
+              {#if workspacesNotification?.[ws.uuid] === true && ws.uuid !== currentWorkspaceUuid}
+                <div class="notification-container">
+                  <span class="notification" />
+                </div>
+              {/if}
             </button>
           </a>
         {/each}
@@ -283,5 +225,38 @@
 <style lang="scss">
   .active {
     background-color: var(--theme-inbox-people-counter-bgcolor);
+  }
+
+  .logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &.empty {
+      background-color: var(--theme-sidebar-hover-bgcolor);
+    }
+  }
+
+  .notification-container {
+    width: 1rem;
+    height: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .notification {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background-color: var(--global-higlight-Color);
   }
 </style>

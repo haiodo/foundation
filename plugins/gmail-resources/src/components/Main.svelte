@@ -15,14 +15,18 @@
 -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-unused-vars */
-  import contact, { Channel, Contact, getName } from '@hcengineering/contact'
-  import { Ref, SocialIdType, getCurrentAccount } from '@hcengineering/core'
-  import { Message, SharedMessage } from '@hcengineering/gmail'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import type { Channel, Contact } from '@hcengineering/contact'
+  import contact, { getName } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
+  import { SocialIdType, getCurrentAccount } from '@hcengineering/core'
+  import type { Message, SharedMessage } from '@hcengineering/gmail'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import setting, { Integration } from '@hcengineering/setting'
-  import templates, { TemplateDataProvider } from '@hcengineering/templates'
+  import type { Integration } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
+  import type { TemplateDataProvider } from '@hcengineering/templates'
+  import templates from '@hcengineering/templates'
   import { Button, Dialog, eventToHTMLElement, Icon, Label, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher, onDestroy } from 'svelte'
   import gmail from '../plugin'
@@ -39,7 +43,7 @@
   export let messageId: Ref<Message> | undefined = undefined
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   const messageQuery = createQuery()
 
@@ -52,7 +56,7 @@
   let integrations: Integration[] = []
   let selectedIntegration: Integration | undefined = undefined
 
-  channel && inboxClient.forceReadDoc(channel)
+  void (channel && inboxClient.forceReadDoc(channel))
 
   const dispatch = createEventDispatcher()
 
@@ -64,7 +68,7 @@
 
   $: if (message === undefined && messageId !== undefined) {
     messageQuery.query(gmail.class.Message, { _id: messageId }, (result) => {
-      gmailMessage = result[0] as Message
+      gmailMessage = result[0]
     })
   } else {
     gmailMessage = message
@@ -85,7 +89,7 @@
 
   let templateProvider: TemplateDataProvider | undefined
 
-  getResource(templates.function.GetTemplateDataProvider).then((p) => {
+  void getResource(templates.function.GetTemplateDataProvider).then((p) => {
     templateProvider = p()
   })
 
@@ -118,16 +122,18 @@
     }
   )
 
-  $: gmailMessage &&
+  $: void (
+    gmailMessage &&
     channel &&
     object &&
     convertMessage(object, channel, gmailMessage).then((p) => (currentMessage = p))
+  )
 </script>
 
 {#if channel && object}
   <Dialog
     isFullSize
-    padding={'0'}
+    padding="0"
     on:fullsize
     on:close={() => {
       dispatch('close')
@@ -135,7 +141,7 @@
   >
     <svelte:fragment slot="title">
       <div class="antiTitle icon-wrapper ml-2">
-        <div class="wrapped-icon"><Icon icon={contact.icon.Email} size={'small'} /></div>
+        <div class="wrapped-icon"><Icon icon={contact.icon.Email} size="small" /></div>
         <div class="title-wrapper">
           <span class="wrapped-title">Email</span>
           <span class="wrapped-subtitle">
@@ -149,15 +155,15 @@
       {#if integrations.length === 0}
         <Button
           label={gmail.string.Connect}
-          kind={'primary'}
-          size={'medium'}
+          kind="primary"
+          size="medium"
           on:click={(e) => {
             showPopup(Connect, {}, eventToHTMLElement(e))
           }}
         />
       {:else}
         <span class="content-darker-color text-sm mr-1-5"><Label label={gmail.string.From} /></span>
-        <IntegrationSelector bind:selected={selectedIntegration} {integrations} size={'medium'} kind={'ghost'} />
+        <IntegrationSelector bind:selected={selectedIntegration} {integrations} size="medium" kind="ghost" />
       {/if}
     </svelte:fragment>
 

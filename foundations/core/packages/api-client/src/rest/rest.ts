@@ -37,6 +37,7 @@ import {
   type SearchResult,
   SocialIdType,
   type Tx,
+  type TxMeta,
   type TxResult,
   type WithLookup,
   type WorkspaceUuid,
@@ -78,6 +79,31 @@ function isRLE (err: any): boolean {
   return err.message === rateLimitError
 }
 
+// Deterministic policy rejection (HTTP 403): retrying never succeeds and only spams the server.
+function isPolicyReject (err: any): boolean {
+  return err instanceof PlatformError && (err as any).policyReject === true
+}
+
+// Parse the server error body and throw the real Status when present, so callers see the
+// concrete reason (e.g. PlanLimitExceeded) instead of a generic "Forbidden". Marks 403s as
+// non-retryable. The HTTP status travels as `httpStatus` (`status` is the platform Status), so a
+// caller can tell a gateway 502/503 from a rejected request.
+async function throwResponseError (response: Response): Promise<never> {
+  let status: Status | undefined
+  try {
+    const body = await response.json()
+    status = body?.error
+  } catch {
+    // body not JSON; fall back to status text
+  }
+  const err = new PlatformError(status ?? unknownError(response.statusText))
+  ;(err as any).httpStatus = response.status
+  if (response.status === 403) {
+    ;(err as any).policyReject = true
+  }
+  throw err
+}
+
 export class RestClientImpl implements RestClient {
   endpoint: string
 
@@ -102,14 +128,12 @@ export class RestClientImpl implements RestClient {
     if (this.collaboratorEndpoint === undefined || this.collaboratorEndpoint === '') {
       throw new PlatformError(unknownError(new Error('Collaborator endpoint is not configured for this RestClient')))
     }
-    if (this.markupOps === undefined) {
-      this.markupOps = createMarkupOperations(
-        this.endpoint,
-        this.workspace as WorkspaceUuid,
-        this.token,
-        this.collaboratorEndpoint
-      )
-    }
+    this.markupOps ??= createMarkupOperations(
+      this.endpoint,
+      this.workspace as WorkspaceUuid,
+      this.token,
+      this.collaboratorEndpoint
+    )
     return this.markupOps
   }
 
@@ -178,9 +202,7 @@ export class RestClientImpl implements RestClient {
     // We need to revert deleted query simple values.
     // We need to get rid of simple query parameters matched in documents
     for (const doc of result) {
-      if (doc._class == null) {
-        doc._class = _class
-      }
+      doc._class ??= _class
       for (const [k, v] of Object.entries(query)) {
         if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
           if ((doc as any)[k] == null) {
@@ -245,7 +267,7 @@ export class RestClientImpl implements RestClient {
       }
       this.updateRateLimit(response)
       return await extractJson<Account>(response)
-    })
+    }, isRLE)
     if (result.error !== undefined) {
       throw new PlatformError(result.error)
     }
@@ -293,20 +315,24 @@ export class RestClientImpl implements RestClient {
   async tx (tx: Tx): Promise<TxResult> {
     const requestUrl = concatLink(this.endpoint, `/api/v1/tx/${this.workspace}`)
     await this.checkRate()
-    const result = await withRetry<TxResult & { error?: Status }>(async () => {
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: this.jsonHeaders(),
-        keepalive: true,
-        body: JSON.stringify(tx)
-      })
-      if (!response.ok) {
-        await this.checkRateLimits(response)
-        throw new PlatformError(unknownError(response.statusText))
-      }
-      this.updateRateLimit(response)
-      return await extractJson<TxResult>(response)
-    }, isRLE)
+    const result = await withRetry<TxResult & { error?: Status }>(
+      async () => {
+        const response = await fetch(requestUrl, {
+          method: 'POST',
+          headers: this.jsonHeaders(),
+          keepalive: true,
+          body: JSON.stringify(tx)
+        })
+        if (!response.ok) {
+          await this.checkRateLimits(response)
+          await throwResponseError(response)
+        }
+        this.updateRateLimit(response)
+        return await extractJson<TxResult>(response)
+      },
+      isRLE,
+      isPolicyReject
+    )
     if (result.error !== undefined) {
       throw new PlatformError(result.error)
     }
@@ -323,8 +349,26 @@ export class RestClientImpl implements RestClient {
       if (query.spaces != null && Object.keys(query.spaces).length > 0) {
         params.append('spaces', JSON.stringify(query.spaces))
       }
+      if (query.filters != null) {
+        params.append('filters', JSON.stringify(query.filters))
+      }
       if (options.limit != null) {
         params.append('limit', `${options.limit}`)
+      }
+      if (options.cursor != null) {
+        params.append('cursor', options.cursor)
+      }
+      if (options.sort != null) {
+        params.append('sort', options.sort)
+      }
+      if (options.searchIn != null) {
+        params.append('searchIn', options.searchIn.join(','))
+      }
+      if (options.fuzzy != null) {
+        params.append('fuzzy', `${options.fuzzy}`)
+      }
+      if (options.highlight != null) {
+        params.append('highlight', JSON.stringify(options.highlight))
       }
       const requestUrl = concatLink(this.endpoint, `/api/v1/search-fulltext/${this.workspace}?${params.toString()}`)
       const response = await fetch(requestUrl, {
@@ -338,7 +382,7 @@ export class RestClientImpl implements RestClient {
       }
       this.updateRateLimit(response)
       return await extractJson<TxResult>(response)
-    })
+    }, isRLE)
     if (result.error !== undefined) {
       throw new PlatformError(result.error)
     }
@@ -434,7 +478,8 @@ export class RestClientImpl implements RestClient {
     attributes: Data<T>,
     id?: Ref<T>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): Promise<Ref<T>> {
     return this.v1op('create', {
       _class,
@@ -442,7 +487,8 @@ export class RestClientImpl implements RestClient {
       attributes,
       id,
       modifiedBy,
-      modifiedOn
+      modifiedOn,
+      meta
     })
   }
 
@@ -455,7 +501,8 @@ export class RestClientImpl implements RestClient {
     attributes: AttachedData<P>,
     id?: Ref<P>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): Promise<Ref<P>> {
     return this.v1op('addCollection', {
       _class,
@@ -466,7 +513,8 @@ export class RestClientImpl implements RestClient {
       attributes,
       id,
       modifiedBy,
-      modifiedOn
+      modifiedOn,
+      meta
     })
   }
 

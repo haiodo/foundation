@@ -16,8 +16,10 @@
   import { getCurrentEmployee, formatName } from '@hcengineering/contact'
   import { getPersonByPersonRefStore } from '@hcengineering/contact-resources'
   import { translate } from '@hcengineering/platform'
-  import { notEmpty, Ref } from '@hcengineering/core'
-  import love, { isOffice, Room } from '@hcengineering/love'
+  import type { Ref } from '@hcengineering/core'
+  import { notEmpty } from '@hcengineering/core'
+  import type { Room } from '@hcengineering/love'
+  import love, { isOffice } from '@hcengineering/love'
   import { Dropdown, Icon } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { rooms } from '../stores'
@@ -112,10 +114,10 @@
 
 {#if items.length > 0}
   <div class="flex-row-center flex-gap-1 mt-1">
-    <Icon icon={love.icon.Mic} size={'small'} />
+    <Icon icon={love.icon.Mic} size="small" />
     <Dropdown
-      kind={'ghost'}
-      size={'medium'}
+      kind="ghost"
+      size="medium"
       placeholder={love.string.Room}
       justify="left"
       stretchWidth={true}

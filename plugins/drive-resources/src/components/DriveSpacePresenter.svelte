@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref, SortingOrder, Space } from '@hcengineering/core'
-  import { Drive, Folder } from '@hcengineering/drive'
+  import type { Doc, Ref, Space } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
+  import type { Drive, Folder } from '@hcengineering/drive'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Action, navigate, IconEdit } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { navigate, IconEdit } from '@hcengineering/ui'
   import { TreeNode, TreeItem, getActions as getContributedActions } from '@hcengineering/view-resources'
   import { getResource } from '@hcengineering/platform'
 
@@ -109,7 +111,7 @@
     selected={currentSpace === space._id && selected === drive.ids.Root && currentFragment !== undefined && !deselect}
     visible={(currentSpace === space._id && !deselect && descendants.size !== 0 && selected !== space._id) ||
       (forciblyСollapsed && currentFragment !== undefined)}
-    type={'nested-selectable'}
+    type="nested-selectable"
     empty={descendants.size === 0 || (forciblyСollapsed && selected === space._id && !deselect)}
     actions={() => getActions(space)}
     {forciblyСollapsed}

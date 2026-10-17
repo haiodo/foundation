@@ -14,10 +14,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Organization } from '@hcengineering/contact'
-  import { getCurrentAccount, Ref } from '@hcengineering/core'
+  import type { Organization } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import setting, { IntegrationType } from '@hcengineering/setting'
+  import type { IntegrationType } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
   import { createFocusManager, EditBox, FocusHandler, Scroller } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
   import contact from '../plugin'
@@ -31,8 +33,18 @@
 
   const dispatch = createEventDispatcher()
 
+  // The panel's live query reassigns `object` on any change to the doc, which dropped a name that
+  // had been typed but not yet round-tripped. Follow the server only when the server value changed.
+  let name = object.name
+  let serverName = object.name
+  $: if (object.name !== serverName) {
+    serverName = object.name
+    name = object.name
+  }
+
   function nameChange () {
-    client.updateDoc(object._class, object.space, object._id, { name: object.name })
+    serverName = name
+    void client.updateDoc(object._class, object.space, object._id, { name })
   }
 
   let integrations: Set<Ref<IntegrationType>> = new Set<Ref<IntegrationType>>()
@@ -57,20 +69,20 @@
 {#if object !== undefined}
   <div class="flex-row-center">
     <div class="mr-8 flex-center flex-no-shrink logo">
-      <Company size={'large'} />
+      <Company size="large" />
     </div>
     <div class="flex-grow flex-col">
       <div class="name">
         <EditBox
           disabled={readonly}
           placeholder={contact.string.PersonFirstNamePlaceholder}
-          bind:value={object.name}
+          bind:value={name}
           on:change={nameChange}
           focusIndex={1}
         />
       </div>
       <div class="separator" />
-      <Scroller contentDirection={'horizontal'} padding={'.125rem .125rem .5rem'} stickedScrollBars thinScrollBars>
+      <Scroller contentDirection="horizontal" padding=".125rem .125rem .5rem" stickedScrollBars thinScrollBars>
         <ChannelsEditor
           editable={!readonly}
           attachedTo={object._id}

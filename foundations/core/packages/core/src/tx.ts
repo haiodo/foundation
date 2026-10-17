@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -36,12 +37,19 @@ import { _toDoc } from './proxy'
 import type { DocumentQuery, TxResult } from './storage'
 import { generateId, type KeysByType } from './utils'
 
+export type TxMeta = {
+  // ignore notifications if true, allowed for system account only
+  silent?: boolean
+  // keep the inbox entry but suppress push/sound/email/telegram delivery
+  inboxOnly?: boolean
+} & Record<string, string | number | boolean>
+
 /**
  * @public
  */
 export interface Tx extends Doc {
   objectSpace: Ref<Space> // space where transaction will operate
-  meta?: Record<string, string | number | boolean> // meta information about transaction, non persisted to final DB's
+  meta?: TxMeta // meta information about transaction, non persisted to final DB's
 }
 
 /**
@@ -53,7 +61,8 @@ export enum WorkspaceEvent {
   SecurityChange,
   MaintenanceNotification,
   BulkUpdate,
-  LastTx
+  LastTx,
+  LimitsChanged
 }
 
 /**
@@ -86,7 +95,7 @@ export interface BulkUpdateEvent {
 /**
  * @public
  */
-export interface TxModelUpgrade extends Tx {}
+export type TxModelUpgrade = Tx
 
 /**
  * @public
@@ -149,15 +158,15 @@ export interface TxApplyResult {
  * @public
  */
 export type MixinData<D extends Doc, M extends D> = Omit<M, keyof D> &
-PushOptions<Omit<M, keyof D>> &
-IncOptions<Omit<M, keyof D>>
+  PushOptions<Omit<M, keyof D>> &
+  IncOptions<Omit<M, keyof D>>
 
 /**
  * @public
  */
 export type MixinUpdate<D extends Doc, M extends D> = Partial<Omit<M, keyof D>> &
-PushOptions<Omit<M, keyof D>> &
-IncOptions<Omit<M, keyof D>>
+  PushOptions<Omit<M, keyof D>> &
+  IncOptions<Omit<M, keyof D>>
 
 /**
  * Define Create/Update for mixin attributes.
@@ -171,8 +180,12 @@ export interface TxMixin<D extends Doc, M extends D> extends TxCUD<D> {
 /**
  * @public
  */
+type PullCondition<X> = X extends string | number | boolean | symbol | null | undefined
+  ? Partial<X>
+  : { [K in keyof X]?: X[K] | { $in: NonNullable<X[K]>[] } }
+
 export type ArrayAsElement<T> = {
-  [P in keyof T]: T[P] extends Arr<infer X> ? Partial<X> | PullArray<X> | X : never
+  [P in keyof T]: T[P] extends Arr<infer X> ? PullCondition<X> | PullArray<X> | X : never
 }
 
 /**
@@ -181,6 +194,7 @@ export type ArrayAsElement<T> = {
 export interface Position<X extends PropertyType> {
   $each: X[]
   $position: number
+  $slice?: number
 }
 
 /**
@@ -284,11 +298,11 @@ export interface SpaceUpdate {
  * @public
  */
 export type DocumentUpdate<T extends Doc> = Partial<Data<T>> &
-PushOptions<T> &
-SetEmbeddedOptions<T> &
-IncOptions<T> &
-UnsetOptions &
-SpaceUpdate
+  PushOptions<T> &
+  SetEmbeddedOptions<T> &
+  IncOptions<T> &
+  UnsetOptions &
+  SpaceUpdate
 
 /**
  * @public
@@ -480,7 +494,8 @@ export class TxFactory {
     attributes: Data<T>,
     objectId?: Ref<T>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): TxCreateDoc<T> {
     return {
       _id: generateId(),
@@ -492,7 +507,8 @@ export class TxFactory {
       modifiedOn: modifiedOn ?? Date.now(),
       modifiedBy: modifiedBy ?? this.account,
       createdBy: modifiedBy ?? this.account,
-      attributes
+      attributes,
+      ...(meta !== undefined ? { meta } : {})
     }
   }
 
@@ -503,7 +519,8 @@ export class TxFactory {
     collection: string,
     tx: TxCUD<P>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): TxCUD<P> {
     return {
       ...tx,
@@ -511,7 +528,8 @@ export class TxFactory {
       attachedTo: objectId,
       attachedToClass: _class,
       modifiedOn: modifiedOn ?? Date.now(),
-      modifiedBy: modifiedBy ?? this.account
+      modifiedBy: modifiedBy ?? this.account,
+      ...(meta !== undefined ? { meta: { ...(tx.meta ?? {}), ...meta } } : {})
     }
   }
 
@@ -522,7 +540,8 @@ export class TxFactory {
     operations: DocumentUpdate<T>,
     retrieve?: boolean,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): TxUpdateDoc<T> {
     return {
       _id: generateId(),
@@ -534,7 +553,8 @@ export class TxFactory {
       objectClass: _class,
       objectSpace: space,
       operations,
-      retrieve
+      retrieve,
+      ...(meta !== undefined ? { meta } : {})
     }
   }
 
@@ -543,7 +563,8 @@ export class TxFactory {
     space: Ref<Space>,
     objectId: Ref<T>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): TxRemoveDoc<T> {
     return {
       _id: generateId(),
@@ -553,7 +574,8 @@ export class TxFactory {
       modifiedOn: modifiedOn ?? Date.now(),
       objectId,
       objectClass: _class,
-      objectSpace: space
+      objectSpace: space,
+      ...(meta !== undefined ? { meta } : {})
     }
   }
 
@@ -564,7 +586,8 @@ export class TxFactory {
     mixin: Ref<Mixin<M>>,
     attributes: MixinUpdate<D, M>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): TxMixin<D, M> {
     return {
       _id: generateId(),
@@ -576,7 +599,8 @@ export class TxFactory {
       objectClass,
       objectSpace,
       mixin,
-      attributes
+      attributes,
+      ...(meta !== undefined ? { meta } : {})
     }
   }
 
@@ -590,7 +614,8 @@ export class TxFactory {
     notify: boolean = true,
     extraNotify: Ref<Class<Doc>>[] = [],
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): TxApplyIf {
     return {
       _id: generateId(),
@@ -605,7 +630,8 @@ export class TxFactory {
       txes,
       measureName,
       notify,
-      extraNotify
+      extraNotify,
+      ...(meta !== undefined ? { meta } : {})
     }
   }
 }

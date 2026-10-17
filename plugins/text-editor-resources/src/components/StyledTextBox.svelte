@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { Markup } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Markup } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import presentation, { MessageViewer, getFileUrl, getImageSize, imageSizeToRatio } from '@hcengineering/presentation'
-  import { EmptyMarkup, mergeKitOptions } from '@hcengineering/text'
-  import textEditor, { RefAction } from '@hcengineering/text-editor'
+  import { EmptyMarkup } from '@hcengineering/text'
+  import type { RefAction } from '@hcengineering/text-editor'
+  import textEditor from '@hcengineering/text-editor'
+  import type { ButtonSize, PopupAlignment } from '@hcengineering/ui'
   import {
     ActionIcon,
-    ButtonSize,
     IconCheck,
     IconClose,
     IconEdit,
     Label,
-    PopupAlignment,
     ShowMore,
     getEventPositionElement,
     getPopupPositionElement,
@@ -22,9 +22,10 @@
 
   import StyledTextEditor from './StyledTextEditor.svelte'
 
-  import { EditorKitOptions } from '../kits/editor-kit'
+  import type { EditorKitOptions } from '../kits/editor-kit'
   import { addTableHandler } from '../utils'
-  import { type FileAttachFunction } from './extension/types'
+  import view from '@hcengineering/view'
+  import type { FileAttachFunction } from './extension/types'
   import { inlineCommandsConfig } from './extensions'
 
   export let label: IntlString | undefined = undefined
@@ -47,6 +48,8 @@
   export let boundary: HTMLElement | undefined = undefined
   export let readonly: boolean = false
   export let kitOptions: Partial<EditorKitOptions> = {}
+
+  $: hasLeftMenu = kitOptions?.leftMenu !== false
 
   export let attachFile: FileAttachFunction | undefined = undefined
 
@@ -256,6 +259,7 @@
   class="flex-col styled-box"
   class:antiEmphasized={kind === 'emphasized'}
   class:antiIndented={kind === 'indented'}
+  class:hasLeftMenu
   class:focusable={(mode === Mode.Edit || alwaysEdit) && focused}
   on:click={() => {
     if (alwaysEdit && focused && !readonly) {
@@ -280,28 +284,48 @@
       {isScrollable}
       {extraActions}
       {boundary}
-      kitOptions={mergeKitOptions(
-        {
-          emoji: true,
-          hooks: {
-            focus: {
-              onCanBlur: (value) => (canBlur = value),
-              onFocus: handleFocus
-            }
-          },
-          shortcuts: {
-            imageUpload: {
-              attachFile,
-              getFileUrl
-            }
-          },
-          inlineCommands: inlineCommandsConfig(
-            handleCommandSelected,
-            attachFile == null ? ['drawing-board', 'todo-list', 'image'] : ['drawing-board', 'todo-list']
-          )
+      kitOptions={{
+        emoji: true,
+        textColorStyling: true,
+        hooks: {
+          focus: {
+            onCanBlur: (value) => (canBlur = value),
+            onFocus: handleFocus
+          }
         },
-        kitOptions
-      )}
+        shortcuts: {
+          imageUpload: {
+            attachFile,
+            getFileUrl
+          }
+        },
+        inlineCommands: inlineCommandsConfig(
+          handleCommandSelected,
+          attachFile == null ? ['drawing-board', 'todo-list', 'image'] : ['drawing-board', 'todo-list']
+        ),
+        leftMenu: hasLeftMenu
+          ? {
+              width: 20,
+              height: 20,
+              marginX: 8,
+              className: 'tiptap-left-menu',
+              icon: view.icon.Add,
+              iconProps: {
+                className: 'svg-tiny',
+                fill: 'currentColor'
+              },
+              items: [
+                { id: 'image', label: textEditor.string.Image, icon: view.icon.Image },
+                { id: 'table', label: textEditor.string.Table, icon: view.icon.Table2 },
+                { id: 'code-block', label: textEditor.string.CodeBlock, icon: view.icon.CodeBlock },
+                { id: 'separator-line', label: textEditor.string.SeparatorLine, icon: view.icon.SeparatorLine },
+                { id: 'mermaid', label: textEditor.string.MermaidDiargram, icon: view.icon.Model }
+              ],
+              handleSelect: handleCommandSelected
+            }
+          : false,
+        ...kitOptions
+      }}
       bind:content={rawValue}
       bind:this={editor}
       on:value={(evt) => {
@@ -317,15 +341,15 @@
         <div class="flex flex-reverse flex-grow gap-2 reverse">
           <ActionIcon
             icon={IconCheck}
-            size={'medium'}
-            direction={'bottom'}
+            size="medium"
+            direction="bottom"
             label={presentation.string.Save}
             action={saveEdit}
           />
           <ActionIcon
-            size={'medium'}
+            size="medium"
             icon={IconClose}
-            direction={'top'}
+            direction="top"
             label={presentation.string.Cancel}
             action={cancelEdit}
           />
@@ -342,13 +366,7 @@
     </div>
     {#if !alwaysEdit && !hideExtraButtons && !readonly}
       <div class="flex flex-reverse">
-        <ActionIcon
-          size={'medium'}
-          icon={IconEdit}
-          direction={'top'}
-          label={textEditor.string.Edit}
-          action={startEdit}
-        />
+        <ActionIcon size="medium" icon={IconEdit} direction="top" label={textEditor.string.Edit} action={startEdit} />
       </div>
     {/if}
   {/if}
@@ -358,12 +376,54 @@
   .styled-box {
     flex-grow: 1;
 
+    :global(.tiptap-left-menu) {
+      display: flex;
+      color: var(--theme-trans-color);
+      width: 20px;
+      height: 20px;
+      border-radius: 20%;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition:
+        background-color 0.2s,
+        opacity 0.2s;
+      position: absolute;
+      cursor: pointer;
+      transform: translateX(34px); /* Сдвигаем внутрь видимой зоны */
+
+      &:hover {
+        background-color: var(--theme-button-hovered);
+        color: var(--theme-content-color);
+      }
+
+      &.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+    }
+
     .label {
       padding-bottom: 0.25rem;
       color: var(--theme-halfcontent-color);
       transition: top 200ms;
       pointer-events: none;
       user-select: none;
+    }
+
+    :global(.textInput),
+    :global(.inputMsg),
+    :global(.select-text),
+    :global(.inputMsg > div) {
+      overflow: visible !important;
+    }
+
+    &.hasLeftMenu :global(.select-text) {
+      padding-left: 40px;
+    }
+
+    :global(.select-text) {
+      position: relative;
     }
   }
 </style>

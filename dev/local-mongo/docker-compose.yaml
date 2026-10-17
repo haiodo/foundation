@@ -1,6 +1,6 @@
 services:
   minio:
-    image: 'minio/minio'
+    image: 'pgsty/silo:RELEASE.2026-09-16T00-00-00Z'
     command: server /data --address ":9000" --console-address ":9001"
     ports:
       - 9000:9000
@@ -33,7 +33,7 @@ services:
       test: curl -s http://localhost:9200/_cluster/health | grep -vq '"status":"red"'
     restart: unless-stopped
   account:
-    image: haiodo/account
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/account"
     links:
       - minio
     ports:
@@ -43,7 +43,7 @@ services:
     environment:
       - ACCOUNT_PORT=3000
       - SERVER_SECRET=secret
-      - MONGO_URL=mongodb://huly.local:27017?compressors=snappy
+      - MONGO_URL=mongodb://localhost:27017?compressors=snappy
       - TRANSACTOR_URL=ws://transactor:3333;ws://localhost:3333
       - MAIL_URL=
       - STORAGE_CONFIG=${STORAGE_CONFIG}
@@ -56,7 +56,7 @@ services:
       - INIT_WORKSPACE=onboarding
     restart: unless-stopped
   collaborator:
-    image: haiodo/collaborator
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/collaborator"
     links:
       - minio
       - transactor
@@ -67,12 +67,12 @@ services:
       - SECRET=secret
       - ACCOUNTS_URL=http://account:3000
       - UPLOAD_URL=/files
-      - MONGO_URL=mongodb://huly.local:27017?compressors=snappy
+      - MONGO_URL=mongodb://localhost:27017?compressors=snappy
       - 'MONGO_OPTIONS={"appName":"collaborator","maxPoolSize":2}'
       - STORAGE_CONFIG=${STORAGE_CONFIG}
     restart: unless-stopped
   front:
-    image: haiodo/front
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/front"
     links:
       - minio
       - elastic
@@ -85,7 +85,7 @@ services:
       - UV_THREADPOOL_SIZE=10
       - SERVER_PORT=8080
       - SERVER_SECRET=secret
-      - MONGO_URL=mongodb://huly.local:27017?compressors=snappy
+      - MONGO_URL=mongodb://localhost:27017?compressors=snappy
       - 'MONGO_OPTIONS={"appName":"front","maxPoolSize":1}'
       - ACCOUNTS_URL=http://localhost:3000
       - UPLOAD_URL=/files
@@ -103,7 +103,7 @@ services:
       - BRANDING_URL=http://localhost:8087/branding.json
     restart: unless-stopped
   transactor:
-    image: haiodo/transactor
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/transactor"
     links:
       - elastic
       - minio
@@ -121,7 +121,7 @@ services:
       - SERVER_PORT=3333
       - SERVER_SECRET=secret
       - ENABLE_COMPRESSION=true
-      - MONGO_URL=mongodb://huly.local:27017?compressors=snappy
+      - MONGO_URL=mongodb://localhost:27017?compressors=snappy
       - 'MONGO_OPTIONS={"appName": "transactor", "maxPoolSize": 10}'
       - METRICS_CONSOLE=false
       - METRICS_FILE=metrics.txt
@@ -137,7 +137,7 @@ services:
       - BRANDING_PATH=/var/cfg/branding.json
     restart: unless-stopped
   rekoni:
-    image: haiodo/rekoni-service
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/rekoni-service"
     restart: unless-stopped
     ports:
       - 4004:4004
@@ -146,13 +146,13 @@ services:
         limits:
           memory: 1024M
   print:
-    image: haiodo/print
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/print"
     restart: unless-stopped
     ports:
       - 4005:4005
     environment:
       - SECRET=secret
-      - MONGO_URL=mongodb://huly.local:27017?compressors=snappy
+      - MONGO_URL=mongodb://localhost:27017?compressors=snappy
       - 'MONGO_OPTIONS={"appName":"print","maxPoolSize":1}'
       - STORAGE_CONFIG=${STORAGE_CONFIG}
     deploy:
@@ -160,7 +160,7 @@ services:
         limits:
           memory: 300M
   sign:
-    image: haiodo/sign
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/sign"
     restart: unless-stopped
     ports:
       - 4006:4006
@@ -169,7 +169,7 @@ services:
       - ../../services/sign/pod-sign/debug/branding.json:/var/cfg/branding.json
     environment:
       - SECRET=secret
-      - MONGO_URL=mongodb://huly.local:27017
+      - MONGO_URL=mongodb://localhost:27017
       - 'MONGO_OPTIONS={"appName":"sign","maxPoolSize":1}'
       - MINIO_ENDPOINT=minio
       - MINIO_ACCESS_KEY=minioadmin
@@ -183,14 +183,14 @@ services:
         limits:
           memory: 300M
   #  analytics:
-  #    image: haiodo/analytics-collector
+  #    image: intabiafusion/analytics-collector
   #    restart: unless-stopped
   #    ports:
   #      - 4007:4007
   #    environment:
   #      - SECRET=secret
   #      - PORT=4007
-  #      - MONGO_URL=mongodb://huly.local:27017
+  #      - MONGO_URL=mongodb://localhost:27017
   #      - 'MONGO_OPTIONS={"appName":"analytics","maxPoolSize":1}'
   #      - SERVICE_ID=analytics-collector-service
   #      - ACCOUNTS_URL=http://account:3000
@@ -199,28 +199,28 @@ services:
   #        limits:
   #          memory: 300M
   aiBot:
-    image: haiodo/ai-bot
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/ai-bot"
     restart: unless-stopped
     environment:
       - SERVER_SECRET=secret
-      - MONGO_URL=mongodb://huly.local:27017
+      - MONGO_URL=mongodb://localhost:27017
       - ACCOUNTS_URL=http://account:3000
       - FIRST_NAME=Jolie
       - LAST_NAME=AI
       - PASSWORD=password
       - AVATAR_PATH=./avatar.png
-      - AVATAR_CONTENT_TYPE=.png
+      - AVATAR_CONTENT_TYPE=image/png
     deploy:
       resources:
         limits:
           memory: 300M
 #  telegram-bot:
-#    image: haiodo/telegram-bot
+#    image: intabiafusion/telegram-bot
 #    restart: unless-stopped
 #    environment:
 #      - PORT=4020
 #      - BOT_TOKEN=token
-#      - MONGO_URL=mongodb://huly.local:27017
+#      - MONGO_URL=mongodb://localhost:27017
 #      - MONGO_DB=telegram-bot
 #      - SECRET=secret
 #      - DOMAIN=domain

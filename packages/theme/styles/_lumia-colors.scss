@@ -1,5 +1,6 @@
 //
 // © 2023 Hardcore Engineering, Inc. All Rights Reserved.
+// Copyright © 2026 Intabia Fusion.
 // Licensed under the Eclipse Public License v2.0 (SPDX: EPL-2.0).
 //
 
@@ -78,7 +79,12 @@
   --button-subtle-LabelColor: #fff;
   --button-subtle-IconColor: #fff;
   --button-disabled-BackgroundColor: #d1d5de0d;
+  --button-disabled-LabelColor: var(--global-disabled-TextColor);
+  --button-disabled-IconColor: var(--global-disabled-TextColor);
+  --selector-disabled-IconColor: var(--global-disabled-TextColor);
   --button-primary-loading-LabelColor: #6191fe;
+  --button-primary-BorderColor: #d1d5de1a;
+  --primary-button-border: #d1d5de1a;
   --button-secondary-BackgroundColor: #d1d5de0d;
   --button-secondary-BorderColor: #d1d5de1a;
   --button-secondary-hover-BackgroundColor: #A5BDFF1A;
@@ -86,6 +92,18 @@
   --button-tertiary-hover-BackgroundColor: #d1d5de1a;
   --button-tertiary-active-BackgroundColor: #d1d5de26;
   --button-menu-active-BorderColor: #d9dee6;
+
+  /* Defaults for accents that define no button tokens of their own */
+  --button-accent-LabelColor: var(--global-on-accent-TextColor);
+  --button-accent-IconColor: var(--global-on-accent-TextColor);
+  --button-negative-BackgroundColor: #CB4B42;
+  --button-negative-BorderColor: #d1d5de26;
+  --button-negative-hover-BackgroundColor: #B34139;
+  --button-negative-active-BackgroundColor: #B34139;
+  --button-negative-loading-LabelColor: #ff9187;
+  --button-negative-LabelColor: #FFFFFF;
+  --button-negative-IconColor: #FFFFFF;
+  --button-primary-loading-IconColor: var(--button-accent-IconColor);
 
   /** Editbox **/
   --input-BackgroundColor: #a5bdff0d;
@@ -177,7 +195,12 @@
   --button-subtle-LabelColor: #000;
   --button-subtle-IconColor: #000;
   --button-disabled-BackgroundColor: #1725470d;
+  --button-disabled-LabelColor: var(--global-disabled-TextColor);
+  --button-disabled-IconColor: var(--global-disabled-TextColor);
+  --selector-disabled-IconColor: var(--global-disabled-TextColor);
   --button-primary-loading-LabelColor: #95baff;
+  --button-primary-BorderColor: #1725471a;
+  --primary-button-border: #1725471a;
   --button-secondary-BackgroundColor: #1725470d;
   --button-secondary-BorderColor: #1725471a;
   --button-secondary-hover-BackgroundColor: #1725471a;
@@ -185,6 +208,18 @@
   --button-tertiary-hover-BackgroundColor: #1725471a;
   --button-tertiary-active-BackgroundColor: #17254726;
   --button-menu-active-BorderColor: #0f121a;
+
+  /* Defaults for accents that define no button tokens of their own */
+  --button-accent-LabelColor: var(--global-on-accent-TextColor);
+  --button-accent-IconColor: var(--global-on-accent-TextColor);
+  --button-negative-BackgroundColor: #CB4B42;
+  --button-negative-BorderColor: #d1d5de26;
+  --button-negative-hover-BackgroundColor: #B34139;
+  --button-negative-active-BackgroundColor: #B34139;
+  --button-negative-loading-LabelColor: #ff9187;
+  --button-negative-LabelColor: #FFFFFF;
+  --button-negative-IconColor: #FFFFFF;
+  --button-primary-loading-IconColor: var(--button-accent-IconColor);
 
   /** Editbox **/
   --input-BackgroundColor: #1530720d;

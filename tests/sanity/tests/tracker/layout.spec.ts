@@ -1,4 +1,6 @@
-import { Page, expect, test } from '@playwright/test'
+import tracker from '@hcengineering/tracker'
+import { Page, expect, test } from '../fixtures'
+import { connectTracker } from '../API/TrackerApi'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { PlatformSetting, expectToContainsOrdered, fillSearch, generateId } from '../utils'
 import {
@@ -97,9 +99,7 @@ test.describe('tracker layout tests', () => {
   test.beforeEach(async ({ page }) => {
     test.setTimeout(60000)
     await navigate(page)
-    if (issuesPropsP === undefined) {
-      issuesPropsP = initIssues(id, page)
-    }
+    issuesPropsP ??= initIssues(id, page)
     issuesProps = await issuesPropsP
   })
 
@@ -107,7 +107,7 @@ test.describe('tracker layout tests', () => {
   // const orders = ['Status', 'Modified', 'Priority'] as const
   const orders = ['Modified', 'Priority'] as const
   const groups = ['Status', 'Assignee', 'Priority', 'Component', 'Milestone', 'No grouping'] as const
-  const groupsLabels: { [key in (typeof groups)[number]]?: string[] } = {
+  const groupsLabels: Partial<Record<(typeof groups)[number], string[]>> = {
     Status: DEFAULT_STATUSES,
     Assignee: [DEFAULT_USER, 'Chen Rosamund'],
     Priority: PRIORITIES,
@@ -164,26 +164,13 @@ test.describe('tracker layout tests', () => {
             return -1
           })
           .map((p) => p.name)
-        // } else if (order === 'Status') {
-        //   orderedIssueNames = [...issuesProps]
-        //     .sort((propsLeft, propsRight) => {
-        //       if (propsLeft.status !== undefined && propsRight.status !== undefined) {
-        //         if (propsLeft.status === propsRight.status) {
-        //           return 0
-        //         } else if (
-        //           DEFAULT_STATUSES.findIndex((s) => s === propsLeft.status) -
-        //             DEFAULT_STATUSES.findIndex((s) => s === propsRight.status) >
-        //           0
-        //         ) {
-        //           return 1
-        //         }
-        //       }
-
-        //       return -1
-        //     })
-        //     .map((p) => p.name)
       } else {
-        orderedIssueNames = issuesProps.map((props) => props.name).reverse()
+        // Creation order is not modification order: a component or milestone update can arrive
+        // after the next issue is created. Read the real modifiedOn, not typed order.
+        const { client } = await connectTracker()
+        const names = issuesProps.map((props) => props.name)
+        const issues = await client.findAll(tracker.class.Issue, { title: { $in: names } })
+        orderedIssueNames = issues.sort((left, right) => right.modifiedOn - left.modifiedOn).map((i) => i.title)
       }
       const issuesPage = new IssuesPage(page)
       await issuesPage.clickModelSelectorAll()

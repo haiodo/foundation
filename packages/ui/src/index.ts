@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -58,7 +59,6 @@ export {
   accentColorOptions,
   type AccentColorOption
 } from '@hcengineering/theme'
-// export { applicationShortcutKey } from './utils'
 export { getCurrentLocation, locationToUrl, navigate, location, setLocationStorageKey } from './location'
 
 export { default as EditBox } from './components/EditBox.svelte'
@@ -70,6 +70,7 @@ export { default as ButtonGroup } from './components/ButtonGroup.svelte'
 export { default as FilterButton } from './components/FilterButton.svelte'
 export { default as FilterCategoryPopup } from './components/FilterCategoryPopup.svelte'
 export { default as Status } from './components/Status.svelte'
+export { default as StatusLabel } from './components/StatusLabel.svelte'
 export { default as StatusBadge } from './components/StatusBadge.svelte'
 export { default as StateTag } from './components/StateTag.svelte'
 export { default as Component } from './components/Component.svelte'
@@ -114,8 +115,6 @@ export { default as Html } from './components/Html.svelte'
 export { default as StylishEdit } from './components/StylishEdit.svelte'
 export { default as Grid } from './components/Grid.svelte'
 export { default as Row } from './components/Row.svelte'
-// export { default as CheckBoxWithLabel } from './components/CheckBoxWithLabel.svelte'
-// export { default as CheckBoxList } from './components/CheckBoxList.svelte.txt'
 export { default as EditWithIcon } from './components/EditWithIcon.svelte'
 export { default as SearchEdit } from './components/SearchEdit.svelte'
 export { default as SearchPicker } from './components/SearchPicker.svelte'
@@ -155,12 +154,12 @@ export { default as Fold } from './components/Fold.svelte'
 export { default as Header } from './components/Header.svelte'
 export { default as Breadcrumb } from './components/Breadcrumb.svelte'
 export { default as Breadcrumbs } from './components/Breadcrumbs.svelte'
-export { default as ButtonIcon } from './components/ButtonIcon.svelte'
-export { default as ButtonMenu } from './components/ButtonMenu.svelte'
-export { default as ButtonBase } from './components/ButtonBase.svelte'
-export { default as ModernButton } from './components/ModernButton.svelte'
 export { default as SplitButton } from './components/SplitButton.svelte'
 export { default as ModernEditbox } from './components/ModernEditbox.svelte'
+export { default as ModernDropdown } from './components/ModernDropdown.svelte'
+export { default as ModernDropdownLabels } from './components/ModernDropdownLabels.svelte'
+export { default as ModernPopupLabels } from './components/ModernPopupLabels.svelte'
+export { default as PopupCategory } from './components/PopupCategory.svelte'
 export { default as ModernPopup } from './components/ModernPopup.svelte'
 export { default as NavItem } from './components/NavItem.svelte'
 export { default as NavGroup } from './components/NavGroup.svelte'
@@ -258,6 +257,7 @@ export { default as IconMenuOpen } from './components/icons/MenuOpen.svelte'
 export { default as IconMenuClose } from './components/icons/MenuClose.svelte'
 export { default as IconError } from './components/icons/Error.svelte'
 export { default as IconLink } from './components/icons/Link.svelte'
+export { default as IconStorage } from './components/icons/Storage.svelte'
 
 export { default as PanelInstance } from './components/PanelInstance.svelte'
 export { default as Panel } from './components/Panel.svelte'
@@ -292,6 +292,7 @@ export { default as CodeForm } from './components/CodeForm.svelte'
 export { default as CodeInput } from './components/CodeInput.svelte'
 export { default as TimeLeft } from './components/TimeLeft.svelte'
 export { default as SectionEmpty } from './components/SectionEmpty.svelte'
+export { default as BlankView } from './components/BlankView.svelte'
 export { default as EmbeddedHTML } from './components/EmbeddedHTML.svelte'
 export { default as EmbeddedPDF } from './components/EmbeddedPDF.svelte'
 export { default as NestedMenu } from './components/NestedMenu.svelte'
@@ -299,6 +300,7 @@ export { default as NestedDropdown } from './components/NestedDropdown.svelte'
 export { default as NestedSelectPopup } from './components/NestedSelectPopup.svelte'
 export { default as StatusBarButton } from './components/StatusBarButton.svelte'
 export { default as AppLoading } from './components/AppLoading.svelte'
+export { default as WorkspaceLogo } from './components/WorkspaceLogo.svelte'
 
 export { default as Blurhash } from './components/Blurhash.svelte'
 export { default as Dock } from './components/Dock.svelte'
@@ -321,6 +323,7 @@ export * from './focus'
 export * from './resize'
 export * from './lazy'
 export * from './stores'
+export * from './presence'
 
 export function createApp (target: HTMLElement): SvelteComponent {
   return new Root({ target })
@@ -362,6 +365,7 @@ export const deviceOptionsStore = writable<DeviceOptions>({
   size: null,
   sizes: { xs: false, sm: false, md: false, lg: false, xl: false, xxl: false },
   minWidth: false,
+  appsMini: false,
   twoRows: false,
   firstDayOfWeek: 1
 })

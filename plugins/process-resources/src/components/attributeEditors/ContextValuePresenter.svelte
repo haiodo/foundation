@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Context, Process, SelectedContext } from '@hcengineering/process'
+  import type { Context, Process, SelectedContext } from '@hcengineering/process'
   import { Label } from '@hcengineering/ui'
   import plugin from '../../plugin'
   import AttrContextPresenter from './AttrContextPresenter.svelte'
@@ -32,7 +32,7 @@
 <div class="container flex-row-center">
   <div class="internal">
     {#if contextValue.type === 'attribute'}
-      <AttrContextPresenter {contextValue} {context} />
+      <AttrContextPresenter {contextValue} {context} {process} />
     {:else if contextValue.type === 'relation'}
       <RelContextPresenter {contextValue} {context} />
     {:else if contextValue.type === 'nested'}

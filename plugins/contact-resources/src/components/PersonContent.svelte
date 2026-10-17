@@ -13,20 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Employee, getName, Person } from '@hcengineering/contact'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Employee, Person } from '@hcengineering/contact'
+  import { getName } from '@hcengineering/contact'
+  import type { IntlString } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
+  import type { IconSize, LabelAndProps } from '@hcengineering/ui'
   import {
     getPlatformAvatarColorDef,
     getPlatformAvatarColorForTextDef,
-    IconSize,
     Label,
-    LabelAndProps,
     themeStore,
     tooltip
   } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { ObjectPresenterType } from '@hcengineering/view'
   import Avatar from './Avatar.svelte'
   import PersonElement from './PersonElement.svelte'
 
@@ -35,7 +35,6 @@
   export let disabled = false
   export let shouldShowAvatar: boolean = true
   export let shouldShowName = true
-  // export let element: HTMLElement | undefined = undefined
   export let shouldShowPlaceholder = false
   export let noUnderline: boolean = false
   export let defaultName: IntlString | undefined = undefined
@@ -53,11 +52,14 @@
   export let overflowLabel = true
   export let inlineBlock = false
   export let shrink: boolean = false
+  export let clickable: boolean = true
+  export let highlight: string | undefined = undefined
+  export let transparent: boolean = false
 
   const client = getClient()
 
   const onEditClick = (evt: MouseEvent) => {
-    if (!disabled) {
+    if (!disabled && clickable) {
       onEdit?.(evt)
     }
   }
@@ -83,7 +85,10 @@
         {value}
         {name}
         {inline}
+        {highlight}
+        {transparent}
         {disabled}
+        {clickable}
         {shouldShowAvatar}
         {shouldShowName}
         {noUnderline}
@@ -108,7 +113,10 @@
       {value}
       {name}
       {inline}
+      {highlight}
+      {transparent}
       {disabled}
+      {clickable}
       {shouldShowAvatar}
       {shouldShowName}
       {noUnderline}
@@ -132,7 +140,7 @@
   <span
     class="antiPresenter h-full"
     class:text-base={enlargedText}
-    class:cursor-pointer={!disabled && onEdit !== undefined}
+    class:cursor-pointer={!disabled && clickable && onEdit !== undefined}
     use:tooltip={disabled ? undefined : showTooltip}
     on:click={onEditClick}
   >

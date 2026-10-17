@@ -34,7 +34,6 @@ export default mergeIds(trackerId, tracker, {
     GotoTrackerApplication: '' as IntlString,
     GotoMyIssues: '' as IntlString,
     SearchIssue: '' as IntlString,
-    Parent: '' as IntlString,
     CreatedDate: '' as IntlString,
     ChangeStatus: '' as IntlString,
     ConfigDescription: '' as IntlString,
@@ -80,6 +79,7 @@ export default mergeIds(trackerId, tracker, {
   },
   actionImpl: {
     Move: '' as ViewAction,
+    ChangeTaskType: '' as ViewAction,
     CopyToClipboard: '' as ViewAction,
     EditWorkflowStatuses: '' as ViewAction,
     EditProject: '' as ViewAction,

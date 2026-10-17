@@ -232,7 +232,7 @@ async function processMigrateContentFor (
           const collabId = makeDocCollabId(doc, attribute.name)
           const blobId = makeCollabJsonId(collabId)
 
-          if (value != null && value.startsWith('{')) {
+          if (value?.startsWith('{')) {
             try {
               const buffer = Buffer.from(value)
               await storageAdapter.put(client.ctx, client.wsIds, blobId, buffer, 'application/json', buffer.length)
@@ -338,9 +338,7 @@ async function migrateCollaborativeDocsToJson (client: MigrationClient): Promise
 
 export function getAccountsFromTxes (accTxes: TxCUD<Doc>[]): any {
   const byAccounts = accTxes.reduce<Record<string, TxCUD<Doc>[]>>((acc, tx) => {
-    if (acc[tx.objectId] === undefined) {
-      acc[tx.objectId] = []
-    }
+    acc[tx.objectId] ??= []
 
     acc[tx.objectId].push(tx)
     return acc
@@ -367,7 +365,7 @@ export async function getSocialKeyByOldAccount (client: MigrationClient): Promis
     if (systemAccounts.includes(account._id)) {
       socialKeyByAccount[account._id] = account._id
     } else {
-      socialKeyByAccount[account._id] = buildSocialIdString(getSocialKeyByOldEmail(account.email)) as any
+      socialKeyByAccount[account._id] = buildSocialIdString(getSocialKeyByOldEmail(account.email))
     }
   }
 
@@ -526,8 +524,8 @@ async function migrateAccounts (client: MigrationClient): Promise<void> {
           accountUuidBySocialKey
         )
         const update: MigrateUpdate<Space> = {
-          members: newMembers as any,
-          owners: newOwners as any
+          members: newMembers,
+          owners: newOwners
         }
 
         const type = spaceTypesById.get((space as TypedSpace).type)
@@ -594,7 +592,7 @@ async function migrateAccounts (client: MigrationClient): Promise<void> {
       objectClass: spaceType._class,
       objectSpace: spaceType.space,
       operations: {
-        members: newMembers as any
+        members: newMembers
       },
       modifiedOn: Date.now(),
       createdBy: core.account.ConfigUser,
@@ -698,7 +696,7 @@ export async function getSocialIdBySocialKey (
     return socialKey as PersonId
   }
 
-  if (socialIdBySocialKey == null || !socialIdBySocialKey.has(socialKey)) {
+  if (socialIdBySocialKey?.has(socialKey) !== true) {
     const val = (await client.accountClient.findSocialIdBySocialKey(socialKey)) ?? null
     if (socialIdBySocialKey == null) return val
 
@@ -816,7 +814,7 @@ async function processMigrateJsonForDoc (
 
     const collabId = makeDocCollabId(doc, attribute.name)
     if (value.startsWith('{')) {
-      // For some reason we have documents that are already markups
+      // Some documents are already markups
       const jsonId = await retry(5, async () => {
         return await saveCollabJson(client.ctx, storageAdapter, wsIds, collabId, value)
       })
@@ -836,14 +834,14 @@ async function processMigrateJsonForDoc (
     const currentYdocId = value.split(':')[0] as Ref<Blob>
 
     try {
-      // If document id has changed, save it with new name to ensure we will be able to load it later
+      // If document id has changed, save it with new name to ensure we be able to load it later
       const ydocId = makeCollabYdocId(collabId)
       if (ydocId !== currentYdocId) {
         await retry(5, async () => {
           const stat = await storageAdapter.stat(client.ctx, wsIds, currentYdocId)
           if (stat !== undefined) {
             const data = await storageAdapter.read(client.ctx, wsIds, currentYdocId)
-            const buffer = Buffer.concat(data as any)
+            const buffer = Buffer.concat(data)
             await storageAdapter.put(client.ctx, wsIds, ydocId, buffer, 'application/ydoc', buffer.length)
           }
         })
@@ -977,6 +975,13 @@ export const coreOperation: MigrateOperation = {
       },
       {
         state: 'reindex-after-elastic-mapping-change',
+        mode: 'upgrade',
+        func: async (client) => {
+          await client.fullReindex()
+        }
+      },
+      {
+        state: 'reindex-after-fulltext-extra',
         mode: 'upgrade',
         func: async (client) => {
           await client.fullReindex()

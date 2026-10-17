@@ -18,6 +18,7 @@ import {
   type WorkspaceIds
 } from '@hcengineering/core'
 import {
+  ApiKeyPermissionsMiddleware,
   ApplyTxMiddleware,
   BroadcastMiddleware,
   ConfigurationMiddleware,
@@ -35,9 +36,12 @@ import {
   LowLevelMiddleware,
   MarkDerivedEntryMiddleware,
   ModelMiddleware,
+  sharedSystemModel,
   ModifiedMiddleware,
   IdentifierMiddleware,
   NormalizeTxMiddleware,
+  PlanLimitsBootMiddleware,
+  SeatLimitsMiddleware,
   PluginConfigurationMiddleware,
   PrivateMiddleware,
   QueryJoinMiddleware,
@@ -70,13 +74,14 @@ import {
   type WorkspaceDestroyAdapter
 } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
-import { createStorageDataAdapter } from './blobStorage'
-import { CommunicationMiddleware, type CommunicationApiFactory } from './communication'
 
 import { RatingMiddleware } from '@hcengineering/server-rating'
 import { ChunterMiddleware } from '@hcengineering/server-chunter'
 import { NotificationMiddleware } from '@hcengineering/server-notification'
-import { ActivityMiddleware } from '@hcengineering/server-activity-resources'
+import { TaskMiddleware } from '@hcengineering/server-task'
+import { WorkflowMiddleware } from '@hcengineering/server-workflow'
+
+import { createStorageDataAdapter } from './blobStorage'
 
 /**
  * @public
@@ -114,6 +119,17 @@ function addMessagesToFullText (fulltext: MiddlewareCreator): MiddlewareCreator 
   }
 }
 
+/** System model is identical for every workspace: built once, each workspace overlays its own txes. */
+function buildSharedModel (ctx: MeasureContext, txes: Tx[]): { hierarchy?: Hierarchy, model?: ModelDb } {
+  if (!sharedSystemModel) return {}
+  const hierarchy = new Hierarchy()
+  const model = new ModelDb(hierarchy)
+  model.addTxes(ctx, txes, true)
+  // Frozen: every workspace reads these documents, a direct write would corrupt the neighbours.
+  model.freeze()
+  return { hierarchy, model }
+}
+
 /**
  * @public
  */
@@ -126,24 +142,25 @@ export function createServerPipeline (
     fulltextUrl?: string
     disableTriggers?: boolean
     usePassedCtx?: boolean
-    adapterSecurity?: boolean
-
     externalStorage: StorageAdapter
 
     queue?: PlatformQueue
 
     extraLogging?: boolean // If passed, will log every request/etc.
     pipelineContextVars?: Record<string, any>
-    communicationApiFactory?: CommunicationApiFactory
   },
   extensions?: Partial<DbConfiguration>
 ): PipelineFactory {
+  const shared = buildSharedModel(metrics, model)
+
   return (ctx, workspace, broadcast, branding) => {
     const metricsCtx = opt.usePassedCtx === true ? ctx : metrics
     const wsMetrics = metricsCtx.newChild('🧲 session', {}, { span: false })
     const conf = getConfig(metrics, dbUrl, wsMetrics, opt, extensions)
 
-    ctx.info('Pipeline created with branding:', { branding })
+    if (branding != null) {
+      ctx.info('Pipeline created with branding:', { branding })
+    }
 
     const middlewares: MiddlewareCreator[] = [
       LookupMiddleware.create,
@@ -154,25 +171,27 @@ export function createServerPipeline (
       FindSecurityMiddleware.create,
       PluginConfigurationMiddleware.create,
       PrivateMiddleware.create,
-      (ctx: MeasureContext, context: PipelineContext, next?: Middleware) =>
-        SpaceSecurityMiddleware.create(opt.adapterSecurity ?? false, ctx, context, next),
+      // Boots the PlanLimits snapshot into contextVars for downstream seat enforcement.
+      PlanLimitsBootMiddleware.create,
+      SpaceSecurityMiddleware.create,
       SpacePermissionsMiddleware.create,
+      SeatLimitsMiddleware.create,
       GuestPermissionsMiddleware.create,
+      ApiKeyPermissionsMiddleware.create,
       ConfigurationMiddleware.create,
       ContextNameMiddleware.create,
       MarkDerivedEntryMiddleware.create,
-      ...(opt.communicationApiFactory !== undefined
-        ? [CommunicationMiddleware.create(opt.communicationApiFactory)]
-        : []),
+
       UserStatusMiddleware.create,
       ApplyTxMiddleware.create, // Extract apply
       VersioningMiddleware.create,
-      IdentifierMiddleware.create, // After ApplyTx to ensure that it pass
+      TaskMiddleware.create,
+      IdentifierMiddleware.create, // After ApplyTx
       RatingMiddleware.create, // Rating editing restrictions
+      WorkflowMiddleware.create, // Workflow editing restrictions
       TransientMiddleware.create,
       ChunterMiddleware.create,
       NotificationMiddleware.create,
-      ActivityMiddleware.create,
       TxMiddleware.create, // Store tx into transaction domain
       ...(opt.disableTriggers === true ? [] : [TriggersMiddleware.create]),
       ...(opt.fulltextUrl !== undefined
@@ -193,13 +212,14 @@ export function createServerPipeline (
       DomainTxMiddleware.create,
       ...(opt.queue !== undefined ? [QueueMiddleware.create(opt.queue)] : []),
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(model),
+      ModelMiddleware.create(model, undefined, shared.model !== undefined),
       DBAdapterMiddleware.create(conf), // Configure DB adapters
       BroadcastMiddleware.create(broadcast)
     ]
 
-    const hierarchy = new Hierarchy()
-    const modelDb = new ModelDb(hierarchy)
+    const hierarchy = new Hierarchy(shared.hierarchy)
+    const modelDb = new ModelDb(hierarchy, shared.model)
+    const contextVars = opt.pipelineContextVars ?? {}
     const context: PipelineContext = {
       workspace,
       branding,
@@ -207,7 +227,12 @@ export function createServerPipeline (
       hierarchy,
       queue: opt.queue,
       storageAdapter: opt.externalStorage,
-      contextVars: opt.pipelineContextVars ?? {}
+      // Per-pipeline copy: middlewares publish workspace-scoped state here (planLimits,
+      // spaceCounts). Shared entries (LimitsProvider, payment-exhausted Map) stay references.
+      contextVars: { ...contextVars },
+      // Seed from the boot last-tx cache so a restart with no data change reconnects clients
+      // as Reconnected instead of Refresh (see pods/server loadLastTxCache).
+      lastTx: (contextVars.lastTxCache as Map<string, Ref<Tx>> | undefined)?.get(workspace.uuid)
     }
     return createPipeline(ctx, middlewares, context)
   }
@@ -223,11 +248,13 @@ export function createBackupPipeline (
   systemTx: Tx[],
   opt: {
     usePassedCtx?: boolean
-    adapterSecurity?: boolean
 
     externalStorage: StorageAdapter
   }
 ): PipelineFactory {
+  // Backup walks workspace by workspace - the system model is built once for all of them.
+  const shared = buildSharedModel(metrics, systemTx)
+
   return (ctx, workspace, broadcast, branding) => {
     const metricsCtx = opt.usePassedCtx === true ? ctx : metrics
     const wsMetrics = metricsCtx.newChild('🧲 backup', {}, { span: false })
@@ -242,12 +269,12 @@ export function createBackupPipeline (
       // ConnectionMgrMiddleware.create,
       DomainFindMiddleware.create,
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(systemTx),
+      ModelMiddleware.create(systemTx, undefined, shared.model !== undefined),
       DBAdapterMiddleware.create(conf)
     ]
 
-    const hierarchy = new Hierarchy()
-    const modelDb = new ModelDb(hierarchy)
+    const hierarchy = new Hierarchy(shared.hierarchy)
+    const modelDb = new ModelDb(hierarchy, shared.model)
     const context: PipelineContext = {
       workspace,
       branding,
@@ -276,16 +303,13 @@ export async function getServerPipeline (
   opt?: {
     queue?: PlatformQueue
     disableTriggers?: boolean
-    communicationApiFactory?: CommunicationApiFactory
   }
 ): Promise<Pipeline> {
   const pipelineFactory = createServerPipeline(ctx, dbUrl, model, {
     externalStorage: storageAdapter,
     usePassedCtx: true,
     disableTriggers: opt?.disableTriggers ?? false,
-    adapterSecurity: isAdapterSecurity(dbUrl),
-    queue: opt?.queue,
-    communicationApiFactory: opt?.communicationApiFactory
+    queue: opt?.queue
   })
 
   return await pipelineFactory(ctx, wsUrl, createEmptyBroadcastOps(), null)
@@ -294,24 +318,6 @@ export async function getServerPipeline (
 const txAdapterFactories: Record<string, DbAdapterFactory> = {}
 const adapterFactories: Record<string, DbAdapterFactory> = {}
 const destroyFactories: Record<string, (url: string) => WorkspaceDestroyAdapter> = {}
-const adapterSecurityState = new Set<string>()
-
-export function isAdapterSecurity (name: string): boolean {
-  for (const it of adapterSecurityState) {
-    if (name.startsWith(it)) {
-      return true
-    }
-  }
-  return false
-}
-export function setAdapterSecurity (name: string, state: boolean): void {
-  if (state) {
-    adapterSecurityState.add(name)
-  } else {
-    adapterSecurityState.delete(name)
-  }
-}
-
 export function registerTxAdapterFactory (name: string, factory: DbAdapterFactory, useAsDefault: boolean = true): void {
   txAdapterFactories[name] = factory
   if (useAsDefault) {
@@ -355,9 +361,28 @@ function matchAdapterFactory (dbUrl: string): DbAdapterFactory {
   return adapterFactories['']
 }
 
+// Optional boot-time last-tx loader per backend (SQL specifics stay in the backend package).
+// Unregistered backends -> matchLastTxLoader returns undefined; the caller skips the cache and
+// clients fall back to Refresh, which is safe.
+export type LastTxLoader = (ctx: MeasureContext, dbUrl: string, cache: Map<string, Ref<Tx>>) => Promise<void>
+const lastTxLoaders: Record<string, LastTxLoader> = {}
+
+export function registerLastTxLoader (name: string, loader: LastTxLoader): void {
+  lastTxLoaders[name] = loader
+}
+
+export function matchLastTxLoader (dbUrl: string): LastTxLoader | undefined {
+  for (const [k, v] of Object.entries(lastTxLoaders)) {
+    if (k !== '' && dbUrl.startsWith(k)) {
+      return v
+    }
+  }
+  return undefined
+}
+
 export function getWorkspaceDestroyAdapter (dbUrl: string): WorkspaceDestroyAdapter {
   for (const [k, v] of Object.entries(destroyFactories)) {
-    if (dbUrl.startsWith(k)) {
+    if (k !== '' && dbUrl.startsWith(k)) {
       return v(dbUrl)
     }
   }

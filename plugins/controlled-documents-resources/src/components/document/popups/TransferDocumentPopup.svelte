@@ -14,10 +14,9 @@
 -->
 
 <script lang="ts">
+  import type { DocumentMeta, DocumentTransferRequest } from '@hcengineering/controlled-documents'
   import documents, {
     canTransferDocuments,
-    DocumentMeta,
-    DocumentTransferRequest,
     listDocumentsAffectedByTransfer,
     transferDocuments,
     type DocumentSpace,
@@ -25,7 +24,8 @@
     type Project,
     type ProjectDocument
   } from '@hcengineering/controlled-documents'
-  import { TypedSpace, type Doc, type Ref, type Space } from '@hcengineering/core'
+  import type { TypedSpace } from '@hcengineering/core'
+  import type { Doc, Ref, Space } from '@hcengineering/core'
   import presentation, { getClient, SpaceSelector } from '@hcengineering/presentation'
   import { Button, Label } from '@hcengineering/ui'
   import { checkMyPermission, permissionsStore } from '@hcengineering/contact-resources'
@@ -170,13 +170,13 @@
           autoSelect={true}
         />
       </div>
-      {#if targetSpace && targetSpaceType && targetSpaceType.projects}
+      {#if targetSpace && targetSpaceType?.projects}
         <div class="space">
           <ProjectSelector
             value={targetProjectId}
             space={targetSpace._id}
-            kind={'no-border'}
-            size={'small'}
+            kind="no-border"
+            size="small"
             justify="left"
             showReadonly={false}
             on:change={(e) => {

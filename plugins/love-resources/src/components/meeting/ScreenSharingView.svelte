@@ -1,16 +1,17 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import { liveKitClient, lk } from '../../utils'
-  import {
+  import type {
     LocalParticipant,
     LocalTrackPublication,
     RemoteParticipant,
     RemoteTrack,
-    RemoteTrackPublication,
-    RoomEvent,
-    Track
+    RemoteTrackPublication
   } from 'livekit-client'
-  import { IconScale, IconScaleFull, ButtonIcon } from '@hcengineering/ui'
+  import { RoomEvent, Track } from 'livekit-client'
+  import { IconScale, IconScaleFull } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import love from '../../plugin'
 
   export let hasActiveTrack: boolean = false
   export let showLocalTrack: boolean = true
@@ -116,6 +117,9 @@
   function trySetActiveTrack (track: Track | undefined): boolean {
     if (track === undefined) return false
     if (track.kind !== Track.Kind.Video || track.source !== Track.Source.ScreenShare) return false
+
+    if (track.mediaStreamTrack?.readyState !== 'live') return false
+
     hasActiveTrack = true
     activeTrack = track
     track.attach(screen)
@@ -123,10 +127,29 @@
   }
 
   function clearActiveTrack (track: Track | undefined): void {
-    if (track !== activeTrack) return
-    hasActiveTrack = false
-    activeTrack?.detach()
-    activeTrack = null
+    if (track === activeTrack) {
+      hasActiveTrack = false
+      activeTrack?.detach()
+      activeTrack = null
+    }
+    // Another participant may still be sharing: without this rescan their stream silently
+    // vanishes from the UI when whoever we were showing stops.
+    setTimeout(() => {
+      scanForScreenShare()
+    }, 50)
+  }
+
+  function scanForScreenShare (): void {
+    for (const participant of lk.remoteParticipants.values()) {
+      for (const publication of participant.trackPublications.values()) {
+        if (trySetActiveTrack(publication.track)) return
+      }
+    }
+    if (showLocalTrack) {
+      for (const publication of lk.localParticipant.trackPublications.values()) {
+        if (trySetActiveTrack(publication.track)) return
+      }
+    }
   }
 
   function onTrackSubscribed (
@@ -153,34 +176,29 @@
     clearActiveTrack(publication.track)
   }
 
+  let destroyed = false
+
   onMount(async () => {
     await liveKitClient.awaitConnect()
+    // onDestroy may have already run while we awaited the connection.
+    if (destroyed) return
 
     lk.on(RoomEvent.TrackSubscribed, onTrackSubscribed)
     lk.on(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed)
-    for (const participant of lk.remoteParticipants.values()) {
-      for (const publication of participant.trackPublications.values()) {
-        if (trySetActiveTrack(publication.track)) break
-      }
-    }
-
     if (showLocalTrack) {
       lk.on(RoomEvent.LocalTrackPublished, onLocalTrackPublished)
       lk.on(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
-      for (const publication of lk.localParticipant.trackPublications.values()) {
-        if (trySetActiveTrack(publication.track)) break
-      }
     }
+    scanForScreenShare()
   })
 
   onDestroy(() => {
+    destroyed = true
     activeTrack?.detach(screen)
     lk.off(RoomEvent.TrackSubscribed, onTrackSubscribed)
     lk.off(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed)
-    if (showLocalTrack) {
-      lk.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished)
-      lk.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
-    }
+    lk.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished)
+    lk.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
   })
 </script>
 
@@ -202,10 +220,28 @@
   />
   {#if hasActiveTrack}
     <div class="zoom-controls" class:visible={showControls}>
-      <ButtonIcon icon={IconScale} size="small" on:click={zoomOut} disabled={scale <= MIN_SCALE} />
+      <IconButton
+        icon={IconScale}
+        size="small"
+        tooltip={{ label: love.string.ZoomOut }}
+        on:click={zoomOut}
+        disabled={scale <= MIN_SCALE}
+      />
       <span class="zoom-level">{Math.round(scale * 100)}%</span>
-      <ButtonIcon icon={IconScale} size="small" on:click={zoomIn} disabled={scale >= MAX_SCALE} />
-      <ButtonIcon icon={IconScaleFull} size="small" on:click={resetZoom} disabled={scale === 1} />
+      <IconButton
+        icon={IconScale}
+        size="small"
+        tooltip={{ label: love.string.ZoomIn }}
+        on:click={zoomIn}
+        disabled={scale >= MAX_SCALE}
+      />
+      <IconButton
+        icon={IconScaleFull}
+        size="small"
+        tooltip={{ label: love.string.ResetZoom }}
+        on:click={resetZoom}
+        disabled={scale === 1}
+      />
     </div>
   {/if}
 </div>

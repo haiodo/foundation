@@ -19,7 +19,7 @@
   import { getImageDimensions } from '../utils'
   import LinkPreviewIcon from './LinkPreviewIcon.svelte'
   import LinkPreviewImage from './LinkPreviewImage.svelte'
-  import { LinkPreviewData } from '../types'
+  import type { LinkPreviewData } from '../types'
 
   export let linkPreview: LinkPreviewData
   export let isOwn = false
@@ -37,14 +37,14 @@
   $: imageDimensions =
     linkPreview.imageWidth && linkPreview.imageHeight
       ? getImageDimensions(
-        { width: linkPreview.imageWidth, height: linkPreview.imageHeight },
-        {
-          maxWidth: 23.5,
-          minWidth: 4,
-          maxHeight: 15,
-          minHeight: 4
-        }
-      )
+          { width: linkPreview.imageWidth, height: linkPreview.imageHeight },
+          {
+            maxWidth: 23.5,
+            minWidth: 4,
+            maxHeight: 15,
+            minHeight: 4
+          }
+        )
       : undefined
 </script>
 

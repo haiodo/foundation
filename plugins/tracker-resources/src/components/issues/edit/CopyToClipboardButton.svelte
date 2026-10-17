@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, IntlString } from '@hcengineering/platform'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import { copyTextToClipboard } from '@hcengineering/presentation'
   import { Button } from '@hcengineering/ui'
 
@@ -26,7 +26,7 @@
 <Button
   {icon}
   iconProps={{ size: 'medium' }}
-  kind={'icon'}
+  kind="icon"
   showTooltip={{ label: title, direction: 'bottom' }}
   {dataId}
   on:click={() => copyTextToClipboard(text)}

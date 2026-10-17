@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,14 +14,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ButtonBaseSize, IconSize, ModernButton, showPopup } from '@hcengineering/ui'
-  import { Employee } from '@hcengineering/contact'
+  import type { ButtonBaseSize, IconSize } from '@hcengineering/ui'
+  import { showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
+  import type { Employee } from '@hcengineering/contact'
+  import contact, { getCurrentEmployee } from '@hcengineering/contact'
+  import contactRes from '@hcengineering/contact-resources/src/plugin'
   import love from '../../../plugin'
   import { SelectUsersPopup } from '@hcengineering/contact-resources'
-  import { Ref } from '@hcengineering/core'
+  import { getClient } from '@hcengineering/presentation'
+  import type { Ref } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
   import { sendInvites } from '../../../invites'
-  import { currentMeetingMinutes, infos } from '../../../stores'
+  import { aiBotPerson, currentMeetingMinutes, infos } from '../../../stores'
+  import { ensureAiBotIdentityLoaded } from '@hcengineering/ai-bot-resources'
 
   export let employee: Employee | undefined = undefined
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
@@ -30,10 +37,19 @@
   export let withBackground: boolean = true
 
   const dispatch = createEventDispatcher()
+  const hierarchy = getClient().getHierarchy()
+
+  void ensureAiBotIdentityLoaded()
+
+  // Yourself and the AI assistant are not offered a call; anyone but an active employee gets a disabled button.
+  $: hidden = employee !== undefined && (employee._id === getCurrentEmployee() || employee._id === $aiBotPerson)
+  $: disabled =
+    employee !== undefined &&
+    !(hierarchy.hasMixin(employee, contact.mixin.Employee) && hierarchy.as(employee, contact.mixin.Employee).active)
 
   async function invite (): Promise<void> {
     if (employee !== undefined) {
-      sendInvites([employee._id])
+      void sendInvites([employee._id])
     } else {
       openSelectUsersPopup()
     }
@@ -53,7 +69,7 @@
       'top',
       (result?: Ref<Employee>[]) => {
         if (result != null) {
-          sendInvites(result)
+          void sendInvites(result)
         }
         dispatch('close')
       }
@@ -61,17 +77,24 @@
   }
 </script>
 
-<div class:button-container={withBackground}>
-  <ModernButton
-    label={type === 'type-button-icon' ? undefined : love.string.Invite}
-    icon={love.icon.Invite}
-    {size}
-    {iconSize}
-    {type}
-    {kind}
-    on:click={invite}
-  />
-</div>
+{#if !hidden}
+  <div class:button-container={withBackground} data-id="invite-button">
+    <Button
+      label={type === 'type-button-icon' ? undefined : love.string.Invite}
+      icon={love.icon.Invite}
+      {size}
+      {iconSize}
+      {kind}
+      {disabled}
+      tooltip={disabled
+        ? { label: contactRes.string.Inactive }
+        : type === 'type-button-icon'
+          ? { label: love.string.Invite }
+          : undefined}
+      on:click={invite}
+    />
+  </div>
+{/if}
 
 <style lang="scss">
   .button-container {

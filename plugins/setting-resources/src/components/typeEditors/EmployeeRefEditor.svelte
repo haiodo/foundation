@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import card from '@hcengineering/card'
-  import { AnyAttribute, Class, Doc, Ref, Role } from '@hcengineering/core'
+  import type { AnyAttribute, Class, Doc, Ref, Role } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { DropdownLabels, Label, Toggle } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -65,9 +65,9 @@
       {items}
       autoSelect={false}
       selected={byRole ?? undefined}
-      kind={'regular'}
-      justify={'left'}
-      width={'100%'}
+      kind="regular"
+      justify="left"
+      width="100%"
       on:selected={changeByRole}
     />
   {/if}

@@ -13,24 +13,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    Breadcrumbs,
-    Header,
-    BreadcrumbItem,
-    IconMaximize,
-    ButtonIcon,
-    showPopup,
-    PopupResult
-  } from '@hcengineering/ui'
-  import { MeetingMinutes, Room } from '@hcengineering/love'
+  import type { BreadcrumbItem, PopupResult } from '@hcengineering/ui'
+  import ui, { Breadcrumbs, Header, IconMaximize, showPopup, ticker1 } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { MeetingMinutes, Room } from '@hcengineering/love'
   import { onDestroy } from 'svelte'
 
   import RoomModal from '../../RoomModal.svelte'
-  import { currentRoom, roomModalActive } from '../../../stores'
+  import { currentRoom } from '../../../stores'
+  import { formatElapsedTime } from '../../../utils'
   import MeetingOptionsButton from '../controls/MeetingOptionsButton.svelte'
   import RecordingButton from '../controls/RecordingButton.svelte'
   import TranscriptionButton from '../controls/TranscriptionButton.svelte'
-  import RoomAccessButton from '../controls/RoomAccessButton.svelte'
 
   export let room: Room
   export let doc: MeetingMinutes | undefined = undefined
@@ -41,7 +35,7 @@
   $: breadcrumbs = [
     {
       id: 'meeting',
-      title: doc?.title ?? room.name
+      title: doc?.name ?? room.name
     }
   ]
 
@@ -54,15 +48,24 @@
   })
 </script>
 
-<Header type={'type-aside'} adaptive={'disabled'} closeOnEscape={false} on:close>
+<Header type="type-aside" adaptive="disabled" closeOnEscape={false} on:close>
   <Breadcrumbs items={breadcrumbs} currentOnly />
   <svelte:fragment slot="actions">
     {#if $currentRoom !== undefined}
-      <!-- <RoomAccessButton {room} kind="tertiary" size="small" /> -->
+      {#if doc?.createdOn !== undefined}
+        <span class="font-medium-12 secondary-textColor">{formatElapsedTime($ticker1 - doc.createdOn)}</span>
+      {/if}
       <RecordingButton kind="tertiary" size="small" />
       <TranscriptionButton kind="tertiary" size="small" />
-      <MeetingOptionsButton {room} kind="tertiary" size="small" />
-      <ButtonIcon icon={IconMaximize} kind="tertiary" size="small" noPrint on:click={maximize} />
+      <MeetingOptionsButton {room} meetingMinutes={doc} kind="tertiary" size="small" />
+      <IconButton
+        icon={IconMaximize}
+        kind="tertiary"
+        size="small"
+        noPrint
+        tooltip={{ label: ui.string.FullSize }}
+        on:click={maximize}
+      />
     {/if}
   </svelte:fragment>
 </Header>

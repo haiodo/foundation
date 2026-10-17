@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentQuery } from '@hcengineering/core'
+  import type { DocumentQuery } from '@hcengineering/core'
   import { TableBrowser } from '@hcengineering/view-resources'
-  import emojiPlugin, { CustomEmoji } from '@hcengineering/emoji'
+  import type { CustomEmoji } from '@hcengineering/emoji'
+  import emojiPlugin from '@hcengineering/emoji'
   import { showPopup, Breadcrumb, Button, Header, IconAdd } from '@hcengineering/ui'
   import CustomEmojiPresenter from './CustomEmojiPresenter.svelte'
   import CreateCustomEmojiPopup from './CreateCustomEmojiPopup.svelte'
@@ -23,17 +24,17 @@
   const resultQuery: DocumentQuery<CustomEmoji> = {}
 
   function showCreateDialog (ev: Event): void {
-    showPopup(CreateCustomEmojiPopup, ev.target as HTMLElement)
+    showPopup(CreateCustomEmojiPopup, ev.target)
   }
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={emojiPlugin.icon.Emoji} label={emojiPlugin.string.CustomEmojis} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={emojiPlugin.icon.Emoji} label={emojiPlugin.string.CustomEmojis} size="large" isCurrent />
     <svelte:fragment slot="search"></svelte:fragment>
     <svelte:fragment slot="actions">
       <slot />
-      <Button icon={IconAdd} label={emojiPlugin.string.Create} kind={'primary'} on:click={showCreateDialog} />
+      <Button icon={IconAdd} label={emojiPlugin.string.Create} kind="primary" on:click={showCreateDialog} />
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__column content">

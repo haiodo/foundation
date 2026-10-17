@@ -13,14 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Widget, WidgetTab } from '@hcengineering/workbench'
+  import type { Widget, WidgetTab } from '@hcengineering/workbench'
   import { createEventDispatcher } from 'svelte'
   import presentation from '@hcengineering/presentation'
-  import { Action, Component } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { Component } from '@hcengineering/ui'
   import view from '@hcengineering/view'
 
   import SidebarTab from './SidebarTab.svelte'
-  import { closeWidgetTab, pinWidgetTab, unpinWidgetTab } from '../../sidebar'
+  import { closeWidgetTab, keepWidgetTab, pinWidgetTab, unpinWidgetTab } from '../../sidebar'
 
   export let tabs: WidgetTab[] = []
   export let widget: Widget
@@ -56,27 +57,38 @@
 
 <div class="tabs">
   {#each tabs as tab}
-    {#if widget.tabComponent}
-      <Component
-        is={widget.tabComponent}
-        props={{ tab, widget, selected: tab.id === selected, actions: getActions(tab) }}
-        on:close={() => dispatch('close', tab.id)}
-        on:click={() => {
-          dispatch('open', tab.id)
-        }}
-      />
-    {:else}
-      <SidebarTab
-        {tab}
-        {widget}
-        actions={getActions(tab)}
-        selected={tab.id === selected}
-        on:close={() => dispatch('close', tab.id)}
-        on:click={() => {
-          dispatch('open', tab.id)
-        }}
-      />
-    {/if}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <!-- Double click promotes a preview tab, same gesture as VSCode. Caught here so custom
+         tabComponents get it for free. -->
+    <div
+      class="tab-wrap"
+      on:dblclick={() => {
+        keepWidgetTab(widget, tab.id)
+      }}
+    >
+      {#if widget.tabComponent}
+        <Component
+          is={widget.tabComponent}
+          props={{ tab, widget, selected: tab.id === selected, actions: getActions(tab) }}
+          on:close={() => dispatch('close', tab.id)}
+          on:click={() => {
+            dispatch('open', tab.id)
+          }}
+        />
+      {:else}
+        <SidebarTab
+          {tab}
+          {widget}
+          actions={getActions(tab)}
+          selected={tab.id === selected}
+          on:close={() => dispatch('close', tab.id)}
+          on:click={() => {
+            dispatch('open', tab.id)
+          }}
+        />
+      {/if}
+    </div>
   {/each}
 </div>
 
@@ -94,5 +106,8 @@
     gap: 0.25rem;
     align-items: center;
     padding: 0.25rem 0;
+  }
+  .tab-wrap {
+    display: contents;
   }
 </style>

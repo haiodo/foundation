@@ -57,7 +57,7 @@ export class Transformer {
       return {}
     }
 
-    // check if there is a special transformation for this key
+    // Special mapping for this key.
     const transform = this.attributeTransforms.get(key)
     if (transform !== undefined) {
       return this.applyTransform(value, transform)
@@ -119,9 +119,7 @@ export class Transformer {
           const key = this.getNestedValue(item, keyField)
           if (key === undefined) continue
 
-          if (result[key] === undefined) {
-            result[key] = []
-          }
+          result[key] ??= []
 
           if (valueField !== undefined) {
             const itemValue = this.getNestedValue(item, valueField)

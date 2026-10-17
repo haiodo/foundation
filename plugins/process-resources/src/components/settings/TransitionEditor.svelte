@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,14 +14,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref } from '@hcengineering/core'
+  import type { Doc, Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Process, State, Step, Transition } from '@hcengineering/process'
+  import type { Process, State, Step, Transition } from '@hcengineering/process'
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
   import {
     Button,
-    ButtonIcon,
-    DropdownIntlItem,
     DropdownLabelsPopupIntl,
     getCurrentLocation,
     getEventPositionElement,
@@ -31,8 +31,9 @@
     Scroller,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view-resources/src/plugin'
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onDestroy } from 'svelte'
   import plugin from '../../plugin'
   import { initState } from '../../utils'
   import ActionPresenter from './ActionPresenter.svelte'
@@ -142,6 +143,10 @@
     if (value === undefined) return
     await client.update(value, { actions: value.actions })
   }
+
+  onDestroy(() => {
+    clearSettingsStore()
+  })
 </script>
 
 <div class="hulyComponent-content__container columns">
@@ -152,7 +157,7 @@
         <div class="hulyComponent-content gap">
           <div class="header flex-between">
             <TransitionPresenter transition={value} />
-            <ButtonIcon
+            <IconButton
               icon={IconDelete}
               tooltip={{ label: view.string.Delete, direction: 'bottom' }}
               size="small"
@@ -191,13 +196,7 @@
                   </Button>
                 </svelte:fragment>
               </SortableList>
-              <Button
-                kind={'ghost'}
-                width={'100%'}
-                icon={IconAdd}
-                label={plugin.string.AddAction}
-                on:click={addAction}
-              />
+              <Button kind="ghost" width="100%" icon={IconAdd} label={plugin.string.AddAction} on:click={addAction} />
             </div>
           </div>
         </div>

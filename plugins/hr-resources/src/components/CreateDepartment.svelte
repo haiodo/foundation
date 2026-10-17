@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Employee } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import core, { Ref } from '@hcengineering/core'
-  import { Department, HrEvents } from '@hcengineering/hr'
+  import type { Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { Department } from '@hcengineering/hr'
+  import { HrEvents } from '@hcengineering/hr'
   import { Card, getClient } from '@hcengineering/presentation'
   import { Button, EditBox, FocusHandler, createFocusManager } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -64,28 +66,28 @@
 >
   <div class="flex-row-center clear-mins">
     <div class="mr-3">
-      <Button focusIndex={1} icon={hr.icon.Department} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button focusIndex={1} icon={hr.icon.Department} size="medium" kind="link-bordered" noFocus />
     </div>
     <div class="clear-mins flex-grow">
       <EditBox
         focusIndex={2}
         bind:value={name}
         placeholder={hr.string.DepartmentPlaceholder}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
       />
     </div>
   </div>
   <svelte:fragment slot="header">
-    <DepartmentEditor label={hr.string.ParentDepartmentLabel} bind:value={parent} kind={'regular'} size={'large'} />
+    <DepartmentEditor label={hr.string.ParentDepartmentLabel} bind:value={parent} kind="regular" size="large" />
   </svelte:fragment>
   <svelte:fragment slot="pool">
     <EmployeeBox
       focusIndex={3}
       label={hr.string.TeamLead}
       placeholder={hr.string.TeamLead}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       bind:value={lead}
       allowDeselect
       showNavigate={false}

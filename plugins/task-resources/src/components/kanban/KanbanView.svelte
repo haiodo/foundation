@@ -1,6 +1,7 @@
 <!--
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,25 +15,29 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
+  import type {
     CategoryType,
     Class,
     Doc,
     DocumentQuery,
     DocumentUpdate,
     FindOptions,
-    generateId,
     Lookup,
-    mergeQueries,
     Ref
   } from '@hcengineering/core'
-  import { DocWithRank, Item, Kanban as KanbanUI } from '@hcengineering/kanban'
+  import core, { generateId, mergeQueries, reduceCalls } from '@hcengineering/core'
+  import type { DocWithRank, Item } from '@hcengineering/kanban'
+  import { Kanban as KanbanUI } from '@hcengineering/kanban'
   import { getResource } from '@hcengineering/platform'
   import { ActionContext, createQuery, getClient } from '@hcengineering/presentation'
   import tags from '@hcengineering/tags'
-  import { Project, Task, TaskOrdering } from '@hcengineering/task'
-  import { ColorDefinition, defaultBackground, Label, themeStore } from '@hcengineering/ui'
-  import view, { AttributeModel, BuildModelKey, Viewlet, ViewOptionModel, ViewOptions } from '@hcengineering/view'
+  import type { Project, Task } from '@hcengineering/task'
+  import taskCore, { getStates, TaskOrdering } from '@hcengineering/task'
+  import type { ColorDefinition } from '@hcengineering/ui'
+  import { defaultBackground, Label, themeStore } from '@hcengineering/ui'
+  import type { AttributeModel, BuildModelKey, Viewlet, ViewOptionModel, ViewOptions } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+  import type { SelectDirection } from '@hcengineering/view-resources'
   import {
     focusStore,
     getCategoryQueryNoLookup,
@@ -44,12 +49,13 @@
     groupBy,
     ListSelectionProvider,
     noCategory,
-    SelectDirection,
     setGroupByValues,
-    showMenu
+    showMenu,
+    statusStore
   } from '@hcengineering/view-resources'
   import { onMount } from 'svelte'
   import task from '../../plugin'
+  import { taskTypeStore, typeStore } from '../../'
   import { getTaskKanbanResultQuery, updateTaskKanbanCategories } from '../../utils'
   import KanbanDragDone from './KanbanDragDone.svelte'
 
@@ -63,7 +69,9 @@
   export let config: (string | BuildModelKey)[]
   export let options: FindOptions<DocWithRank> | undefined = undefined
 
-  $: groupByKey = viewOptions.groupBy[0] ?? noCategory
+  $: requestedGroupByKey = viewOptions.groupBy[0] ?? noCategory
+  // Set together with categories: columns of the old grouping under a new key query {space: 0}.
+  let groupByKey: string = viewOptions.groupBy[0] ?? noCategory
   $: orderBy = viewOptions.orderBy
 
   let accentColors = new Map<string, ColorDefinition>()
@@ -72,7 +80,7 @@
     accentColors = accentColors
   }
 
-  $: dontUpdateRank = orderBy[0] !== TaskOrdering.Manual
+  $: dontUpdateRank = orderBy ? orderBy[0] !== TaskOrdering.Manual : false
 
   let resultQuery: DocumentQuery<any> = { ...query }
   const client = getClient()
@@ -164,50 +172,42 @@
 
   const queryId = generateId()
 
-  function update (): void {
-    void updateTaskKanbanCategories(
+  let headerComponent: AttributeModel | undefined
+
+  const updateCategories = reduceCalls(async function (
+    key: string,
+    space: Ref<Project> | undefined,
+    tasks: DocWithRank[],
+    viewOptions: ViewOptions,
+    viewOptionsConfig: ViewOptionModel[] | undefined
+  ): Promise<void> {
+    const res = await updateTaskKanbanCategories(
       client,
       viewlet,
       _class,
       space,
       tasks,
-      groupByKey,
+      key,
       viewOptions,
       viewOptionsConfig,
       update,
       queryId
-    ).then((res) => {
-      categories = res
-    })
-  }
-
-  $: void updateTaskKanbanCategories(
-    client,
-    viewlet,
-    _class,
-    space,
-    tasks,
-    groupByKey,
-    viewOptions,
-    viewOptionsConfig,
-    update,
-    queryId
-  ).then((res) => {
+    )
+    // A missing presenter costs only the header, not the grouping.
+    const header =
+      key === noCategory ? undefined : await getPresenter(client, _class, { key }, { key }).catch(() => undefined)
+    // The grouping changed while loading: the next call applies the new one.
+    if (key !== requestedGroupByKey) return
+    groupByKey = key
+    headerComponent = header
     categories = res
   })
 
-  function getHeader (_class: Ref<Class<Doc>>, groupByKey: string): void {
-    if (groupByKey === noCategory) {
-      headerComponent = undefined
-    } else {
-      void getPresenter(client, _class, { key: groupByKey }, { key: groupByKey }).then((p) => {
-        headerComponent = p
-      })
-    }
+  function update (): void {
+    void updateCategories(requestedGroupByKey, space, tasks, viewOptions, viewOptionsConfig)
   }
 
-  let headerComponent: AttributeModel | undefined
-  $: getHeader(_class, groupByKey)
+  $: void updateCategories(requestedGroupByKey, space, tasks, viewOptions, viewOptionsConfig)
 
   const getUpdateProps = (doc: Doc, category: CategoryType): DocumentUpdate<Item> | undefined => {
     const groupValue =
@@ -219,6 +219,27 @@
       [groupByKey]: groupValue,
       space: doc.space
     }
+  }
+
+  const getAvailableCategories = async (doc: Doc): Promise<CategoryType[]> => {
+    if (groupByKey === 'status') {
+      if (!client.getHierarchy().isDerived(doc._class, task.class.Task)) return []
+      const t = doc as Task
+      if (t.kind != null) {
+        const taskType = $taskTypeStore.get(t.kind) ?? (await client.findOne(taskCore.class.TaskType, { _id: t.kind }))
+        if (taskType?.statuses != null && taskType.statuses.length > 0) {
+          return taskType.statuses
+        }
+      }
+
+      if (t.space != null) {
+        const space = await client.findOne(taskCore.class.Project, { _id: t.space as Ref<Project> })
+        if (space != null) {
+          return getStates(space, $typeStore, $statusStore.byId).map(({ _id }) => _id)
+        }
+      }
+    }
+    return categories
   }
 
   $: clazz = client.getHierarchy().getClass(_class)
@@ -246,6 +267,7 @@
       groupByKey === noCategory ? tasks : getGroupByValues(groupByDocs, category)}
     {setGroupByValues}
     {getUpdateProps}
+    {getAvailableCategories}
     {groupByDocs}
     {groupByKey}
     on:obj-focus={(evt) => {
@@ -274,9 +296,9 @@
                 this={headerComponent.presenter}
                 value={state}
                 {space}
-                size={'small'}
-                kind={'list-header'}
-                display={'kanban'}
+                size="small"
+                kind="list-header"
+                display="kanban"
                 colorInherit={!$themeStore.dark}
                 accent
                 on:accent-color={(ev) => {
@@ -301,7 +323,7 @@
           {space}
           on:done={(e) => {
             // eslint-disable-next-line no-undef
-            onDone(getDoneUpdate(e))
+            void onDone(getDoneUpdate(e))
           }}
         />
       {/if}

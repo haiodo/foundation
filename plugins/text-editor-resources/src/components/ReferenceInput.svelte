@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,29 +14,29 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Blob, Class, Doc, Markup, Ref } from '@hcengineering/core'
-  import { Asset, IntlString } from '@hcengineering/platform'
+  import type { Blob, Class, Doc, Markup, Ref } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import { EmptyMarkup, isEmptyMarkup, mergeKitOptions } from '@hcengineering/text'
-  import textEditor, { RefAction, TextEditorHandler } from '@hcengineering/text-editor'
+  import type { RefAction, TextEditorHandler } from '@hcengineering/text-editor'
+  import textEditor from '@hcengineering/text-editor'
+  import type { AnySvelteComponent, ButtonKind } from '@hcengineering/ui'
   import {
-    AnySvelteComponent,
     Button,
-    ButtonKind,
     checkAdaptiveMatching,
     deviceOptionsStore as deviceInfo,
     handler,
     IconClose,
     registerFocus
   } from '@hcengineering/ui'
-  import { FocusPosition } from '@tiptap/core'
-  import { EditorView } from '@tiptap/pm/view'
+  import type { FocusPosition } from '@tiptap/core'
+  import type { EditorView } from '@tiptap/pm/view'
   import { createEventDispatcher } from 'svelte'
 
   import view from '@hcengineering/view'
   import TextEditor from './TextEditor.svelte'
   import { defaultRefActions, getModelRefActions } from './editor/actions'
   import Send from './icons/Send.svelte'
-  import { EditorKitOptions } from '../kits/editor-kit'
+  import type { EditorKitOptions } from '../kits/editor-kit'
 
   export let content: Markup = EmptyMarkup
   export let showHeader = false
@@ -55,11 +56,14 @@
   export let noborder: boolean = false
   export let boundary: HTMLElement | undefined = undefined
   export let autofocus: FocusPosition = false
+  export let isContentChanged = false
   export let onPaste: ((view: EditorView, event: ClipboardEvent) => boolean) | undefined = undefined
   export let onCancel: (() => void) | undefined = undefined
   export let docClass: Ref<Class<Doc>> | undefined = undefined
   export let kitOptions: Partial<EditorKitOptions> = {}
   export let onKeyDown: ((view: EditorView, event: KeyboardEvent) => boolean) | undefined = undefined
+  export let disableSubmit = false
+  export let clearOnSubmit = true
 
   const dispatch = createEventDispatcher()
   const buttonSize = 'medium'
@@ -73,10 +77,13 @@
   $: shrinkButtons = checkAdaptiveMatching(devSize, 'sm')
 
   $: isEmptyContent = isEmpty || isEmptyMarkup(content)
-  $: canSubmit = (haveAttachment || !isEmptyContent) && !loading
+  $: canSubmit = (haveAttachment || !isEmptyContent || isContentChanged) && !loading && !disableSubmit
 
   function setContent (content: Markup): void {
     editor?.setContent(content)
+    // editor.setContent doesn't fire the update callback, so isEmpty (which gates Send) would
+    // stay stale after a programmatic content set (e.g. voice-note transcript injection).
+    isEmpty = isEmptyMarkup(content)
   }
 
   const editorHandler: TextEditorHandler = {
@@ -148,6 +155,10 @@
       focusManager?.setFocus(idx)
     }
   }
+
+  export function focus (): void {
+    editor?.focus()
+  }
 </script>
 
 <div class="ref-container" class:focusable class:noborder>
@@ -165,8 +176,10 @@
       on:content={(ev) => {
         if (canSubmit) {
           dispatch('message', ev.detail)
-          content = EmptyMarkup
-          editor?.clear?.()
+          if (clearOnSubmit) {
+            content = EmptyMarkup
+            editor?.clear?.()
+          }
         }
       }}
       on:blur={() => {

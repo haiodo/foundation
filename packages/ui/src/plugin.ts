@@ -58,6 +58,7 @@ export const uis = plugin(uiId, {
     None: '' as IntlString,
     NotSelected: '' as IntlString,
     Today: '' as IntlString,
+    TodayDate: '' as IntlString,
     Yesterday: '' as IntlString,
     ThisWeek: '' as IntlString,
     ThisMonth: '' as IntlString,
@@ -128,6 +129,11 @@ export const uis = plugin(uiId, {
     MediumDark: '' as IntlString,
     Dark: '' as IntlString,
     Remove: '' as IntlString,
+    Close: '' as IntlString,
+    PreviousMonth: '' as IntlString,
+    NextMonth: '' as IntlString,
+    ShowNavigator: '' as IntlString,
+    HideNavigator: '' as IntlString,
     NoResults: '' as IntlString,
     MoreCount: '' as IntlString,
     Spacious: '' as IntlString,
@@ -159,14 +165,30 @@ export const uis = plugin(uiId, {
     EmojiStyle: '' as IntlString,
     EmojiSystem: '' as IntlString,
     EmojiNoto: '' as IntlString,
-    AccentColor: '' as IntlString
+    AccentColor: '' as IntlString,
+    Connection: '' as IntlString,
+    Connected: '' as IntlString,
+    Reconnecting: '' as IntlString,
+    RateLimit: '' as IntlString,
+    RateLimitValue: '' as IntlString,
+    Sent: '' as IntlString,
+    Received: '' as IntlString,
+    TrafficValue: '' as IntlString,
+    Latency: '' as IntlString,
+    LatencyValue: '' as IntlString,
+    StatusError: '' as IntlString,
+    StatusWarning: '' as IntlString,
+    StatusInfo: '' as IntlString
   },
   metadata: {
     DefaultApplication: '' as Metadata<AnyComponent>,
     Routes: '' as Metadata<Map<string, AnyComponent>>,
     Languages: '' as Metadata<string[]>,
     PlatformTitle: '' as Metadata<string>,
-    SearchPopup: '' as Metadata<AnyComponent>
+    SearchPopup: '' as Metadata<AnyComponent>,
+    // Presence: no input for this long makes the person "away"; a hidden window does the same after this long.
+    IdleAfterMs: '' as Metadata<number>,
+    HiddenAfterMs: '' as Metadata<number>
   }
 })
 

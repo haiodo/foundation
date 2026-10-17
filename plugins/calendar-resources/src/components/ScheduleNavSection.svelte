@@ -15,7 +15,7 @@
 //
 -->
 <script lang="ts">
-  import { Schedule } from '@hcengineering/calendar'
+  import type { Schedule } from '@hcengineering/calendar'
   import { getCurrentEmployee } from '@hcengineering/contact'
   import presentation, {
     copyTextToClipboard,
@@ -24,7 +24,9 @@
     getCurrentWorkspaceUrl,
     MessageBox
   } from '@hcengineering/presentation'
-  import { Action, ButtonIcon, IconAdd, IconDelete, IconLink, NavItem, showPopup } from '@hcengineering/ui'
+  import type { Action } from '@hcengineering/ui'
+  import { IconAdd, IconDelete, IconLink, NavItem, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { TreeElement } from '@hcengineering/view-resources'
   import ScheduleEditor from './ScheduleEditor.svelte'
@@ -111,7 +113,7 @@
       <NavItem
         label={calendar.string.ScheduleNew}
         icon={IconAdd}
-        type={'type-object'}
+        type="type-object"
         on:click={() => {
           showPopup(ScheduleEditor, {}, undefined)
         }}
@@ -121,25 +123,25 @@
         <NavItem
           title={schedule.title}
           icon={calendar.icon.Calendar}
-          type={'type-object'}
+          type="type-object"
           on:click={() => {
             showPopup(ScheduleEditor, { schedule }, undefined)
           }}
         >
           <svelte:fragment slot="actions">
-            <ButtonIcon
+            <IconButton
               icon={IconLink}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
               tooltip={{ label: calendar.string.ScheduleShareLink, direction: 'top' }}
               on:click={() => {
                 shareLink(schedule)
               }}
             />
-            <ButtonIcon
+            <IconButton
               icon={IconDelete}
-              size={'extra-small'}
-              kind={'tertiary'}
+              size="extra-small"
+              kind="tertiary"
               tooltip={{ label: view.string.Delete, direction: 'top' }}
               on:click={() => {
                 deleteSchedule(schedule)

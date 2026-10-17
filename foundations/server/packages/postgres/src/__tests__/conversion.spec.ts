@@ -1,7 +1,11 @@
 import core, {
+  AccountRole,
+  type AccountUuid,
+  DOMAIN_SPACE,
   Hierarchy,
   MeasureMetricsContext,
   ModelDb,
+  type SessionData,
   TxFactory,
   type DocumentUpdate,
   type PersonId,
@@ -14,7 +18,7 @@ import { PostgresAdapter } from '../storage'
 import { convertArrayParams, decodeArray, filterProjection } from '../utils'
 import { genMinModel, test, type ComplexClass } from './minmodel'
 import { createDummyClient, type TypedQuery } from './utils'
-import { ConnectionMgr } from '@hcengineering/postgres-base'
+import { ConnectionMgr, type DBFlavor } from '@hcengineering/postgres-base'
 
 describe('array conversion', () => {
   it('should handle undefined parameters', () => {
@@ -163,6 +167,121 @@ function createTestContext (): { adapter: PostgresAdapter, ctx: MeasureMetricsCo
   return { adapter, ctx, queries }
 }
 
+describe('number comparison on jsonb fields', () => {
+  function translate (
+    tkey: string,
+    value: any,
+    flavor: DBFlavor = 'postgres'
+  ): { sql: string | undefined, values: any[] } {
+    const { adapter } = createTestContext()
+    ;(adapter as any).dbFlavor = flavor
+    const values: any[] = []
+    let idx = 1
+    const vars = {
+      add (value: any, type: string = ''): string {
+        values.push(value)
+        return `$${idx++}${type}`
+      },
+      addArray (value: any[], type: string = ''): string {
+        values.push(value)
+        return `$${idx++}${type}`
+      }
+    }
+    return { sql: (adapter as any).translateQueryValue(vars, tkey, value, 'common'), values }
+  }
+
+  // The shape numericJsonKey builds: the field's text as numeric, when Postgres accepts it as one.
+  function numericKey (text: string): string {
+    return `(CASE WHEN pg_input_is_valid(${text}, 'numeric') THEN (${text})::numeric END)`
+  }
+
+  it('compares a jsonb field with a number as a number, not as text', () => {
+    // Text orders '10' before '9': `number > 9 AND number < 100` used to match nothing.
+    const { sql, values } = translate("task.data#>>'{number}'", { $gt: 9, $lt: 100 })
+
+    const key = numericKey("task.data#>>'{number}'")
+    expect(sql).toEqual(`${key} > $1::numeric AND ${key} < $2::numeric`)
+    expect(values).toEqual([9, 100])
+  })
+
+  it('does the same for a field of a joined document and for an arrow path', () => {
+    expect(translate('lookup_activity_attachedTo."data"#>>\'{replies}\'', { $gte: 1 }).sql).toEqual(
+      `${numericKey('lookup_activity_attachedTo."data"#>>\'{replies}\'')} >= $1::numeric`
+    )
+    expect(translate("data->'a'->'b'", { $lte: 5 }).sql).toEqual(`${numericKey("data->'a'->>'b'")} <= $1::numeric`)
+  })
+
+  it('falls back to the json type check where pg_input_is_valid does not exist (cockroach, unknown)', () => {
+    const fallback =
+      "(CASE WHEN jsonb_typeof(task.data#>'{number}') = 'number' THEN (task.data#>>'{number}')::numeric END)"
+    expect(translate("task.data#>>'{number}'", { $gt: 9 }, 'cockroach').sql).toEqual(`${fallback} > $1::numeric`)
+    expect(translate("task.data#>>'{number}'", { $gt: 9 }, 'unknown').sql).toEqual(`${fallback} > $1::numeric`)
+    expect(translate("data->'a'->'b'", { $lte: 5 }, 'cockroach').sql).toEqual(
+      "(CASE WHEN jsonb_typeof(data->'a'->'b') = 'number' THEN (data->'a'->>'b')::numeric END) <= $1::numeric"
+    )
+  })
+
+  it('leaves text ranges, equality and real columns as they were', () => {
+    expect(translate("task.data#>>'{title}'", { $gt: 'a' }).sql).toEqual("task.data#>>'{title}' > $1::text")
+    expect(translate("task.data#>>'{number}'", 9).values).toEqual(['9'])
+    expect(translate("task.data#>>'{number}'", { $in: [1, 2] }).values).toEqual([['1', '2']])
+    expect(translate('task."modifiedOn"', { $gt: 9 }).sql).toEqual('task."modifiedOn" > $1::numeric')
+  })
+})
+
+describe('mistyped values for real columns', () => {
+  function translate (
+    tkey: string,
+    value: any,
+    type: string,
+    columnType: string
+  ): { sql: string | undefined, values: any[] } {
+    const { adapter } = createTestContext()
+    const values: any[] = []
+    let idx = 1
+    const vars = {
+      add (value: any, type: string = ''): string {
+        values.push(value)
+        return `$${idx++}${type}`
+      },
+      addArray (value: any[], type: string = ''): string {
+        values.push(value)
+        return `$${idx++}${type}`
+      },
+      addArrayI (value: any[], type: string = ''): string {
+        values.push(value)
+        return `$${idx++}${type}`
+      }
+    }
+    return { sql: (adapter as any).translateQueryValue(vars, tkey, value, type, columnType), values }
+  }
+
+  // FUSIO-1552: a kanban switching grouping sent the old categories with the new key.
+  it('compares a number with a text column as text', () => {
+    expect(translate('task."space"', 2, 'common', 'text')).toEqual({ sql: 'task."space" = $1::text', values: ['2'] })
+    expect(translate('task."_id"', { $in: [0, 'a'] }, 'common', 'text')).toEqual({
+      sql: 'task."_id" = ANY($1::text[])',
+      values: [['0', 'a']]
+    })
+    expect(translate('task."attachedTo"', { $ne: 1 }, 'common', 'text').values).toEqual(['1'])
+    expect(translate('space."members"', 5, 'array', 'text[]').sql).toEqual('space."members" @> \'{"5"}\'')
+  })
+
+  it('matches nothing for an object without operators on a real column', () => {
+    expect(translate('space."_id"', { values: [] }, 'common', 'text').sql).toEqual('FALSE')
+    expect(translate('task."space"', { name: 'x', $ne: 'y' }, 'common', 'text').sql).toEqual(
+      '(task."space" != $1::text OR task."space" IS NULL) AND FALSE'
+    )
+  })
+
+  it('keeps numbers for number columns', () => {
+    expect(translate('task."modifiedOn"', 5, 'common', 'bigint')).toEqual({
+      sql: 'task."modifiedOn" = $1::bigint',
+      values: [5]
+    })
+  })
+})
+
 describe('projection', () => {
   it('mixin query projection', () => {
     const data = {
@@ -204,5 +323,139 @@ describe('projection', () => {
         Уровеньанглийского_63860d038894c91979399e6f: 'UPPER'
       }
     })
+  })
+})
+
+describe('addSecurity - SQL injection prevention', () => {
+  function createAccount (uuid: string, role: AccountRole = AccountRole.User): SessionData {
+    return {
+      account: {
+        uuid: uuid as AccountUuid,
+        role,
+        primarySocialId: `social:${uuid}` as any,
+        socialIds: [`social:${uuid}`] as any,
+        fullSocialIds: []
+      },
+      isTriggerCtx: false
+    } as unknown as SessionData
+  }
+
+  it('should parameterize account uuid in members check', () => {
+    const { adapter } = createTestContext()
+    // Mock findAllSync to avoid ClassCollaborators lookup failure
+    jest.spyOn((adapter as any).modelDb, 'findAllSync').mockReturnValue([])
+    const maliciousUuid = "'; DROP TABLE space; --"
+
+    // Create a mock ValuesVariables-like object
+    const values: any[] = []
+    let idx = 1
+    const vars = {
+      add (value: any, type: string = ''): string {
+        values.push(value)
+        return type !== '' ? `$${idx++}${type}` : `$${idx++}`
+      }
+    }
+
+    const result = adapter.addSecurity(
+      core.class.Space,
+      vars as any,
+      {},
+      false,
+      DOMAIN_SPACE,
+      createAccount(maliciousUuid)
+    )
+
+    // UUID must NOT appear directly in SQL string
+    expect(result).toBeDefined()
+    expect(result).not.toContain(maliciousUuid)
+    // Should use ARRAY[$N] parameterized form
+    expect(result).toMatch(/members @> ARRAY\[\$\d+::text\]/)
+    // The malicious value should be in the values array (parameterized)
+    expect(values).toContain(maliciousUuid)
+  })
+
+  it('should parameterize account uuid in collaborator check for guest', () => {
+    const { adapter } = createTestContext()
+    jest.spyOn((adapter as any).modelDb, 'findAllSync').mockReturnValue([])
+    const maliciousUuid = "'; DROP TABLE space; --"
+
+    const values: any[] = []
+    let idx = 1
+    const vars = {
+      add (value: any, type: string = ''): string {
+        values.push(value)
+        return type !== '' ? `$${idx++}${type}` : `$${idx++}`
+      }
+    }
+
+    const result = adapter.addSecurity(
+      core.class.Space,
+      vars as any,
+      {},
+      false,
+      DOMAIN_SPACE,
+      createAccount(maliciousUuid, AccountRole.Guest)
+    )
+
+    // Guest with DocGuest role returns undefined (early exit)
+    // Regular Guest should still parameterize
+    if (result !== undefined) {
+      expect(result).not.toContain(maliciousUuid)
+      expect(values).toContain(maliciousUuid)
+    }
+  })
+
+  it('should not contain raw uuid for normal user', () => {
+    const { adapter } = createTestContext()
+    jest.spyOn((adapter as any).modelDb, 'findAllSync').mockReturnValue([])
+    const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+
+    const values: any[] = []
+    let idx = 1
+    const vars = {
+      add (value: any, type: string = ''): string {
+        values.push(value)
+        return type !== '' ? `$${idx++}${type}` : `$${idx++}`
+      }
+    }
+
+    const result = adapter.addSecurity(core.class.Space, vars as any, {}, false, DOMAIN_SPACE, createAccount(uuid))
+
+    expect(result).toBeDefined()
+    // The actual UUID should never appear in the SQL text
+    expect(result).not.toContain(uuid)
+    // It should appear in parameterized values
+    expect(values).toContain(uuid)
+  })
+
+  it('lets a workspace API key read the spaces it was issued for, and only them', () => {
+    const { adapter } = createTestContext()
+    jest.spyOn((adapter as any).modelDb, 'findAllSync').mockReturnValue([])
+    const keySpaces = ['private-channel']
+    const makeVars = (values: any[]): any => ({
+      add (value: any, type: string = ''): string {
+        values.push(value)
+        return `$${values.length}${type}`
+      }
+    })
+
+    const granted: any[] = []
+    const workspaceKey = {
+      ...createAccount('key-account'),
+      apiKey: { canWrite: true, opsOnly: true, spaces: keySpaces, grantsSpaces: true }
+    } as unknown as SessionData
+    const res = adapter.addSecurity(core.class.Doc, makeVars(granted), {}, false, 'chunk', workspaceKey)
+    expect(res).toContain('sec._id = ANY(')
+    expect(granted).toContainEqual(keySpaces)
+
+    const personal: any[] = []
+    const personalKey = {
+      ...createAccount('user'),
+      apiKey: { canWrite: true, opsOnly: true, spaces: keySpaces, grantsSpaces: false }
+    } as unknown as SessionData
+    expect(adapter.addSecurity(core.class.Doc, makeVars(personal), {}, false, 'chunk', personalKey)).not.toContain(
+      'sec._id = ANY('
+    )
+    expect(personal).not.toContainEqual(keySpaces)
   })
 })

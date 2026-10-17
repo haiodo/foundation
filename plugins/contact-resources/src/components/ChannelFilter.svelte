@@ -13,10 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ChannelProvider } from '@hcengineering/contact'
-  import { Ref } from '@hcengineering/core'
+  import type { ChannelProvider } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
   import { IconCheck, Icon, Label, resizeObserver } from '@hcengineering/ui'
-  import { Filter } from '@hcengineering/view'
+  import type { Filter } from '@hcengineering/view'
   import { FILTER_DEBOUNCE_MS, FilterQuery, sortFilterValues } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import { channelProviders } from '../utils'
@@ -83,12 +83,12 @@
           }}
         >
           {#if element.icon}
-            <div class="icon"><Icon icon={element.icon} size={'small'} /></div>
+            <div class="icon"><Icon icon={element.icon} size="small" /></div>
           {/if}
           <span class="overflow-label label flex-grow"><Label label={element.label} /></span>
           <div class="check">
             {#if isSelected(element, selected)}
-              <Icon icon={IconCheck} size={'small'} />
+              <Icon icon={IconCheck} size="small" />
             {/if}
           </div>
         </button>

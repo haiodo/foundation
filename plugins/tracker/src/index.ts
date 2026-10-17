@@ -23,6 +23,7 @@ import {
   Data,
   Doc,
   Markup,
+  type TxOperations,
   Mixin,
   Ref,
   RelatedDocument,
@@ -35,7 +36,7 @@ import {
 import { Asset, IntlString, Plugin, Resource, plugin } from '@hcengineering/platform'
 import { Preference } from '@hcengineering/preference'
 import { TagCategory, TagElement, TagReference } from '@hcengineering/tags'
-import { ToDo } from '@hcengineering/time'
+import { ToDo, WorkSlot } from '@hcengineering/time'
 import {
   ProjectType,
   ProjectTypeDescriptor,
@@ -49,11 +50,13 @@ import { AnyComponent, ComponentExtensionId, Location, ResolvedLocation } from '
 import { Action, ActionCategory, IconProps } from '@hcengineering/view'
 
 export * from './analytics'
+export * from './duration'
+export * from './ops'
 
 /**
  * @public
  */
-export interface IssueStatus extends Status {}
+export type IssueStatus = Status
 
 /**
  * @public
@@ -251,6 +254,9 @@ export interface IssueDraft {
     // Child id in template
     childId?: string
   }
+  // Root message of the AI assistant conversation about this draft. Kept in the draft so coming
+  // back to an unfinished issue restores the discussion with it, not just the fields.
+  assistConversation?: Ref<Doc>
 }
 
 /**
@@ -311,6 +317,9 @@ export interface TimeSpendReport extends AttachedDoc {
   value: number
 
   description: string
+
+  // Set when the report mirrors a planner work slot, kept in sync with it
+  workslot?: Ref<WorkSlot>
 }
 
 /**
@@ -340,6 +349,33 @@ export interface IssueChildInfo {
 export interface ChildInfoTreeResult {
   totalEstimation: number
   totalReportedTime: number
+}
+
+/**
+ * A report that mirrors a planner work slot may still lie ahead of now: the slot end is restored
+ * from date + value, and a slot in progress is split proportionally. A report entered by hand is
+ * time already spent, whatever its duration, unless it is dated ahead.
+ *
+ * @public
+ */
+export function splitReportedTime (
+  reports: Array<Pick<TimeSpendReport, 'date' | 'value' | 'workslot'>>,
+  now: number = Date.now()
+): { spent: number, planned: number } {
+  let spent = 0
+  let total = 0
+  for (const report of reports) {
+    total += report.value
+    if (report.workslot === undefined) {
+      if ((report.date ?? 0) <= now) {
+        spent += report.value
+      }
+      continue
+    }
+    const elapsed = (now - (report.date ?? 0)) / (1000 * 60 * 60)
+    spent += Math.min(Math.max(elapsed, 0), report.value)
+  }
+  return { spent, planned: total - spent }
 }
 
 /**
@@ -458,6 +494,26 @@ export interface Component extends Doc {
 export const trackerId = 'tracker' as Plugin
 export * from './analytics'
 
+/** Input of the shared issue-creation helper (tracker.function.CreateIssue). */
+export interface NewIssue {
+  title: string
+  description?: Markup
+  /** Already-uploaded description; when set, `createIssue` skips `uploadMarkup`. */
+  descriptionRef?: MarkupBlobRef
+  priority?: IssuePriority
+  // Effort in hours, as the estimation editor shows it.
+  estimation?: number
+  assignee?: Ref<Person> | null
+  parent?: Issue
+}
+
+/** What the helper returns: enough to link to the created issue. */
+export interface CreatedIssue {
+  _id: Ref<Issue>
+  _class: Ref<Class<Issue>>
+  identifier: string
+}
+
 const pluginState = plugin(trackerId, {
   class: {
     Project: '' as Ref<Class<Project>>,
@@ -473,11 +529,11 @@ const pluginState = plugin(trackerId, {
     TypeEstimation: '' as Ref<Class<Type<number>>>,
     TypeRemainingTime: '' as Ref<Class<Type<number>>>,
     RelatedIssueTarget: '' as Ref<Class<RelatedIssueTarget>>,
-    ProjectTargetPreference: '' as Ref<Class<ProjectTargetPreference>>
+    ProjectTargetPreference: '' as Ref<Class<ProjectTargetPreference>>,
+    IssueTaskType: '' as Ref<Class<Issue>>
   },
   mixin: {
-    ClassicProjectTypeData: '' as Ref<Mixin<Project>>,
-    IssueTypeData: '' as Ref<Mixin<Issue>>
+    ClassicProjectTypeData: '' as Ref<Mixin<Project>>
   },
   ids: {
     NoParent: '' as Ref<Issue>,
@@ -495,6 +551,7 @@ const pluginState = plugin(trackerId, {
     Canceled: '' as Ref<Status>
   },
   component: {
+    SubtaskSection: '' as AnyComponent,
     Tracker: '' as AnyComponent,
     TrackerApp: '' as AnyComponent,
     RelatedIssues: '' as AnyComponent,
@@ -563,7 +620,11 @@ const pluginState = plugin(trackerId, {
 
     // Project icons
     Home: '' as Asset,
-    RedCircle: '' as Asset
+    RedCircle: '' as Asset,
+
+    Priority: '' as Asset,
+    Export: '' as Asset,
+    More: '' as Asset
   },
   category: {
     Other: '' as Ref<TagCategory>,
@@ -585,6 +646,7 @@ const pluginState = plugin(trackerId, {
     CopyIssueTitle: '' as Ref<Action<Doc, any>>,
     CopyIssueLink: '' as Ref<Action<Doc, any>>,
     MoveToProject: '' as Ref<Action>,
+    ChangeTaskType: '' as Ref<Action>,
     Duplicate: '' as Ref<Action<Doc, any>>,
     Relations: '' as Ref<Action<Doc, any>>,
     NewIssue: '' as Ref<Action<Doc, any>>,
@@ -603,6 +665,10 @@ const pluginState = plugin(trackerId, {
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>
   },
+  function: {
+    // Shared issue creation, so other plugins do not depend on tracker-resources (import cycle).
+    CreateIssue: '' as Resource<(client: TxOperations, project: Project, data: NewIssue) => Promise<CreatedIssue>>
+  },
   string: {
     TrackerApplication: '' as IntlString,
     ConfigLabel: '' as IntlString,
@@ -620,7 +686,39 @@ const pluginState = plugin(trackerId, {
     UnsetParentIssue: '' as IntlString,
     ForbidCreateProjectPermission: '' as IntlString,
     ForbidCreateProjectPermissionDescription: '' as IntlString,
-    AdditionalProperties: '' as IntlString
+    AdditionalProperties: '' as IntlString,
+    Priority: '' as IntlString,
+    NoPriority: '' as IntlString,
+    Urgent: '' as IntlString,
+    High: '' as IntlString,
+    Medium: '' as IntlString,
+    Low: '' as IntlString,
+    TimeSpendHours: '' as IntlString,
+    StatusChangedTo: '' as IntlString,
+    PriorityChangedTo: '' as IntlString,
+    AssigneeChangedTo: '' as IntlString,
+    AssigneeUnset: '' as IntlString,
+    ComponentChangedTo: '' as IntlString,
+    ComponentUnset: '' as IntlString,
+    ParentChangedTo: '' as IntlString,
+    ParentUnset: '' as IntlString,
+    TitleChangedTo: '' as IntlString,
+    DescriptionChangedTo: '' as IntlString,
+    AddedLabel: '' as IntlString,
+    RemovedLabel: '' as IntlString,
+    Label: '' as IntlString,
+    MilestoneChangedTo: '' as IntlString,
+    MilestoneUnset: '' as IntlString,
+    EstimationChangedTo: '' as IntlString,
+    EstimationUnset: '' as IntlString,
+    TimeSpentAdded: '' as IntlString,
+    TimeSpentRemoved: '' as IntlString,
+    SubIssueAdded: '' as IntlString,
+    SubIssueRemoved: '' as IntlString,
+    AddedBlocker: '' as IntlString,
+    RemovedBlocker: '' as IntlString,
+    AddedRelation: '' as IntlString,
+    RemovedRelation: '' as IntlString
   },
   emailTemplate: {
     AssigneeNotificationText: '' as IntlString,
@@ -630,7 +728,11 @@ const pluginState = plugin(trackerId, {
   extensions: {
     IssueListHeader: '' as ComponentExtensionId,
     EditIssueHeader: '' as ComponentExtensionId,
-    EditIssueTitle: '' as ComponentExtensionId
+    EditIssueTitle: '' as ComponentExtensionId,
+    // Create-issue dialog: the AI assistant. The toggle sits in the header's right corner,
+    // the panel itself slides out beside the dialog.
+    CreateIssueAssist: '' as ComponentExtensionId,
+    CreateIssueHeaderActions: '' as ComponentExtensionId
   },
   taskTypes: {
     Issue: '' as Ref<TaskType>,

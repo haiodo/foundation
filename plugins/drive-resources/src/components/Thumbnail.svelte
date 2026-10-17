@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type WithLookup } from '@hcengineering/core'
+  import type { WithLookup } from '@hcengineering/core'
   import drive, { type Resource } from '@hcengineering/drive'
   import { Image, getClient, remToPx } from '@hcengineering/presentation'
   import { Icon } from '@hcengineering/ui'
@@ -43,7 +43,7 @@
 </script>
 
 {#if isFolder}
-  <Icon icon={IconFolderThumbnail} size={'full'} fill={'var(--global-no-priority-PriorityColor)'} />
+  <Icon icon={IconFolderThumbnail} size="full" fill="var(--global-no-priority-PriorityColor)" />
 {:else if previewRef != null && canShowThumbnail && !isError}
   <Image
     blob={previewRef}
@@ -52,7 +52,7 @@
     height={size}
     blurhash={version?.metadata?.thumbnail?.blurhash}
     responsive
-    fit={'cover'}
+    fit="cover"
     on:error={() => {
       isError = true
     }}

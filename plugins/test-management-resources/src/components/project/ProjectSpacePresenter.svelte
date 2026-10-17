@@ -13,14 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref, Space } from '@hcengineering/core'
+  import type { Ref, Space } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
-  import { TestProject } from '@hcengineering/test-management'
+  import type { TestProject } from '@hcengineering/test-management'
   import { IconWithEmoji } from '@hcengineering/presentation'
-  import { getPlatformColorDef, getPlatformColorForTextDef, themeStore, type Action } from '@hcengineering/ui'
+  import { getPaletteColorDef, getPlatformColorForTextDef, themeStore, type Action } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { NavLink, TreeNode } from '@hcengineering/view-resources'
-  import { SpacesNavModel, SpecialNavModel } from '@hcengineering/workbench'
+  import type { SpacesNavModel, SpecialNavModel } from '@hcengineering/workbench'
   import { SpecialElement } from '@hcengineering/workbench-resources'
 
   export let space: TestProject
@@ -66,12 +66,11 @@
       ? { icon: space.color }
       : {
           fill:
-            space.color !== undefined && typeof space.color !== 'string'
-              ? getPlatformColorDef(space.color, $themeStore.dark).icon
-              : getPlatformColorForTextDef(space.name, $themeStore.dark).icon
+            getPaletteColorDef(space.color, $themeStore.dark)?.icon ??
+            getPlatformColorForTextDef(space.name, $themeStore.dark).icon
         }}
     title={space.name}
-    type={'nested'}
+    type="nested"
     highlighted={space._id === currentSpace}
     {visible}
     actions={() => getActions(space)}

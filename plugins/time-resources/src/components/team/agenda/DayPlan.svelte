@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { Event } from '@hcengineering/calendar'
-  import { IdMap, Ref, Timestamp } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
-  import { ToDo, WorkSlot } from '@hcengineering/time'
+  import type { BusySlot, Event } from '@hcengineering/calendar'
+  import type { IdMap, Timestamp } from '@hcengineering/core'
+  import { Ref } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
+  import type { ToDo, WorkSlot } from '@hcengineering/time'
   import { Label, Scroller, areDatesEqual, ticker } from '@hcengineering/ui'
   import time from '../../../plugin'
   import PlanGroup from './PlanGroup.svelte'
@@ -10,6 +12,9 @@
   export let day: Date
   export let slots: WorkSlot[]
   export let events: Event[]
+  export let busySlots: BusySlot[]
+  export let from: Timestamp
+  export let to: Timestamp
   export let showAssignee: boolean = false
   export let todos: IdMap<ToDo>
 
@@ -37,7 +42,7 @@
   <Label label={title} />
 </div>
 
-<Scroller padding={'0 1rem'} noStretch shrink>
-  <PlanGroup {slots} {events} {showAssignee} {todos} />
+<Scroller padding="0 1rem" noStretch shrink>
+  <PlanGroup {slots} {events} {busySlots} {from} {to} {showAssignee} {todos} />
 </Scroller>
 <div class="antiVSpacer x4" />

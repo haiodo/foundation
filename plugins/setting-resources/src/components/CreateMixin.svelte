@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Class, ClassifierKind, Data, Doc, Mixin } from '@hcengineering/core'
+  import type { Class, Data, Doc, Mixin } from '@hcengineering/core'
+  import core, { ClassifierKind } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import { EditBox, Icon, Label } from '@hcengineering/ui'
@@ -54,7 +55,7 @@
   <svelte:fragment slot="header">
     <div class="flex-row-center">
       {#if value.icon}
-        <Icon icon={value.icon} size={'large'} />
+        <Icon icon={value.icon} size="large" />
       {/if}
       <div class="ml-2">
         <Label label={value.label} />

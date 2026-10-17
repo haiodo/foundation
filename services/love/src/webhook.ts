@@ -1,6 +1,7 @@
 import { MeasureContext, Ref, WorkspaceIds, type WorkspaceUuid } from '@hcengineering/core'
 import love, {
   MeetingMinutes,
+  type PendingRecording,
   queueEvents,
   QueueMeetingMessage,
   RecordingState,
@@ -21,7 +22,8 @@ import { getRecordingPreset } from './preset'
 import { saveFile } from './storage'
 import { WorkspaceClient } from './workspaceClient'
 import platform, { PlatformError } from '@hcengineering/platform'
-import { parseParticipantMetadata } from './utils'
+import { getRoomName, parseParticipantMetadata, updateMetadata } from './utils'
+import { templateStartFailed } from './recordings'
 
 export class WebhookProcessor {
   constructor (
@@ -30,7 +32,13 @@ export class WebhookProcessor {
     readonly eventProducer: PlatformQueueProducer<QueueMeetingMessage>,
     readonly egressClient: EgressClient,
     readonly storageConfig: StorageConfig | undefined,
-    readonly s3storageConfig: StorageConfig | undefined
+    readonly s3storageConfig: StorageConfig | undefined,
+    /** Restarts a recording whose template failed; `true` when one runs again. */
+    readonly onTemplateStartFailed?: (
+      roomName: string,
+      workspace: WorkspaceUuid,
+      meetingId: Ref<MeetingMinutes>
+    ) => Promise<boolean>
   ) {}
 
   async processEvent (event: WebhookEvent, roomName: ParsedRoomName): Promise<void> {
@@ -131,10 +139,10 @@ export class WebhookProcessor {
     this.ctx.info('[Webhook] Found meetingDoc', {
       meetingId,
       meetingDocFound: meetingDoc !== undefined,
-      attachedTo: meetingDoc?.attachedTo,
+      roomId: meetingDoc?.roomId,
       identity: participant.identity
     })
-    const attachedRoom = meetingDoc?.attachedTo
+    const attachedRoom = meetingDoc?.roomId
     if (attachedRoom === undefined) {
       this.ctx.info('[Webhook] Skipping participant event: MeetingMinutes missing attached room', {
         workspace,
@@ -159,17 +167,15 @@ export class WebhookProcessor {
       return
     }
 
-    // Skip activity logs only for agent/system participants.
-    // If personRef is known (even without SocialIdentity), we still add activity entries
-    // so joins/leaves from real Person records are visible in MeetingMinutes.
+    // Skip activity logs only for agent/system participants; known personRef still logs even without SocialIdentity.
     const isAgent = participant?.kind !== 0
 
     if (!isAgent) {
       if (event.event === 'participant_joined') {
         await this.handleParticipantJoined(personRef, participant, roomName, wsClient)
       } else {
-        // participant_left -> remove any ParticipantInfo records for this person or by name as fallback
-        // Skip only for truly unknown identities
+        // participant_left -> remove ParticipantInfo records for this person, by name as fallback.
+        // Skip only for unknown identities.
         await this.handleParticipantLeft(wsClient, personRef, participant, roomName)
       }
     }
@@ -199,7 +205,7 @@ export class WebhookProcessor {
     if (!(personRef === undefined)) {
       await wsClient.removeParticipantFromLiveKit(roomName.meetingId, personRef, participant.sid)
       await this.eventProducer.send(this.ctx, roomName.workspace, [
-        queueEvents.personJoined(roomName.meetingId, personRef, participant.identity ?? '')
+        queueEvents.personLeft(roomName.meetingId, personRef, participant.identity ?? '')
       ])
 
       // Track participant session duration for billing
@@ -209,12 +215,24 @@ export class WebhookProcessor {
         await saveParticipantSessionBilling(
           this.ctx,
           roomName.workspace,
-          `${roomName.workspace}_${roomName.meetingId}`,
+          getRoomName(roomName.workspace, roomName.meetingId),
           participant.identity ?? personRef,
           participant.sid,
           joinedAt,
           Date.now()
         )
+      }
+
+      // The owner's F5 also reaches LiveKit as a plain leave, so the room is not closed here.
+      // Polling compares this stamp against live participants and closes the room if they stay gone.
+      const meetingDoc = await wsClient.findMeetingById(roomName.meetingId)
+      if (meetingDoc?.roomId !== undefined) {
+        const officeOwner = await wsClient.findOfficeOwner(meetingDoc.roomId)
+        if (officeOwner !== undefined && officeOwner === personRef) {
+          await updateMetadata(this.ctx, this.roomClient, getRoomName(roomName.workspace, roomName.meetingId), {
+            ownerLeftAt: Date.now()
+          })
+        }
       }
     }
   }
@@ -334,8 +352,31 @@ export class WebhookProcessor {
 
       // Find and remove PendingRecording first (do this regardless of file save result)
       const pendingRecording = await wsClient.findPendingRecordingByEgressId(egressId)
-      if (pendingRecording !== undefined) {
-        await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+      if (
+        pendingRecording?.format === 'video' &&
+        this.onTemplateStartFailed !== undefined &&
+        templateStartFailed(event.egressInfo, pendingRecording.status)
+      ) {
+        // Removed first: the restart needs the reservation slot.
+        await wsClient.removePendingRecording(pendingRecording)
+        const room =
+          event.egressInfo.roomName !== ''
+            ? event.egressInfo.roomName
+            : getRoomName(roomName.workspace, roomName.meetingId)
+        this.ctx.warn('Recording template failed to start', { egressId, error: event.egressInfo.error })
+        if (!(await this.onTemplateStartFailed(room, roomName.workspace, roomName.meetingId))) {
+          await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+        }
+      } else if (pendingRecording !== undefined) {
+        // `recordingState` tracks the video recording only: the audio (transcription) egress ends
+        // on its own schedule and used to clear the flag while the video egress kept writing.
+        // A replaced egress ends after its replacement started, and must not clear the flag either.
+        if (
+          pendingRecording.format === 'video' &&
+          !(await this.anotherVideoRecordingRuns(wsClient, pendingRecording))
+        ) {
+          await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+        }
         await wsClient.removePendingRecording(pendingRecording)
         this.ctx.info('[Webhook] Removed PendingRecording after egress ended', {
           egressId,
@@ -393,6 +434,11 @@ export class WebhookProcessor {
     } catch {
       // Ensure we don't fail the webhook if billing fails
     }
+  }
+
+  private async anotherVideoRecordingRuns (wsClient: WorkspaceClient, ended: PendingRecording): Promise<boolean> {
+    const rows = await wsClient.findPendingRecordingsByMeeting(ended.attachedTo as Ref<MeetingMinutes>)
+    return rows.some((r) => r._id !== ended._id && r.format === 'video' && r.status === 'active')
   }
 
   private async egressStarted (event: WebhookEvent, roomName: ParsedRoomName): Promise<void> {

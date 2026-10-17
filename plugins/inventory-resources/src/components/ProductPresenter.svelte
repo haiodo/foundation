@@ -14,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Product } from '@hcengineering/inventory'
+  import type { Product } from '@hcengineering/inventory'
   import { Icon } from '@hcengineering/ui'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
 
@@ -30,7 +30,7 @@
   {:else}
     <DocNavLink object={value}>
       <div class="flex-presenter">
-        <div class="icon"><Icon icon={inventory.icon.Products} size={'small'} /></div>
+        <div class="icon"><Icon icon={inventory.icon.Products} size="small" /></div>
         <span class="label">{value.name}</span>
       </div>
     </DocNavLink>

@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Class, Doc, DocumentQuery, FindOptions, Hierarchy, Mixin, Ref, generateId } from '@hcengineering/core'
-  import { Asset, IntlString } from '@hcengineering/platform'
+  import type { Class, Doc, DocumentQuery, FindOptions, Mixin, Ref } from '@hcengineering/core'
+  import { Hierarchy, generateId } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
   import { ObjectPopup, getClient, updateAttribute } from '@hcengineering/presentation'
   import { Label, SelectPopup, resizeObserver } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -18,12 +19,12 @@
   export let attribute: string
   export let searchField: string
   export let values:
-  | Array<{
-    icon?: Asset
-    label: IntlString
-    id: string | number
-  }>
-  | undefined = undefined
+    | Array<{
+      icon?: Asset
+      label: IntlString
+      id: string | number
+    }>
+    | undefined = undefined
 
   export let fillQuery: Record<string, string> | undefined
   export let docMatches: string[] | undefined
@@ -132,7 +133,7 @@
     <SelectPopup
       value={valuesToShow}
       on:close={(evt) => {
-        changeValue(evt.detail)
+        void changeValue(evt.detail)
       }}
       placeholder={placeholder ?? view.string.Filter}
       searchable
@@ -151,7 +152,7 @@
       allowDeselect={true}
       selected={current}
       on:close={(evt) => {
-        changeValue(evt.detail === null ? null : evt.detail?._id)
+        void changeValue(evt.detail === null ? null : evt.detail?._id)
       }}
       placeholder={placeholder ?? view.string.Filter}
       {width}

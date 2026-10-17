@@ -14,9 +14,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref, RelatedDocument, DocumentQuery } from '@hcengineering/core'
+  import type { Ref, RelatedDocument, DocumentQuery } from '@hcengineering/core'
 
-  import { getResource, IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import ui, {
     createFocusManager,
     deviceOptionsStore,
@@ -31,7 +32,7 @@
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import presentation from '../plugin'
-  import { ObjectSearchCategory, ObjectSearchResult } from '../types'
+  import type { ObjectSearchCategory, ObjectSearchResult } from '../types'
   import { getClient } from '../utils'
   import { hasResource, reduceCalls } from '..'
 
@@ -40,7 +41,6 @@
   export let relatedDocuments: RelatedDocument[] | undefined = undefined
   export let ignore: RelatedDocument[] | undefined = undefined
   export let allowCategory: Ref<ObjectSearchCategory>[] | undefined = undefined
-  // export let hideButtons = false
 
   let items: ObjectSearchResult[] = []
 
@@ -182,7 +182,7 @@
           tabindex={i + 1}
           on:click={() => (category = c)}
         >
-          <Icon icon={c.icon} size={'small'} />
+          <Icon icon={c.icon} size="small" />
         </div>
       {/each}
     </div>
@@ -190,8 +190,8 @@
   <div class="pt-2 pb-1 pl-2 pr-2">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={query}
       placeholder={category?.label}

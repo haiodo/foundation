@@ -14,7 +14,8 @@
 -->
 
 <script lang="ts">
-  import { ModernButton, showPopup } from '@hcengineering/ui'
+  import { showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import telegram from '@hcengineering/telegram'
 
   import ConfigureBotPopup from './ConfigureBotPopup.svelte'
@@ -28,7 +29,7 @@
 
 {#if enabled}
   <div class="configure mt-2">
-    <ModernButton label={telegram.string.Configure} kind="primary" size="small" on:click={configureBot} />
+    <Button label={telegram.string.Configure} kind="primary" size="small" on:click={configureBot} />
   </div>
 {/if}
 

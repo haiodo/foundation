@@ -15,7 +15,8 @@
 <script lang="ts">
   import type { Asset, IntlString } from '@hcengineering/platform'
   import type { Action } from '@hcengineering/ui'
-  import { ButtonIcon, NavItem } from '@hcengineering/ui'
+  import { NavItem } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
 
   export let icon: Asset | undefined = undefined
   export let iconProps: Record<string, any> | undefined = undefined
@@ -31,7 +32,7 @@
 <NavItem
   {icon}
   {iconProps}
-  iconSize={'small'}
+  iconSize="small"
   {label}
   count={notifications > 0 ? notifications : null}
   {selected}
@@ -42,10 +43,10 @@
   <svelte:fragment slot="actions">
     {#each actions as action}
       {#if action.icon}
-        <ButtonIcon
+        <IconButton
           icon={action.icon}
-          kind={'tertiary'}
-          size={'extra-small'}
+          kind="tertiary"
+          size="extra-small"
           tooltip={{ label: action.label }}
           on:click={async (evt) => {
             await action.action({}, evt)

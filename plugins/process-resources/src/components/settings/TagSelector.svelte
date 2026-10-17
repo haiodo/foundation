@@ -13,11 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import cardPlugin, { Tag as MasterTag } from '@hcengineering/card'
-  import { Ref } from '@hcengineering/core'
+  import type { Tag as MasterTag } from '@hcengineering/card'
+  import cardPlugin from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Process } from '@hcengineering/process'
-  import { Button, eventToHTMLElement, Label, SelectPopup, SelectPopupValueType, showPopup } from '@hcengineering/ui'
+  import type { Process } from '@hcengineering/process'
+  import type { SelectPopupValueType } from '@hcengineering/ui'
+  import { Button, eventToHTMLElement, Label, SelectPopup, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
 
   export let process: Process
@@ -25,26 +27,28 @@
   export let includeBase: boolean = false
 
   const client = getClient()
-  const hierarchy = client.getHierarchy()
+  const h = client.getHierarchy()
 
   const dispatch = createEventDispatcher()
 
   function open (e: MouseEvent): void {
-    const res = new Set<MasterTag>(includeBase ? [hierarchy.getClass(process.masterTag)] : [])
-    const ancestors = hierarchy.getAncestors(process.masterTag)
+    const res = new Set<Ref<MasterTag>>()
+    if (includeBase) res.add(h.getBaseClass(process.masterTag))
+    const ancestors = h.getAncestors(process.masterTag)
     const tags = client.getModel().findAllSync(cardPlugin.class.Tag, {})
     for (const p of tags) {
       try {
-        const base = hierarchy.getBaseClass(p._id)
+        const base = h.getBaseClass(p._id)
         if (process.masterTag === base || ancestors.includes(base)) {
-          res.add(p)
+          res.add(p._id)
         }
       } catch (err) {
         console.log('error', err, p._id)
       }
     }
     const items: SelectPopupValueType[] = []
-    res.forEach((cl) => {
+    res.forEach((_id) => {
+      const cl = h.getClass(_id)
       items.push({
         id: cl._id,
         label: cl.label,
@@ -71,7 +75,7 @@
   $: selected = tag !== undefined ? client.getModel().findObject(tag) : undefined
 </script>
 
-<Button on:click={open} width={'100%'}>
+<Button on:click={open} width="100%">
   <div slot="content">
     <Label label={selected?.label ?? cardPlugin.string.Tag} />
   </div>

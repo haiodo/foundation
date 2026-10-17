@@ -26,6 +26,10 @@ export interface DelayedEventRecord {
 
 const delayedEventsTable = 'time_machine.delayed_events'
 
+// Caps a single poll's batch so a large backlog isn't pulled in one query; the rest
+// drains over the following polls, oldest first. Bump if POLL_INTERVAL * this stops draining backlog.
+const EXPIRED_EVENTS_BATCH_SIZE = 500
+
 export class TimeMachineDB {
   constructor (private readonly client: postgres.Sql) {}
 
@@ -33,7 +37,9 @@ export class TimeMachineDB {
     const client = postgres(dbUrl, {
       connection: {
         application_name: 'time-machine'
-      }
+      },
+      // Like the rest of the platform: behind a pooler a prepared statement vanishes between queries.
+      prepare: false
     })
 
     const sql = `
@@ -49,6 +55,8 @@ export class TimeMachineDB {
         );
 
         CREATE INDEX IF NOT EXISTS idx_delayed_events_target_date ON ${delayedEventsTable} (target_date);
+        -- Cancels match a prefix pattern (LIKE 'prefix%'): text_pattern_ops lets the index serve it.
+        CREATE INDEX IF NOT EXISTS idx_delayed_events_workspace_id_pattern ON ${delayedEventsTable} (workspace, id text_pattern_ops);
     `
 
     await client.unsafe(sql)
@@ -66,19 +74,22 @@ export class TimeMachineDB {
     `
   }
 
+  // LIKE, not ILIKE: ids are generated, never differ by case, and only LIKE can use the index.
   async removeEvents (workspace: WorkspaceUuid, idPattern: string): Promise<void> {
     await this.client`
       DELETE FROM time_machine.delayed_events 
-      WHERE workspace = ${workspace} AND id ILIKE ${idPattern}
+      WHERE workspace = ${workspace} AND id LIKE ${idPattern}
     `
   }
 
-  async getExpiredEvents (): Promise<DelayedEventRecord[]> {
+  async getExpiredEvents (limit: number = EXPIRED_EVENTS_BATCH_SIZE): Promise<DelayedEventRecord[]> {
     const now = Date.now()
     const res = await this.client`
-      SELECT id, workspace, target_date, topic, data 
-      FROM time_machine.delayed_events 
+      SELECT id, workspace, target_date, topic, data
+      FROM time_machine.delayed_events
       WHERE target_date <= ${now}
+      ORDER BY target_date ASC
+      LIMIT ${limit}
     `
     return res.map((r: any) => ({
       id: r.id,
@@ -89,16 +100,16 @@ export class TimeMachineDB {
     }))
   }
 
+  // One statement, not a transaction: the client retries a lone statement on its own, and a
+  // delete that fails leaves events that are already sent to be sent again.
   async deleteEvents (events: DelayedEventRecord[]): Promise<void> {
     if (events.length === 0) return
-    await this.client.begin(async (sql: postgres.Sql) => {
-      for (const event of events) {
-        await sql`
-          DELETE FROM time_machine.delayed_events 
-          WHERE id = ${event.id} AND workspace = ${event.workspace}
-        `
-      }
-    })
+    const ids = this.client.array(events.map((it) => it.id))
+    const workspaces = this.client.array(events.map((it) => it.workspace))
+    await this.client`
+      DELETE FROM time_machine.delayed_events
+      WHERE (id, workspace) IN (SELECT * FROM unnest(${ids}::text[], ${workspaces}::uuid[]))
+    `
   }
 
   async close (): Promise<void> {

@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Mixin } from '@hcengineering/core'
+  import type { Doc, Mixin } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
 
@@ -50,6 +51,7 @@
       <ClassAttributeBar
         _class={mixin._id}
         object={hierarchy.as(object, mixin._id)}
+        rawObject={object}
         {ignoreKeys}
         {to}
         {readonly}

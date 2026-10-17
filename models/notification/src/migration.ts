@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -31,6 +32,7 @@ import core, {
   type Mixin,
   type Domain
 } from '@hcengineering/core'
+import { withRetry } from '@hcengineering/retry'
 import {
   migrateSpace,
   type MigrateUpdate,
@@ -43,10 +45,9 @@ import {
 import notification, {
   notificationId,
   type PushSubscription,
-  type BrowserNotification,
   type DocNotifyContext,
-  type InboxNotification,
-  type ReadState
+  type ReadState,
+  isUnreadMessageChunk
 } from '@hcengineering/notification'
 import { DOMAIN_PREFERENCE } from '@hcengineering/preference'
 import {
@@ -57,11 +58,22 @@ import {
   getSocialIdFromOldAccount
 } from '@hcengineering/model-core'
 import activity from '@hcengineering/activity'
-import { DOMAIN_DOC_NOTIFY, DOMAIN_NOTIFICATION, DOMAIN_USER_NOTIFY, DOMAIN_READ_STATE } from './index'
+import { DOMAIN_ACTIVITY } from '@hcengineering/model-activity'
+import { type IntlString } from '@hcengineering/platform'
+
+import { DOMAIN_DOC_NOTIFY, DOMAIN_USER_NOTIFY, DOMAIN_READ_STATE } from './index'
+import { updateReadStatesFromDocNotifyContexts, initReadStatesLatestMessages } from './migrations/readState'
+import { removeArchivedNotifications, removeEmptyContexts, removeArchivedContexts } from './migrations/clear'
+import { migrateNotificationsToEmbedded } from './migrations/migrateNotificationsToEmbedded'
+import { migrateDocNotifyContextSettings } from './migrations/settings'
 
 interface OldCollaborators extends Doc {
   collaborators: AccountUuid[]
 }
+
+const DOMAIN_CONTACT = 'contact' as Domain
+const DOMAIN_NOTIFICATION = 'notification' as Domain
+const DOMAIN_CHUNTER_DOC = 'chunter_doc' as Domain
 
 export async function removeNotifications (
   client: MigrationClient,
@@ -84,17 +96,17 @@ export async function removeNotifications (
     const ids = contexts.map(({ _id }) => _id)
 
     await client.deleteMany(DOMAIN_NOTIFICATION, {
-      _class: notification.class.CommonInboxNotification,
+      _class: 'notification:class:CommonInboxNotification' as any,
       docNotifyContext: { $in: ids }
     })
 
     await client.deleteMany(DOMAIN_NOTIFICATION, {
-      _class: notification.class.ActivityInboxNotification,
+      _class: 'notification:class:ActivityInboxNotification' as any,
       docNotifyContext: { $in: ids }
     })
 
     await client.deleteMany(DOMAIN_NOTIFICATION, {
-      _class: notification.class.MentionInboxNotification,
+      _class: 'notification:class:MentionInboxNotification' as any,
       docNotifyContext: { $in: ids }
     })
 
@@ -129,7 +141,7 @@ export async function migrateNotificationsSpace (client: MigrationClient): Promi
     await client.update(
       DOMAIN_NOTIFICATION,
       {
-        _class: notification.class.ActivityInboxNotification,
+        _class: 'notification:class:ActivityInboxNotification' as any,
         user: { $in: space.members }
       },
       { space: space._id }
@@ -137,7 +149,7 @@ export async function migrateNotificationsSpace (client: MigrationClient): Promi
     await client.update(
       DOMAIN_NOTIFICATION,
       {
-        _class: notification.class.CommonInboxNotification,
+        _class: 'notification:class:CommonInboxNotification' as any,
         user: { $in: space.members }
       },
       { space: space._id }
@@ -145,7 +157,7 @@ export async function migrateNotificationsSpace (client: MigrationClient): Promi
     await client.update(
       DOMAIN_NOTIFICATION,
       {
-        _class: notification.class.MentionInboxNotification,
+        _class: 'notification:class:MentionInboxNotification' as any,
         user: { $in: space.members }
       },
       { space: space._id }
@@ -154,15 +166,15 @@ export async function migrateNotificationsSpace (client: MigrationClient): Promi
 
   await client.deleteMany(DOMAIN_DOC_NOTIFY, { space: { $nin: personSpaces.map(({ _id }) => _id) } })
   await client.deleteMany(DOMAIN_NOTIFICATION, {
-    _class: notification.class.ActivityInboxNotification,
+    _class: 'notification:class:ActivityInboxNotification' as any,
     space: { $nin: personSpaces.map(({ _id }) => _id) }
   })
   await client.deleteMany(DOMAIN_NOTIFICATION, {
-    _class: notification.class.CommonInboxNotification,
+    _class: 'notification:class:CommonInboxNotification' as any,
     space: { $nin: personSpaces.map(({ _id }) => _id) }
   })
   await client.deleteMany(DOMAIN_NOTIFICATION, {
-    _class: notification.class.MentionInboxNotification,
+    _class: 'notification:class:MentionInboxNotification' as any,
     space: { $nin: personSpaces.map(({ _id }) => _id) }
   })
 
@@ -210,15 +222,15 @@ export async function migrateNotificationsSpace (client: MigrationClient): Promi
     )
   }
 
-  await client.deleteMany(DOMAIN_NOTIFICATION, { _class: notification.class.BrowserNotification })
-  await client.deleteMany(DOMAIN_USER_NOTIFY, { _class: notification.class.BrowserNotification })
+  await client.deleteMany(DOMAIN_NOTIFICATION, { _class: 'notification:class:BrowserNotification' as any })
+  await client.deleteMany(DOMAIN_USER_NOTIFY, { _class: 'notification:class:BrowserNotification' as any })
 }
 
 export async function migrateDuplicateContexts (client: MigrationClient): Promise<void> {
   const personSpaces = await client.find<PersonSpace>(DOMAIN_SPACE, { _class: contact.class.PersonSpace }, {})
 
   for (const space of personSpaces) {
-    const contexts = await client.find<DocNotifyContext>(
+    const contexts: any[] = await client.find<DocNotifyContext>(
       DOMAIN_DOC_NOTIFY,
       { _class: notification.class.DocNotifyContext, space: space._id },
       {}
@@ -228,7 +240,7 @@ export async function migrateDuplicateContexts (client: MigrationClient): Promis
 
     for (const context of contexts) {
       const key = context.objectId + '.' + context.user
-      const existContext = contextByUser.get(key)
+      const existContext: any = contextByUser.get(key) as any
 
       if (existContext != null) {
         const existLastViewedTimestamp = existContext.lastView ?? 0
@@ -323,19 +335,19 @@ async function migrateCollaborators (client: MigrationClient): Promise<void> {
 async function migrateCommonNotificationFields (client: MigrationClient): Promise<void> {
   await client.update(
     DOMAIN_NOTIFICATION,
-    { _class: notification.class.CommonInboxNotification },
+    { _class: 'notification:class:CommonInboxNotification' as any },
     { $rename: { messageHtml: 'markup' } }
   )
 
   await client.update(
     DOMAIN_NOTIFICATION,
-    { _class: notification.class.MentionInboxNotification },
+    { _class: 'notification:class:MentionInboxNotification' as any },
     { $rename: { messageHtml: 'markup' } }
   )
 
   await client.update(
     DOMAIN_NOTIFICATION,
-    { _class: notification.class.ReactionInboxNotification },
+    { _class: 'notification:class:ReactionInboxNotification' as any },
     { $rename: { messageHtml: 'markup' } }
   )
 }
@@ -441,10 +453,10 @@ async function migrateAccounts (client: MigrationClient): Promise<void> {
   const groupByUser = await client.groupBy<any, Doc>(DOMAIN_NOTIFICATION, 'user', {
     _class: {
       $in: [
-        notification.class.BrowserNotification,
-        notification.class.InboxNotification,
-        notification.class.ActivityInboxNotification,
-        notification.class.CommonInboxNotification
+        'notification:class:BrowserNotification' as any,
+        'notification:class:InboxNotification' as any,
+        'notification:class:ActivityInboxNotification' as any,
+        'notification:class:CommonInboxNotification' as any
       ]
     }
   })
@@ -459,10 +471,10 @@ async function migrateAccounts (client: MigrationClient): Promise<void> {
         user: oldAccId,
         _class: {
           $in: [
-            notification.class.BrowserNotification,
-            notification.class.InboxNotification,
-            notification.class.ActivityInboxNotification,
-            notification.class.CommonInboxNotification
+            'notification:class:BrowserNotification' as any,
+            'notification:class:InboxNotification' as any,
+            'notification:class:ActivityInboxNotification' as any,
+            'notification:class:CommonInboxNotification' as any
           ]
         }
       },
@@ -473,7 +485,7 @@ async function migrateAccounts (client: MigrationClient): Promise<void> {
   }
 
   const groupBySenderId = await client.groupBy<any, Doc>(DOMAIN_NOTIFICATION, 'senderId', {
-    _class: notification.class.BrowserNotification
+    _class: 'notification:class:BrowserNotification' as any
   })
 
   for (const oldAccId of groupBySenderId.keys()) {
@@ -490,7 +502,7 @@ async function migrateAccounts (client: MigrationClient): Promise<void> {
     operations.push({
       filter: {
         senderId: oldAccId,
-        _class: notification.class.BrowserNotification
+        _class: 'notification:class:BrowserNotification' as any
       },
       update: {
         senderId: socialId
@@ -608,7 +620,7 @@ export async function migrateSettings (client: MigrationClient): Promise<void> {
     DOMAIN_PREFERENCE,
     {
       _class: 'notification:class:NotificationSetting' as Ref<Class<Doc>>,
-      attachedTo: 'notification:providers:BrowserNotification' as Ref<Doc>
+      attachedTo: 'notification:providers:BrowserNotification'
     },
     {
       _class: notification.class.NotificationTypeSetting,
@@ -620,7 +632,7 @@ export async function migrateSettings (client: MigrationClient): Promise<void> {
     DOMAIN_PREFERENCE,
     {
       _class: 'notification:class:NotificationSetting' as Ref<Class<Doc>>,
-      attachedTo: 'notification:providers:PlatformNotification' as Ref<Doc>
+      attachedTo: 'notification:providers:PlatformNotification'
     },
     {
       _class: notification.class.NotificationTypeSetting,
@@ -631,7 +643,7 @@ export async function migrateSettings (client: MigrationClient): Promise<void> {
 
 export async function migrateNotificationsObject (client: MigrationClient): Promise<void> {
   while (true) {
-    const notifications = await client.find<InboxNotification>(
+    const notifications = await client.find<any>(
       DOMAIN_NOTIFICATION,
       { objectId: { $exists: false }, docNotifyContext: { $exists: true } },
       { limit: 500 }
@@ -650,7 +662,7 @@ export async function migrateNotificationsObject (client: MigrationClient): Prom
       )
     }
 
-    const toDelete: Ref<InboxNotification>[] = []
+    const toDelete: Ref<any>[] = []
 
     for (const notification of notifications) {
       const context = contexts.find((c) => c._id === notification.docNotifyContext)
@@ -674,6 +686,24 @@ async function createChats (client: MigrationClient): Promise<void> {
   })) as DocNotifyContext[]
   const spaces = await client.find<PersonSpace>(DOMAIN_SPACE, { _class: contact.class.PersonSpace })
   const processed = new Map<Ref<Doc>, AccountUuid[]>()
+
+  const existingIterator = await client.traverse<Chat>(
+    DOMAIN_CHUNTER_DOC,
+    { _class: chunter.class.Chat },
+    { projection: { attachedTo: 1, account: 1 } }
+  )
+  try {
+    while (true) {
+      const existing = (await existingIterator.next(1000)) ?? []
+      if (existing.length === 0) break
+      for (const chat of existing) {
+        processed.set(chat.attachedTo, (processed.get(chat.attachedTo) ?? []).concat([chat.account]))
+      }
+    }
+  } finally {
+    await existingIterator.close()
+  }
+
   while (true) {
     const collaborators = (await iterator.next(500)) ?? []
     if (collaborators.length === 0) break
@@ -729,21 +759,34 @@ async function initReadStates (client: MigrationClient): Promise<void> {
         if (docs.length === 0) break
         processed += docs.length
         client.logger.log('...processed', { count: processed })
-        await client.create<ReadState>(
+
+        const existingStates = await client.find<ReadState>(
           DOMAIN_READ_STATE,
-          docs.map((doc) => ({
-            _id: generateId(),
-            _class: notification.class.ReadState,
-            space: doc.space,
-            attachedTo: doc._id,
-            attachedToClass: doc._class,
-            collection: 'readStates',
-            modifiedOn: Date.now(),
-            createdOn: Date.now(),
-            createdBy: core.account.System,
-            modifiedBy: core.account.System
-          }))
+          {
+            attachedTo: { $in: docs.map((doc) => doc._id) }
+          },
+          { projection: { attachedTo: 1 } }
         )
+        const existingIds = new Set(existingStates.map((s) => s.attachedTo))
+        const newDocs = docs.filter((doc) => !existingIds.has(doc._id))
+
+        if (newDocs.length > 0) {
+          await client.create<ReadState>(
+            DOMAIN_READ_STATE,
+            newDocs.map((doc) => ({
+              _id: generateId(),
+              _class: notification.class.ReadState,
+              space: client.hierarchy.isDerived(doc._class, core.class.Space) ? (doc._id as Ref<Space>) : doc.space,
+              attachedTo: doc._id,
+              attachedToClass: doc._class,
+              collection: 'readStates',
+              modifiedOn: Date.now(),
+              createdOn: Date.now(),
+              createdBy: core.account.System,
+              modifiedBy: core.account.System
+            }))
+          )
+        }
       }
     } finally {
       await iterator.close()
@@ -751,17 +794,310 @@ async function initReadStates (client: MigrationClient): Promise<void> {
   }
 }
 
+async function initThreadReadStates (client: MigrationClient): Promise<void> {
+  const messageClasses = client.hierarchy.getDescendants(activity.class.ActivityMessage)
+  const iterator = await client.traverse<DocNotifyContext>(
+    DOMAIN_DOC_NOTIFY,
+    { _class: notification.class.DocNotifyContext, objectClass: { $in: messageClasses } },
+    { projection: { _id: 1, objectId: 1, objectClass: 1 } }
+  )
+
+  let created = 0
+  try {
+    while (true) {
+      const contexts = (await iterator.next(500)) ?? []
+      if (contexts.length === 0) break
+
+      const classById = new Map<Ref<Doc>, Ref<Class<Doc>>>(contexts.map((it) => [it.objectId, it.objectClass]))
+      const ids = Array.from(classById.keys())
+      const existing = await client.find<ReadState>(
+        DOMAIN_READ_STATE,
+        { attachedTo: { $in: ids } },
+        { projection: { attachedTo: 1 } }
+      )
+      const existingIds = new Set(existing.map((it) => it.attachedTo))
+      const missing = ids.filter((id) => !existingIds.has(id))
+      if (missing.length === 0) continue
+
+      const messages = await client.find<Doc>(
+        DOMAIN_ACTIVITY,
+        { _id: { $in: missing } },
+        { projection: { _id: 1, space: 1 } }
+      )
+      if (messages.length === 0) continue
+
+      await client.create<ReadState>(
+        DOMAIN_READ_STATE,
+        messages.map((message) => ({
+          _id: generateId(),
+          _class: notification.class.ReadState,
+          space: message.space,
+          attachedTo: message._id,
+          attachedToClass: classById.get(message._id) ?? activity.class.ActivityMessage,
+          collection: 'readStates',
+          modifiedOn: Date.now(),
+          createdOn: Date.now(),
+          createdBy: core.account.System,
+          modifiedBy: core.account.System
+        }))
+      )
+      created += messages.length
+    }
+  } finally {
+    await iterator.close()
+  }
+  client.logger.log('thread read states created', { count: created })
+}
+
 async function clearNotificationTx (client: MigrationClient): Promise<void> {
   const _classes = [
-    notification.class.InboxNotification,
-    notification.class.ActivityInboxNotification,
-    notification.class.ReactionInboxNotification,
-    notification.class.MentionInboxNotification,
-    notification.class.CommonInboxNotification,
+    'notification:class:InboxNotification' as any,
+    'notification:class:ActivityInboxNotification' as any,
+    'notification:class:ReactionInboxNotification' as any,
+    'notification:class:MentionInboxNotification' as any,
+    'notification:class:CommonInboxNotification' as any,
     notification.class.DocNotifyContext
   ]
   for (const objectClass of _classes) {
     await client.deleteMany(DOMAIN_TX, { objectClass })
+  }
+}
+
+async function initBadgeStatuses (client: MigrationClient): Promise<void> {
+  const iterator = await client.traverse<any>(
+    DOMAIN_CONTACT,
+    {
+      [contact.mixin.Employee]: { $exists: true },
+      personUuid: { $exists: true }
+    },
+    { projection: { _id: 1, _class: 1, space: 1, personUuid: 1 } }
+  )
+
+  const cache = new Map<AccountUuid, boolean>()
+
+  try {
+    while (true) {
+      const docs = (await iterator.next(1000)) ?? []
+      if (docs.length === 0) break
+
+      for (const doc of docs) {
+        if (doc.personUuid == null) continue
+
+        const hasUnreadNotifications = await client.find<any>(
+          DOMAIN_NOTIFICATION,
+          {
+            user: doc.personUuid,
+            _class: {
+              $in: [
+                'notification:class:ActivityInboxNotification',
+                'notification:class:CommonInboxNotification',
+                'notification:class:MentionInboxNotification',
+                'notification:class:ReactionInboxNotification',
+                'notification:class:InboxNotification'
+              ]
+            },
+            isViewed: false,
+            archived: false
+          },
+          { limit: 1, projection: { _id: 1 } }
+        )
+
+        const hasUnread = hasUnreadNotifications.length > 0
+        cache.set(doc.personUuid, hasUnread)
+      }
+    }
+  } finally {
+    await iterator.close()
+  }
+
+  if (cache.size > 0) {
+    const chunkSize = 500
+    const cacheArray = Array.from(cache.entries())
+    for (let i = 0; i < cacheArray.length; i += chunkSize) {
+      const chunk = cacheArray.slice(i, i + chunkSize)
+      try {
+        await withRetry(
+          async () => {
+            await client.accountClient.setWorkspaceBadgeStatuses(
+              chunk.map((it) => ({
+                accountId: it[0],
+                workspaceId: client.wsIds.uuid,
+                hasUnread: it[1]
+              }))
+            )
+          },
+          { maxRetries: 3 },
+          'setWorkspaceBadgeStatuses'
+        )
+        console.log('Pushed batch badge updates to account service', { size: chunk.length })
+      } catch (err: any) {
+        console.error('Failed to push batch badge updates', { err, size: chunk.length })
+      }
+    }
+  }
+
+  console.log('Badge statuses cache generated', { usersCount: cache.size, ...client.wsIds })
+}
+
+async function migrateCommonNotificationProps (client: MigrationClient): Promise<void> {
+  type CommonInboxNotificationOld = any & {
+    props?: Record<string, any>
+    propsIntl?: Record<string, IntlString>
+  }
+  const iterator = await client.traverse<CommonInboxNotificationOld>(DOMAIN_NOTIFICATION, {
+    _class: 'notification:class:CommonInboxNotification'
+  })
+
+  try {
+    while (true) {
+      const docs = (await iterator.next(500)) ?? []
+
+      if (docs.length === 0) break
+
+      const updates: {
+        filter: MigrationDocumentQuery<any>
+        update: MigrateUpdate<any>
+      }[] = []
+      for (const doc of docs) {
+        const { props, propsIntl, intlParams, intlParamsNotLocalized } = doc
+        if (props == null && propsIntl == null) continue
+
+        updates.push({
+          filter: { _id: doc._id },
+          update: {
+            intlParams: { ...intlParams, ...props },
+            intlParamsNotLocalized: { ...intlParamsNotLocalized, ...propsIntl }
+          }
+        })
+      }
+
+      await client.bulk(DOMAIN_NOTIFICATION, updates)
+    }
+  } catch (e) {
+    await iterator.close()
+  }
+}
+
+async function migrateReadStatesSpace (client: MigrationClient): Promise<void> {
+  const hierarchy = client.hierarchy
+  const spaceClasses = new Set<Ref<Class<Doc>>>([core.class.Space])
+
+  try {
+    const descendants = hierarchy.getDescendants(core.class.Space)
+    for (const desc of descendants) {
+      spaceClasses.add(desc)
+    }
+  } catch (err) {
+    // If not found in hierarchy metadata, ignore
+  }
+
+  const iterator = await client.traverse<ReadState>(DOMAIN_READ_STATE, {
+    _class: notification.class.ReadState,
+    attachedToClass: { $in: Array.from(spaceClasses) }
+  })
+
+  try {
+    let processed = 0
+    while (true) {
+      const docs = (await iterator.next(500)) ?? []
+      if (docs.length === 0) break
+
+      const updates: {
+        filter: MigrationDocumentQuery<ReadState>
+        update: MigrateUpdate<ReadState>
+      }[] = []
+
+      for (const doc of docs) {
+        if (doc.space !== doc.attachedTo) {
+          updates.push({
+            filter: { _id: doc._id },
+            update: {
+              space: doc.attachedTo as Ref<Space>
+            }
+          })
+        }
+      }
+
+      if (updates.length > 0) {
+        await client.bulk(DOMAIN_READ_STATE, updates)
+      }
+      processed += docs.length
+      client.logger.log('...processed read states space migration', { count: processed })
+    }
+  } finally {
+    await iterator.close()
+  }
+}
+
+async function hideInactiveChats (client: MigrationClient): Promise<void> {
+  const iterator = await client.traverse<Chat>(DOMAIN_CHUNTER_DOC, {
+    _class: chunter.class.Chat,
+    attachedToClass: { $nin: client.hierarchy.getDescendants(chunter.class.ChunterSpace) },
+    hidden: false,
+    pinned: false
+  })
+
+  const twoWeeks = 14 * 24 * 60 * 60 * 1000
+  const date = Date.now()
+
+  try {
+    while (true) {
+      const chats = (await iterator.next(200)) ?? []
+      if (chats.length === 0) break
+
+      const attachedToIds = chats.map((c) => c.attachedTo)
+
+      const [contexts, readStates] = await Promise.all([
+        client.find<DocNotifyContext>(DOMAIN_DOC_NOTIFY, {
+          objectId: { $in: attachedToIds },
+          user: { $in: chats.map((c) => c.account) }
+        }),
+        client.find<ReadState>(DOMAIN_READ_STATE, {
+          attachedTo: { $in: attachedToIds }
+        })
+      ])
+
+      const contextMap = new Map<string, DocNotifyContext>()
+      for (const ctx of contexts) {
+        contextMap.set(`${ctx.objectId}_${ctx.user}`, ctx)
+      }
+
+      const readStateMap = new Map<string, ReadState>()
+      for (const state of readStates) {
+        readStateMap.set(state.attachedTo, state)
+      }
+
+      const chatsToHide: Ref<Chat>[] = []
+
+      for (const chat of chats) {
+        const readState = readStateMap.get(chat.attachedTo)
+        const lastMessageTime = readState?.latestMessageTimestamp ?? 0
+        const hasRecentMessage = date - lastMessageTime <= twoWeeks
+
+        if (hasRecentMessage) continue
+
+        const context = contextMap.get(`${chat.attachedTo}_${chat.account}`)
+        const hasNotifiedMessage =
+          (context?.unreadMessages?.some((msg) => {
+            if (isUnreadMessageChunk(msg)) {
+              return (msg.notifiedCount ?? 0) > 0
+            }
+            return msg.notified === true
+          }) ??
+            false) ||
+          (context?.unreadReactions?.length ?? 0) > 0
+
+        if (hasNotifiedMessage) continue
+
+        chatsToHide.push(chat._id)
+      }
+
+      if (chatsToHide.length > 0) {
+        await client.update<Chat>(DOMAIN_CHUNTER_DOC, { _id: { $in: chatsToHide } }, { hidden: true })
+      }
+    }
+  } finally {
+    await iterator.close()
   }
 }
 
@@ -779,7 +1115,7 @@ export const notificationOperation: MigrateOperation = {
         state: 'delete-invalid-notifications',
         mode: 'upgrade',
         func: async (client) => {
-          await removeNotifications(client, { attachedToClass: 'chunter:class:Comment' as Ref<Class<Doc>> })
+          await removeNotifications(client, { attachedToClass: 'chunter:class:Comment' })
         }
       },
       {
@@ -787,7 +1123,7 @@ export const notificationOperation: MigrateOperation = {
         mode: 'upgrade',
         func: async (client) => {
           await client.deleteMany(DOMAIN_NOTIFICATION, { _class: 'notification:class:DocUpdates' as Ref<Class<Doc>> })
-          await client.deleteMany(DOMAIN_TX, { objectClass: 'notification:class:DocUpdates' as Ref<Class<Doc>> })
+          await client.deleteMany(DOMAIN_TX, { objectClass: 'notification:class:DocUpdates' })
         }
       },
       {
@@ -838,7 +1174,7 @@ export const notificationOperation: MigrateOperation = {
         func: async (client) => {
           await client.move(
             DOMAIN_NOTIFICATION,
-            { _class: { $in: [notification.class.BrowserNotification, notification.class.PushSubscription] } },
+            { _class: { $in: ['notification:class:BrowserNotification' as any, notification.class.PushSubscription] } },
             DOMAIN_USER_NOTIFY
           )
         }
@@ -847,19 +1183,19 @@ export const notificationOperation: MigrateOperation = {
         state: 'fill-notification-archived-field-v1',
         mode: 'upgrade',
         func: async (client) => {
-          await client.update<InboxNotification>(
+          await client.update(
             DOMAIN_NOTIFICATION,
-            { _class: notification.class.ActivityInboxNotification, archived: { $exists: false } },
+            { _class: 'notification:class:ActivityInboxNotification' as any, archived: { $exists: false } },
             { archived: false }
           )
-          await client.update<InboxNotification>(
+          await client.update(
             DOMAIN_NOTIFICATION,
-            { _class: notification.class.CommonInboxNotification, archived: { $exists: false } },
+            { _class: 'notification:class:CommonInboxNotification' as any, archived: { $exists: false } },
             { archived: false }
           )
-          await client.update<InboxNotification>(
+          await client.update(
             DOMAIN_NOTIFICATION,
-            { _class: notification.class.MentionInboxNotification, archived: { $exists: false } },
+            { _class: 'notification:class:MentionInboxNotification' as any, archived: { $exists: false } },
             { archived: false }
           )
         }
@@ -952,12 +1288,12 @@ export const notificationOperation: MigrateOperation = {
         state: 'remove-browser-notification-v2',
         mode: 'upgrade',
         func: async (client) => {
-          await client.deleteMany<BrowserNotification>(DOMAIN_USER_NOTIFY, {
-            _class: notification.class.BrowserNotification
+          await client.deleteMany<any>(DOMAIN_USER_NOTIFY, {
+            _class: 'notification:class:BrowserNotification' as any
           })
 
           await client.deleteMany(DOMAIN_TX, {
-            objectClass: notification.class.BrowserNotification
+            objectClass: 'notification:class:BrowserNotification' as any
           })
         }
       },
@@ -989,14 +1325,74 @@ export const notificationOperation: MigrateOperation = {
         func: createChats
       },
       {
-        state: 'init-read-states-v100',
+        state: 'init-read-states-v2',
         mode: 'upgrade',
         func: initReadStates
+      },
+      {
+        state: 'init-thread-read-states-v1',
+        mode: 'upgrade',
+        func: initThreadReadStates
       },
       {
         state: 'clear-notification-tx-v1',
         mode: 'upgrade',
         func: clearNotificationTx
+      },
+      {
+        state: 'init-badge-statuses-v1',
+        mode: 'upgrade',
+        func: initBadgeStatuses
+      },
+      {
+        state: 'migrame-common-notification-props-v2',
+        mode: 'upgrade',
+        func: migrateCommonNotificationProps
+      },
+      {
+        state: 'migrate-read-states-space-v1',
+        mode: 'upgrade',
+        func: migrateReadStatesSpace
+      },
+      {
+        state: 'init-read-states-latest-messages-v6',
+        mode: 'upgrade',
+        func: initReadStatesLatestMessages
+      },
+      {
+        state: 'update-read-states-from-contexts-v6',
+        mode: 'upgrade',
+        func: updateReadStatesFromDocNotifyContexts
+      },
+      {
+        state: 'migrate-doc-notify-context-settings-v1',
+        mode: 'upgrade',
+        func: migrateDocNotifyContextSettings
+      },
+      {
+        state: 'remove-archived-contexts-v6',
+        mode: 'upgrade',
+        func: removeArchivedContexts
+      },
+      {
+        state: 'remove-archived-notifications-v6',
+        mode: 'upgrade',
+        func: removeArchivedNotifications
+      },
+      {
+        state: 'remove-empty-contexts-v6',
+        mode: 'upgrade',
+        func: removeEmptyContexts
+      },
+      {
+        state: 'migrate-notifications-to-embedded-v6',
+        mode: 'upgrade',
+        func: migrateNotificationsToEmbedded
+      },
+      {
+        state: 'hide-inactive-chats-v1',
+        mode: 'upgrade',
+        func: hideInactiveChats
       }
     ])
   },

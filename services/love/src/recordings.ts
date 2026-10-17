@@ -1,8 +1,18 @@
 import { WorkspaceLoginInfo } from '@hcengineering/account-client'
 import { MeasureContext, Ref, WorkspaceIds, WorkspaceUuid } from '@hcengineering/core'
-import { MeetingMinutes, queueEvents, QueueMeetingMessage, RecordingFormat, RecordingState } from '@hcengineering/love'
+import {
+  MeetingMinutes,
+  PendingRecording,
+  queueEvents,
+  QueueMeetingMessage,
+  RecordingFormat,
+  RecordingState,
+  type RecordingStatus
+} from '@hcengineering/love'
 import {
   EgressClient,
+  type EgressInfo,
+  EgressStatus,
   EncodedFileOutput,
   EncodedFileType,
   RoomServiceClient,
@@ -11,94 +21,268 @@ import {
 } from 'livekit-server-sdk'
 import { WorkspaceClient } from './workspaceClient'
 import { PlatformQueueProducer, StorageConfig } from '@hcengineering/server-core'
+import { type LimitsState } from './limits'
 import { getS3UploadParams } from './storage'
 import { getRecordingPreset } from './preset'
 import config from './config'
 
+export type StartRecordingVerdict =
+  | { started: true }
+  | { started: false, reason: 'already-running' | 'limits-exhausted' | 'no-room' | 'no-reservation' | 'cancelled' }
+
+export type StopRecordingVerdict = { stopped: true } | { stopped: false, reason: 'cooldown' | 'no-room' }
+
+export type TemplateFallbackReason = 'template-unreachable' | 'start-signal-timeout' | 'page-load-failed'
+
+/** One stable message, so every switch away from the template can be found in the logs. */
+export const TEMPLATE_FALLBACK_LOG = 'Recording template fallback: recording with the built-in layout'
+
+/**
+ * A template egress that failed without a file while nobody stopped it: the page did not load or
+ * crashed. Built-in egresses never qualify, so a restart with the built-in layout cannot loop.
+ * Webhook events arrive as queue JSON, hence the enum names are accepted too.
+ */
+export function templateStartFailed (
+  info: Pick<EgressInfo, 'status' | 'request' | 'fileResults'>,
+  rowStatus: RecordingStatus | undefined
+): boolean {
+  if (rowStatus !== 'active') return false
+  const status = info.status as unknown
+  const failed =
+    status === EgressStatus.EGRESS_FAILED ||
+    status === EgressStatus.EGRESS_ABORTED ||
+    status === 'EGRESS_FAILED' ||
+    status === 'EGRESS_ABORTED'
+  if (!failed || info.fileResults.some((f) => Number(f.size) > 0)) return false
+  const request = info.request as { case?: string, value?: { customBaseUrl?: string } } | undefined
+  return request?.case === 'roomComposite' && (request.value?.customBaseUrl ?? '') !== ''
+}
+
 export class RecordingProcessor {
+  // A state flip needs to settle before the opposite one is accepted: two people hitting the
+  // button at once must not start and stop the same egress within a second.
+  private static readonly STATE_FLIP_COOLDOWN_MS = 3000
+
+  // A reservation that never got an egressId belongs to an attempt that died between the two
+  // writes; past this age it must not keep blocking new recordings.
+  private static readonly RESERVATION_GRACE_MS = 60_000
+
+  // Egress waits for the template's start signal forever, so a page that never connects would look
+  // like a running recording until the meeting ends. The page gives up connecting after ~45 s.
+  static STUCK_START_MS = 60_000
+  static TEMPLATE_CHECK_TIMEOUT_MS = 2000
+
   constructor (
     readonly ctx: MeasureContext,
     readonly roomClient: RoomServiceClient,
     readonly eventProducer: PlatformQueueProducer<QueueMeetingMessage>,
     readonly egressClient: EgressClient,
     readonly storageConfig: StorageConfig | undefined,
-    readonly s3storageConfig: StorageConfig | undefined
+    readonly s3storageConfig: StorageConfig | undefined,
+    readonly limitsState?: LimitsState
   ) {}
 
   async startRecording (
     roomName: string,
     workspaceId: WorkspaceUuid,
     meetingId: Ref<MeetingMinutes>,
-    wsLoginInfo: WorkspaceLoginInfo,
-    meetingTitle: string
-  ): Promise<void> {
+    wsIds: WorkspaceIds,
+    meetingTitle: string,
+    opts: { builtInLayout?: boolean } = {}
+  ): Promise<StartRecordingVerdict> {
+    // Egress writes straight to S3, past the datalake gate. Skip rather than throw: the queue
+    // consumer calls this too, and a throw there means endless redelivery.
+    if (this.limitsState?.isExhausted(workspaceId) === true) {
+      this.ctx.warn('Cannot start recording: workspace disk/payment limit exhausted', { workspaceId, roomName })
+      return { started: false, reason: 'limits-exhausted' }
+    }
+
     // Check if LiveKit room exists before starting recording
     const existingRooms = await this.roomClient.listRooms([roomName])
     if (existingRooms === undefined || existingRooms.length === 0) {
       this.ctx.warn('Cannot start recording: LiveKit room does not exist', { roomName })
-      return
+      return { started: false, reason: 'no-room' }
     }
 
     const dateStr = new Date().toISOString().replace('T', '_').slice(0, 19)
     // Use MeetingMinutes title for recording filename
 
-    const wsClient = await WorkspaceClient.create(wsLoginInfo.workspace, this.ctx)
-    try {
-      const meetingDoc = await wsClient.findMeetingById(meetingId)
-      if (meetingDoc === undefined) {
-        this.ctx.error('Meeting document not found when starting recording', { meetingId })
-        throw new Error('Meeting not found')
-      }
+    const wsClient = await WorkspaceClient.create(workspaceId, this.ctx)
+    const meetingDoc = await wsClient.findMeetingById(meetingId)
+    if (meetingDoc === undefined) {
+      this.ctx.error('Meeting document not found when starting recording', { meetingId })
+      throw new Error('Meeting not found')
+    }
 
-      // Check if there's already an active video recording for this meeting
-      const existingRecordings = await wsClient.findPendingRecordingsByMeeting(meetingId)
-      const activeVideoRecording = existingRecordings.find(
-        (r) => r.format === 'video' && (r.status === 'active' || r.status === 'completed' || r.status == null)
-      )
-      if (activeVideoRecording !== undefined) {
-        this.ctx.warn('Video recording already in progress for this meeting', {
-          meetingId,
-          existingEgressId: activeVideoRecording.egressId,
-          status: activeVideoRecording.status
-        })
-        return
-      }
-
-      meetingTitle = meetingTitle.replace(/[^a-zA-Z0-9_-]/g, '_')
-
-      const name = `${meetingTitle}_${dateStr}.mp4`
-      const wsIds = {
-        uuid: wsLoginInfo.workspace,
-        dataId: wsLoginInfo.workspaceDataId,
-        url: wsLoginInfo.workspaceUrl
-      }
-      const { egressId } = await this.startRecord(this.ctx, roomName, wsIds, meetingId)
-
-      await wsClient.createPendingRecording({
-        meeting: meetingId,
-        format: 'video',
-        roomName,
-        name,
-        egressId
+    const activeVideoRecording = await this.findRunningRecording(wsClient, meetingId, 'video')
+    if (activeVideoRecording !== undefined) {
+      this.ctx.warn('Video recording already in progress for this meeting', {
+        meetingId,
+        existingEgressId: activeVideoRecording.egressId,
+        status: activeVideoRecording.status
       })
-      // Update meeting document to reflect recording started
-      await wsClient.updateMeetingRecordingState(meetingDoc, RecordingState.Recording)
+      // The document is what clients read. If it lagged behind the live egress, every press of
+      // the (already red) button would keep routing to /startRecord - repair it here.
+      if (meetingDoc.recordingState !== RecordingState.Recording) {
+        await wsClient.updateMeetingRecordingState(meetingDoc, RecordingState.Recording)
+      }
+      return { started: false, reason: 'already-running' }
+    }
+
+    meetingTitle = meetingTitle.replace(/[^a-zA-Z0-9_-]/g, '_')
+
+    const name = `${meetingTitle}_${dateStr}.mp4`
+
+    // Reserve before the slow egress call: this row is the only guard shared across replicas.
+    const pendingId = await wsClient.createPendingRecording({
+      meeting: meetingId,
+      format: 'video',
+      roomName,
+      name,
+      reservedAfter: Date.now() - RecordingProcessor.RESERVATION_GRACE_MS
+    })
+    if (pendingId === undefined) {
+      // A start that passed the check above at the same moment took the slot first.
+      if ((await this.findRunningRecording(wsClient, meetingId, 'video')) !== undefined) {
+        return { started: false, reason: 'already-running' }
+      }
+      this.ctx.error('Cannot start recording: failed to reserve PendingRecording', { meetingId, roomName })
+      return { started: false, reason: 'no-reservation' }
+    }
+
+    let egressId: string
+    let usedTemplate: boolean
+    try {
+      ;({ egressId, usedTemplate } = await this.startRecord(
+        this.ctx,
+        roomName,
+        wsIds,
+        meetingId,
+        opts.builtInLayout === true
+      ))
     } catch (err: any) {
+      await wsClient.removePendingRecordingById(pendingId)
       this.ctx.error('Failed to start recording', { error: err?.message ?? String(err), meetingId, roomName })
       throw err
     }
 
-    this.ctx.info('Start recording', { workspace: wsLoginInfo.workspace, roomName, meetingId })
+    const statusWhenStarted = await wsClient.setPendingRecordingEgressId(pendingId, egressId)
+    if (statusWhenStarted === 'cancelled') {
+      // Stop arrived while the egress was coming up - it had no egressId to stop back then.
+      this.ctx.info('Recording cancelled while starting, stopping egress', { meetingId, roomName, egressId })
+      await this.egressClient.stopEgress(egressId)
+      return { started: false, reason: 'cancelled' }
+    }
+
+    await wsClient.updateMeetingRecordingState(meetingDoc, RecordingState.Recording)
+
+    this.ctx.info('Start recording', { workspace: workspaceId, roomName, meetingId, usedTemplate })
+    if (usedTemplate) this.watchTemplateStart(roomName, workspaceId, meetingId, egressId)
+    return { started: true }
   }
 
-  async stopRecording (roomName: string, workspaceId: WorkspaceUuid, meetingId: Ref<MeetingMinutes>): Promise<void> {
+  private watchTemplateStart (
+    roomName: string,
+    workspaceId: WorkspaceUuid,
+    meetingId: Ref<MeetingMinutes>,
+    egressId: string
+  ): void {
+    const timer = setTimeout(() => {
+      void this.recoverStuckStart(roomName, workspaceId, meetingId, egressId)
+    }, RecordingProcessor.STUCK_START_MS)
+    timer.unref?.()
+  }
+
+  /** The template never sent its start signal: replace that egress with one on the built-in layout. */
+  async recoverStuckStart (
+    roomName: string,
+    workspaceId: WorkspaceUuid,
+    meetingId: Ref<MeetingMinutes>,
+    egressId: string
+  ): Promise<void> {
+    try {
+      const [info] = await this.egressClient.listEgress({ egressId })
+      if (info?.status !== EgressStatus.EGRESS_STARTING) return
+      const wsClient = await WorkspaceClient.create(workspaceId, this.ctx)
+      const row = await wsClient.findPendingRecordingByEgressId(egressId)
+      // Stopped by a user meanwhile, or already replaced.
+      if (row?.status !== 'active') return
+      // Cancelled first: frees the reservation slot and tells egress_ended not to restart it again.
+      await wsClient.cancelPendingRecording(row)
+      try {
+        await this.egressClient.stopEgress(egressId)
+      } catch (err: any) {
+        this.ctx.warn('Failed to stop a stuck recording egress', { egressId, error: err?.message ?? String(err) })
+      }
+      await this.startWithBuiltInLayout(roomName, workspaceId, meetingId, 'start-signal-timeout')
+    } catch (err: any) {
+      this.ctx.error('Failed to recover a recording stuck on the template', {
+        meetingId,
+        egressId,
+        error: err?.message ?? String(err)
+      })
+    }
+  }
+
+  /** Never throws. `true` when a recording is running again. */
+  async startWithBuiltInLayout (
+    roomName: string,
+    workspaceId: WorkspaceUuid,
+    meetingId: Ref<MeetingMinutes>,
+    reason: TemplateFallbackReason
+  ): Promise<boolean> {
+    this.ctx.warn(TEMPLATE_FALLBACK_LOG, { reason, meetingId, roomName })
+    try {
+      const wsClient = await WorkspaceClient.create(workspaceId, this.ctx)
+      const meeting = await wsClient.findMeetingById(meetingId)
+      if (meeting === undefined) return false
+      // The ids egress_ended saves the file with.
+      const wsIds = { uuid: workspaceId, url: '' }
+      const verdict = await this.startRecording(roomName, workspaceId, meetingId, wsIds, meeting.name, {
+        builtInLayout: true
+      })
+      return verdict.started || verdict.reason === 'already-running'
+    } catch (err: any) {
+      this.ctx.error('Failed to restart the recording with the built-in layout', {
+        meetingId,
+        error: err?.message ?? String(err)
+      })
+      return false
+    }
+  }
+
+  /** Love reaches the template the way egress does only approximately, so this is a first line only. */
+  private async templateReachable (url: string): Promise<boolean> {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(RecordingProcessor.TEMPLATE_CHECK_TIMEOUT_MS) })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+
+  async stopRecording (
+    roomName: string,
+    workspaceId: WorkspaceUuid,
+    meetingId: Ref<MeetingMinutes>
+  ): Promise<StopRecordingVerdict> {
     this.ctx.info('[stopRecording] Called', { roomName, meetingId, workspace: workspaceId })
 
     // Check if LiveKit room exists before stopping recording
     const existingRooms = await this.roomClient.listRooms([roomName])
     if (existingRooms === undefined || existingRooms.length === 0) {
       this.ctx.warn('[stopRecording] LiveKit room does not exist, skipping stop', { roomName, meetingId })
-      return
+      return { stopped: false, reason: 'no-room' }
+    }
+
+    const wsClient = await WorkspaceClient.create(workspaceId, this.ctx)
+    const pending = await wsClient.findPendingRecordingsByMeeting(meetingId)
+    const justStarted = pending.find(
+      (r) => r.format === 'video' && Date.now() - r.startedAt < RecordingProcessor.STATE_FLIP_COOLDOWN_MS
+    )
+    if (justStarted !== undefined) {
+      this.ctx.warn('[stopRecording] Recording started moments ago, refusing to stop', { roomName, meetingId })
+      return { stopped: false, reason: 'cooldown' }
     }
 
     this.ctx.info('[stopRecording] Room found, stopping video recording', { roomName, meetingId })
@@ -106,6 +290,7 @@ export class RecordingProcessor {
     await this.eventProducer.send(this.ctx, workspaceId, [
       queueEvents.updateMetadata(meetingId, roomName, { recording: false })
     ])
+    return { stopped: true }
   }
 
   async startAudioRecording (
@@ -114,6 +299,15 @@ export class RecordingProcessor {
     meetingId: Ref<MeetingMinutes>,
     wsLoginInfo: WorkspaceLoginInfo
   ): Promise<void> {
+    // Audio (transcription) recording also lands in S3 — same disk/payment gate as video.
+    if (this.limitsState?.isExhausted(workspaceId) === true) {
+      this.ctx.warn('Cannot start audio recording: workspace disk/payment limit exhausted', {
+        workspaceId,
+        roomName
+      })
+      return
+    }
+
     // Check if LiveKit room exists before starting audio recording
     const existingRooms = await this.roomClient.listRooms([roomName])
     if (existingRooms === undefined || existingRooms.length === 0) {
@@ -131,6 +325,33 @@ export class RecordingProcessor {
       const meetingDoc = await wsClient.findMeetingById(meetingId)
       if (meetingDoc === undefined) {
         this.ctx.error('Meeting document not found when starting audio recording', { meetingId })
+        return
+      }
+
+      const running = await this.findRunningRecording(wsClient, meetingId, 'audio')
+      if (running !== undefined) {
+        this.ctx.warn('Audio recording already in progress for this meeting', {
+          meetingId,
+          existingEgressId: running.egressId
+        })
+        return
+      }
+
+      const dateStr = new Date().toISOString().replace('T', '_').slice(0, 19)
+      const name = `${meetingDoc.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_${dateStr}.ogg`
+      // Reserve before the slow egress call - same shared guard the video path uses.
+      const pendingId = await wsClient.createPendingRecording({
+        meeting: meetingId,
+        format: 'audio',
+        roomName,
+        name,
+        reservedAfter: Date.now() - RecordingProcessor.RESERVATION_GRACE_MS
+      })
+      if (pendingId === undefined) {
+        this.ctx.warn('Audio recording not started: slot held by another start or reservation failed', {
+          meetingId,
+          roomName
+        })
         return
       }
 
@@ -164,34 +385,39 @@ export class RecordingProcessor {
         }
       })
 
-      const { egressId } = await this.egressClient.startRoomCompositeEgress(
-        roomName,
-        { file: output },
-        {
-          audioOnly: true,
-          webhooks:
-            config.UseEgressWebHook && config.WebHookUrl !== ''
-              ? [
-                  new WebhookConfig({
-                    url: config.WebHookUrl,
-                    signingKey: config.ApiKey
-                  })
-                ]
-              : []
-        }
-      )
+      let egressId: string
+      try {
+        egressId = (
+          await this.egressClient.startRoomCompositeEgress(
+            roomName,
+            { file: output },
+            {
+              audioOnly: true,
+              webhooks:
+                config.UseEgressWebHook && config.WebHookUrl !== ''
+                  ? [
+                      new WebhookConfig({
+                        url: config.WebHookUrl,
+                        signingKey: config.ApiKey
+                      })
+                    ]
+                  : []
+            }
+          )
+        ).egressId
+      } catch (err) {
+        // Free the slot, otherwise the reservation blocks retries for the whole grace window.
+        await wsClient.removePendingRecordingById(pendingId)
+        throw err
+      }
 
-      const dateStr = new Date().toISOString().replace('T', '_').slice(0, 19)
-      const meetingTitle = meetingDoc.title.replace(/[^a-zA-Z0-9_-]/g, '_')
-      const name = `${meetingTitle}_${dateStr}.ogg`
-
-      await wsClient.createPendingRecording({
-        meeting: meetingId,
-        format: 'audio',
-        roomName,
-        name,
-        egressId
-      })
+      const statusWhenStarted = await wsClient.setPendingRecordingEgressId(pendingId, egressId)
+      if (statusWhenStarted === 'cancelled') {
+        // Transcription was stopped while the egress was coming up, when there was nothing to stop.
+        this.ctx.info('Audio recording cancelled while starting, stopping egress', { meetingId, roomName, egressId })
+        await this.egressClient.stopEgress(egressId)
+        return
+      }
 
       this.ctx.info('Audio recording started', { workspace: workspaceId, roomName, meetingId, egressId })
     } catch (err: any) {
@@ -261,12 +487,28 @@ export class RecordingProcessor {
     }
   }
 
+  /** A row still holding the slot: it has an egress, or it is a fresh reservation. */
+  private async findRunningRecording (
+    wsClient: WorkspaceClient,
+    meetingId: Ref<MeetingMinutes>,
+    kind: RecordingFormat
+  ): Promise<PendingRecording | undefined> {
+    const existing = await wsClient.findPendingRecordingsByMeeting(meetingId)
+    return existing.find(
+      (r) =>
+        r.format === kind &&
+        (r.status === 'active' || r.status === 'completed' || r.status == null) &&
+        (r.egressId !== undefined || Date.now() - r.startedAt < RecordingProcessor.RESERVATION_GRACE_MS)
+    )
+  }
+
   private async startRecord (
     ctx: MeasureContext,
     roomName: string,
     wsIds: WorkspaceIds,
-    meetingId: Ref<MeetingMinutes>
-  ): Promise<{ filepath: string, egressId: string }> {
+    meetingId: Ref<MeetingMinutes>,
+    builtInLayout: boolean
+  ): Promise<{ filepath: string, egressId: string, usedTemplate: boolean }> {
     if (this.storageConfig === undefined) {
       console.error('please provide storage configuration')
       throw new Error('please provide storage configuration')
@@ -294,11 +536,20 @@ export class RecordingProcessor {
     })
     const { preset } = getRecordingPreset(config.RecordingPreset)
 
+    let usedTemplate = !builtInLayout && config.RecordingTemplateUrl !== ''
+    if (usedTemplate && !(await this.templateReachable(config.RecordingTemplateUrl))) {
+      this.ctx.warn(TEMPLATE_FALLBACK_LOG, { reason: 'template-unreachable', meetingId, roomName })
+      usedTemplate = false
+    }
+
     const { egressId } = await this.egressClient.startRoomCompositeEgress(
       roomName,
       { file: output },
       {
+        // Used only without a template.
         layout: 'grid',
+        // Egress sizes the template's window from the preset, so presets need explicit dimensions.
+        customBaseUrl: usedTemplate ? config.RecordingTemplateUrl : undefined,
         encodingOptions: preset,
         webhooks:
           config.UseEgressWebHook && config.WebHookUrl !== ''
@@ -314,6 +565,6 @@ export class RecordingProcessor {
     await this.eventProducer.send(this.ctx, wsIds.uuid, [
       queueEvents.updateMetadata(meetingId, roomName, { recording: true })
     ])
-    return { filepath, egressId }
+    return { filepath, egressId, usedTemplate }
   }
 }

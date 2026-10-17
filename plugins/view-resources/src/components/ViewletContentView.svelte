@@ -1,10 +1,16 @@
 <script lang="ts">
-  import core, { Class, Doc, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Class, Doc, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { AnySvelteComponent, Component, Loading } from '@hcengineering/ui'
-  import view, { ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { AnySvelteComponent, BlankViewProps } from '@hcengineering/ui'
+  import { Component, Loading } from '@hcengineering/ui'
+  import type { ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+
   import { injectCustomAttributes } from '../utils'
+  import { injectDescendantAttributes } from '../descendantAttributes'
+  import { buildViewletConfigurations } from '../viewletConfigurations'
 
   export let viewlet: WithLookup<Viewlet>
   export let _class: Ref<Class<Doc>>
@@ -17,6 +23,7 @@
   export let createItemLabel: IntlString | undefined = undefined
   export let createItemEvent: string | undefined = undefined
   export let createItemDialogProps = { shouldSaveDraft: true }
+  export let emptyState: BlankViewProps | undefined = undefined
 
   const hierarchy = getClient().getHierarchy()
 
@@ -29,10 +36,8 @@
   $: loading = configurationsLoading || preferencesLoading
 
   let configurationRaw: Viewlet[] = []
-  let configurations: Record<Ref<Class<Doc>>, Viewlet['config']> = {}
 
   function fetchConfigurations (viewlet: Viewlet): void {
-    configurations = {}
     configurationsLoading = objectConfigurations.query(
       view.class.Viewlet,
       {
@@ -63,31 +68,16 @@
     )
   }
 
-  function updateConfiguration (configurationRaw: Viewlet[], preference: ViewletPreference[]): void {
-    const newConfigurations: Record<Ref<Class<Doc>>, Viewlet['config']> = {}
-
-    for (const v of configurationRaw) {
-      newConfigurations[v.attachTo] = v.config
-    }
-
-    // Add viewlet configurations.
-    for (const pref of preference) {
-      const vl = configurationRaw.find((it) => it._id === pref.attachedTo)
-      if (vl === undefined) continue
-      const base = pref.config.length > 0 ? pref.config : vl.config
-      newConfigurations[vl.attachTo] = injectCustomAttributes(base, pref.customAttributes)
-    }
-
-    configurations = newConfigurations
-  }
-
   $: fetchConfigurations(viewlet)
   $: fetchPreferences(configurationRaw)
 
-  $: updateConfiguration(configurationRaw, preference)
+  $: configurations = buildViewletConfigurations(viewlet, configurationRaw, preference)
 
   $: currentPreference = preference.find((it) => it.attachedTo === viewlet._id)
-  $: config = injectCustomAttributes(currentPreference?.config ?? viewlet.config, currentPreference?.customAttributes)
+  $: config = injectDescendantAttributes(
+    injectCustomAttributes(currentPreference?.config ?? viewlet.config, currentPreference?.customAttributes),
+    currentPreference?.descendantAttributes
+  )
 </script>
 
 {#if viewlet?.$lookup?.descriptor?.component}
@@ -109,7 +99,8 @@
         viewOptions,
         viewOptionsConfig: viewlet.viewOptions?.other,
         space,
-        query
+        query,
+        ...(emptyState !== undefined ? { emptyState } : {})
       }}
     />
   {/if}

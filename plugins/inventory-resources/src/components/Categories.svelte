@@ -14,13 +14,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { DocumentQuery } from '@hcengineering/core'
+  import type { DocumentQuery } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { Button, Breadcrumb, Scroller, SearchInput, showPopup, IconAdd, Header } from '@hcengineering/ui'
   import type { Category } from '@hcengineering/inventory'
   import inventory from '../plugin'
   import CreateCategory from './CreateCategory.svelte'
   import HierarchyView from './HierarchyView.svelte'
-  // import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
 
   let search = ''
   let resultQuery: DocumentQuery<Category> = {}
@@ -36,8 +36,8 @@
   // $: twoRows = $deviceInfo.twoRows
 </script>
 
-<Header adaptive={'disabled'}>
-  <Breadcrumb icon={inventory.icon.Categories} label={inventory.string.Categories} size={'large'} isCurrent />
+<Header adaptive="disabled">
+  <Breadcrumb icon={inventory.icon.Categories} label={inventory.string.Categories} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput
@@ -49,7 +49,7 @@
     />
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <Button icon={IconAdd} label={inventory.string.CategoryCreateLabel} kind={'primary'} on:click={showCreateDialog} />
+    <Button icon={IconAdd} label={inventory.string.CategoryCreateLabel} kind="primary" on:click={showCreateDialog} />
   </svelte:fragment>
 </Header>
 

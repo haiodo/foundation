@@ -1,5 +1,6 @@
 //
 // Copyright © 2022, 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,18 +15,10 @@
 //
 
 import activity, { ActivityMessage } from '@hcengineering/activity'
-import chunter, {
-  Chat,
-  ChatMessage,
-  chunterId,
-  ChunterSpace,
-  DirectMessage,
-  ThreadMessage
-} from '@hcengineering/chunter'
+import chunter, { Channel, ChatMessage, ThreadMessage } from '@hcengineering/chunter'
 import contact, { formatName, type Person } from '@hcengineering/contact'
 import core, {
   Class,
-  concatLink,
   Doc,
   DocumentQuery,
   FindOptions,
@@ -42,48 +35,51 @@ import core, {
   type MeasureContext,
   Collaborator,
   TxRemoveDoc,
-  SortingOrder,
   getClassCollaborators,
-  AccountUuid
+  AccountUuid,
+  RateLimiter,
+  generateId,
+  combineAttributes,
+  SortingOrder,
+  type Space,
+  WorkspaceUuid
 } from '@hcengineering/core'
-import notification, { DocNotifyContext } from '@hcengineering/notification'
-import { getMetadata, translate } from '@hcengineering/platform'
+import notification, {
+  DocNotifyContext,
+  isUnreadMessageChunk,
+  ReadPosition,
+  ReadState
+} from '@hcengineering/notification'
 import {
   getAccountBySocialId,
   getAddCollaboratorsTxes,
   getPerson,
+  getPersonsBySocialIds,
   getPersonSpaces
 } from '@hcengineering/server-contact'
-import serverCore, { TriggerControl } from '@hcengineering/server-core'
-import { workbenchId } from '@hcengineering/workbench'
-import { encodeObjectURI } from '@hcengineering/view'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { TriggerControl } from '@hcengineering/server-core'
+import { OnContentReport, OnReportedMessageRemoved } from './report'
 
-import { JoinChannelTypeMatch } from './utils'
-import { ChatSearchTitleProvider } from './search'
+import {
+  ChannelIconPresenter,
+  ChannelTitlePresenter,
+  ChannelUrlPresenter,
+  DirectIconPresenter,
+  DirectLabelPresenter,
+  DirectTitlePresenter,
+  JoinChannelTypeMatch
+} from './utils'
+import { ChatMessageSearchTitleProvider, ChatSearchTitleProvider } from './search'
 
 const updateChatInfoDelay = 24 * 60 * 60 * 1000 // 24 hours
-const hideChannelDelay = 7 * 24 * 60 * 60 * 1000 // 7 days
+const hideDelay = 14 * 24 * 60 * 60 * 1000 // 2 weeks
 
-const channelTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
-  const channel = doc as ChunterSpace
-
-  if (channel._class === chunter.class.DirectMessage) {
-    const direct = channel as DirectMessage
-    return direct.type === 'person'
-      ? await translate(chunter.string.Direct, {}, control.branding?.defaultLanguage)
-      : await translate(chunter.string.GroupChat, {}, control.branding?.defaultLanguage)
-  }
-
-  return `#${channel.name}`
-}
-
-const channelURLPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
-  const channel = doc as ChunterSpace
-  const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
-  const path = `${workbenchId}/${control.workspace.url}/${chunterId}/${encodeObjectURI(channel._id, channel._class)}`
-  return concatLink(front, path)
-}
+// UserStatus is DOMAIN_TRANSIENT: a transactor restart re-creates every user's status,
+// firing N syncChat at once. Bound concurrency + coalesce so it drains behind reconnects
+// (persisted 24h ChatSyncInfo is the real debounce; this only de-dups redundant runs).
+const syncChatLimiter = new RateLimiter(4)
+const syncChatCoalesceMs = 60 * 1000
+const syncChatRecent = new Map<string, number>() // `${workspace}:${user}` -> last-run ms
 
 export async function CommentRemove (
   doc: Doc,
@@ -155,37 +151,64 @@ async function OnThreadMessageCreated (
   return [lastReplyTx, repliedPersonTx]
 }
 
-async function OnThreadMessageDeleted (tx: Tx, control: TriggerControl): Promise<Tx[]> {
-  // TODO: FIXME
-  return []
-  // const removeTx = tx as TxRemoveDoc<ThreadMessage>
+/**
+ * A removed reply takes back what OnThreadMessageCreated gave the parent: `lastReply` falls back to
+ * the newest remaining reply and `repliedPersons` keeps the authors of the remaining replies, in the
+ * order of their first reply, as `$push` built it. Without replies both fields go away.
+ */
+export async function OnThreadMessageDeleted (
+  ctx: MeasureContext,
+  tx: TxRemoveDoc<ThreadMessage>,
+  control: TriggerControl
+): Promise<Tx[]> {
+  const removed = control.removedMap.get(tx.objectId) as ThreadMessage | undefined
+  const parentId = (tx.attachedTo ?? removed?.attachedTo) as Ref<ActivityMessage> | undefined
+  if (parentId === undefined) return []
 
-  // const message = control.removedMap.get(removeTx.objectId) as ThreadMessage
+  // The parent itself may go in the same batch (its replies are removed with it).
+  const parent = (await control.findAll(ctx, activity.class.ActivityMessage, { _id: parentId }, { limit: 1 }))[0]
+  if (parent === undefined) return []
 
-  // if (message === undefined) {
-  //   return []
-  // }
+  const replies = await control.findAll(
+    ctx,
+    chunter.class.ThreadMessage,
+    { attachedTo: parentId, _id: { $ne: tx.objectId } },
+    {
+      sort: { createdOn: SortingOrder.Ascending },
+      projection: { _id: 1, createdBy: 1, createdOn: 1, modifiedBy: 1, modifiedOn: 1 }
+    }
+  )
 
-  // const messages = await control.findAll(control.ctx, chunter.class.ThreadMessage, {
-  //   attachedTo: message.attachedTo
-  // })
+  if (replies.length === 0) {
+    if (parent.lastReply === undefined && (parent.repliedPersons ?? []).length === 0) return []
+    return [
+      control.txFactory.createTxUpdateDoc<ActivityMessage>(parent._class, parent.space, parent._id, {
+        $unset: { lastReply: true, repliedPersons: true }
+      })
+    ]
+  }
 
-  // const repliedPersons = await getPersons(control, messages.map((m) => m.createdBy).filter((pid) => pid !== undefined))
+  const last = replies[replies.length - 1]
+  const lastReply = last.createdOn ?? last.modifiedOn
 
-  // const updateTx = control.txFactory.createTxUpdateDoc<ActivityMessage>(
-  //   message.attachedToClass,
-  //   message.space,
-  //   message.attachedTo,
-  //   {
-  //     repliedPersons: repliedPersons.map((p) => p._id),
-  //     lastReply:
-  //       messages.length > 0
-  //         ? Math.max(...messages.map(({ createdOn, modifiedOn }) => createdOn ?? modifiedOn))
-  //         : undefined
-  //   }
-  // )
+  const authors = replies.map((it) => it.createdBy ?? it.modifiedBy)
+  const persons = await getPersonsBySocialIds(control, authors)
+  const repliedPersons: Ref<Person>[] = []
+  for (const author of authors) {
+    const person = persons.get(author)
+    if (person !== undefined && !repliedPersons.includes(person)) repliedPersons.push(person)
+  }
 
-  // return [updateTx]
+  const current = parent.repliedPersons ?? []
+  const samePersons = current.length === repliedPersons.length && current.every((it, idx) => it === repliedPersons[idx])
+  if (parent.lastReply === lastReply && samePersons) return []
+
+  return [
+    control.txFactory.createTxUpdateDoc<ActivityMessage>(parent._class, parent.space, parent._id, {
+      lastReply,
+      repliedPersons
+    })
+  ]
 }
 
 async function OnChatMessageCreated (
@@ -238,7 +261,11 @@ async function ChunterTrigger (txes: TxCUD<Doc>[], control: TriggerControl): Pro
       tx._class === core.class.TxRemoveDoc &&
       control.hierarchy.isDerived(tx.objectClass, chunter.class.ThreadMessage)
     ) {
-      res.push(...(await control.ctx.with('OnThreadMessageDeleted', {}, (ctx) => OnThreadMessageDeleted(tx, control))))
+      res.push(
+        ...(await control.ctx.with('OnThreadMessageDeleted', {}, (ctx) =>
+          OnThreadMessageDeleted(ctx, tx as TxRemoveDoc<ThreadMessage>, control)
+        ))
+      )
     }
     if (
       tx._class === core.class.TxCreateDoc &&
@@ -254,115 +281,75 @@ async function ChunterTrigger (txes: TxCUD<Doc>[], control: TriggerControl): Pro
   return res
 }
 
-async function getDirectsToHide (
-  control: TriggerControl,
-  directs: Chat[],
-  contexts: DocNotifyContext[],
-  date: Timestamp
-): Promise<Chat[]> {
-  const minVisibleDirects = 10
-
-  if (directs.length <= minVisibleDirects) return []
-  const hideCount = directs.length - minVisibleDirects
-
-  const toHide: { direct: Chat, lastUpdate: Timestamp }[] = []
-
-  for (const direct of directs) {
-    const context = contexts.find((it) => it.objectId === direct.attachedTo)
-    if (context != null) {
-      const { lastUpdate = 0, lastView = 0 } = context
-      if (lastView === 0) continue
-      if (lastUpdate > lastView) continue
-      if (date - lastUpdate > hideChannelDelay) {
-        toHide.push({ lastUpdate, direct })
-      }
-    } else {
-      const lastMessage = (
-        await control.findAll(
-          control.ctx,
-          activity.class.ActivityMessage,
-          { attachedTo: direct.attachedTo },
-          { limit: 1, sort: { createdOn: SortingOrder.Descending } }
-        )
-      )[0]
-      const lastUpdate = lastMessage.modifiedOn ?? direct.modifiedOn
-      if (date - lastUpdate > hideChannelDelay) {
-        toHide.push({ lastUpdate, direct })
-      }
-    }
-  }
-
-  toHide.sort((a, b) => (a.lastUpdate ?? 0) - (b.lastUpdate ?? 0))
-
-  return toHide.slice(0, hideCount).map((it) => it.direct)
-}
-
-async function getActivityToHide (
-  control: TriggerControl,
-  chats: Chat[],
-  contexts: DocNotifyContext[],
-  date: Timestamp
-): Promise<Chat[]> {
-  if (chats.length === 0) return []
-  const toHide: Chat[] = []
-
-  for (const chat of chats) {
-    const context = contexts.find((it) => it.objectId === chat.attachedTo)
-    if (context != null) {
-      const { lastUpdate = 0, lastView = 0 } = context
-      if (lastView === 0) continue
-      if (lastUpdate > lastView) continue
-      if (date - lastUpdate > hideChannelDelay) {
-        toHide.push(chat)
-      }
-    } else {
-      const lastMessage = (
-        await control.findAll(
-          control.ctx,
-          activity.class.ActivityMessage,
-          { attachedTo: chat.attachedTo },
-          { limit: 1, sort: { createdOn: SortingOrder.Descending } }
-        )
-      )[0]
-      const lastUpdate = lastMessage.modifiedOn ?? chat.modifiedOn
-      if (date - lastUpdate > hideChannelDelay) {
-        toHide.push(chat)
-      }
-    }
-  }
-
-  return toHide
-}
-
 export async function syncChat (control: TriggerControl, status: UserStatus, date: Timestamp): Promise<Tx[]> {
-  const syncInfo = (await control.findAll(control.ctx, chunter.class.ChatSyncInfo, { user: status.user })).shift()
+  const syncInfo = (
+    await control.ctx.with('syncChat:findSyncInfo', {}, () =>
+      control.findAll(control.ctx, chunter.class.ChatSyncInfo, { user: status.user })
+    )
+  ).shift()
   const shouldSync = syncInfo === undefined || date - syncInfo.timestamp > updateChatInfoDelay
 
   if (!shouldSync) return []
 
-  const chats = await control.findAll(control.ctx, chunter.class.Chat, {
-    user: status.user,
-    hidden: false,
-    isPinned: false
-  })
-
   const { hierarchy } = control
-  const res: Tx[] = []
-  const directChats = chats.filter(({ attachedToClass }) =>
-    hierarchy.isDerived(attachedToClass, chunter.class.DirectMessage)
-  )
-  const activityChats = chats.filter(
-    ({ attachedToClass }) => !hierarchy.isDerived(attachedToClass, chunter.class.ChunterSpace)
+  const chats = await control.ctx.with('syncChat:findChats', {}, () =>
+    control.findAll(control.ctx, chunter.class.Chat, {
+      account: status.user,
+      hidden: false,
+      pinned: false,
+      attachedToClass: { $nin: hierarchy.getDescendants(chunter.class.ChunterSpace) }
+    })
   )
 
-  if (directChats.length > 10 || activityChats.length > 0) {
-    const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, {
-      user: status.user
-    })
-    const directsToHide = await getDirectsToHide(control, directChats, contexts, date)
-    const activityToHide = await getActivityToHide(control, activityChats, contexts, date)
-    const toHide = directsToHide.concat(activityToHide)
-    for (const chat of toHide) {
+  const res: Tx[] = []
+
+  const batchSize = 200
+
+  for (let i = 0; i < chats.length; i += batchSize) {
+    const batch = chats.slice(i, i + batchSize)
+    const attachedToIds = batch.map((c) => c.attachedTo)
+
+    const [contexts, readStates] = await Promise.all([
+      control.findAll(control.ctx, notification.class.DocNotifyContext, {
+        user: status.user,
+        objectId: { $in: attachedToIds },
+        unreadCount: { $gt: 0 }
+      }),
+      control.findAll(control.ctx, notification.class.ReadState, {
+        attachedTo: { $in: attachedToIds }
+      })
+    ])
+
+    const contextMap = new Map<Ref<Doc>, DocNotifyContext>()
+    for (const ctx of contexts) {
+      contextMap.set(ctx.objectId, ctx)
+    }
+
+    const readStateMap = new Map<Ref<Doc>, ReadState>()
+    for (const state of readStates) {
+      readStateMap.set(state.attachedTo, state)
+    }
+
+    for (const chat of batch) {
+      const readState = readStateMap.get(chat.attachedTo)
+      const lastMessageTime = readState?.latestMessageTimestamp ?? 0
+      const hasRecentMessage = date - lastMessageTime <= hideDelay
+
+      if (hasRecentMessage) continue
+
+      const context = contextMap.get(chat.attachedTo)
+      const hasNotifiedUnread =
+        (context?.unreadMessages?.some((msg) => {
+          if (isUnreadMessageChunk(msg)) {
+            return (msg.notifiedCount ?? 0) > 0
+          }
+          return msg.notified === true
+        }) ??
+          false) ||
+        (context?.unreadReactions?.length ?? 0) > 0
+
+      if (hasNotifiedUnread) continue
+
       const updateTx = control.txFactory.createTxUpdateDoc(chat._class, chat.space, chat._id, {
         hidden: true
       })
@@ -371,8 +358,11 @@ export async function syncChat (control: TriggerControl, status: UserStatus, dat
       )
     }
   }
+
+  control.ctx.info(`Hidden ${res.length} chats for ${status.user}`)
+
   if (syncInfo === undefined) {
-    const personSpace = (await control.findAll(control.ctx, contact.class.PersonSpace, { account: status.user }))[0]
+    const personSpace = (await getPersonSpaces(control)).find((it) => it.account === status.user)
     if (personSpace !== undefined) {
       res.push(
         control.txFactory.createTxCreateDoc(chunter.class.ChatSyncInfo, personSpace._id, {
@@ -392,27 +382,48 @@ export async function syncChat (control: TriggerControl, status: UserStatus, dat
   return res
 }
 
+// Skip if the same (workspace, user) ran within the coalesce window. Opportunistic prune.
+function shouldRunSyncChat (workspace: WorkspaceUuid, user: AccountUuid, now: number): boolean {
+  const key = `${workspace}:${user}`
+  const last = syncChatRecent.get(key) ?? 0
+  if (now - last < syncChatCoalesceMs) return false
+  syncChatRecent.set(key, now)
+  if (syncChatRecent.size > 5000) {
+    for (const [k, t] of syncChatRecent) {
+      if (now - t > syncChatCoalesceMs) syncChatRecent.delete(k)
+    }
+  }
+  return true
+}
+
 async function OnUserStatus (txes: TxCUD<UserStatus>[], control: TriggerControl): Promise<Tx[]> {
   const res: Tx[] = []
+  const now = Date.now()
 
   for (const tx of txes) {
     if (tx.objectClass !== core.class.UserStatus) continue
 
+    let status: UserStatus | undefined
+
     if (tx._class === core.class.TxCreateDoc) {
       const createTx = tx as TxCreateDoc<UserStatus>
-      const { online } = createTx.attributes
-      if (online) {
-        const status = TxProcessor.createDoc2Doc(createTx)
-        res.push(...(await syncChat(control, status, tx.modifiedOn)))
+      if (createTx.attributes.online) {
+        status = TxProcessor.createDoc2Doc(createTx)
       }
     } else if (tx._class === core.class.TxUpdateDoc) {
       const updateTx = tx as TxUpdateDoc<UserStatus>
-      const { online } = updateTx.operations
-      if (online === true) {
-        const status = (await control.findAll(control.ctx, core.class.UserStatus, { _id: updateTx.objectId }))[0]
-        res.push(...(await syncChat(control, status, tx.modifiedOn)))
+      if (updateTx.operations.online === true) {
+        status = (await control.findAll(control.ctx, core.class.UserStatus, { _id: updateTx.objectId }))[0]
       }
     }
+
+    if (status === undefined) continue
+    if (!shouldRunSyncChat(control.workspace.uuid, status.user, now)) continue
+
+    // Bound concurrency so a reconnect storm's N syncChats don't saturate the event loop.
+    const st = status
+    const date = tx.modifiedOn
+    res.push(...(await syncChatLimiter.exec(() => syncChat(control, st, date))))
   }
 
   await control.apply(control.ctx, res, true)
@@ -481,6 +492,41 @@ async function OnCollaboratorRemoved (txes: TxRemoveDoc<Collaborator>[], control
   return res
 }
 
+export async function OnChannelJoin (txes: TxUpdateDoc<Channel>[], control: TriggerControl): Promise<Tx[]> {
+  const res: Tx[] = []
+  for (const tx of txes) {
+    const accounts: AccountUuid[] = combineAttributes([tx.operations], 'members', '$push', '$each')
+    if (accounts.length === 0) continue
+
+    const state = (
+      await control.findAll(control.ctx, notification.class.ReadState, { attachedTo: tx.objectId }, { limit: 1 })
+    )[0]
+
+    const timestamp = tx.modifiedOn - 1
+    const operations: Record<AccountUuid, ReadPosition> = {}
+    for (const account of accounts) {
+      if ((state?.[account]?.timestamp ?? 0) >= timestamp) continue
+      // Only the timestamp is compared, the id is a placeholder: same as the client's forced read
+      operations[account] = { messageId: generateId<ActivityMessage>(), timestamp }
+    }
+    if (Object.keys(operations).length === 0) continue
+
+    if (state === undefined) {
+      res.push(
+        control.txFactory.createTxCreateDoc(notification.class.ReadState, tx.objectId as Ref<Space>, {
+          attachedTo: tx.objectId,
+          attachedToClass: tx.objectClass,
+          collection: 'readStates',
+          ...operations
+        })
+      )
+      continue
+    }
+    res.push(control.txFactory.createTxUpdateDoc(state._class, state.space, state._id, operations))
+  }
+  return res
+}
+
 async function OnPersonNameChanged (txes: TxUpdateDoc<Person>[], control: TriggerControl): Promise<Tx[]> {
   const res: Tx[] = []
   for (const tx of txes) {
@@ -507,16 +553,24 @@ async function OnPersonNameChanged (txes: TxUpdateDoc<Person>[], control: Trigge
 export default async () => ({
   trigger: {
     ChunterTrigger,
+    OnContentReport,
+    OnReportedMessageRemoved,
     OnUserStatus,
     OnCollaboratorAdded,
     OnCollaboratorRemoved,
-    OnPersonNameChanged
+    OnPersonNameChanged,
+    OnChannelJoin
   },
   function: {
     CommentRemove,
-    ChannelUrlPresenter: channelURLPresenter,
-    ChannelTitlePresenter: channelTitlePresenter,
+    ChannelUrlPresenter,
+    ChannelTitlePresenter,
+    DirectTitlePresenter,
+    DirectLabelPresenter,
     JoinChannelTypeMatch,
-    ChatSearchTitleProvider
+    ChatSearchTitleProvider,
+    ChannelIconPresenter,
+    DirectIconPresenter,
+    ChatMessageSearchTitleProvider
   }
 })

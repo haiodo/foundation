@@ -1,5 +1,6 @@
 //
 // Copyright © 2023, 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 
 import { Analytics } from '@hcengineering/analytics'
@@ -27,6 +28,8 @@ const metricsContext = initStatisticsContext('front', {
 })
 
 startFront(metricsContext, {
+  // Commit the images were built from, baked in by docker_build.sh --build-arg BUILD_ID
+  BUILD_ID: process.env.BUILD_ID !== '' ? process.env.BUILD_ID : undefined,
   GITHUB_APP: process.env.GITHUB_APP ?? '',
   GITHUB_CLIENTID: process.env.GITHUB_CLIENTID ?? '',
   INTERCOM_APP_ID: process.env.INTERCOM_APP_ID ?? '',
@@ -34,6 +37,7 @@ startFront(metricsContext, {
   GITHUB_URL: process.env.GITHUB_URL ?? '',
   LIVEKIT_WS: process.env.LIVEKIT_WS ?? '',
   LOVE_ENDPOINT: process.env.LOVE_ENDPOINT ?? '',
+  LOVE_SCREEN_SHARE_SIMULCAST: process.env.LOVE_SCREEN_SHARE_SIMULCAST,
   SIGN_URL: process.env.SIGN_URL ?? '',
   PRINT_URL: process.env.PRINT_URL ?? '',
   PRESENCE_URL: process.env.PRESENCE_URL ?? '',
@@ -42,19 +46,21 @@ startFront(metricsContext, {
   DESKTOP_UPDATES_CHANNEL: process.env.DESKTOP_UPDATES_CHANNEL,
   DESKTOP_UPDATES_CHANNELS: process.env.DESKTOP_UPDATES_CHANNELS,
   ANALYTICS_COLLECTOR_URL: process.env.ANALYTICS_COLLECTOR_URL,
+  YANDEX_METRIKA_ID: process.env.YANDEX_METRIKA_ID,
   LINK_PREVIEW_URL: process.env.LINK_PREVIEW_URL,
   AI_URL: process.env.AI_URL,
   TELEGRAM_BOT_URL: process.env.TELEGRAM_BOT_URL,
   STATS_URL: process.env.STATS_API ?? process.env.STATS_URL,
   BACKUP_URL: process.env.BACKUP_URL,
+  WEBHOOK_SERVICE_URL: process.env.WEBHOOK_SERVICE_URL,
   TRANSACTOR_OVERRIDE: process.env.TRANSACTOR_OVERRIDE,
   PUBLIC_SCHEDULE_URL: process.env.PUBLIC_SCHEDULE_URL,
   CALDAV_SERVER_URL: process.env.CALDAV_SERVER_URL,
   EXPORT_URL: process.env.EXPORT_URL,
-  COMMUNICATION_API_ENABLED: process.env.COMMUNICATION_API_ENABLED,
   EXCLUDED_APPLICATIONS_FOR_ANONYMOUS: process.env.EXCLUDED_APPLICATIONS_FOR_ANONYMOUS,
   DISABLED_FEATURES: process.env.DISABLED_FEATURES ?? '',
   USE_OTP: process.env.USE_OTP,
+  USE_BINARY_PROTOCOL: process.env.USE_BINARY_PROTOCOL,
   SIGNUP_URL: process.env.SIGNUP_URL,
   ACCENT_THEME: process.env.ACCENT_THEME,
   LOGIN_THEME: process.env.LOGIN_THEME,
@@ -66,5 +72,6 @@ startFront(metricsContext, {
   LICENSE_URL: process.env.LICENSE_URL,
   USERAGREEMENT_URL: process.env.USERAGREEMENT_URL,
   CONFIDENTIAL_URL: process.env.CONFIDENTIAL_URL,
-  PERSONAL_DATA_URL: process.env.PERSONAL_DATA_URL
+  PERSONAL_DATA_URL: process.env.PERSONAL_DATA_URL,
+  PASSWORD_STRICTNESS: process.env.PASSWORD_STRICTNESS
 })

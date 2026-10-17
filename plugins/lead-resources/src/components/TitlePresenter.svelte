@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
-  import { Lead } from '@hcengineering/lead'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { Lead } from '@hcengineering/lead'
 
   export let value: WithLookup<Lead>
   export let shouldUseMargin: boolean = false
@@ -27,7 +27,7 @@
     class="name overflow-label select-text"
     class:with-margin={shouldUseMargin}
     class:list={kind === 'list'}
-    style:max-width={'100%'}
+    style:max-width="100%"
   >
     {value.title}
   </span>
@@ -36,7 +36,7 @@
 <style lang="scss">
   .name {
     flex-shrink: 1;
-    min-width: 1rem;
+    min-width: 1.5rem;
 
     &.list {
       color: var(--theme-caption-color);

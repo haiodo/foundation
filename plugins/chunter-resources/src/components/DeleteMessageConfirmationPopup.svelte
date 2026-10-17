@@ -14,7 +14,7 @@
 <script lang="ts">
   import { Button, FocusHandler, Label, createFocusManager, Scroller } from '@hcengineering/ui'
   import { createEventDispatcher, onMount, onDestroy } from 'svelte'
-  import { ChatMessage } from '@hcengineering/chunter'
+  import type { ChatMessage } from '@hcengineering/chunter'
   import view from '@hcengineering/view'
   import presentation, { getClient } from '@hcengineering/presentation'
 
@@ -44,7 +44,14 @@
       processing = true
       const client = getClient()
 
-      await client.remove(message)
+      await client.removeCollection(
+        message._class,
+        message.space,
+        message._id,
+        message.attachedTo,
+        message.attachedToClass,
+        message.collection
+      )
       dispatch('close', true)
     } finally {
       processing = false
@@ -108,7 +115,7 @@
     <Button
       focusIndex={2}
       label={presentation.string.Cancel}
-      size={'large'}
+      size="large"
       on:click={() => {
         dispatch('close', false)
       }}

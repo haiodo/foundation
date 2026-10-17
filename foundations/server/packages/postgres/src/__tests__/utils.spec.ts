@@ -1,5 +1,6 @@
 import { type DocumentUpdate, type Ref, type Space, type WorkspaceUuid } from '@hcengineering/core'
 import {
+  castForColumn,
   convertArrayParams,
   convertDoc,
   decodeArray,
@@ -50,9 +51,7 @@ describe('utils - inferType', () => {
   })
 
   it('should handle arrays with all null elements', () => {
-    // BUG: Arrays with only null elements return '::jsonb[]'
-    // Expected: Should probably return '' or handle as empty array
-    expect(inferType([null, null])).toBe('::jsonb[]')
+    expect(inferType([null, null])).toBe('::jsonb')
   })
 
   it('should infer Date type as text', () => {
@@ -101,10 +100,8 @@ describe('utils - decodeArray', () => {
   })
 
   it('should decode array with commas in quoted strings', () => {
-    // BUG: decodeArray doesn't handle quoted strings with commas properly
-    // It splits on commas even inside quoted strings
-    // Expected: ['hello, world', 'test']
-    // Actual: ['hello', ' world', 'test']
+    // BUG: decodeArray splits on commas even inside quoted strings. Expected ['hello, world',
+    // 'test'], actual ['hello', ' world', 'test'].
     expect(decodeArray('{"hello, world","test"}')).toEqual(['hello', ' world', 'test'])
   })
 
@@ -243,8 +240,8 @@ describe('utils - parseUpdate', () => {
 
     const result = parseUpdate(update, mockSchema)
 
-    expect(result.extractedFields).toHaveProperty('space')
-    expect(result.remainingData).toHaveProperty('customField')
+    expect(result.extractedFields).toHaveProperty('space', 'space:123')
+    expect(result.remainingData).toHaveProperty('customField', 'value')
   })
 
   it('should handle $set operator correctly', () => {
@@ -257,10 +254,8 @@ describe('utils - parseUpdate', () => {
 
     const result = parseUpdate(update, mockSchema)
 
-    // BUG FOUND: The function has `val[key]` instead of `val[k]`
-    // This would cause it to access the wrong property
-    expect(result.extractedFields).toHaveProperty('space')
-    expect(result.remainingData).toHaveProperty('customField')
+    expect(result.extractedFields).toHaveProperty('space', 'space:123')
+    expect(result.remainingData).toHaveProperty('customField', 'value')
   })
 
   it('should handle $push operator', () => {
@@ -271,7 +266,7 @@ describe('utils - parseUpdate', () => {
     }
 
     const result = parseUpdate(update, mockSchema)
-    expect(result.remainingData).toHaveProperty('tags')
+    expect(result.remainingData).toHaveProperty('tags', 'newtag')
   })
 
   it('should handle $pull operator', () => {
@@ -282,7 +277,7 @@ describe('utils - parseUpdate', () => {
     }
 
     const result = parseUpdate(update, mockSchema)
-    expect(result.remainingData).toHaveProperty('tags')
+    expect(result.remainingData).toHaveProperty('tags', 'removetag')
   })
 
   it('should handle $inc operator', () => {
@@ -293,7 +288,7 @@ describe('utils - parseUpdate', () => {
     }
 
     const result = parseUpdate(update, mockSchema)
-    expect(result.remainingData).toHaveProperty('count')
+    expect(result.remainingData).toHaveProperty('count', 1)
   })
 
   it('should handle empty update', () => {
@@ -316,9 +311,19 @@ describe('utils - parseUpdate', () => {
 
     const result = parseUpdate(update, mockSchema)
 
-    expect(result.extractedFields).toHaveProperty('space')
-    expect(result.extractedFields).toHaveProperty('_class')
-    expect(result.remainingData).toHaveProperty('custom')
+    expect(result.extractedFields).toHaveProperty('space', 'space:123')
+    expect(result.extractedFields).toHaveProperty('_class', 'class:Test')
+    expect(result.remainingData).toHaveProperty('custom', 'value')
+  })
+
+  it('should keep every value of a multi-key operator', () => {
+    const update: DocumentUpdate<any> = {
+      $set: { first: 'one', second: 'two' }
+    } as any
+
+    const result = parseUpdate(update, mockSchema)
+
+    expect(result.remainingData).toEqual({ first: 'one', second: 'two' })
   })
 })
 
@@ -883,5 +888,52 @@ describe('utils - edge cases and potential bugs', () => {
     expect(escape('   ')).toBe('   ')
     expect(escapeBackticks('   ')).toBe('   ')
     expect(decodeArray('{" "}')).toEqual([' '])
+  })
+})
+
+describe('parseDoc without jsonb payload', () => {
+  // Hash scans select columns only, so `data` is absent on the row.
+  it('should parse a row that has no data column', () => {
+    const doc: any = { _id: 'id1', _class: 'class1', workspaceId: 'ws', '%hash%': 'h' }
+
+    const res: any = parseDoc(doc, {} as any)
+
+    expect(res._id).toBe('id1')
+    expect(res._class).toBe('class1')
+    expect(res.workspaceId).toBeUndefined()
+  })
+
+  it('should keep the hash when asked', () => {
+    const doc: any = { _id: 'id1', workspaceId: 'ws', '%hash%': 'h' }
+
+    const res: any = parseDoc(doc, {} as any, true)
+    expect(res['%hash%']).toBe('h')
+  })
+})
+
+describe('castForColumn', () => {
+  it('binds a whole number in the type of an integer or bigint column', () => {
+    expect(castForColumn('::numeric', 'integer', 0)).toBe('::integer')
+    expect(castForColumn('::numeric', 'integer', -2147483647)).toBe('::integer')
+    expect(castForColumn('::numeric[]', 'integer', [1, 2, 3])).toBe('::integer[]')
+    expect(castForColumn('::numeric', 'bigint', 1790000000000)).toBe('::bigint')
+    expect(castForColumn('::numeric[]', 'bigint', [10, 1790000000000])).toBe('::bigint[]')
+  })
+
+  it('keeps numeric for what a parameter of the column type would reject', () => {
+    expect(castForColumn('::numeric', 'integer', 1.5)).toBe('::numeric')
+    expect(castForColumn('::numeric', 'integer', 3000000000)).toBe('::numeric')
+    expect(castForColumn('::numeric[]', 'integer', [1, 2.5])).toBe('::numeric[]')
+    expect(castForColumn('::numeric', 'bigint', 1790000000000.5)).toBe('::numeric')
+    expect(castForColumn('::numeric', 'bigint', 2 ** 60)).toBe('::numeric')
+    expect(castForColumn('::numeric', 'bigint', Number.POSITIVE_INFINITY)).toBe('::numeric')
+    expect(castForColumn('::numeric[]', 'bigint', [10, 0.5])).toBe('::numeric[]')
+  })
+
+  it('leaves jsonb fields, other columns and other value types as they were', () => {
+    expect(castForColumn('::numeric', undefined, 10)).toBe('::numeric')
+    expect(castForColumn('::numeric', 'text', 10)).toBe('::numeric')
+    expect(castForColumn('::text', 'integer', '10')).toBe('::text')
+    expect(castForColumn('::text', 'bigint', '10')).toBe('::text')
   })
 })

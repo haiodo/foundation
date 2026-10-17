@@ -14,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
+  import type {
     AnyAttribute,
     AssociationQuery,
     Class,
@@ -23,12 +23,10 @@
     FindOptions,
     Lookup,
     Ref,
-    SortingOrder,
     TxOperations,
-    TypedSpace,
-    getObjectValue,
-    mergeQueries
+    TypedSpace
   } from '@hcengineering/core'
+  import core, { SortingOrder, getObjectValue, mergeQueries } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { createQuery, getClient, reduceCalls, updateAttribute } from '@hcengineering/presentation'
   import ui, {
@@ -42,17 +40,25 @@
     mouseAttractor,
     resizeObserver
   } from '@hcengineering/ui'
-  import { AttributeModel, BuildModelKey, BuildModelOptions, ViewOptionModel, ViewOptions } from '@hcengineering/view'
+  import type {
+    AttributeModel,
+    BuildModelKey,
+    BuildModelOptions,
+    ViewOptionModel,
+    ViewOptions
+  } from '@hcengineering/view'
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher, onMount } from 'svelte'
   import { showMenu } from '../actions'
   import view from '../plugin'
-  import { LoadingProps, buildConfigAssociation, buildConfigLookup, buildModel, restrictionStore } from '../utils'
+  import type { LoadingProps } from '../utils'
+  import { buildConfigAssociation, buildConfigLookup, buildModel, restrictionStore } from '../utils'
   import IconUpDown from './icons/UpDown.svelte'
   import { getResultOptions, getResultQuery } from '../viewOptions'
   import { canEditSpace } from '../visibilityTester'
-  import contact, { PermissionsStore } from '@hcengineering/contact'
-  import { Readable } from 'svelte/store'
+  import type { PermissionsStore } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type { Readable } from 'svelte/store'
   import { getResource } from '@hcengineering/platform'
   import { canChangeAttribute } from '../permissions'
 
@@ -132,9 +138,9 @@
   function getSort (sortKey: string | string[]) {
     return Array.isArray(sortKey)
       ? sortKey.reduce((acc: Record<string, SortingOrder>, val) => {
-        acc[val] = sortOrder
-        return acc
-      }, {})
+          acc[val] = sortOrder
+          return acc
+        }, {})
       : { ...(options?.sort ?? {}), [sortKey]: sortOrder }
   }
 
@@ -300,7 +306,7 @@
   }
 
   function onChange (value: any, doc: Doc, key: string, attribute: AnyAttribute): void {
-    updateAttribute(client, doc, _class, { key, attr: attribute }, value)
+    void updateAttribute(client, doc, _class, { key, attr: attribute }, value)
   }
 
   function getOnChange (doc: Doc, attribute: AttributeModel) {
@@ -308,7 +314,7 @@
     if (attr === undefined) return
     if (attribute.collectionAttr) return
     if (attribute.isLookup) return
-    if (attribute?.attribute?.readonly === true) return
+    if (attribute.attribute?.readonly === true) return
     const key = attribute.castRequest ? attribute.key.substring(attribute.castRequest.length + 1) : attribute.key
     return (value: any) => {
       onChange(value, doc, key, attr)
@@ -422,7 +428,7 @@
                 {/if}
                 {#if attribute.sortingKey === _sortKey}
                   <div class="icon">
-                    <IconUpDown size={'small'} descending={sortOrder === SortingOrder.Descending} />
+                    <IconUpDown size="small" descending={sortOrder === SortingOrder.Descending} />
                   </div>
                 {/if}
               </div>
@@ -495,7 +501,6 @@
                   >
                     {#if !cell}
                       <div class="antiTable-cells__firstCell">
-                        <!-- {getOnChange(object, attribute) !== undefined} -->
                         <svelte:component
                           this={attribute.presenter}
                           value={getValue(attribute, object)}
@@ -585,8 +590,8 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <Button
           label={ui.string.ShowMore}
-          kind={'ghost'}
-          size={'small'}
+          kind="ghost"
+          size="small"
           on:click={() => {
             limit = limit + 100
           }}

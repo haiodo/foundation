@@ -15,7 +15,7 @@
 //
 
 import type { AccountRole, AccountUuid, Class, Doc, DocumentQuery, Obj, Ref, Space } from '@hcengineering/core'
-import { type DocNotifyContext, InboxNotification, NotificationAppearancePreference } from '@hcengineering/notification'
+import { NotificationAppearancePreference } from '@hcengineering/notification'
 import type { Asset, IntlString, Resource } from '@hcengineering/platform'
 import type { Preference } from '@hcengineering/preference'
 import { AnyComponent, type AnySvelteComponent, Location, ResolvedLocation } from '@hcengineering/ui'
@@ -57,7 +57,7 @@ export interface Application extends Doc {
   accessLevel?: AccountRole
   navFooterComponent?: AnyComponent
   showNotifyMarkerFn?: Resource<
-  (contexts: DocNotifyContext[], preference?: NotificationAppearancePreference) => Promise<boolean>
+    (unreadCount: number, preference?: NotificationAppearancePreference) => Promise<boolean>
   >
 }
 
@@ -98,8 +98,12 @@ export interface WidgetTab {
   icon?: Asset | AnySvelteComponent
   iconComponent?: AnyComponent
   iconProps?: Record<string, any>
+  // Three states, like VSCode editor tabs:
+  //   neither flag - preview, replaced by the next tab opened in this widget
+  //   isKept       - stays until closed
+  //   isPinned     - stays, sorted first, no close button (implies isKept)
+  isKept?: boolean
   isPinned?: boolean
-  allowedPath?: string
   objectId?: Ref<Doc>
   objectClass?: Ref<Class<Doc>>
   data?: Record<string, any>
@@ -165,6 +169,10 @@ export interface NavigatorModel {
   hideStarred?: boolean
 }
 
+export interface NavCountStore {
+  subscribe: (run: (value: number) => void) => () => void
+}
+
 /** @public */
 export interface SpecialNavModel {
   id: string // Uniq id
@@ -179,9 +187,9 @@ export interface SpecialNavModel {
   // If defined, will be used to find spaces for visibleIf
   spaceClass?: Ref<Class<Space>>
   checkIsDisabled?: Resource<() => Promise<boolean>>
-  notificationsCountProvider?: Resource<
-  (inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => number
-  >
+  // Returns a store so the count can follow its own data instead of being recomputed from the
+  // unread total, which is a sum and misses changes that cancel out.
+  notificationsCountProvider?: Resource<() => Promise<NavCountStore>>
   navigationModel?: ParentsNavigationModel
   queryBuilder?: Resource<() => Promise<DocumentQuery<Doc>>>
 }

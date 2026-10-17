@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { AttachedDoc, Ref, WithLookup } from '@hcengineering/core'
-  import { GithubIntegration, GithubIntegrationRepository, GithubProject } from '@hcengineering/github'
+  import type { AttachedDoc, WithLookup } from '@hcengineering/core'
+  import { Ref } from '@hcengineering/core'
+  import type { GithubIntegration, GithubIntegrationRepository, GithubProject } from '@hcengineering/github'
   import { getMetadata } from '@hcengineering/platform'
   import presentation, { NavLink, getClient, isAdminUser, MessageBox } from '@hcengineering/presentation'
-  import tracker, { Project } from '@hcengineering/tracker'
+  import type { Project } from '@hcengineering/tracker'
+  import tracker from '@hcengineering/tracker'
+  import type { Action } from '@hcengineering/ui'
   import ui, {
-    Action,
     Button,
     Expandable,
     Icon,
@@ -51,31 +53,6 @@
       project: prj.identifier,
       repository: repository._id
     })
-    // // We need to delete all issues related to repository
-    // const ops = client.apply('cleanup:' + repository._id)
-    // const issuesQuery = await client.findAll(
-    //   github.mixin.GithubIssue,
-    //   {
-    //     space: prj._id as Ref<Project>,
-    //     repository: repository._id
-    //   },
-    //   { projection: { _id: 1, _class: 1 } }
-    // )
-    // for (const i of issuesQuery) {
-    //   await ops.removeDoc(i._class, prj._id, i._id)
-    // }
-    // const docInfo = await client.findAll(
-    //   github.class.DocSyncInfo,
-    //   {
-    //     space: prj._id as Ref<Project>,
-    //     repository: repository._id
-    //   },
-    //   { projection: { _id: 1, _class: 1 } }
-    // )
-    // for (const i of docInfo) {
-    //   await ops.removeDoc(i._class, prj._id, i._id)
-    // }
-    // await ops.commit()
   }
 
   async function onDisconnect (
@@ -86,7 +63,7 @@
     const issuesQuery = await client.findAll(
       github.mixin.GithubIssue,
       {
-        space: prj._id as Ref<Project>,
+        space: prj._id,
         repository: repository._id
       },
       { total: true, limit: 1 }
@@ -167,7 +144,7 @@
     </svelte:fragment>
     <svelte:fragment slot="tools">
       <Button
-        kind={'dangerous'}
+        kind="dangerous"
         label={github.string.RemoveInstallation}
         on:click={() => {
           showPopup(MessageBox, {
@@ -186,7 +163,7 @@
       />
     </svelte:fragment>
     <div class="flex flex-row-center flex-between m-0-5">
-      <SearchEdit bind:value={search} width={'100%'} />
+      <SearchEdit bind:value={search} width="100%" />
     </div>
     {#each repos.slice(0, limit) as repository}
       {@const prj = giProjects.find((it) => it.repositories.includes(repository._id))}
@@ -216,9 +193,9 @@
               <ObjectPresenter _class={prj._class} objectId={prj._id} value={prj} />
               <div class="ml-2">
                 <Button
-                  kind={'dangerous'}
+                  kind="dangerous"
                   label={github.string.UnlinkFromProject}
-                  size={'medium'}
+                  size="medium"
                   on:click={(evt) => {
                     void onDisconnect(evt, prj, repository)
                   }}
@@ -227,7 +204,7 @@
               <div class="ml-2">
                 <Button
                   icon={IconMoreV}
-                  size={'small'}
+                  size="small"
                   on:click={(evt) => {
                     void showMenu(evt, prj, repository)
                   }}
@@ -251,17 +228,17 @@
           {/if}
 
           <div class="flex-row-center">
-            <Icon icon={IconColStar} fill={'none'} size={'small'} />
+            <Icon icon={IconColStar} fill="none" size="small" />
             <span class="ml-1">{repository.stargazers ?? 0}</span>
           </div>
 
           <div class="flex-row-center ml-4">
-            <Icon icon={github.icon.Forks} size={'small'} />
+            <Icon icon={github.icon.Forks} size="small" />
             <span class="ml-1">{repository.forks ?? 0}</span>
           </div>
 
           <div class="flex-row-center ml-4">
-            <Icon icon={tracker.icon.Issue} size={'small'} />
+            <Icon icon={tracker.icon.Issue} size="small" />
             <span class="ml-1">{repository.openIssues ?? 0}</span>
           </div>
 

@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,352 +14,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import activity, { type ActivityMessage, type DocUpdateMessage } from '@hcengineering/activity'
-import { isActivityMessageClass, messageInFocus, sortActivityMessages } from '@hcengineering/activity-resources'
+import activity, { type ActivityMessage } from '@hcengineering/activity'
+import { isActivityMessageClass, messageInFocus } from '@hcengineering/activity-resources'
 import { Analytics } from '@hcengineering/analytics'
 import chunter, { type ThreadMessage } from '@hcengineering/chunter'
-import core, {
-  type Class,
-  type Doc,
-  getCurrentAccount,
-  type Ref,
-  SortingOrder,
-  type TxOperations,
-  type WithLookup,
-  getClassCollaborators,
-  generateId
-} from '@hcengineering/core'
-import notification, {
-  type ActivityInboxNotification,
-  type DisplayInboxNotification,
+import { type Class, type Doc, type Ref } from '@hcengineering/core'
+import {
   type DocNotifyContext,
-  type InboxNotification,
-  type MentionInboxNotification,
   notificationId,
-  type NotificationProvider,
-  type NotificationProviderSetting,
-  type NotificationType,
-  type NotificationTypeSetting,
-  type ReactionInboxNotification
+  type ContextNotification,
+  type NotificationMessage
 } from '@hcengineering/notification'
-import { getMetadata, getResource } from '@hcengineering/platform'
-import { createQuery, getClient, MessageBox } from '@hcengineering/presentation'
+import { getResource } from '@hcengineering/platform'
+import { getClient } from '@hcengineering/presentation'
 import {
   getCurrentLocation,
-  getEventPositionElement,
+  getCurrentResolvedLocation,
   getLocation,
   type Location,
   locationStorageKeyId,
   navigate,
-  parseLocation,
-  type ResolvedLocation,
-  showPopup
+  type ResolvedLocation
 } from '@hcengineering/ui'
 import view, { decodeObjectURI, encodeObjectURI, type LinkIdProvider } from '@hcengineering/view'
 import { getObjectLinkId, parseLinkId } from '@hcengineering/view-resources'
-import type { LocationData } from '@hcengineering/workbench'
-import { get, writable } from 'svelte/store'
+import workbench, { type Application, type LocationData } from '@hcengineering/workbench'
 
-import { InboxNotificationsClientImpl } from './inboxNotificationsClient'
-import { type InboxData, type InboxNotificationsFilter } from './types'
-
-export const providersSettings = writable<NotificationProviderSetting[]>([])
-export const typesSettings = writable<NotificationTypeSetting[]>([])
-
-const providerSettingsQuery = createQuery(true)
-const typeSettingsQuery = createQuery(true)
-
-export function loadNotificationSettings (): void {
-  providerSettingsQuery.query(
-    notification.class.NotificationProviderSetting,
-    { space: core.space.Workspace },
-    (res) => {
-      providersSettings.set(res)
-    }
-  )
-
-  typeSettingsQuery.query(notification.class.NotificationTypeSetting, { space: core.space.Workspace }, (res) => {
-    typesSettings.set(res)
-  })
+// Chat spaces go by their link id alone, as in the chat (`<name>-<id>`); other docs as `<id>|<class>`.
+export function encodeInboxURI (id: string, _class: Ref<Class<Doc>>): string {
+  const hierarchy = getClient().getHierarchy()
+  const isChatSpace = hierarchy.hasClass(_class) && hierarchy.isDerived(_class, chunter.class.ChunterSpace)
+  return isChatSpace ? id : encodeObjectURI(id, _class)
 }
 
-loadNotificationSettings()
-
-/**
- * @public
- */
-export async function canReadNotifyContext (doc: DocNotifyContext): Promise<boolean> {
-  const inboxNotificationsClient = InboxNotificationsClientImpl.getClient()
-
-  return (
-    get(inboxNotificationsClient.inboxNotificationsByContext)
-      .get(doc._id)
-      ?.some(({ isViewed }) => !isViewed) ?? false
-  )
+// Old `<id>|<class>` links keep resolving. A class-less one is a chat space: the concrete class
+// comes with the context or the doc (`resolveInboxObjectClass`).
+export function decodeInboxURI (value: string | undefined): [Ref<Doc>, Ref<Class<Doc>>] {
+  const decoded = decodeURIComponent(value ?? '')
+  if (decoded === '' || decoded.includes('|')) return decodeObjectURI(decoded)
+  return [decoded as Ref<Doc>, chunter.class.ChunterSpace]
 }
 
-/**
- * @public
- */
-export async function readNotifyContext (doc: DocNotifyContext): Promise<void> {
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const inboxNotifications = get(inboxClient.inboxNotificationsByContext).get(doc._id) ?? []
-  const me = getCurrentAccount()
-  const ops = getClient().apply(undefined, 'readNotifyContext', true)
-  try {
-    await inboxClient.readNotifications(
-      ops,
-      inboxNotifications.map(({ _id }) => _id)
-    )
-
-    const state = await inboxClient.getReadState(doc.objectId)
-    if (state != null) {
-      await ops.update(state, {
-        [me.uuid]: {
-          messageId: generateId<ActivityMessage>(),
-          timestamp: Date.now()
-        }
-      })
-    } else {
-      await ops.update(doc, { lastView: Date.now() })
-    }
-  } finally {
-    await ops.commit()
-  }
-}
-
-export async function removeContextNotifications (doc?: DocNotifyContext): Promise<void> {
-  if (doc === undefined) return
-
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const me = getCurrentAccount()
-  const ops = getClient().apply(undefined, 'removeContextNotifications', true)
-
-  try {
-    const notifications = await ops.findAll(
-      notification.class.InboxNotification,
-      { docNotifyContext: doc._id, archived: false },
-      { projection: { _id: 1, _class: 1, space: 1 } }
-    )
-
-    for (const notification of notifications) {
-      await ops.removeDoc(notification._class, notification.space, notification._id)
-    }
-    const state = await inboxClient.getReadState(doc.objectId)
-    if (state != null) {
-      await ops.update(state, {
-        [me.uuid]: {
-          messageId: generateId<ActivityMessage>(),
-          timestamp: Date.now()
-        }
-      })
-    } else {
-      await ops.update(doc, { lastView: Date.now() })
-    }
-  } finally {
-    await ops.commit()
-  }
-}
-
-export async function subscribeDoc (
-  client: TxOperations,
-  docClass: Ref<Class<Doc>>,
-  docId: Ref<Doc>,
-  op: 'add' | 'remove',
-  doc?: Doc
-): Promise<void> {
-  const myAcc = getCurrentAccount()
-  const hierarchy = client.getHierarchy()
-  const classCollaborators = getClassCollaborators(client.getModel(), hierarchy, docClass)
-  if (classCollaborators === undefined) return
-
-  const target = doc ?? (await client.findOne(docClass, { _id: docId }))
-  if (target === undefined) return
-  const current = await client.findOne(core.class.Collaborator, {
-    attachedTo: docId,
-    collaborator: myAcc.uuid
-  })
-  if (op === 'remove') {
-    if (current === undefined) return // already removed
-    await client.remove(current)
-  } else {
-    if (current !== undefined) return // already added
-    await client.addCollection(core.class.Collaborator, target.space, target._id, target._class, 'collaborators', {
-      collaborator: myAcc.uuid
-    })
-  }
-}
-
-/**
- * @public
- */
-export async function unsubscribe (context: DocNotifyContext): Promise<void> {
-  const client = getClient()
-  await subscribeDoc(client, context.objectClass, context.objectId, 'remove')
-}
-
-/**
- * @public
- */
-export async function subscribe (docClass: Ref<Class<Doc>>, docId: Ref<Doc>): Promise<void> {
-  const client = getClient()
-  await subscribeDoc(client, docClass, docId, 'add')
-}
-
-export async function clearAll (): Promise<void> {
-  const client = InboxNotificationsClientImpl.getClient()
-
-  showPopup(
-    MessageBox,
-    {
-      label: notification.string.RemoveAllConfirmationTitle,
-      message: notification.string.RemoveAllConfirmationMessage,
-      action: async () => {
-        await client.removeAllNotifications()
-      }
-    },
-    'top'
-  )
-}
-
-export async function readAll (): Promise<void> {
-  const client = InboxNotificationsClientImpl.getClient()
-
-  await client.readAllNotifications()
-}
-
-export function isActivityNotification (doc?: InboxNotification): doc is ActivityInboxNotification {
-  if (doc === undefined) return false
-  return doc._class === notification.class.ActivityInboxNotification
-}
-
-export function isMentionNotification (doc?: InboxNotification): doc is MentionInboxNotification {
-  if (doc === undefined) return false
-  return doc._class === notification.class.MentionInboxNotification
-}
-
-export function isReactionNotification (doc?: InboxNotification): doc is ReactionInboxNotification {
-  if (doc === undefined) return false
-  return doc._class === notification.class.ReactionInboxNotification
-}
-
-export function getDisplayInboxNotifications (
-  notifications: Array<WithLookup<InboxNotification>>,
-  filter: InboxNotificationsFilter = 'all',
-  objectClass?: Ref<Class<Doc>>
-): DisplayInboxNotification[] {
-  const result: DisplayInboxNotification[] = []
-  const activityNotifications: Array<WithLookup<ActivityInboxNotification>> = []
-  for (const notification of notifications) {
-    if (filter === 'unread' && notification.isViewed) {
-      continue
-    }
-
-    if (isActivityNotification(notification)) {
-      activityNotifications.push(notification)
-    } else {
-      result.push(notification)
-    }
-  }
-
-  const messages: ActivityMessage[] = activityNotifications
-    .map((activityNotification) => activityNotification.$lookup?.attachedTo)
-    .filter((message): message is ActivityMessage => {
-      if (message === undefined) {
-        return false
-      }
-      if (objectClass === undefined) {
-        return true
-      }
-      if (message._class !== activity.class.DocUpdateMessage) {
-        return false
-      }
-
-      return (message as DocUpdateMessage).objectClass === objectClass
-    })
-
-  const combinedMessages = sortActivityMessages(messages, SortingOrder.Descending)
-
-  for (const message of combinedMessages) {
-    if (message._class === activity.class.DocUpdateMessage) {
-      const displayMessage = message as DocUpdateMessage
-      const ids: Array<Ref<ActivityMessage>> = [displayMessage._id]
-      const activityNotification = activityNotifications.find(({ attachedTo }) => attachedTo === message._id)
-
-      if (activityNotification === undefined) {
-        continue
-      }
-
-      const combined = activityNotifications.filter(({ attachedTo }) => ids.includes(attachedTo))
-
-      const displayNotification = {
-        ...activityNotification,
-        combinedIds: combined.map(({ _id }) => _id),
-        combinedMessages: combined
-          .map((a) => a.$lookup?.attachedTo)
-          .filter((m): m is ActivityMessage => m !== undefined)
-      }
-
-      result.push(displayNotification)
-    } else {
-      const activityNotification = activityNotifications.find(({ attachedTo }) => attachedTo === message._id)
-      if (activityNotification !== undefined) {
-        result.push({
-          ...activityNotification,
-          combinedIds: [activityNotification._id],
-          combinedMessages: [message]
-        })
-      }
-    }
-  }
-
-  return result.sort(
-    (notification1, notification2) =>
-      (notification2.createdOn ?? notification2.modifiedOn) - (notification1.createdOn ?? notification1.modifiedOn)
-  )
-}
-
-export function getDisplayInboxData (
-  notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>,
-  filter: InboxNotificationsFilter = 'all',
-  objectClass?: Ref<Class<Doc>>
-): InboxData {
-  const result: InboxData = new Map()
-
-  for (const key of notificationsByContext.keys()) {
-    const notifications = notificationsByContext.get(key) ?? []
-
-    const displayNotifications = getDisplayInboxNotifications(notifications, filter, objectClass)
-
-    if (displayNotifications.length > 0) {
-      result.set(key, displayNotifications)
-    }
-  }
-
-  return result
-}
-
-export async function hasInboxNotifications (
-  notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-): Promise<boolean> {
-  const unreadInboxData = getDisplayInboxData(notificationsByContext, 'unread')
-
-  return unreadInboxData.size > 0
-}
-
-export function getNotificationsCount (
-  context: DocNotifyContext | DocNotifyContext[] | undefined,
-  notifications: InboxNotification[] = []
-): number {
-  if (context == null) return 0
-  const contexts = Array.isArray(context) ? context : [context]
-  if (contexts.length === 0 || notifications.length === 0) {
-    return 0
-  }
-
-  const unreadNotifications = getDisplayInboxNotifications(notifications, 'unread')
-
-  return unreadNotifications.length
+// The panel is a mixin of the concrete class, which a class-less chat link does not carry.
+export async function resolveInboxObjectClass (
+  _id: Ref<Doc>,
+  _class: Ref<Class<Doc>>,
+  context?: DocNotifyContext
+): Promise<Ref<Class<Doc>>> {
+  if (_class !== chunter.class.ChunterSpace) return _class
+  if (context?.objectId === _id) return context.objectClass
+  if (context?.parentObjectId === _id && context.parentObjectClass !== undefined) return context.parentObjectClass
+  const doc = await getClient().findOne(_class, { _id }, { projection: { _id: 1, _class: 1 } })
+  return doc?._class ?? _class
 }
 
 export async function resolveLocation (loc: Location): Promise<ResolvedLocation | undefined> {
@@ -366,7 +73,7 @@ export async function resolveLocation (loc: Location): Promise<ResolvedLocation 
     return undefined
   }
 
-  const [_id, _class] = decodeObjectURI(loc.path[3])
+  const [_id, _class] = decodeInboxURI(loc.path[3])
 
   if (_id === undefined || _class === undefined) {
     return {
@@ -401,12 +108,12 @@ async function generateLocation (
   if (thread === undefined) {
     return {
       loc: {
-        path: [appComponent, workspace, notificationId, encodeObjectURI(_id, _class)],
+        path: [appComponent, workspace, notificationId, encodeInboxURI(_id, _class)],
         fragment: undefined,
         query: { ...loc.query }
       },
       defaultLocation: {
-        path: [appComponent, workspace, notificationId, encodeObjectURI(_id, _class)],
+        path: [appComponent, workspace, notificationId, encodeInboxURI(_id, _class)],
         fragment: undefined,
         query: { ...loc.query }
       }
@@ -415,17 +122,19 @@ async function generateLocation (
 
   return {
     loc: {
-      path: [appComponent, workspace, notificationId, encodeObjectURI(_id, _class), threadId as string],
+      path: [appComponent, workspace, notificationId, encodeInboxURI(_id, _class), threadId as string],
       fragment: undefined,
       query: { ...loc.query }
     },
     defaultLocation: {
-      path: [appComponent, workspace, notificationId, encodeObjectURI(_id, _class), threadId as string],
+      path: [appComponent, workspace, notificationId, encodeInboxURI(_id, _class), threadId as string],
       fragment: undefined,
       query: { ...loc.query }
     }
   }
 }
+
+let navigateToInboxDocToken = 0
 
 async function navigateToInboxDoc (
   providers: LinkIdProvider[],
@@ -435,6 +144,7 @@ async function navigateToInboxDoc (
   thread?: Ref<ActivityMessage>,
   message?: Ref<ActivityMessage>
 ): Promise<void> {
+  const token = ++navigateToInboxDocToken
   const loc = getLocation()
 
   if (loc.path[2] !== notificationId) {
@@ -446,14 +156,13 @@ async function navigateToInboxDoc (
     return
   }
 
-  const id = await getObjectLinkId(providers, _id, _class)
-
-  loc.path[3] = encodeObjectURI(id, _class)
+  loc.path[3] = encodeInboxURI(_id, _class)
 
   if (thread !== undefined) {
     loc.path[4] = thread
     loc.path.length = 5
     const fn = await getResource(chunter.function.OpenThreadInSidebar)
+    if (token !== navigateToInboxDocToken) return
     void fn(thread, undefined, undefined, message, { autofocus: false })
   } else {
     loc.path[4] = ''
@@ -461,9 +170,25 @@ async function navigateToInboxDoc (
   }
 
   loc.query = { ...loc.query, context, message: message ?? null }
+  // A key without a value still shows in the link, as a bare `message`.
+  if (message === undefined) delete loc.query.message
   messageInFocus.set(message)
-  Analytics.handleEvent('inbox.ReadDoc', { objectId: id, objectClass: _class, thread, message })
+  Analytics.handleEvent('inbox.ReadDoc', { objectId: _id, objectClass: _class, thread, message })
   navigate(loc)
+
+  const provider = providers.find(({ _id }) => _id === _class)
+  if (provider !== undefined) {
+    void getObjectLinkId(providers, _id, _class).then((resolvedId) => {
+      if (token !== navigateToInboxDocToken) return
+      if (resolvedId !== _id) {
+        const currentLoc = getCurrentLocation()
+        if (currentLoc.path[2] === notificationId && currentLoc.path[3] === encodeInboxURI(_id, _class)) {
+          currentLoc.path[3] = encodeInboxURI(resolvedId, _class)
+          navigate(currentLoc, true)
+        }
+      }
+    })
+  }
 }
 
 export function resetInboxContext (): void {
@@ -473,7 +198,7 @@ export function resetInboxContext (): void {
     return
   }
 
-  loc.query = { message: null }
+  loc.query = undefined
   loc.path.length = 3
 
   localStorage.setItem(`${locationStorageKeyId}_${notificationId}`, JSON.stringify(loc))
@@ -484,18 +209,17 @@ export function resetInboxContext (): void {
 export async function selectInboxContext (
   linkProviders: LinkIdProvider[],
   context: DocNotifyContext,
-  notification?: WithLookup<InboxNotification>,
-  object?: Doc
+  notification?: ContextNotification
 ): Promise<void> {
   const client = getClient()
   const hierarchy = client.getHierarchy()
   const { objectId, objectClass } = context
   const loc = getCurrentLocation()
+  const selectedMsg = notification?.type !== 'common' ? notification?.messageId : undefined
+  const object = await client.findOne(objectClass, { _id: objectId })
 
-  if (isMentionNotification(notification) && isActivityMessageClass(notification.mentionedInClass)) {
-    const selectedMsg = notification.mentionedIn as Ref<ActivityMessage>
-
-    void navigateToInboxDoc(
+  if (notification?.type === 'mention' && notification.messageId != null) {
+    await navigateToInboxDoc(
       linkProviders,
       context._id,
       objectId,
@@ -503,20 +227,16 @@ export async function selectInboxContext (
       isActivityMessageClass(objectClass) ? (objectId as Ref<ActivityMessage>) : undefined,
       selectedMsg
     )
-
     return
   }
-
-  if (isReactionNotification(notification)) {
+  if (notification?.type === 'reaction') {
     const thread = loc.path[4] === objectId ? objectId : undefined
-    const reactedTo = await client.findOne(activity.class.ActivityMessage, { _id: notification.attachedTo })
+    const reactedTo = notification.message
     const isThread = reactedTo != null && hierarchy.isDerived(reactedTo._class, chunter.class.ThreadMessage)
-    const channelId = isThread ? (reactedTo as ThreadMessage)?.objectId : (reactedTo?.attachedTo ?? objectId)
-    const channelClass = isThread
-      ? (reactedTo as ThreadMessage)?.objectClass
-      : (reactedTo?.attachedToClass ?? objectClass)
+    const channelId = isThread ? (reactedTo as NotificationMessage<ThreadMessage>)?.objectId : objectId
+    const channelClass = isThread ? (reactedTo as NotificationMessage<ThreadMessage>)?.objectClass : objectClass
 
-    void navigateToInboxDoc(
+    await navigateToInboxDoc(
       linkProviders,
       context._id,
       channelId,
@@ -528,8 +248,6 @@ export async function selectInboxContext (
   }
 
   if (hierarchy.isDerived(objectClass, activity.class.ActivityMessage)) {
-    const message = (notification as WithLookup<ActivityInboxNotification>)?.$lookup?.attachedTo
-
     if (objectClass === chunter.class.ThreadMessage) {
       const thread =
         object?._id === objectId
@@ -542,7 +260,7 @@ export async function selectInboxContext (
             { projection: { _id: 1, attachedTo: 1 } }
           )
 
-      void navigateToInboxDoc(
+      await navigateToInboxDoc(
         linkProviders,
         context._id,
         thread?.objectId ?? objectId,
@@ -553,12 +271,11 @@ export async function selectInboxContext (
       return
     }
 
-    const selectedMsg = (notification as ActivityInboxNotification)?.attachedTo
     const thread = selectedMsg !== objectId ? objectId : loc.path[4] === objectId ? objectId : undefined
-    const channelId = (object as ActivityMessage)?.attachedTo ?? message?.attachedTo ?? objectId
-    const channelClass = (object as ActivityMessage)?.attachedToClass ?? message?.attachedToClass ?? objectClass
+    const channelId = (object as ActivityMessage)?.attachedTo ?? objectId
+    const channelClass = (object as ActivityMessage)?.attachedToClass ?? objectClass
 
-    void navigateToInboxDoc(
+    await navigateToInboxDoc(
       linkProviders,
       context._id,
       channelId,
@@ -569,207 +286,14 @@ export async function selectInboxContext (
     return
   }
 
-  void navigateToInboxDoc(
-    linkProviders,
-    context._id,
-    objectId,
-    objectClass,
-    undefined,
-    (notification as ActivityInboxNotification)?.attachedTo
-  )
-}
-
-export const pushAllowed = writable<boolean>(false)
-
-export async function checkPermission (value: boolean): Promise<boolean> {
-  if (!value) return true
-  if ('serviceWorker' in navigator && 'PushManager' in window) {
-    try {
-      const loc = getCurrentLocation()
-      const registration = await navigator.serviceWorker.getRegistration(`/${loc.path[0]}/${loc.path[1]}`)
-      if (registration !== undefined) {
-        const current = await registration.pushManager.getSubscription()
-        const res = current !== null
-        pushAllowed.set(current !== null)
-        void registration.update()
-        addWorkerListener()
-        return res
-      }
-    } catch {
-      pushAllowed.set(false)
-      return false
-    }
-  }
-  pushAllowed.set(false)
-  return false
-}
-
-function addWorkerListener (): void {
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data !== undefined && event.data.type === 'notification-click') {
-      const { url, _id } = event.data
-      if (url !== undefined) {
-        navigate(parseLocation(new URL(url)))
-      }
-      if (_id !== undefined) {
-        void cleanTag(_id)
-      }
-    }
-  })
-}
-
-export function pushAvailable (): boolean {
-  const publicKey = getMetadata(notification.metadata.PushPublicKey)
-  return (
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    publicKey !== undefined &&
-    'Notification' in window &&
-    Notification.permission !== 'denied'
-  )
-}
-
-export type PushSubscribeResult = 'success' | 'permission_denied' | 'network_error' | 'not_supported'
-
-export async function subscribePush (): Promise<PushSubscribeResult> {
-  const client = getClient()
-  const publicKey = getMetadata(notification.metadata.PushPublicKey)
-  if ('serviceWorker' in navigator && 'PushManager' in window && publicKey !== undefined) {
-    try {
-      const loc = getCurrentLocation()
-      let registration = await navigator.serviceWorker.getRegistration(`/${loc.path[0]}/${loc.path[1]}`)
-      if (registration !== undefined) {
-        await registration.update()
-      } else {
-        registration = await navigator.serviceWorker.register('/serviceWorker.js', {
-          scope: `/${loc.path[0]}/${loc.path[1]}`
-        })
-      }
-      const current = await registration.pushManager.getSubscription()
-      if (current == null) {
-        const permission = await Notification.requestPermission()
-        if (permission !== 'granted') {
-          return 'permission_denied'
-        }
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: publicKey
-        })
-        await client.createDoc(notification.class.PushSubscription, core.space.Workspace, {
-          user: getCurrentAccount().uuid,
-          endpoint: subscription.endpoint,
-          keys: {
-            p256dh: arrayBufferToBase64(subscription.getKey('p256dh')),
-            auth: arrayBufferToBase64(subscription.getKey('auth'))
-          },
-          name: navigator.userAgent
-        })
-      } else {
-        const exists = await client.findOne(notification.class.PushSubscription, {
-          user: getCurrentAccount().uuid,
-          endpoint: current.endpoint
-        })
-        if (exists === undefined) {
-          await client.createDoc(notification.class.PushSubscription, core.space.Workspace, {
-            user: getCurrentAccount().uuid,
-            endpoint: current.endpoint,
-            keys: {
-              p256dh: arrayBufferToBase64(current.getKey('p256dh')),
-              auth: arrayBufferToBase64(current.getKey('auth'))
-            },
-            name: navigator.userAgent
-          })
-        }
-      }
-      addWorkerListener()
-      pushAllowed.set(true)
-      return 'success'
-    } catch (err) {
-      const error = err as Error
-      console.error('Service Worker registration failed:', error)
-      pushAllowed.set(false)
-      if (error?.name === 'AbortError') return 'network_error'
-      if (error?.name === 'NotAllowedError') return 'permission_denied'
-      return 'network_error'
-    }
-  }
-  pushAllowed.set(false)
-  return 'not_supported'
-}
-
-async function cleanTag (_id: Ref<Doc>): Promise<void> {
-  const client = getClient()
-  const notifications = await client.findAll(notification.class.BrowserNotification, {
-    tag: _id
-  })
-  for (const notification of notifications) {
-    await client.remove(notification)
-  }
-}
-
-function arrayBufferToBase64 (buffer: ArrayBuffer | null): string {
-  if (buffer != null) {
-    const bytes = new Uint8Array(buffer)
-    const array = Array.from(bytes)
-    const binary = String.fromCharCode.apply(null, array)
-    return btoa(binary)
-  } else {
-    return ''
-  }
-}
-
-export function notificationsComparator (notifications1: InboxNotification, notifications2: InboxNotification): number {
-  const time1 = notifications1.createdOn ?? notifications1.modifiedOn ?? 0
-  const time2 = notifications2.createdOn ?? notifications2.modifiedOn ?? 0
-
-  if (time1 !== time2) {
-    return time2 - time1
-  }
-
-  return notifications1._id.localeCompare(notifications2._id)
-}
-
-export function isNotificationAllowed (type: NotificationType, providerId: Ref<NotificationProvider>): boolean {
-  const client = getClient()
-  const provider = client.getModel().findAllSync(notification.class.NotificationProvider, { _id: providerId })[0]
-  if (provider === undefined) return false
-
-  const providerSetting = get(providersSettings).find((it) => it.attachedTo === providerId)
-  if (providerSetting !== undefined && !providerSetting.enabled) return false
-  if (providerSetting === undefined && !provider.defaultEnabled) return false
-
-  const providerDefaults = client.getModel().findAllSync(notification.class.NotificationProviderDefaults, {})
-
-  if (providerDefaults.some((it) => it.provider === provider._id && it.ignoredTypes.includes(type._id))) {
-    return false
-  }
-
-  if (provider.ignoreAll === true) {
-    const excludedIgnore = providerDefaults.some(
-      (it) => provider._id === it.provider && it.excludeIgnore !== undefined && it.excludeIgnore.includes(type._id)
-    )
-
-    if (!excludedIgnore) return false
-  }
-
-  const setting = get(typesSettings).find((it) => it.attachedTo === provider._id && it.type === type._id)
-
-  if (setting !== undefined) {
-    return setting.enabled
-  }
-
-  if (providerDefaults.some((it) => it.provider === provider._id && it.enabledTypes.includes(type._id))) {
-    return true
-  }
-
-  return type.defaultEnabled
+  await navigateToInboxDoc(linkProviders, context._id, objectId, objectClass, undefined, selectedMsg)
 }
 
 export async function locationDataResolver (loc: Location): Promise<LocationData> {
   const client = getClient()
 
   try {
-    const [id, _class] = decodeObjectURI(loc.path[3])
+    const [id, _class] = decodeInboxURI(loc.path[3])
     const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
     const _id: Ref<Doc> | undefined = await parseLinkId(linkProviders, id, _class)
 
@@ -782,46 +306,44 @@ export async function locationDataResolver (loc: Location): Promise<LocationData
   }
 }
 
-export function parseUserAgent (userAgent: string): string {
-  const browsers = [
-    { name: 'Edge', pattern: /Edg\/[\d.]+/ },
-    { name: 'Opera', pattern: /OPR\/[\d.]+/ },
-    { name: 'Chrome', pattern: /CriOS\/[\d.]+|Chrome\/[\d.]+/ },
-    { name: 'Firefox', pattern: /FxiOS\/[\d.]+|Firefox\/[\d.]+/ },
-    { name: 'Safari', pattern: /Safari\/[\d.]+/ }
-  ]
-
-  const os = [
-    { name: 'Windows', pattern: /Windows/ },
-    { name: 'Mac', pattern: /Macintosh/ },
-    { name: 'Linux', pattern: /Linux/ },
-    { name: 'Android', pattern: /Android/ },
-    { name: 'iOS', pattern: /iPhone|iPad/ }
-  ]
-
-  const browser = browsers.find(({ pattern }) => pattern.test(userAgent))?.name ?? 'Unknown browser'
-  const system = os.find(({ pattern }) => pattern.test(userAgent))?.name ?? 'Unknown OS'
-
-  return `${browser} on ${system}`
-}
-
-export async function editDocNotificationsVisibilityTester (doc: Doc | Doc[] | undefined): Promise<boolean> {
-  if (doc == null) return false
-  const object = Array.isArray(doc) ? doc[0] : doc
-  if (object == null) return false
-
+/** The object the main panel shows at this location: the application's own resolver, else the `id|class` fragment. */
+export async function getObjectIdFromLocation (loc: Location): Promise<Ref<Doc> | undefined> {
   const client = getClient()
-  const classCollaborators = getClassCollaborators(client.getModel(), client.getHierarchy(), object._class)
-  if (classCollaborators === undefined) return false
-  const collaborator = await client.findOne(core.class.Collaborator, {
-    attachedTo: object._id,
-    collaborator: getCurrentAccount().uuid
-  })
+  const appAlias = loc.path[2]
+  const application = client.getModel().findAllSync<Application>(workbench.class.Application, { alias: appAlias })[0]
 
-  return collaborator != null
+  if (application?.locationDataResolver != null) {
+    const resolver = await getResource(application.locationDataResolver)
+    const data = await resolver(loc)
+    return data.objectId
+  }
+  if (loc.fragment == null) return
+  const [, id, _class] = decodeURIComponent(loc.fragment).split('|')
+  if (_class == null) return
+  try {
+    const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
+    return await parseLinkId(linkProviders, id, _class as Ref<Class<Doc>>)
+  } catch (err: any) {
+    Analytics.handleError(err)
+  }
 }
 
-export async function editDocNotificationsAction (doc: Doc | Doc[], evt: MouseEvent): Promise<void> {
-  const value = Array.isArray(doc) ? doc[0] : doc
-  showPopup(notification.component.MutePopup, { value }, getEventPositionElement(evt))
+/**
+ * What this tab shows right now: the main panel's object and the sidebar's. The service worker
+ * asks for it on every push, so the answer is a snapshot, not a subscription.
+ */
+export async function getViewedObjectIds (): Promise<Array<Ref<Doc>>> {
+  const ids: Array<Ref<Doc> | undefined> = []
+  try {
+    ids.push(await getObjectIdFromLocation(getCurrentResolvedLocation()))
+  } catch (err: any) {
+    Analytics.handleError(err)
+  }
+  try {
+    const getSidebarObject = await getResource(workbench.function.GetSidebarObject)
+    ids.push(getSidebarObject()?._id)
+  } catch (err: any) {
+    Analytics.handleError(err)
+  }
+  return ids.filter((it): it is Ref<Doc> => it != null && it !== '')
 }

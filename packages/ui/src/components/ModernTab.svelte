@@ -13,10 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, getEmbeddedLabel, IntlString } from '@hcengineering/platform'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
 
-  import { AnySvelteComponent, ButtonIcon, Icon, IconClose, Label, tooltip } from '../index'
+  import IconButton from '../ui-kit/button/IconButton.svelte'
+  import ui from '../plugin'
+  import type { AnySvelteComponent, IconSize } from '../index'
+  import { Icon, IconClose, Label, tooltip } from '../index'
 
   export let label: string | undefined = undefined
   export let labelIntl: IntlString | undefined = undefined
@@ -25,11 +29,13 @@
   export let highlighted: boolean = false
   export let icon: Asset | AnySvelteComponent | undefined = undefined
   export let iconProps: Record<string, any> | undefined = undefined
+  export let iconSize: IconSize = 'x-small'
   export let maxSize: string | undefined = undefined
   export let orientation: 'horizontal' | 'vertical' = 'horizontal'
   export let kind: 'primary' | 'secondary' = 'primary'
   export let canClose = true
   export let readonly = false
+  export let italic = false
 
   const dispatch = createEventDispatcher()
 
@@ -48,15 +54,17 @@
   style:max-width={orientation === 'horizontal' ? maxSize : 'auto'}
   style:max-height={orientation === 'vertical' ? maxSize : 'auto'}
   class:active={highlighted}
+  class:italic
   use:tooltip={{ label: label ? getEmbeddedLabel(label) : labelIntl, direction: 'bottom' }}
   on:click
+  on:dblclick
   on:contextmenu={handleContextMenu}
 >
   <slot name="prefix" />
 
   {#if icon}
     <div class="icon {orientation}">
-      <Icon {icon} size={'x-small'} {iconProps} />
+      <Icon {icon} size={iconSize} {iconProps} />
     </div>
   {/if}
 
@@ -79,7 +87,17 @@
 
   {#if canClose && !readonly}
     <div class="close-button {orientation}">
-      <ButtonIcon icon={IconClose} kind={'tertiary'} size="min" on:click={() => dispatch('close')} />
+      <IconButton
+        icon={IconClose}
+        kind="tertiary"
+        iconSize="x-small"
+        size="min"
+        tooltip={{ label: ui.string.Close }}
+        on:click={(e) => {
+          e.stopPropagation()
+          dispatch('close')
+        }}
+      />
     </div>
   {:else if $$slots.postfix === undefined}
     <div />
@@ -96,6 +114,11 @@
     cursor: pointer;
     overflow: hidden;
     color: var(--theme-content-color);
+
+    // Preview tab, same idea as an italic editor tab in VSCode: it gets replaced by the next one.
+    &.italic {
+      font-style: italic;
+    }
 
     &.primary {
       background-color: var(--theme-button-pressed);

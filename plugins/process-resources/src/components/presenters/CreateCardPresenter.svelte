@@ -13,10 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import card, { Card, MasterTag } from '@hcengineering/card'
-  import core, { Ref } from '@hcengineering/core'
+  import type { Card, MasterTag } from '@hcengineering/card'
+  import card from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getClient, IconWithEmoji } from '@hcengineering/presentation'
-  import { MethodParams, parseContext, Process, Step } from '@hcengineering/process'
+  import type { MethodParams, Process, Step } from '@hcengineering/process'
+  import { parseContext } from '@hcengineering/process'
   import { Icon, Label, tooltip } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import plugin from '../../plugin'
@@ -33,9 +36,8 @@
   $: contextValue = params.title !== undefined ? parseContext(params.title) : undefined
   $: context = getContext(client, process, core.class.TypeString, 'attribute')
 
-  $: _class = params?._class
-    ? (client.getHierarchy().getClass(params._class as Ref<MasterTag>) as MasterTag)
-    : undefined
+  $: target = params?.targetClass ?? params?._class
+  $: _class = target !== undefined ? (client.getHierarchy().getClass(target as Ref<MasterTag>) as MasterTag) : undefined
   $: icon = _class?.icon
 </script>
 
@@ -46,7 +48,7 @@
       <Icon
         icon={icon === view.ids.IconWithEmoji ? IconWithEmoji : (icon ?? card.icon.Card)}
         iconProps={{ icon: _class?.color }}
-        size={'small'}
+        size="small"
       />
     </div>
   {/if}

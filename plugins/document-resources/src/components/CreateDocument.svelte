@@ -16,15 +16,17 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { Data, generateId, Ref } from '@hcengineering/core'
-  import { Document, DocumentEvents, Teamspace } from '@hcengineering/document'
+  import type { Data, Ref } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
+  import type { Document, Teamspace } from '@hcengineering/document'
+  import { DocumentEvents } from '@hcengineering/document'
   import { IconWithEmoji, Card, getClient, SpaceSelector } from '@hcengineering/presentation'
   import {
     Button,
     createFocusManager,
     EditBox,
     FocusHandler,
-    getPlatformColorDef,
+    getPaletteColorDef,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
@@ -99,8 +101,8 @@
       _class={document.class.Teamspace}
       label={document.string.Teamspace}
       bind:space={_space}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       component={TeamspacePresenter}
       iconWithEmoji={view.ids.IconWithEmoji}
       defaultIcon={document.icon.Teamspace}
@@ -111,10 +113,10 @@
       docQuery={{
         space: _space
       }}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={document.string.NoParentDocument}
-      searchField={'title'}
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}
@@ -125,17 +127,14 @@
   <div class="flex-row-center clear-mins">
     <div class="mr-3">
       <Button
-        size={'medium'}
-        kind={'link-bordered'}
+        size="medium"
+        kind="link-bordered"
         noFocus
         icon={object.icon === view.ids.IconWithEmoji ? IconWithEmoji : (object.icon ?? document.icon.Document)}
         iconProps={object.icon === view.ids.IconWithEmoji
           ? { icon: object.color, size: 'medium' }
           : {
-              fill:
-                object.color !== undefined && typeof object.color !== 'string'
-                  ? getPlatformColorDef(object.color, $themeStore.dark).icon
-                  : 'currentColor'
+              fill: getPaletteColorDef(object.color, $themeStore.dark)?.icon ?? 'currentColor'
             }}
         on:click={chooseIcon}
       />
@@ -143,7 +142,7 @@
     <EditBox
       placeholder={document.string.DocumentNamePlaceholder}
       bind:value={object.title}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
       focusIndex={1}
     />

@@ -13,18 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
-  import { Doc, WithLookup } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import type { Doc, WithLookup } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { ButtonIcon, IconAdd, Label, resizeObserver, Section } from '@hcengineering/ui'
-  import view, { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
-  import {
-    List,
-    ListSelectionProvider,
-    restrictionStore,
-    SelectDirection,
-    ViewletsSettingButton
-  } from '@hcengineering/view-resources'
+  import { IconAdd, Label, resizeObserver, Section } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { Viewlet, ViewletPreference, ViewOptions } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+  import type { SelectDirection } from '@hcengineering/view-resources'
+  import { List, ListSelectionProvider, restrictionStore, ViewletsSettingButton } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import card from '../plugin'
   import { createChildCard } from '../utils'
@@ -105,13 +102,13 @@
 <Section label={card.string.Children} icon={card.icon.Card} spaceBeforeContent>
   <svelte:fragment slot="header">
     <div class="buttons-group xsmall-gap">
-      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind={'tertiary'} bind:viewlet />
+      <ViewletsSettingButton bind:viewOptions viewletQuery={{ _id: viewletId }} kind="tertiary" bind:viewlet />
       {#if !$restrictionStore.readonly && !readonly}
-        <ButtonIcon
+        <IconButton
           id="add-child-card"
           icon={IconAdd}
-          size={'small'}
-          kind={'tertiary'}
+          size="small"
+          kind="tertiary"
           tooltip={{ label: card.string.CreateChild, direction: 'bottom' }}
           on:click={() => {
             void createCard()

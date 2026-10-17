@@ -16,7 +16,7 @@
   import type { Attachment } from '@hcengineering/attachment'
   import type { WithLookup } from '@hcengineering/core'
   import { getFileUrl } from '@hcengineering/presentation'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import { getType, showAttachmentPreviewPopup } from '../utils'
 
   export let value: WithLookup<Attachment>
@@ -52,7 +52,7 @@
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="cellImagePreview" on:click={openAttachment}>
-        <img class={'img-fit'} {src} alt={value.name} />
+        <img class="img-fit" {src} alt={value.name} />
       </div>
     {:else}
       <div class="cellMiscPreview">

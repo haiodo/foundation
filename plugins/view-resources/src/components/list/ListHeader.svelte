@@ -13,13 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AggregateValue, Doc, PrimitiveType, Ref, Space } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { AggregateValue, Doc, PrimitiveType, Ref, Space } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { AnyComponent, AnySvelteComponent, ColorDefinition } from '@hcengineering/ui'
   import {
-    AnyComponent,
-    AnySvelteComponent,
     Button,
-    ColorDefinition,
     Component,
     IconAdd,
     IconBack,
@@ -32,12 +30,13 @@
     showPopup,
     themeStore
   } from '@hcengineering/ui'
-  import { AttributeModel, ViewOptions } from '@hcengineering/view'
+  import type { AttributeModel, ViewOptions } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import { Analytics } from '@hcengineering/analytics'
 
   import view from '../../plugin'
-  import { SelectionFocusProvider, selectionLimit } from '../../selection'
+  import type { SelectionFocusProvider } from '../../selection'
+  import { selectionLimit } from '../../selection'
   import { getCategoryReference } from '../../utils'
   import { noCategory } from '../../viewOptions'
 
@@ -68,8 +67,11 @@
 
   const dispatch = createEventDispatcher()
 
+  $: categoryValue =
+    typeof category === 'object' && category !== null ? (category.values?.[0]?._id ?? category.name) : category
+
   // Get pre-fetched reference document if available
-  $: categoryRefDoc = getCategoryReference(categoryRefsMap, groupByKey, category as Ref<Doc>)
+  $: categoryRefDoc = getCategoryReference(categoryRefsMap, groupByKey, categoryValue as Ref<Doc>)
 
   let accentColor: ColorDefinition | undefined = undefined
 
@@ -147,11 +149,11 @@
       {:else if headerComponent}
         <svelte:component
           this={headerComponent.presenter}
-          value={category}
+          value={categoryValue}
           {...categoryRefDoc ? { object: categoryRefDoc } : {}}
           space={space ?? (items.every((i) => i?.space === items[0]?.space) ? items[0]?.space : undefined)}
-          size={'small'}
-          kind={'list-header'}
+          size="small"
+          kind="list-header"
           colorInherit={!$themeStore.dark && level === 0}
           accent={level === 0}
           disabled
@@ -164,7 +166,7 @@
 
       {#if loading && items.length === 0 && !(limited < itemsProj.length)}
         <div class="ml-2 p-1">
-          <Loading shrink size={'small'} />
+          <Loading shrink size="small" />
         </div>
       {:else}
         {#if selected.length > 0}
@@ -180,7 +182,7 @@
           </div>
           {#if loading && items.length === 0}
             <div class="ml-2 p-1">
-              <Loading shrink size={'small'} />
+              <Loading shrink size="small" />
             </div>
           {/if}
         {:else}
@@ -188,17 +190,26 @@
         {/if}
         <div class="flex-row-center flex-reverse flex-grow mr-2 gap-2 reverse">
           {#each extraHeaders ?? [] as extra}
-            <Component is={extra} props={{ ...props, value: category, category: groupByKey, docs: items, itemsProj }} />
+            <Component
+              is={extra}
+              props={{
+                ...props,
+                value: categoryValue,
+                category: groupByKey,
+                docs: items,
+                itemsProj
+              }}
+            />
           {/each}
         </div>
       {/if}
     </div>
     {#if createItemDialog !== undefined && createItemLabel !== undefined}
       <div class:on-hover={!mouseOver} class="flex-row-center">
-        <Button icon={IconAdd} kind={'ghost'} showTooltip={{ label: createItemLabel }} on:click={handleCreateItem} />
+        <Button icon={IconAdd} kind="ghost" showTooltip={{ label: createItemLabel }} on:click={handleCreateItem} />
         <Button
           icon={selected.length > 0 ? IconBack : IconCheck}
-          kind={'ghost'}
+          kind="ghost"
           showTooltip={{ label: view.string.Select }}
           on:click={() => {
             let newSelection = [...$selection]

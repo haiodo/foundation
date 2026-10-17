@@ -16,10 +16,10 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
+  import type { Class } from '@hcengineering/core'
   import {
     AccountRole,
     type Blob,
-    Class,
     type CollaborativeDoc,
     type Doc,
     generateId,
@@ -28,54 +28,48 @@
     makeDocCollabId,
     type Ref
   } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import {
-    DrawingCmd,
-    getAttribute,
-    getClient,
-    getFileUrl,
-    getImageSize,
-    imageSizeToRatio,
-    KeyedAttribute
-  } from '@hcengineering/presentation'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { DrawingCmd, KeyedAttribute } from '@hcengineering/presentation'
+  import { getAttribute, getClient, getFileUrl, getImageSize, imageSizeToRatio } from '@hcengineering/presentation'
   import { isDocCreatedByAccount } from '@hcengineering/contact'
   import { markupToJSON } from '@hcengineering/text'
+  import type { AnySvelteComponent, IconSize, PopupAlignment } from '@hcengineering/ui'
   import {
-    AnySvelteComponent,
     Button,
     getEventPositionElement,
     getPopupPositionElement,
     IconScribble,
-    IconSize,
     Loading,
-    PopupAlignment,
     themeStore,
     ThrottledCaller
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import { Editor, FocusPosition, mergeAttributes } from '@tiptap/core'
+  import type { FocusPosition } from '@tiptap/core'
+  import { Editor, mergeAttributes } from '@tiptap/core'
   import { isChangeOrigin } from '@tiptap/extension-collaboration'
-  import { createEventDispatcher, getContext, onDestroy, onMount } from 'svelte'
+  import { createEventDispatcher, getContext, onDestroy, onMount, tick } from 'svelte'
   import { Doc as YDoc } from 'yjs'
 
-  import textEditor, {
-    CollaborationIds,
+  import type {
     CollaborationUser,
     RefAction,
     TextEditorCommandHandler,
     TextEditorHandler
   } from '@hcengineering/text-editor'
-  import { EditorKitOptions, getEditorKit } from '../../src/kits/editor-kit'
+  import textEditor, { CollaborationIds } from '@hcengineering/text-editor'
+  import type { EditorKitOptions } from '../kits/editor-kit'
+  import { getEditorKit } from '../kits/editor-kit'
+  import { registerEditor, unregisterEditor } from '../editorRegistry'
   import { deleteAttachment } from '../command/deleteAttachment'
   import { textEditorCommandHandler } from '../commands'
-  import { Provider } from '../provider/types'
+  import type { Provider } from '../provider/types'
   import { createRemoteProvider } from '../provider/utils'
   import { addTableHandler } from '../utils'
 
   import { noSelectionRender, renderCursor } from './editor/collaboration'
   import { defaultEditorAttributes } from './editor/editorProps'
-  import { SavedBoard } from './extension/drawingBoard'
-  import { type FileAttachFunction } from './extension/types'
+  import type { SavedBoard } from './extension/drawingBoard'
+  import type { FileAttachFunction } from './extension/types'
   import { inlineCommandsConfig } from './extensions'
 
   export let object: Doc
@@ -147,6 +141,69 @@
   let editor: Editor
   let element: HTMLElement
   let editorPopupContainer: HTMLElement
+  let refContainer: HTMLElement
+
+  // When the user scrolled past this editor and collab content expands after sync, keep their scroll
+  // position: compensate the editor's height growth and undo the browser's focus jump to the top.
+  let prevLoading = true
+  let expandRaf = 0
+  let expandDeadline = 0
+  let expandPrevHeight = 0
+  let expandTargetTop = 0
+
+  function stopExpandWatch (): void {
+    if (expandRaf !== 0) {
+      cancelAnimationFrame(expandRaf)
+      expandRaf = 0
+    }
+  }
+
+  function watchScrollOnExpand (): void {
+    if (refContainer == null) {
+      return
+    }
+    const scroll = refContainer.closest<HTMLElement>('.scroll')
+    if (scroll == null) {
+      return
+    }
+    stopExpandWatch()
+    // decide ONCE: recomputing per-frame breaks after a jump to top (editor then looks in view)
+    const editorBottom =
+      refContainer.getBoundingClientRect().bottom - scroll.getBoundingClientRect().top + scroll.scrollTop
+    if (scroll.scrollTop < editorBottom) {
+      return
+    }
+    expandPrevHeight = refContainer.offsetHeight
+    expandTargetTop = scroll.scrollTop
+    expandDeadline = performance.now() + 2000
+
+    // run the whole window: the browser focus jump to the top can arrive after height settles,
+    // so an early "stable frames" exit would miss it
+    const step = (): void => {
+      if (refContainer == null) {
+        expandRaf = 0
+        return
+      }
+      const h = refContainer.offsetHeight
+      const grow = h - expandPrevHeight
+      expandPrevHeight = h
+      if (grow !== 0) {
+        expandTargetTop += grow
+      }
+      if (Math.abs(scroll.scrollTop - expandTargetTop) > 1) {
+        scroll.scrollTop = expandTargetTop
+      }
+      expandRaf = performance.now() < expandDeadline ? requestAnimationFrame(step) : 0
+    }
+    expandRaf = requestAnimationFrame(step)
+  }
+
+  $: if (!loading && prevLoading) {
+    prevLoading = false
+    void tick().then(watchScrollOnExpand)
+  }
+
+  onDestroy(stopExpandWatch)
 
   $: dispatch('editor', editor)
 
@@ -213,7 +270,8 @@
 
   $: if (editor !== undefined && needFocus) {
     if (!focused) {
-      editor.commands.focus(posFocus)
+      // scrollIntoView would yank the scroll to the caret (top of doc) on async focus after sync
+      editor.commands.focus(posFocus, { scrollIntoView: false })
       posFocus = undefined
     }
     needFocus = false
@@ -365,7 +423,7 @@
 
         history: false,
         shortcuts: {
-          imageUpload: canAttachFiles && { attachFile, getFileUrl },
+          imageUpload: { attachFile, getFileUrl },
           fileUpload: canAttachFiles && { attachFile }
         },
         submit: false,
@@ -381,7 +439,7 @@
           width: 20,
           height: 20,
           marginX: 8,
-          className: 'tiptap-left-menu',
+          className: 'tiptap-left-menu no-print',
           icon: view.icon.Add,
           iconProps: {
             className: 'svg-tiny',
@@ -445,6 +503,7 @@
       },
       onCreate: () => {
         editorReady = true
+        registerEditor(object._id, attribute.key, editor)
       },
       onTransaction: () => {
         // force re-render so `editor.isActive` works as expected
@@ -477,6 +536,7 @@
   })
 
   onDestroy(() => {
+    unregisterEditor(object._id, attribute.key)
     if (editor !== undefined) {
       try {
         editor.destroy()
@@ -498,10 +558,11 @@
   style="display: none"
   on:change={fileSelected}
 />
-<div class="editorPopupContainer" bind:this={editorPopupContainer}></div>
+<div class="editorPopupContainer no-print" bind:this={editorPopupContainer}></div>
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
+  bind:this={refContainer}
   style:overflow
   class="ref-container clear-mins"
   class:h-full={full}

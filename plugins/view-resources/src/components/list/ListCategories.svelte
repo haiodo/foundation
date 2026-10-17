@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,22 +14,24 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
+  import type {
     CategoryType,
     Class,
     Doc,
     DocumentQuery,
     FindOptions,
-    generateId,
     Lookup,
     RateLimiter,
     Ref,
     Space
   } from '@hcengineering/core'
-  import { getResource, IntlString } from '@hcengineering/platform'
+  import { generateId, groupByArray } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import { getClient, reduceCalls } from '@hcengineering/presentation'
-  import ui, { AnyComponent, AnySvelteComponent, Button, Label, Spinner } from '@hcengineering/ui'
-  import {
+  import type { AnyComponent, AnySvelteComponent } from '@hcengineering/ui'
+  import ui, { Button, Label, Spinner } from '@hcengineering/ui'
+  import type {
     AttributeModel,
     BuildModelKey,
     CategoryOption,
@@ -36,8 +39,10 @@
     ViewOptionModel,
     ViewOptions
   } from '@hcengineering/view'
-  import { createEventDispatcher, onDestroy, SvelteComponentTyped } from 'svelte'
-  import { SelectionFocusProvider, focusStore } from '../../selection'
+  import type { SvelteComponentTyped } from 'svelte'
+  import { createEventDispatcher, onDestroy } from 'svelte'
+  import type { SelectionFocusProvider } from '../../selection'
+  import { focusStore } from '../../selection'
   import {
     buildModel,
     concatCategories,
@@ -89,10 +94,13 @@
   export let listProvider: SelectionFocusProvider
   export let singleCategoryLimit: number | undefined = undefined
   export let readonly: boolean = false
+  export let empty: boolean = false
 
-  $: groupByKey = viewOptions.groupBy[level] ?? noCategory
+  $: requestedGroupByKey = viewOptions.groupBy[level] ?? noCategory
+  // Set together with categories and the header: old categories under a new key query {_id: 0}.
+  let groupByKey: string = viewOptions.groupBy[level] ?? noCategory
   let categories: CategoryType[] = []
-  $: void updateCategories(_class, space, docs, groupByKey, viewOptions, viewOptionsConfig)
+  $: void updateCategories(_class, space, docs, requestedGroupByKey, viewOptions, viewOptionsConfig)
 
   $: groupByDocs = groupBy(docs, groupByKey, categories)
 
@@ -100,10 +108,12 @@
   const maxInitialCategories = 20
   let showAllCategories = false
   let isLoadingCategories = false
+  let categoriesComputed = false
   let isLoadingMoreTop = false
 
   $: displayedCategories = level === 0 && !showAllCategories ? categories.slice(0, maxInitialCategories) : categories
 
+  $: empty = level === 0 && categoriesComputed && categories.length === 0
   $: hasMoreCategories = level === 0 && categories.length > maxInitialCategories
 
   const client = getClient()
@@ -119,29 +129,38 @@
       _class: Ref<Class<Doc>>,
       space: Ref<Space> | undefined,
       docs: Doc[],
-      groupByKey: string,
+      key: string,
       viewOptions: ViewOptions,
       viewOptionsModel: ViewOptionModel[] | undefined
     ): Promise<void> => {
       // indicate loading while we compute categories (used by Show More UI)
       isLoadingCategories = true
       try {
-        categories = await getCategories(client, _class, space, docs, groupByKey)
+        let result = await getCategories(client, _class, space, docs, key)
         if (level === 0) {
           for (const viewOption of viewOptionsModel ?? []) {
             if (viewOption.actionTarget !== 'category') continue
             const categoryFunc = viewOption as CategoryOption
             if (viewOptions[viewOption.key] ?? viewOption.defaultValue) {
               const f = await getResource(categoryFunc.action)
-              const res = hierarchy.clone(await f(_class, query, space, groupByKey, update, queryId))
+              const res = hierarchy.clone(await f(_class, query, space, key, update, queryId))
               if (res !== undefined) {
-                categories = concatCategories(res, categories)
-                return
+                result = concatCategories(res, result)
+                break
               }
             }
           }
         }
+        // A missing presenter costs only the header, not the grouping.
+        const header =
+          key === noCategory ? undefined : await getPresenter(client, _class, { key }, { key }).catch(() => undefined)
+        // The grouping changed while loading: the next call applies the new one.
+        if (key !== requestedGroupByKey) return
+        groupByKey = key
+        headerComponent = header
+        categories = result
       } finally {
+        categoriesComputed = true
         isLoadingCategories = false
         // Clear top-level Show More loading flag when update completes (success or error)
         isLoadingMoreTop = false
@@ -150,21 +169,12 @@
   )
 
   function update (): void {
-    void updateCategories(_class, space, docs, groupByKey, viewOptions, viewOptionsConfig)
+    void updateCategories(_class, space, docs, requestedGroupByKey, viewOptions, viewOptionsConfig)
   }
 
   let itemModels = new Map<Ref<Class<Doc>>, AttributeModel[]>()
 
-  const getHeader = reduceCalls(async function (_class: Ref<Class<Doc>>, groupByKey: string): Promise<void> {
-    if (groupByKey === noCategory) {
-      headerComponent = undefined
-    } else {
-      await getPresenter(client, _class, { key: groupByKey }, { key: groupByKey }).then((p) => (headerComponent = p))
-    }
-  })
-
   let headerComponent: AttributeModel | undefined
-  $: void getHeader(_class, groupByKey)
 
   let configurationsVersion = 0
   const buildModels = reduceCalls(async function (
@@ -172,31 +182,42 @@
     config: Array<string | BuildModelKey>,
     configurations?: Record<Ref<Class<Doc>>, Viewlet['config']> | undefined
   ): Promise<void> {
-    const newItemModels = new Map<Ref<Class<Doc>>, AttributeModel[]>()
-    const entries = Object.entries(configurations ?? [])
-    for (const [k, v] of entries) {
-      const _cl = k as Ref<Class<Doc>>
-      const res = await buildModel({ client, _class: _cl, keys: v, lookup })
-      newItemModels.set(_cl, res)
+    const descendantKeys = config.filter(
+      (it): it is BuildModelKey => typeof it !== 'string' && it.displayProps?._class !== undefined
+    )
+    const descendantGroups = groupByArray(descendantKeys, (it) => it.displayProps?._class ?? '')
+
+    const descendantModels = (
+      await Promise.all(
+        Array.from(descendantGroups.entries())
+          .filter(([classRef]) => classRef !== '')
+          .map(([classRef, keys]) => buildModel({ client, _class: classRef as Ref<Class<Doc>>, keys, lookup }))
+      )
+    ).flat()
+
+    const configEntries = Object.entries(configurations ?? {}) as Array<[Ref<Class<Doc>>, Viewlet['config']]>
+    if (!configEntries.some(([k]) => k === _class)) {
+      configEntries.push([_class, config])
     }
 
-    if (!newItemModels.has(_class)) {
-      const res = await buildModel({ client, _class, keys: config, lookup })
-      newItemModels.set(_class, res)
+    const categoryModelPairs = await Promise.all(
+      configEntries.map(async ([classRef, classConfig]): Promise<[Ref<Class<Doc>>, AttributeModel[]]> => {
+        const models = await buildModel({ client, _class: classRef, keys: classConfig, lookup })
+        return [classRef, [...models, ...descendantModels]]
+      })
+    )
+
+    const newItemModels = new Map<Ref<Class<Doc>>, AttributeModel[]>(categoryModelPairs)
+
+    for (const models of newItemModels.values()) {
+      for (const m of models) {
+        if (m.displayProps?.key !== undefined && m.displayProps.fixed) {
+          $fixedWidthStore[`list_item_${m.displayProps.key}`] = 0
+        }
+      }
     }
 
     itemModels = newItemModels
-    for (const [, v] of Object.entries(newItemModels)) {
-      // itemModels = itemModels
-      ;(v as AttributeModel[]).forEach((m: AttributeModel) => {
-        if (m.displayProps?.key !== undefined) {
-          const key = `list_item_${m.displayProps.key}`
-          if (m.displayProps.fixed) {
-            $fixedWidthStore[key] = 0
-          }
-        }
-      })
-    }
     configurationsVersion = configurationsVersion + 1
   })
 
@@ -587,7 +608,7 @@
   {:else}
     <div class="show-more-wrapper flex-center p-2">
       <Button
-        kind={'ghost'}
+        kind="ghost"
         label={ui.string.ShowMore}
         on:click={() => {
           // show spinner in the top-level Show More while categories are being revealed/loaded

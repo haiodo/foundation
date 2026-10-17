@@ -45,7 +45,7 @@
       use:tooltip={{ label: love.string.Sharing, direction: 'bottom' }}
       on:click={handleShowPopup}
     >
-      <IconShare size={'small'} />
+      <IconShare size="small" />
     </button>
   {:else}
     <button
@@ -54,7 +54,7 @@
       use:tooltip={{ label: love.string.Share, direction: 'bottom' }}
       on:click={handleShare}
     >
-      <IconShare size={'small'} />
+      <IconShare size="small" />
     </button>
   {/if}
 {/if}

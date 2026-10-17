@@ -13,13 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref, SortingOrder } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { TagCategory, TagElement } from '@hcengineering/tags'
-  import { ModernButton, getPlatformColorForTextDef, showPopup, themeStore, ScrollerBar } from '@hcengineering/ui'
+  import type { TagCategory, TagElement } from '@hcengineering/tags'
+  import { getPlatformColorForTextDef, showPopup, themeStore, ScrollerBar } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import tags from '../plugin'
-  import { getTagStyle, TagElementInfo } from '../utils'
+  import type { TagElementInfo } from '../utils'
+  import { getTagStyle } from '../utils'
   import TagsCategoryPopup from './TagsCategoryPopup.svelte'
 
   export let targetClass: Ref<Class<Doc>>
@@ -133,10 +136,10 @@
 
 {#if visibleCategories.length > 1}
   <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
-    <ModernButton
+    <Button
       label={tags.string.AllCategories}
-      kind={'tertiary'}
-      size={'small'}
+      kind="tertiary"
+      size="small"
       on:click={() => {
         category = undefined
         dispatch('change', { category, elements: [] })

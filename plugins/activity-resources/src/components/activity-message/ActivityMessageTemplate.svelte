@@ -13,19 +13,23 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import activity, { ActivityMessage, ActivityMessageViewlet, ActivityMessageViewType } from '@hcengineering/activity'
-  import { Person } from '@hcengineering/contact'
+  import { onDestroy } from 'svelte'
+  import type { ActivityMessage, ActivityMessageViewlet, ActivityMessageViewType } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
+  import type { Person } from '@hcengineering/contact'
   import { Avatar, SystemAvatar } from '@hcengineering/contact-resources'
-  import core, { Ref, type SocialId } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import core, { type SocialId } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
-  import { Asset } from '@hcengineering/platform'
+  import type { Asset } from '@hcengineering/platform'
   import { ComponentExtensions, getClient } from '@hcengineering/presentation'
-  import { Action, Icon, Label } from '@hcengineering/ui'
-  import { Action as ViewAction } from '@hcengineering/view'
+  import type { Action } from '@hcengineering/ui'
+  import { Icon, Label } from '@hcengineering/ui'
+  import type { Action as ViewAction } from '@hcengineering/view'
   import { getActions, restrictionStore, showMenu } from '@hcengineering/view-resources'
 
-  import { clearMessageInLocation, savedMessagesStore } from '../../activity'
-  import { MessageInlineAction } from '../../types'
+  import { messageInFocus, savedMessagesStore } from '../../activity'
+  import type { MessageInlineAction } from '../../types'
   import ActivityMessageActions from '../ActivityMessageActions.svelte'
   import MessageTimestamp from '../MessageTimestamp.svelte'
   import ReactionsPresenter from '../reactions/ReactionsPresenter.svelte'
@@ -53,7 +57,6 @@
   export let pending = false
   export let stale = false
   export let hoverStyles: 'filledHover' | 'none' = 'filledHover'
-  export let showDatePreposition = false
   export let type: ActivityMessageViewType = 'default'
   export let inlineActions: MessageInlineAction[] = []
   export let excludedActions: Ref<ViewAction>[] = []
@@ -62,6 +65,7 @@
   export let onClick: (() => void) | undefined = undefined
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
   export let embeddedActions: boolean = false
+  export let timeFormat: 'time' | 'full' = 'time'
 
   export let socialIcon: Asset | undefined = undefined
 
@@ -74,14 +78,18 @@
 
   let isSaved = false
 
-  savedMessagesStore.subscribe((saved) => {
-    isSaved = saved.some((savedMessage) => savedMessage.attachedTo === message._id)
-  })
+  onDestroy(
+    savedMessagesStore.subscribe((saved) => {
+      isSaved = saved.some((savedMessage) => savedMessage.attachedTo === message._id)
+    })
+  )
 
-  $: withActions &&
+  $: void (
+    withActions &&
     getActions(client, message, activity.class.ActivityMessage).then((res) => {
       menuActions = res
     })
+  )
 
   function scrollToMessage (): void {
     if (element != null && shouldScroll) {
@@ -104,8 +112,8 @@
 
   function handleAnimationEnd (event: AnimationEvent): void {
     const name = event.animationName.split('-').pop()
-    if (name === 'highlight') {
-      clearMessageInLocation()
+    if (name === 'highlight' && $messageInFocus === message._id) {
+      messageInFocus.set(undefined)
     }
   }
 
@@ -183,6 +191,7 @@
       class:stale
       style:padding
       on:click={onClick}
+      on:dblclick
       on:contextmenu={handleContextMenu}
       on:animationend={handleAnimationEnd}
     >
@@ -193,7 +202,7 @@
         <div class="embeddedMarker" />
       {:else if isShort}
         <span class="text-sm lower time">
-          <MessageTimestamp date={message.createdOn ?? message.modifiedOn} shortTime />
+          <MessageTimestamp date={message.createdOn ?? message.modifiedOn} format="short-time" />
           <slot name="afterTime" />
         </span>
       {:else}
@@ -237,17 +246,11 @@
               <slot name="header" />
             {/if}
 
-            {#if !skipLabel && showDatePreposition}
-              <span class="text-normal lower">
-                <Label label={activity.string.At} />
-              </span>
-            {/if}
-
-            <span class="text-normal lower">
-              <MessageTimestamp date={message.createdOn ?? message.modifiedOn} shortTime />
+            <span class="text-sm timestamp">
+              <MessageTimestamp date={message.createdOn ?? message.modifiedOn} format={timeFormat} />
             </span>
             {#if message.editedOn}
-              <span class="text-normal lower">(<Label label={notification.string.Edited} />)</span>
+              <span class="text-sm lower">(<Label label={notification.string.Edited} />)</span>
             {/if}
 
             {#if withActions && inlineActions.length > 0 && !readonly}
@@ -263,8 +266,8 @@
 
         <slot name="content" {readonly} />
 
-        {#if !hideFooter}
-          <Replies {embedded} object={message} {onReply} />
+        {#if !hideFooter && !embedded && (message.replies ?? 0) > 0}
+          <Replies object={message} {onReply} />
         {/if}
         <ReactionsPresenter object={message} {readonly} />
         {#if parentMessage && showEmbedded}
@@ -309,7 +312,6 @@
     flex-shrink: 0;
     padding: 0.5rem 1.25rem;
     gap: 1rem;
-    //overflow: hidden;
     border: 1px solid transparent;
     border-radius: 0.25rem;
     width: 100%;
@@ -403,6 +405,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    align-items: center;
 
     span {
       margin-left: 0.25rem;
@@ -471,5 +474,10 @@
   .username {
     font-weight: 500;
     margin-right: 0.25rem;
+  }
+
+  .timestamp {
+    display: flex;
+    align-items: center;
   }
 </style>

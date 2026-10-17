@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -15,6 +16,7 @@
 import core, {
   type Class,
   type Doc,
+  isUnsafeKey,
   type MeasureContext,
   type Mixin,
   type OperationDomain,
@@ -41,6 +43,7 @@ import {
   type PipelineContext,
   type TxMiddlewareResult
 } from '@hcengineering/server-core'
+import { isSystem } from './utils'
 
 // Helper types to require update in validation after Tx types are changed
 type ExplicitUndefined<T> = { [P in keyof Required<T>]: Exclude<T[P], undefined> | Extract<T[P], undefined> }
@@ -65,22 +68,82 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
   }
 
   tx (ctx: MeasureContext<SessionData>, txes: unknown[]): Promise<TxMiddlewareResult> {
+    const isSystemAccount = isSystem(ctx.contextData.account, ctx)
     const parsedTxes = []
     for (const tx of txes) {
       const parsedTx = this.parseTx(tx)
       if (parsedTx === undefined) {
         throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
       }
+      this.sanitizeTxMeta(parsedTx, isSystemAccount)
+      this.sanitizePaths(ctx, parsedTx)
       parsedTxes.push(parsedTx)
     }
     return this.provideTx(ctx, parsedTxes)
   }
 
+  private sanitizeTxMeta (tx: Tx, isSystemAccount: boolean): void {
+    if (!isSystemAccount && tx.meta?.silent !== undefined) {
+      delete tx.meta.silent
+    }
+    if (tx._class === core.class.TxApplyIf) {
+      const applyIf = tx as TxApplyIf
+      if (Array.isArray(applyIf.txes)) {
+        for (const childTx of applyIf.txes) {
+          this.sanitizeTxMeta(childTx, isSystemAccount)
+        }
+      }
+    }
+  }
+
+  // These keys are field paths for setObjectValue and the operators: a __proto__ one pollutes the whole process.
+  private sanitizePaths (ctx: MeasureContext<SessionData>, tx: Tx): void {
+    if (tx._class === core.class.TxApplyIf) {
+      for (const childTx of (tx as TxApplyIf).txes) {
+        this.sanitizePaths(ctx, childTx)
+      }
+      return
+    }
+    let values: Record<string, any> | undefined
+    if (tx._class === core.class.TxCreateDoc) values = (tx as TxCreateDoc<Doc>).attributes
+    else if (tx._class === core.class.TxUpdateDoc) values = (tx as TxUpdateDoc<Doc>).operations
+    else if (tx._class === core.class.TxMixin) values = (tx as TxMixin<Doc, Doc>).attributes
+    if (values !== undefined && this.stripUnsafePaths(values)) {
+      ctx.warn('unsafe field path removed from tx', {
+        _id: tx._id,
+        _class: tx._class,
+        objectClass: (tx as TxCUD<Doc>).objectClass,
+        account: ctx.contextData.account.uuid
+      })
+    }
+  }
+
+  private stripUnsafePaths (values: Record<string, any>): boolean {
+    let removed = false
+    for (const [key, value] of Object.entries(values)) {
+      if (isUnsafeKey(key)) {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete values[key]
+        removed = true
+      } else if (key.startsWith('$') && typeof value === 'object' && value !== null) {
+        for (const [field, arg] of Object.entries(value)) {
+          if (isUnsafeKey(field) || (key === '$rename' && typeof arg === 'string' && isUnsafeKey(arg))) {
+            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+            delete value[field]
+            removed = true
+          }
+        }
+      }
+    }
+    return removed
+  }
+
   private checkMeta (meta: unknown): meta is Record<string, string | number | boolean> | undefined {
-    if (meta === undefined) {
+    // json cannot carry undefined, so an optional field arrives as null - same meaning here.
+    if (meta == null) {
       return true
     }
-    if (meta === null || typeof meta !== 'object') {
+    if (typeof meta !== 'object') {
       return false
     }
     for (const [, val] of Object.entries(meta)) {
@@ -96,8 +159,8 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       return undefined
     }
     const { _class, _id, space, modifiedBy, modifiedOn, createdBy, createdOn, objectSpace, meta } = source as Record<
-    keyof Tx,
-    unknown
+      keyof Tx,
+      unknown
     >
     const isTxValid =
       typeof _class === 'string' &&
@@ -105,8 +168,8 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       typeof space === 'string' &&
       typeof modifiedBy === 'string' &&
       typeof modifiedOn === 'number' &&
-      (createdBy === undefined || typeof createdBy === 'string') &&
-      (createdOn === undefined || typeof createdOn === 'number') &&
+      (createdBy == null || typeof createdBy === 'string') &&
+      (createdOn == null || typeof createdOn === 'number') &&
       typeof objectSpace === 'string' &&
       this.checkMeta(meta)
     if (!isTxValid) {
@@ -118,10 +181,10 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       space: space as Ref<Space>,
       modifiedBy: modifiedBy as PersonId,
       modifiedOn,
-      createdBy: createdBy as PersonId | undefined,
-      createdOn,
+      createdBy: (createdBy ?? undefined) as PersonId | undefined,
+      createdOn: createdOn ?? undefined,
       objectSpace: objectSpace as Ref<Space>,
-      meta: meta as Record<string, any> | undefined
+      meta: meta ?? undefined
     }
     return baseTx
   }
@@ -156,17 +219,17 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       return domainEvent
     } else if (baseTx._class === core.class.TxApplyIf) {
       const { scope, match, notMatch, txes, notify, extraNotify, measureName } = source as Record<
-      keyof TxApplyIf,
-      unknown
+        keyof TxApplyIf,
+        unknown
       >
       const isValid =
-        (scope === undefined || typeof scope === 'string') &&
-        (match === undefined || Array.isArray(match)) &&
-        (notMatch === undefined || Array.isArray(notMatch)) &&
+        (scope == null || typeof scope === 'string') &&
+        (match == null || Array.isArray(match)) &&
+        (notMatch == null || Array.isArray(notMatch)) &&
         Array.isArray(txes) &&
-        (notify === undefined || typeof notify === 'boolean') &&
-        (extraNotify === undefined || Array.isArray(extraNotify)) &&
-        (measureName === undefined || typeof measureName === 'string')
+        (notify == null || typeof notify === 'boolean') &&
+        (extraNotify == null || Array.isArray(extraNotify)) &&
+        (measureName == null || typeof measureName === 'string')
       if (!isValid) {
         return undefined
       }
@@ -183,13 +246,13 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
         parsedTxes.push(parsed as TxCUD<Doc>)
       }
       const applyIf: ExplicitTx<TxApplyIf> = Object.assign(baseTx, {
-        scope,
-        match,
-        notMatch,
+        scope: scope ?? undefined,
+        match: match ?? undefined,
+        notMatch: notMatch ?? undefined,
         txes: parsedTxes,
-        notify,
-        extraNotify,
-        measureName
+        notify: notify ?? undefined,
+        extraNotify: extraNotify ?? undefined,
+        measureName: measureName ?? undefined
       })
       return applyIf
     } else if (baseTx._class === core.class.TxModelUpgrade) {
@@ -202,24 +265,24 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
 
   private parseTxCUD (source: unknown, base: ExplicitTx<Tx>): ExplicitTx<TxCUD<Doc>> | undefined {
     const { objectId, objectClass, attachedTo, attachedToClass, collection } = source as Record<
-    keyof TxCUD<Doc>,
-    unknown
+      keyof TxCUD<Doc>,
+      unknown
     >
     const isValid =
       typeof objectId === 'string' &&
       typeof objectClass === 'string' &&
-      (attachedTo === undefined || typeof attachedTo === 'string') &&
-      (attachedToClass === undefined || typeof attachedToClass === 'string') &&
-      (collection === undefined || typeof collection === 'string')
+      (attachedTo == null || typeof attachedTo === 'string') &&
+      (attachedToClass == null || typeof attachedToClass === 'string') &&
+      (collection == null || typeof collection === 'string')
     if (!isValid) {
       return undefined
     }
     const baseCUD: ExplicitTx<TxCUD<Doc>> = Object.assign(base, {
       objectId: objectId as Ref<Doc>,
       objectClass: objectClass as Ref<Class<Doc>>,
-      attachedTo: attachedTo as Ref<Doc>,
-      attachedToClass: attachedToClass as Ref<Class<Doc>>,
-      collection
+      attachedTo: (attachedTo ?? undefined) as Ref<Doc>,
+      attachedToClass: (attachedToClass ?? undefined) as Ref<Class<Doc>>,
+      collection: collection ?? undefined
     })
     if (baseCUD._class === core.class.TxCreateDoc) {
       const { attributes } = source as Record<keyof TxCreateDoc<Doc>, unknown>
@@ -233,17 +296,20 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       if (
         typeof operations !== 'object' ||
         operations === null ||
-        (retrieve !== undefined && typeof retrieve !== 'boolean')
+        (retrieve != null && typeof retrieve !== 'boolean')
       ) {
         return undefined
       }
-      const updateDoc: ExplicitTx<TxUpdateDoc<Doc>> = Object.assign(baseCUD, { operations, retrieve })
+      const updateDoc: ExplicitTx<TxUpdateDoc<Doc>> = Object.assign(baseCUD, {
+        operations,
+        retrieve: retrieve ?? undefined
+      })
       return updateDoc
     } else if (baseCUD._class === core.class.TxRemoveDoc) {
       const { removedDoc } = source as Record<keyof TxRemoveDoc<Doc>, unknown>
 
       return Object.assign(baseCUD, {
-        removedDoc: removedDoc as Doc | undefined
+        removedDoc: (removedDoc ?? undefined) as Doc | undefined
       })
     } else if (baseCUD._class === core.class.TxMixin) {
       const { mixin, attributes } = source as Record<keyof TxMixin<Doc, Doc>, unknown>

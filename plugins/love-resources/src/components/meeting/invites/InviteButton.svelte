@@ -12,68 +12,66 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import { ModernButton, TimeLeft, ticker1 } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { UserMeetingInvite } from '@hcengineering/love'
+  import type { UserMeetingInvite } from '@hcengineering/love'
   import love from '../../../plugin'
-  import { getClient } from '@hcengineering/presentation'
 
   export let person: Person
   export let invite: UserMeetingInvite
   export let type: 'outgoing' | 'incoming'
   export let onClick: (e: MouseEvent, invite: UserMeetingInvite, person: Person) => void
 
-  $: label = type === 'incoming' ? love.string.YouInvite : love.string.KnockingLabel
+  $: label =
+    type === 'incoming'
+      ? love.string.KnockingLabel
+      : invite.room !== undefined
+        ? love.string.KnockingTo
+        : love.string.YouInvite
 
   $: tooltipLabel =
-    type === 'outgoing' ? getEmbeddedLabel(`Inviting ${person.name}`) : getEmbeddedLabel(`Invited by ${person.name}`)
-
-  $: if (invite.expiresAt < $ticker1) {
-    void getClient().remove(invite)
-  }
+    type === 'outgoing'
+      ? invite.room !== undefined
+        ? getEmbeddedLabel(`Knocking to ${person.name}`)
+        : getEmbeddedLabel(`Inviting ${person.name}`)
+      : getEmbeddedLabel(`Invited by ${person.name}`)
 </script>
 
-<ModernButton
+<Button
   {label}
   kind="primary"
   size="small"
   tooltip={{ label: tooltipLabel, direction: 'bottom' }}
+  data-id={type === 'incoming' ? 'incoming-invite-trigger' : 'outgoing-invite-trigger'}
   on:click={(e) => {
     onClick(e, invite, person)
   }}
 >
   <div class="avatars-container">
     <div class="combined-avatar tiny">
-      <Avatar name={person.name} size={'card'} {person} />
-    </div>
-    <div class="p-1 time">
-      <TimeLeft time={invite.expiresAt} />
+      <Avatar name={person.name} size="card" {person} />
     </div>
   </div>
-</ModernButton>
+</Button>
 
 <style lang="scss">
   .avatars-container {
-    display: flex;
-    flex-direction: row-reverse;
+    display: inline-flex;
     align-items: center;
     margin-left: 0.5rem;
   }
 
   .time {
-    /* background: rgba(0, 0, 0, 0.5); */
     color: var(--accent-color-base);
   }
 
   .combined-avatar {
     position: relative;
-    margin-left: -0.5rem;
-
-    &:first-child {
-      margin-left: 0;
-    }
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 
     &.tiny {
       width: 1.5rem;

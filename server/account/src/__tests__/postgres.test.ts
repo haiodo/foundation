@@ -337,6 +337,8 @@ describe('AccountPostgresDbCollection', () => {
         a.automatic,
         a.max_workspaces,
         a.failed_login_attempts,
+        a.delete_on,
+        a.blocked_on,
         p.hash,
         p.salt
       FROM global_account.account as a
@@ -344,7 +346,23 @@ describe('AccountPostgresDbCollection', () => {
     ) WHERE "uuid" = $1`,
         ['acc1']
       )
-      expect(result).toEqual(mockResult)
+      // Every timestamp column is normalised, so an absent delete_on comes back as null.
+      expect(result).toEqual(mockResult.map((r) => ({ ...r, deleteOn: null, blockedOn: null })))
+    })
+
+    it('selects every column it promises to convert', async () => {
+      // The clause lists columns by name: one left out is read as undefined everywhere, which is
+      // how blocked_on once slipped past the login guard.
+      mockClient.unsafe.mockResolvedValue([])
+      await collection.find({ uuid: 'acc1' as AccountUuid })
+
+      const sql: string = mockClient.unsafe.mock.calls[0][0]
+      for (const field of collection.timestampFields) {
+        const column = String(field)
+          .replace(/([A-Z])/g, '_$1')
+          .toLowerCase()
+        expect(sql).toContain(`a.${column}`)
+      }
     })
 
     it('should convert buffer fields from database', async () => {
@@ -478,7 +496,10 @@ describe('PostgresAccountDB', () => {
       expect(mockClient).toHaveBeenCalledWith(
         'global_account' // Verify schema name
       )
-      expect(mockClient.mock.calls[3][0].map((s: string) => s.replace(/\s+/g, ' ')).join('')).toBe(
+      expect(mockClient.mock.calls[1][0].map((s: string) => s.replace(/\s+/g, ' ')).join('')).toBe(
+        ' SELECT applied_at, ddl FROM ._account_applied_migrations WHERE identifier =  AND applied_at IS NOT NULL '
+      )
+      expect(mockClient.mock.calls[5][0].map((s: string) => s.replace(/\s+/g, ' ')).join('')).toBe(
         ' INSERT INTO ._account_applied_migrations (identifier, ddl, last_processed_at) VALUES (, , NOW()) ON CONFLICT (identifier) DO NOTHING '
       )
       expect(mockClient).toHaveBeenCalledWith(
@@ -488,6 +509,38 @@ describe('PostgresAccountDB', () => {
         'CREATE TABLE test'
       )
       expect(mockClient.unsafe).toHaveBeenCalledWith('CREATE TABLE test')
+    })
+  })
+
+  // unsafe() bypasses the collection mapping, so these must route through convertToObj
+  describe('raw query timestamp conversion', () => {
+    it('listAdminActions returns createdOn as a number and strips the window count', async () => {
+      mockClient.unsafe.mockResolvedValue([
+        { id: 'a1', actor: 'admin', action: 'delete_person', created_on: '1786004113426', total: '7' }
+      ])
+
+      const res = await accountDb.listAdminActions({ limit: 10 })
+
+      expect(res.total).toBe(7)
+      expect(res.actions[0].createdOn).toBe(1786004113426)
+      expect((res.actions[0] as any).total).toBeUndefined()
+    })
+
+    it('getPaymentOperations returns createdOn as a number', async () => {
+      mockClient.unsafe.mockResolvedValue([{ id: 'op1', provider: 'tbank', created_on: '1786004113426' }])
+
+      const res = await accountDb.getPaymentOperations({})
+
+      expect(res[0].createdOn).toBe(1786004113426)
+    })
+
+    it('listAdminActions clamps negative paging', async () => {
+      mockClient.unsafe.mockResolvedValue([])
+
+      await accountDb.listAdminActions({ limit: -5, skip: -10 })
+
+      const args = mockClient.unsafe.mock.calls[0][1]
+      expect(args).toEqual([1, 0])
     })
   })
 
@@ -645,6 +698,7 @@ describe('PostgresAccountDB', () => {
               w.created_by,
               w.created_on,
               w.billing_account,
+              w.language,
               json_build_object(
                 'mode', s.mode,
                 'processing_progress', s.processing_progress,
@@ -657,7 +711,8 @@ describe('PostgresAccountDB', () => {
                 'processing_attempts', s.processing_attempts,
                 'processing_message', s.processing_message,
                 'backup_info', s.backup_info,
-                'usage_info', s.usage_info
+                'usage_info', s.usage_info,
+                'delete_on', s.delete_on
               ) status
                FROM global_account.workspace as w
                INNER JOIN global_account.workspace_status as s ON s.workspace_uuid = w.uuid
@@ -665,11 +720,12 @@ describe('PostgresAccountDB', () => {
                AND s.mode <> 'manual-creation'
                AND (s.processing_attempts IS NULL OR s.processing_attempts <= 3)
                AND (s.last_processing_time IS NULL OR s.last_processing_time < $1)
+               AND (NOT (s.mode IN ('archiving-pending-backup', 'archiving-backup', 'archiving-pending-clean', 'archiving-clean') OR s.mode IN ('migration-backup', 'migration-pending-backup', 'migration-clean', 'migration-pending-clean') OR s.mode IN ('pending-restore', 'restoring') OR s.mode IN ('pending-deletion', 'deleting')) OR s.backup_lease_until IS NULL OR s.backup_lease_until < $2)
                AND (w.region IS NULL OR w.region = '')
                ORDER BY s.last_visit DESC
                LIMIT 1`.replace(/\s+/g, ' ')
         )
-        expect(mockClient.unsafe.mock.calls[0][1]).toEqual([NOW - processingTimeoutMs])
+        expect(mockClient.unsafe.mock.calls[0][1]).toEqual([NOW - processingTimeoutMs, NOW])
       })
 
       it('should get workspace pending upgrade', async () => {
@@ -689,6 +745,7 @@ describe('PostgresAccountDB', () => {
               w.created_by,
               w.created_on,
               w.billing_account,
+              w.language,
               json_build_object(
                 'mode', s.mode,
                 'processing_progress', s.processing_progress,
@@ -701,7 +758,8 @@ describe('PostgresAccountDB', () => {
                 'processing_attempts', s.processing_attempts,
                 'processing_message', s.processing_message,
                 'backup_info', s.backup_info,
-                'usage_info', s.usage_info
+                'usage_info', s.usage_info,
+                'delete_on', s.delete_on
               ) status
                FROM global_account.workspace as w
                INNER JOIN global_account.workspace_status as s ON s.workspace_uuid = w.uuid
@@ -725,6 +783,7 @@ describe('PostgresAccountDB', () => {
                AND s.mode <> 'manual-creation'
                AND (s.processing_attempts IS NULL OR s.processing_attempts <= 3)
                AND (s.last_processing_time IS NULL OR s.last_processing_time < $5)
+               AND (NOT (s.mode IN ('archiving-pending-backup', 'archiving-backup', 'archiving-pending-clean', 'archiving-clean') OR s.mode IN ('migration-backup', 'migration-pending-backup', 'migration-clean', 'migration-pending-clean') OR s.mode IN ('pending-restore', 'restoring') OR s.mode IN ('pending-deletion', 'deleting')) OR s.backup_lease_until IS NULL OR s.backup_lease_until < $6)
                AND (w.region IS NULL OR w.region = '')
                ORDER BY s.last_visit DESC
                LIMIT 1`
@@ -737,7 +796,8 @@ describe('PostgresAccountDB', () => {
           version.minor,
           version.patch,
           NOW - wsLivenessMs,
-          NOW - processingTimeoutMs
+          NOW - processingTimeoutMs,
+          NOW
         ])
       })
 
@@ -758,6 +818,7 @@ describe('PostgresAccountDB', () => {
               w.created_by,
               w.created_on,
               w.billing_account,
+              w.language,
               json_build_object(
                 'mode', s.mode,
                 'processing_progress', s.processing_progress,
@@ -770,7 +831,8 @@ describe('PostgresAccountDB', () => {
                 'processing_attempts', s.processing_attempts,
                 'processing_message', s.processing_message,
                 'backup_info', s.backup_info,
-                'usage_info', s.usage_info
+                'usage_info', s.usage_info,
+                'delete_on', s.delete_on
               ) status
                FROM global_account.workspace as w
                INNER JOIN global_account.workspace_status as s ON s.workspace_uuid = w.uuid
@@ -798,6 +860,7 @@ describe('PostgresAccountDB', () => {
                AND s.mode <> 'manual-creation'
                AND (s.processing_attempts IS NULL OR s.processing_attempts <= 3)
                AND (s.last_processing_time IS NULL OR s.last_processing_time < $5)
+               AND (NOT (s.mode IN ('archiving-pending-backup', 'archiving-backup', 'archiving-pending-clean', 'archiving-clean') OR s.mode IN ('migration-backup', 'migration-pending-backup', 'migration-clean', 'migration-pending-clean') OR s.mode IN ('pending-restore', 'restoring') OR s.mode IN ('pending-deletion', 'deleting')) OR s.backup_lease_until IS NULL OR s.backup_lease_until < $6)
                AND (w.region IS NULL OR w.region = '')
                ORDER BY s.last_visit DESC
                LIMIT 1`
@@ -810,7 +873,8 @@ describe('PostgresAccountDB', () => {
           version.minor,
           version.patch,
           NOW - wsLivenessMs,
-          NOW - processingTimeoutMs
+          NOW - processingTimeoutMs,
+          NOW
         ])
       })
 
@@ -831,6 +895,7 @@ describe('PostgresAccountDB', () => {
               w.created_by,
               w.created_on,
               w.billing_account,
+              w.language,
               json_build_object(
                 'mode', s.mode,
                 'processing_progress', s.processing_progress,
@@ -843,7 +908,8 @@ describe('PostgresAccountDB', () => {
                 'processing_attempts', s.processing_attempts,
                 'processing_message', s.processing_message,
                 'backup_info', s.backup_info,
-                'usage_info', s.usage_info
+                'usage_info', s.usage_info,
+                'delete_on', s.delete_on
               ) status
                FROM global_account.workspace as w
                INNER JOIN global_account.workspace_status as s ON s.workspace_uuid = w.uuid
@@ -889,6 +955,7 @@ describe('PostgresAccountDB', () => {
                AND s.mode <> 'manual-creation'
                AND (s.processing_attempts IS NULL OR s.processing_attempts <= 3)
                AND (s.last_processing_time IS NULL OR s.last_processing_time < $5)
+               AND (NOT (s.mode IN ('archiving-pending-backup', 'archiving-backup', 'archiving-pending-clean', 'archiving-clean') OR s.mode IN ('migration-backup', 'migration-pending-backup', 'migration-clean', 'migration-pending-clean') OR s.mode IN ('pending-restore', 'restoring') OR s.mode IN ('pending-deletion', 'deleting')) OR s.backup_lease_until IS NULL OR s.backup_lease_until < $6)
                AND (w.region IS NULL OR w.region = '')
                ORDER BY s.last_visit DESC
                LIMIT 1`
@@ -901,7 +968,8 @@ describe('PostgresAccountDB', () => {
           version.minor,
           version.patch,
           NOW - wsLivenessMs,
-          NOW - processingTimeoutMs
+          NOW - processingTimeoutMs,
+          NOW
         ])
       })
 
@@ -923,6 +991,7 @@ describe('PostgresAccountDB', () => {
               w.created_by,
               w.created_on,
               w.billing_account,
+              w.language,
               json_build_object(
                 'mode', s.mode,
                 'processing_progress', s.processing_progress,
@@ -935,7 +1004,8 @@ describe('PostgresAccountDB', () => {
                 'processing_attempts', s.processing_attempts,
                 'processing_message', s.processing_message,
                 'backup_info', s.backup_info,
-                'usage_info', s.usage_info
+                'usage_info', s.usage_info,
+                'delete_on', s.delete_on
               ) status
                FROM global_account.workspace as w
                INNER JOIN global_account.workspace_status as s ON s.workspace_uuid = w.uuid
@@ -943,14 +1013,15 @@ describe('PostgresAccountDB', () => {
                AND s.mode <> 'manual-creation'
                AND (s.processing_attempts IS NULL OR s.processing_attempts <= 3)
                AND (s.last_processing_time IS NULL OR s.last_processing_time < $1)
-               AND region = $2
+               AND (NOT (s.mode IN ('archiving-pending-backup', 'archiving-backup', 'archiving-pending-clean', 'archiving-clean') OR s.mode IN ('migration-backup', 'migration-pending-backup', 'migration-clean', 'migration-pending-clean') OR s.mode IN ('pending-restore', 'restoring') OR s.mode IN ('pending-deletion', 'deleting')) OR s.backup_lease_until IS NULL OR s.backup_lease_until < $2)
+               AND region = $3
                ORDER BY s.last_visit DESC
                LIMIT 1`
             .replace(/\s+/g, ' ')
             .replace(/\(\s/g, '(')
             .replace(/\s\)/g, ')')
         )
-        expect(mockClient.unsafe.mock.calls[0][1]).toEqual([NOW - processingTimeoutMs, region])
+        expect(mockClient.unsafe.mock.calls[0][1]).toEqual([NOW - processingTimeoutMs, NOW, region])
       })
 
       // Should also verify update after fetch
@@ -979,6 +1050,67 @@ describe('PostgresAccountDB', () => {
         const result = await accountDb.getPendingWorkspace('', version, 'create', processingTimeoutMs)
 
         expect(result).toBeUndefined()
+      })
+    })
+  })
+
+  describe('workspace purchase operations', () => {
+    // A concurrent webhook retry hits the (payment_id, provider) unique index; the insert must
+    // yield the existing row's id instead of throwing.
+    describe('createPurchase', () => {
+      const purchase: any = {
+        workspaceUuid: 'ws-1',
+        accountUuid: 'acc-1',
+        sku: 'ai-tokens',
+        status: 'active',
+        paymentId: 'pay-1',
+        provider: 'tbank'
+      }
+
+      it('returns the inserted id', async () => {
+        mockClient.unsafe.mockResolvedValueOnce([{ id: 'new-id' }])
+        expect(await accountDb.createPurchase(purchase)).toBe('new-id')
+        expect(mockClient.unsafe).toHaveBeenCalledWith(
+          expect.stringContaining('ON CONFLICT (payment_id, provider) WHERE payment_id IS NOT NULL DO NOTHING'),
+          expect.any(Array)
+        )
+      })
+
+      it('falls back to the existing row when the insert conflicts', async () => {
+        mockClient.unsafe.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'existing-id' }])
+        expect(await accountDb.createPurchase(purchase)).toBe('existing-id')
+        expect(mockClient.unsafe).toHaveBeenLastCalledWith(expect.stringContaining('SELECT id FROM'), [
+          'pay-1',
+          'tbank'
+        ])
+      })
+
+      it('throws when neither insert nor lookup yields a row', async () => {
+        mockClient.unsafe.mockResolvedValue([])
+        await expect(accountDb.createPurchase(purchase)).rejects.toThrow('failed to create purchase')
+      })
+    })
+
+    // updatePurchaseStatus must not null out activated_on when called without activatedOn
+    // (e.g. a plain status flip) - regression guard for the COALESCE fix.
+    describe('updatePurchaseStatus', () => {
+      it('uses COALESCE so a missing activatedOn keeps the existing column value', async () => {
+        await accountDb.updatePurchaseStatus('purchase-1', 'active')
+
+        expect(mockClient.unsafe).toHaveBeenCalledWith(
+          expect.stringContaining('activated_on = COALESCE($3, activated_on)'),
+          ['purchase-1', 'active', null]
+        )
+      })
+
+      it('passes the given activatedOn through as $3', async () => {
+        await accountDb.updatePurchaseStatus('purchase-1', 'consumed', 12345)
+
+        expect(mockClient.unsafe).toHaveBeenCalledWith(expect.stringContaining('COALESCE($3, activated_on)'), [
+          'purchase-1',
+          'consumed',
+          12345
+        ])
       })
     })
   })

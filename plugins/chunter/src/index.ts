@@ -13,31 +13,32 @@
 // limitations under the License.
 //
 
-import { ActivityMessage, DocUpdateMessage } from '@hcengineering/activity'
-import { AccountUuid, AttachedDoc, Class, Doc, Markup, Mixin, Ref, Space, Timestamp } from '@hcengineering/core'
+import { ActivityInfoMessage, ActivityMessage, DocUpdateMessage } from '@hcengineering/activity'
+import {
+  AccountUuid,
+  AttachedDoc,
+  Class,
+  Configuration,
+  Doc,
+  Markup,
+  Mixin,
+  Ref,
+  Space,
+  Timestamp
+} from '@hcengineering/core'
 import { MessageNotificationType, type DocNotifyContext } from '@hcengineering/notification'
 import type { Asset, Plugin, Resource } from '@hcengineering/platform'
 import { IntlString, plugin } from '@hcengineering/platform'
+import type { ComponentExtensionId } from '@hcengineering/ui'
 import { AnyComponent } from '@hcengineering/ui'
 import { Action } from '@hcengineering/view'
-import { ChannelProvider as SocialChannelProvider, PersonSpace } from '@hcengineering/contact'
+import { ChannelProvider as SocialChannelProvider, Person, PersonSpace } from '@hcengineering/contact'
 import { Widget, WidgetTab } from '@hcengineering/workbench'
 
 /**
  * @public
  */
-export interface ChunterSpace extends Space {
-  // For new communication migration
-  messages?: number
-
-  // For new communication migration
-  __migratedToCard?: {
-    card?: Ref<Doc>
-    space?: Ref<Space>
-  }
-  // For new communication migration
-  __migratedUntil?: Timestamp
-}
+export type ChunterSpace = Space
 
 /**
  * @public
@@ -48,9 +49,18 @@ export interface Channel extends ChunterSpace {
   emoji?: number | number[]
 }
 
-/**
- * @public
- */
+export type ContentReportReason = 'spam' | 'abuse' | 'inappropriate' | 'other'
+
+export const contentReportReasons: ContentReportReason[] = ['spam', 'abuse', 'inappropriate', 'other']
+
+// A report the client files, in its own PersonSpace so nobody else receives the transient doc;
+// the server turns it into moderation cards. Either a channel message or a person.
+export interface ContentReportAction extends Doc {
+  messageId?: Ref<ChatMessage>
+  account?: AccountUuid
+  reason: ContentReportReason
+}
+
 export interface DirectMessage extends ChunterSpace {
   type: 'person' | 'group'
 }
@@ -113,6 +123,7 @@ export const chunterId = 'chunter' as Plugin
 
 export * from './utils'
 export * from './analytics'
+export * from './ops'
 
 export default plugin(chunterId, {
   icon: {
@@ -124,9 +135,12 @@ export default plugin(chunterId, {
     ChunterBrowser: '' as Asset,
     Copy: '' as Asset,
     Messages: '' as Asset,
-    Bookmarks: '' as Asset
+    Bookmarks: '' as Asset,
+    Report: '' as Asset
   },
   component: {
+    ContentReportPresenter: '' as AnyComponent,
+    ReportReasonPopup: '' as AnyComponent,
     DmHeader: '' as AnyComponent,
     ThreadView: '' as AnyComponent,
     Thread: '' as AnyComponent,
@@ -148,6 +162,7 @@ export default plugin(chunterId, {
     ChunterSpace: '' as Ref<Class<ChunterSpace>>,
     Channel: '' as Ref<Class<Channel>>,
     DirectMessage: '' as Ref<Class<DirectMessage>>,
+    ContentReportAction: '' as Ref<Class<ContentReportAction>>,
     ChatMessage: '' as Ref<Class<ChatMessage>>,
     ChatSyncInfo: '' as Ref<Class<ChatSyncInfo>>,
     Chat: '' as Ref<Class<Chat>>
@@ -160,6 +175,7 @@ export default plugin(chunterId, {
     EditUpdate: '' as IntlString,
     EditCancel: '' as IntlString,
     Comments: '' as IntlString,
+    Comment: '' as IntlString,
     Settings: '' as IntlString,
     ArchiveChannel: '' as IntlString,
     UnarchiveChannel: '' as IntlString,
@@ -189,6 +205,13 @@ export default plugin(chunterId, {
     Public: '' as IntlString,
     Private: '' as IntlString,
     NewDirectChat: '' as IntlString,
+    TalkToYulia: '' as IntlString,
+    Transcribing: '' as IntlString,
+    PreparingMic: '' as IntlString,
+    RecordVoice: '' as IntlString,
+    VoiceCancel: '' as IntlString,
+    VoiceAttach: '' as IntlString,
+    VoiceSend: '' as IntlString,
     AddMembers: '' as IntlString,
     CloseConversation: '' as IntlString,
     Starred: '' as IntlString,
@@ -223,7 +246,26 @@ export default plugin(chunterId, {
     Leave: '' as IntlString,
     HideAll: '' as IntlString,
     GroupChat: '' as IntlString,
-    Seen: '' as IntlString
+    Seen: '' as IntlString,
+    Threads: '' as IntlString,
+    ContentReport: '' as IntlString,
+    ContentReportNotification: '' as IntlString,
+    ContentReportNotificationBody: '' as IntlString,
+    ContentReportOpen: '' as IntlString,
+    ContentReportDeleteMessage: '' as IntlString,
+    ReportMessage: '' as IntlString,
+    ContentReportReason: '' as IntlString,
+    ContentReportSent: '' as IntlString,
+    ContentReportSentText: '' as IntlString,
+    ContentReportFrom: '' as IntlString,
+    ContentReportAbout: '' as IntlString,
+    ContentReportTitle: '' as IntlString,
+    ContentReportWhere: '' as IntlString,
+    ContentReportMessageGone: '' as IntlString,
+    ContentReportSpam: '' as IntlString,
+    ContentReportAbuse: '' as IntlString,
+    ContentReportInappropriate: '' as IntlString,
+    ContentReportOther: '' as IntlString
   },
   emailTemplate: {
     DMNotificationText: '' as IntlString,
@@ -244,7 +286,15 @@ export default plugin(chunterId, {
     ThreadNotification: '' as Ref<MessageNotificationType<ThreadMessage>>,
     ChannelNotification: '' as Ref<MessageNotificationType<ChatMessage>>,
     JoinChannelNotification: '' as Ref<MessageNotificationType<DocUpdateMessage>>,
+    ContentReportNotification: '' as Ref<MessageNotificationType<ActivityInfoMessage>>,
+    ContentReportsConfiguration: '' as Ref<Configuration>,
     ChatWidget: '' as Ref<Widget>
+  },
+  extensions: {
+    // Buttons in the thread header (above the root message). Contributors filter by root class.
+    ThreadHeaderExtension: '' as ComponentExtensionId,
+    // Buttons in the header of a 1:1 direct, props: { employee }.
+    DirectHeaderExtension: '' as ComponentExtensionId
   },
   app: {
     Chunter: '' as Ref<Doc>
@@ -263,24 +313,25 @@ export default plugin(chunterId, {
     CanTranslateMessage: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     CanSummarizeMessages: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     OpenThreadInSidebar: '' as Resource<
-    (
-      _id: Ref<ActivityMessage>,
-      msg?: ActivityMessage,
-      doc?: Doc,
-      selectedId?: Ref<ActivityMessage>,
-      props?: Record<string, any>,
-      force?: boolean
-    ) => Promise<void>
+      (
+        _id: Ref<ActivityMessage>,
+        msg?: ActivityMessage,
+        doc?: Doc,
+        selectedId?: Ref<ActivityMessage>,
+        props?: Record<string, any>,
+        force?: boolean
+      ) => Promise<void>
     >,
     OpenChannelInSidebar: '' as Resource<
-    (
-      _id: Ref<Doc>,
-      _class: Ref<Class<Doc>>,
-      doc?: Doc,
-      thread?: Ref<ActivityMessage>,
-      newTab?: boolean,
-      selectedMessageId?: Ref<ActivityMessage>
-    ) => Promise<void>
-    >
+      (
+        _id: Ref<Doc>,
+        _class: Ref<Class<Doc>>,
+        doc?: Doc,
+        thread?: Ref<ActivityMessage>,
+        newTab?: boolean,
+        selectedMessageId?: Ref<ActivityMessage>
+      ) => Promise<void>
+    >,
+    OpenDirectForPerson: '' as Resource<(person: Person) => Promise<void>>
   }
 })

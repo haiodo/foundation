@@ -14,8 +14,8 @@
 //
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
-  import { File } from '@hcengineering/drive'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { File } from '@hcengineering/drive'
   import { Icon } from '@hcengineering/ui'
 
   import { getFileTypeIcon } from '../utils'
@@ -27,7 +27,7 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <Icon {icon} size={'medium'} />
+    <Icon {icon} size="medium" />
   </div>
   <span class="overflow-label">
     {value.title}

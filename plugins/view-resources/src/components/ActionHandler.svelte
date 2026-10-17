@@ -14,15 +14,15 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import core, { Doc, Hierarchy, Ref, Space, TxRemoveDoc, type Tx } from '@hcengineering/core'
+  import type { Doc, Ref, Space, TxRemoveDoc } from '@hcengineering/core'
+  import core, { type Tx } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
-  import { addTxListener, contextStore, getClient, reduceCalls } from '@hcengineering/presentation'
-  import { AnyComponent, Component } from '@hcengineering/ui'
-  import { Action, ViewContextType } from '@hcengineering/view'
-  import { fly } from 'svelte/transition'
+  import { addTxListener, contextStore, getClient } from '@hcengineering/presentation'
+  import type { Action, ViewContextType } from '@hcengineering/view'
   import { getContextActionsSync, getSelection } from '../actions'
-  import { ListSelectionProvider, SelectionStore, focusStore, previewDocument, selectionStore } from '../selection'
-  import { getObjectPreview, restrictionStore } from '../utils'
+  import type { SelectionStore } from '../selection'
+  import { ListSelectionProvider, focusStore, selectionStore } from '../selection'
+  import { restrictionStore } from '../utils'
 
   export let currentSpace: Ref<Space> | undefined
 
@@ -215,7 +215,7 @@
       const t = lastKey
       if (t !== undefined && a.keyBinding.some((it) => matchKeySequence(evt, it, t))) {
         evt.preventDefault()
-        activateAction(a)
+        void activateAction(a)
         return
       }
       if (!postpone && a.keyBinding.some((p) => findKeySequence(p, evt))) {
@@ -228,7 +228,7 @@
     }
 
     if (delayedAction !== undefined) {
-      delayedAction()
+      void delayedAction()
       delayedAction = undefined
     }
 
@@ -236,12 +236,12 @@
     if (t !== undefined) {
       if (!postpone) {
         evt.preventDefault()
-        activateAction(t)
+        void activateAction(t)
         return
       }
 
       delayedAction = async () => {
-        activateAction(t)
+        void activateAction(t)
       }
     }
 
@@ -255,20 +255,6 @@
       }
     }, 300)
   }
-
-  let presenter: AnyComponent | undefined
-  const updatePreviewPresenter = reduceCalls(async function (doc?: Doc): Promise<void> {
-    const r = doc !== undefined ? await getObjectPreview(client, Hierarchy.mixinOrClass(doc)) : undefined
-    presenter = r
-  })
-
-  $: void updatePreviewPresenter($previewDocument)
 </script>
 
 <svelte:window on:keydown={handleKeys} />
-
-{#if $previewDocument !== undefined && presenter}
-  <div class="antiPanel float" transition:fly|local>
-    <Component is={presenter} props={{ object: $previewDocument }} />
-  </div>
-{/if}

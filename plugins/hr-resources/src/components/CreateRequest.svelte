@@ -15,10 +15,12 @@
 <script lang="ts">
   import { AttachmentStyledBox } from '@hcengineering/attachment-resources'
   import calendar from '@hcengineering/calendar'
-  import { Employee } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import core, { DocumentQuery, generateId, Markup, Ref } from '@hcengineering/core'
-  import { Request, RequestType, Staff, timeToTzDate } from '@hcengineering/hr'
+  import type { DocumentQuery, Markup, Ref } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
+  import type { Request, RequestType, Staff } from '@hcengineering/hr'
+  import { timeToTzDate } from '@hcengineering/hr'
   import { translate } from '@hcengineering/platform'
   import { Card, createQuery, getClient } from '@hcengineering/presentation'
   import { EmptyMarkup } from '@hcengineering/text'
@@ -53,7 +55,7 @@
   let types: RequestType[] = []
   let type: RequestType | undefined = undefined
   let typeLabel = ''
-  $: type && translate(type.label, {}, $themeStore.language).then((p) => (typeLabel = p))
+  $: void (type && translate(type.label, {}, $themeStore.language).then((p) => (typeLabel = p)))
 
   typesQuery.query(hr.class.RequestType, {}, (res) => {
     types = res
@@ -115,7 +117,7 @@
   labelProps={{ type: typeLabel }}
   okAction={saveRequest}
   canSave={value !== undefined && !notLimit}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -125,8 +127,8 @@
     <EmployeeBox
       label={hr.string.SelectEmployee}
       placeholder={hr.string.SelectEmployee}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       bind:value={employee}
       {readonly}
       showNavigate={false}
@@ -149,24 +151,18 @@
     space={core.space.Workspace}
     alwaysEdit
     showButtons={false}
-    maxHeight={'card'}
+    maxHeight="card"
     bind:content={description}
     placeholder={core.string.Description}
   />
   <svelte:fragment slot="pool">
-    <DateRangePresenter bind:value editable labelNull={ui.string.SelectDate} kind={'regular'} size={'large'} />
-    <DateRangePresenter
-      bind:value={dueDate}
-      labelNull={calendar.string.DueTo}
-      editable
-      kind={'regular'}
-      size={'large'}
-    />
+    <DateRangePresenter bind:value editable labelNull={ui.string.SelectDate} kind="regular" size="large" />
+    <DateRangePresenter bind:value={dueDate} labelNull={calendar.string.DueTo} editable kind="regular" size="large" />
   </svelte:fragment>
   <svelte:fragment slot="footer">
     <Button
       icon={IconAttachment}
-      size={'large'}
+      size="large"
       on:click={() => {
         descriptionBox.handleAttach()
       }}

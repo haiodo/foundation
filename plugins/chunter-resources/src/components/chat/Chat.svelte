@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref, Class } from '@hcengineering/core'
+  import type { Doc, Ref, Class } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
+  import type { Location } from '@hcengineering/ui'
   import {
     Component,
     defineSeparators,
@@ -22,30 +23,28 @@
     location,
     navigate,
     Separator,
-    Location,
     restoreLocation,
     deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
-  import { NavigatorModel, SpecialNavModel } from '@hcengineering/workbench'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import type { NavigatorModel, SpecialNavModel } from '@hcengineering/workbench'
   import { onMount, onDestroy } from 'svelte'
-  import { Chat, chunterId } from '@hcengineering/chunter'
-  import view, { decodeObjectURI } from '@hcengineering/view'
-  import { parseLinkId, getObjectLinkId } from '@hcengineering/view-resources'
-  import { ActivityMessage } from '@hcengineering/activity'
+  import type { Chat } from '@hcengineering/chunter'
+  import { chunterId } from '@hcengineering/chunter'
+  import view from '@hcengineering/view'
+  import { parseLinkId, getObjectLinkId, openDoc } from '@hcengineering/view-resources'
+  import type { ActivityMessage } from '@hcengineering/activity'
   import { loadSavedAttachments } from '@hcengineering/attachment-resources'
 
   import ChatNavigator from './navigator/ChatNavigator.svelte'
   import ChannelView from '../ChannelView.svelte'
   import { chatSpecials, createRealDirectFromFake, isFakeDirect } from './utils'
-  import { SelectChannelEvent } from './types'
-  import { openChannel, openThreadInSidebar } from '../../navigation'
+  import type { SelectChannelEvent } from './types'
+  import { decodeChatURI, openChannel, openThreadInSidebar } from '../../navigation'
   import chunter from '../../plugin'
 
-  const notificationsClient = InboxNotificationsClientImpl.getClient()
-  const contextByDocStore = notificationsClient.contextByDoc
   const objectQuery = createQuery()
   const client = getClient()
+  const hierarchy = client.getHierarchy()
 
   const navigatorModel: NavigatorModel = {
     spaces: [],
@@ -131,7 +130,7 @@
       object = undefined
       chat = undefined
     } else {
-      const [id, _class] = decodeObjectURI(loc.path[3])
+      const [id, _class] = decodeChatURI(loc.path[3])
       selectedData = { id, _class }
     }
 
@@ -175,7 +174,12 @@
 
     selectedData = { id, _class }
 
-    openChannel(selectedData.id, selectedData._class, undefined, true)
+    const isChatSpace = hierarchy.hasClass(_class) && hierarchy.isDerived(_class, chunter.class.ChunterSpace)
+    if (isChatSpace) {
+      openChannel(selectedData.id, selectedData._class, undefined, true)
+    } else {
+      await openDoc(hierarchy, selectedObject)
+    }
   }
 
   defineSeparators('chat', [
@@ -206,14 +210,7 @@
         <Separator name="chat" float={$deviceInfo.navigator.float ? 'navigator' : true} index={0} />
       {/if}
     </div>
-    <Separator
-      name="chat"
-      float={$deviceInfo.navigator.float}
-      index={0}
-      color={'transparent'}
-      separatorSize={0}
-      short
-    />
+    <Separator name="chat" float={$deviceInfo.navigator.float} index={0} color="transparent" separatorSize={0} short />
   {/if}
   <div bind:this={replacedPanel} class="hulyComponent">
     {#if currentSpecial}
@@ -232,8 +229,7 @@
         }}
       />
     {:else if object}
-      {@const context = $contextByDocStore.get(object._id)}
-      <ChannelView {object} {context} />
+      <ChannelView {object} />
     {/if}
   </div>
 </div>

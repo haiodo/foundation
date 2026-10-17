@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { Api as CommunicationApi } from '@hcengineering/communication-server'
 import contact, { type Person, type SocialIdentity } from '@hcengineering/contact'
 import core, {
   type AccountUuid,
@@ -18,7 +17,6 @@ import core, {
   type PersonId,
   type Ref,
   SortingOrder,
-  systemAccount,
   systemAccountUuid,
   type Timestamp,
   toIdMap,
@@ -78,8 +76,6 @@ export class RatingCalculator {
   operations: number = 0
   closing: boolean = false
 
-  communicationApi: CommunicationApi | undefined
-
   modifiedPersons = new Map<AccountUuid, PersonRating>()
 
   // Hold person's not in weak cache.
@@ -134,6 +130,8 @@ export class RatingCalculator {
   static async create (
     ctx: MeasureContext,
     model: Tx[],
+    sharedHierarchy: Hierarchy | undefined,
+    sharedModel: ModelDb | undefined,
     workspace: WorkspaceIds,
     dbURL: string,
     endpointProvider: (token: string) => Promise<string | undefined>,
@@ -153,12 +151,13 @@ export class RatingCalculator {
       DomainFindMiddleware.create,
       DomainTxMiddleware.create, // since we need to process rating transactions
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(model, fulltextModelFilter), // TODO: Add filtration of only class structure and FullTextSearchContext
+      // System part already sits in the shared model, only this workspace's txes are applied here.
+      ModelMiddleware.create(model, fulltextModelFilter, sharedModel !== undefined),
       DBAdapterMiddleware.create(dbConf)
     ]
 
-    const hierarchy = new Hierarchy()
-    const modelDb = new ModelDb(hierarchy)
+    const hierarchy = new Hierarchy(sharedHierarchy)
+    const modelDb = new ModelDb(hierarchy, sharedModel)
 
     const context: PipelineContext = {
       workspace,
@@ -173,13 +172,6 @@ export class RatingCalculator {
     const defaultAdapter = result.pipeline.context.adapterManager?.getDefaultAdapter()
     if (defaultAdapter === undefined) {
       throw new PlatformError(unknownError('Default adapter should be set'))
-    }
-    if (process.env.COMMUNICATION_API_ENABLED === 'true') {
-      result.communicationApi = await CommunicationApi.create(ctx, workspace.uuid, dbURL, {
-        broadcast: () => {},
-        enqueue: () => {},
-        registerAsyncRequest: () => {}
-      })
     }
 
     // Initialize a workspace socialId -> accountUuid map
@@ -225,7 +217,7 @@ export class RatingCalculator {
 
     result.ratingDomains = new Map(getRatingDomains(hierarchy, modelDb))
 
-    // Let's check if workspace was calculated rating's if not we should do it.
+    // Check if the workspace rating is calculated; if not, calculate it.
 
     const migrationState = await result.pipeline.findAll<MigrationState>(ctx, core.class.MigrationState, {
       plugin: ratingId
@@ -237,10 +229,10 @@ export class RatingCalculator {
       const newState: MigrationState = {
         _id: generateId(),
         _class: core.class.MigrationState,
-        plugin: ratingId as string,
+        plugin: ratingId,
         state: 'v1',
         modifiedOn: Date.now(),
-        modifiedBy: systemAccount.primarySocialId,
+        modifiedBy: core.account.System,
         space: core.space.Configuration
       }
       await result.lowLevelStorage.upload(ctx, DOMAIN_MIGRATION, [newState])
@@ -256,8 +248,6 @@ export class RatingCalculator {
   }
 
   async recalculateAll (ctx: MeasureContext, control?: ConsumerControl): Promise<void> {
-    // We need to iterate over all transactions and recalculate rating for each document and each person
-
     ctx.info('START RERANK ALL for', {
       uuid: this.pipeline.context.workspace.uuid,
       url: this.pipeline.context.workspace.url
@@ -462,7 +452,7 @@ export class RatingCalculator {
       _id: generateId(),
       _class: rating.class.PersonRating,
       space: core.space.Workspace,
-      modifiedBy: systemAccount.primarySocialId,
+      modifiedBy: core.account.System,
       rating: 0,
       accountId: person,
       months: [],
@@ -554,7 +544,7 @@ export class RatingCalculator {
         const cud = tx as TxCUD<Doc>
         const domain = this.pipeline.context.hierarchy.findDomain(cud.objectClass)
         const d = domain != null ? this.ratingDomains.get(domain) : undefined
-        if ((d === undefined || !d.has(cud.objectClass)) && domain !== DOMAIN_RATING_REACTION) {
+        if (d?.has(cud.objectClass) !== true && domain !== DOMAIN_RATING_REACTION) {
           continue
         }
         cuds.push(cud)
@@ -595,7 +585,7 @@ export class RatingCalculator {
           }
         )
         for (const p of parents) {
-          parentCache.set(p._id as Ref<Doc>, p)
+          parentCache.set(p._id, p)
           if (p.createdBy != null) {
             personIds.add(p.createdBy)
           }
@@ -623,7 +613,7 @@ export class RatingCalculator {
         }
         case core.class.TxRemoveDoc: {
           this.updatePersonStats(sysRating, tx.createdOn ?? tx.modifiedOn, 'delete', tx.objectClass)
-          await this.handleRatingDelete(ctx, tx as TxRemoveDoc<Doc>, txAuthors)
+          await this.handleRatingDelete(ctx, tx, txAuthors)
           break
         }
       }
@@ -675,12 +665,12 @@ export class RatingCalculator {
   }
 
   notifications = new Map<
-  AccountUuid,
-  {
-    oldRating: number
-    newRating: number
-    person: PersonRating
-  }
+    AccountUuid,
+    {
+      oldRating: number
+      newRating: number
+      person: PersonRating
+    }
   >()
 
   private async flushUpdates (
@@ -720,7 +710,7 @@ export class RatingCalculator {
             _class: core.class.TxUpdateDoc,
             objectClass: rating.class.PersonRating,
             modifiedOn: info.person.modifiedOn,
-            modifiedBy: systemAccount.primarySocialId,
+            modifiedBy: core.account.System,
             collection: '_rating',
             objectId: info.person._id,
             objectSpace: info.person.space,
@@ -835,7 +825,6 @@ export class RatingCalculator {
     if (this.operations === 0) {
       try {
         await this.pipeline.close()
-        await this.communicationApi?.close()
       } catch (err: any) {
         console.error('error during closing', { err })
       }

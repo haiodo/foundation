@@ -19,6 +19,7 @@ import core, {
   hashWorkspace,
   isFullTextAttribute,
   isIndexedAttribute,
+  searchTargets,
   toFindResult,
   type AttachedDoc,
   type Class,
@@ -34,7 +35,8 @@ import core, {
   type SearchOptions,
   type SearchQuery,
   type SearchResult,
-  type SessionData
+  type SessionData,
+  notEmpty
 } from '@hcengineering/core'
 import type { IndexedDoc, Middleware, MiddlewareCreator, PipelineContext } from '@hcengineering/server-core'
 import { BaseMiddleware } from '@hcengineering/server-core'
@@ -117,13 +119,20 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     options?: FindOptions<T>
   ): Promise<FindResult<T>> {
     if (query?.$search === undefined) {
-      return await this.provideFindAll(ctx, _class, query, options)
+      // The database would take $searchIn for a field
+      if (query?.$searchIn === undefined) {
+        return await this.provideFindAll(ctx, _class, query, options)
+      }
+      const { $searchIn, ...dbQuery } = query
+      return await this.provideFindAll(ctx, _class, dbQuery as DocumentQuery<T>, options)
     }
 
-    const { _id, $search, $searchStrict, ...mainQuery } = query
+    const { _id, $search, $searchIn, ...mainQuery } = query
     if ($search === undefined) {
       return toFindResult<T>([])
     }
+    const targets = searchTargets($searchIn)
+    const searchAttached = targets == null || targets.includes('attached')
 
     const ids: Set<Ref<Doc>> = new Set<Ref<Doc>>()
     const childIds: Set<Ref<Doc>> = new Set<Ref<Doc>>()
@@ -141,7 +150,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     // We need to filter all non indexed fields from query to make it work properly
     const findQuery: DocumentQuery<Doc> = {
       $search: _search,
-      $searchStrict
+      $searchIn
     }
 
     const childClasses = new Set<Ref<Class<Doc>>>()
@@ -165,7 +174,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
             }
           }
         }
-        if (attr.type._class === core.class.Collection && $searchStrict !== true) {
+        if (attr.type._class === core.class.Collection && searchAttached) {
           // we need attached documents to be in classes
           const coll = attr.type as Collection<AttachedDoc>
           const dsc = this.context.hierarchy.getDescendants(coll.of).filter((it) => !this.context.hierarchy.isMixin(it))
@@ -175,7 +184,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
         }
       }
 
-      if ($searchStrict !== true) {
+      if (searchAttached) {
         this.addExtraFind?.(baseClass, childClasses)
       }
     } catch (err: any) {
@@ -198,6 +207,15 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
 
     const fullTextLimit = Math.min(5000, (options?.limit ?? 200) * 100)
 
+    // A re-check by _id must find the doc beyond the first fullTextLimit hits.
+    // Long id lists stay unfiltered: Elastic caps the terms of a filter.
+    // Elastic rejects the whole query for a null in `terms`
+    const askedIds = typeof _id === 'string' ? [_id] : _id?.$in?.filter(notEmpty)
+    const knownIds = askedIds !== undefined && askedIds.length <= fullTextLimit ? askedIds : undefined
+    if (knownIds !== undefined) {
+      findQuery.$filter = { id: knownIds }
+    }
+
     // Find main documents, not attached ones.
     const { indexedDocMap } = await this.findDocuments<T>(ctx, classes, findQuery, fullTextLimit, baseClass, ids)
 
@@ -207,23 +225,27 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     }
 
     const childQuery: DocumentQuery<AttachedDoc> = {
-      $search:
-        findQuery.$search != null && findQuery.$search?.startsWith('*')
-          ? findQuery.$search.slice(1)
-          : findQuery.$search,
+      $search: findQuery.$search?.startsWith('*') === true ? findQuery.$search.slice(1) : findQuery.$search,
       attachedToClass: { $in: classes }
     }
     if (findQuery.space !== undefined) {
       childQuery.space = findQuery.space
     }
-    const { childDocs, childIndexedDocMap } =
-      childClasses !== undefined && childClasses.size > 0 && $searchStrict !== true
+    if (knownIds !== undefined) {
+      childQuery.$filter = { attachedTo: knownIds }
+    }
+    const childIndexedDocMap =
+      childClasses !== undefined && childClasses.size > 0 && searchAttached
         ? await this.findChildDocuments(ctx, Array.from(childClasses), childQuery, fullTextLimit, baseClass, childIds)
-        : {
-            childDocs: [],
-            childIndexedDocMap: new Map()
-          }
+        : new Map<Ref<Doc>, IndexedDoc>()
 
+    // Own match or best attached match
+    const scoreOf = (id: Ref<Doc>): number | undefined => {
+      const own = indexedDocMap.get(id)?._score
+      const child = childIndexedDocMap.get(id)?._score
+      if (own == null) return child
+      return child == null ? own : Math.max(own, child)
+    }
     const scoreSearch: number | undefined = (options?.sort as any)?.['#score']
 
     const resultIds = Array.from(this.getResultIds(ids, _id))
@@ -242,12 +264,10 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
 
     // Just assign scores based on idex
     result.forEach((it) => {
-      const idDoc = indexedDocMap.get(it._id) ?? childIndexedDocMap.get(it._id)
-      if (idDoc !== undefined) {
-        const { _score } = idDoc
-        const maxScore = childDocs.reduceRight((p, cur) => (p > cur._score ? p : cur._score), _score)
+      const score = scoreOf(it._id)
+      if (score !== undefined) {
         it.$source = {
-          $score: maxScore
+          $score: score
         }
       }
     })
@@ -300,28 +320,112 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     fullTextLimit: number,
     baseClass: Ref<Class<T>>,
     ids: Set<Ref<Doc>>
-  ): Promise<{ childDocs: IndexedDoc[], childIndexedDocMap: Map<Ref<Doc>, IndexedDoc> }> {
+  ): Promise<Map<Ref<Doc>, IndexedDoc>> {
     const childDocs = await this.search(ctx, classes, findQuery, fullTextLimit)
 
+    // Best attached match per parent
     const childIndexedDocMap = new Map<Ref<Doc>, IndexedDoc>()
+    const keepBest = (parent: Ref<Doc>, doc: IndexedDoc): void => {
+      const best = childIndexedDocMap.get(parent)
+      if (best == null || best._score < doc._score) {
+        childIndexedDocMap.set(parent, doc)
+      }
+    }
 
     for (const doc of childDocs) {
       if (doc.attachedTo != null) {
         if (doc.attachedToClass != null && this.context.hierarchy.isDerived(doc.attachedToClass, baseClass)) {
           if (this.context.hierarchy.isDerived(doc.attachedToClass, baseClass)) {
             ids.add(doc.attachedTo)
-            childIndexedDocMap.set(doc.attachedTo, doc)
+            keepBest(doc.attachedTo, doc)
           }
         } else {
           ids.add(doc.attachedTo)
-          childIndexedDocMap.set(doc.attachedTo, doc)
+          keepBest(doc.attachedTo, doc)
         }
       }
     }
-    return { childDocs, childIndexedDocMap }
+    return childIndexedDocMap
   }
 
   async searchFulltext (ctx: MeasureContext, query: SearchQuery, options: SearchOptions): Promise<SearchResult> {
+    const result = await this.searchIndex(ctx, query, options)
+    if ((options.fields?.length ?? 0) === 0 || result.docs.length === 0) {
+      return result
+    }
+    return await this.attachFields(ctx, result, options.fields ?? [])
+  }
+
+  /**
+   * Reads the requested attributes off the stored documents and puts them on the results.
+   *
+   * Runs over the documents the search already returned, so it cannot widen what the caller may
+   * see, and fetches them by `_id` - not by the secondary indexes some domains disable.
+   */
+  private async attachFields (ctx: MeasureContext, result: SearchResult, fields: string[]): Promise<SearchResult> {
+    try {
+      return await ctx.with('full-text-search-fields', { fields: fields.length }, async (ctx) => {
+        const byClass = new Map<Ref<Class<Doc>>, Array<Ref<Doc>>>()
+        for (const doc of result.docs) {
+          const _class = this.context.hierarchy.getBaseClass(doc.doc._class)
+          const ids = byClass.get(_class) ?? []
+          ids.push(doc.doc._id)
+          byClass.set(_class, ids)
+        }
+
+        const projection: Record<string, number> = { _id: 1 }
+        for (const field of fields) {
+          projection[field] = 1
+        }
+
+        const loaded = new Map<Ref<Doc>, Doc>()
+        await Promise.all(
+          Array.from(byClass.entries()).map(async ([_class, ids]) => {
+            const docs = await this.provideFindAll(
+              ctx,
+              _class,
+              { _id: { $in: ids } },
+              { projection: projection as any }
+            )
+            for (const doc of docs) {
+              loaded.set(doc._id, doc)
+            }
+          })
+        )
+
+        // The index lags deletions, so a result can outlive the document it points at - drop
+        // those. One that merely lacks the attributes is kept: it still exists.
+        const before = result.docs.length
+        result.docs = result.docs.filter((doc) => {
+          const stored = loaded.get(doc.doc._id)
+          if (stored == null) return false
+
+          const values: Record<string, any> = {}
+          for (const field of fields) {
+            if ((stored as any)[field] !== undefined) values[field] = (stored as any)[field]
+          }
+          if (Object.keys(values).length > 0) doc.fields = values
+          return true
+        })
+
+        // The index counted what it dropped. Later pages may hold more of the same, so the
+        // count is only a bound from here on.
+        const dropped = before - result.docs.length
+        if (dropped > 0 && result.total !== undefined) {
+          result.total = Math.max(0, result.total - dropped)
+          result.totalExact = false
+        }
+        return result
+      })
+    } catch (err: any) {
+      // The search itself succeeded; losing the extra attributes is not worth failing it.
+      Analytics.handleError(err)
+      return result
+    }
+  }
+
+  private async searchIndex (ctx: MeasureContext, query: SearchQuery, options: SearchOptions): Promise<SearchResult> {
+    const { fields, ...indexOptions } = options
     try {
       return await ctx.with('full-text-search', {}, async (ctx) => {
         return await (
@@ -335,7 +439,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
               workspace: this.context.workspace.uuid,
               token: this.token,
               query,
-              options,
+              options: indexOptions,
               viewerId: ctx.contextData?.account?.uuid
             })
           })
@@ -344,10 +448,10 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     } catch (err: any) {
       if (err?.cause?.code === 'ECONNRESET' || err?.cause?.code === 'ECONNREFUSED') {
         // TODO:  We need to send event about indexing is complete after a while
-        return { docs: [] }
+        return { docs: [], failed: true }
       }
       Analytics.handleError(err)
-      return { docs: [] }
+      return { docs: [], failed: true }
     }
   }
 

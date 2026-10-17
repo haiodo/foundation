@@ -29,7 +29,7 @@ import { getMetadata } from '@hcengineering/platform'
 import recruit, { Applicant, recruitId, Vacancy } from '@hcengineering/recruit'
 import serverCore, { TriggerControl } from '@hcengineering/server-core'
 import { workbenchId } from '@hcengineering/workbench'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
 function getSequenceId (doc: Vacancy | Applicant, hierarchy: Hierarchy): string {
   let clazz = hierarchy.getClass(doc._class)
@@ -42,10 +42,14 @@ function getSequenceId (doc: Vacancy | Applicant, hierarchy: Hierarchy): string 
   return label !== undefined ? `${label}-${doc.number}` : doc.number.toString()
 }
 
+async function linkIdProvider (doc: Doc, control: TriggerControl): Promise<string> {
+  return getSequenceId(doc as Vacancy | Applicant, control.hierarchy)
+}
+
 /**
  * @public
  */
-const vacancyUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const vacancyUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const vacancy = doc as Vacancy
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${recruitId}/${getSequenceId(vacancy, control.hierarchy)}`
@@ -55,7 +59,7 @@ const vacancyUrlPresenter: Presenter = async (doc: Doc, control: PresenterContro
 /**
  * @public
  */
-const vacancyIdentifierPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const vacancyIdentifierPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const vacancy = doc as Vacancy
   return getSequenceId(vacancy, control.hierarchy)
 }
@@ -63,7 +67,7 @@ const vacancyIdentifierPresenter: Presenter = async (doc: Doc, control: Presente
 /**
  * @public
  */
-const applicationUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const applicationUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const applicant = doc as Applicant
 
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
@@ -72,7 +76,10 @@ const applicationUrlPresenter: Presenter = async (doc: Doc, control: PresenterCo
   return concatLink(front, path)
 }
 
-const applicationIdentifierPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const applicationIdentifierPresenter: StringPresenterFn = async (
+  doc: Doc,
+  control: PresenterControl
+): Promise<string> => {
   const applicant = doc as Applicant
   return getSequenceId(applicant, control.hierarchy)
 }
@@ -106,7 +113,7 @@ export default async () => ({
     VacancyIdentifierPresenter: vacancyIdentifierPresenter,
     ApplicationUrlPresenter: applicationUrlPresenter,
     ApplicationIdentifierPresenter: applicationIdentifierPresenter,
-    LinkIdProvider: getSequenceId
+    LinkIdProvider: linkIdProvider
   },
   trigger: {
     OnRecruitUpdate

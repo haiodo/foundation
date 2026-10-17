@@ -47,7 +47,26 @@ describe('aggregator tests', () => {
     const stat2 = await aggr.stat(testCtx, wsIds1, 'test')
     expect(stat2?.provider).toEqual('mem2')
 
-    const dta = Buffer.concat((await aggr.read(testCtx, wsIds1, 'test')) as any).toString()
+    const dta = Buffer.concat(await aggr.read(testCtx, wsIds1, 'test')).toString()
     expect(dta).toEqual('data2')
+  })
+
+  it('rethrows adapter failure instead of NoSuchKey', async () => {
+    const { mem1, mem2, aggr, wsIds1, testCtx } = prepare1()
+    const boom = new Error('s3 unavailable')
+    mem2.get =
+      mem2.read =
+      mem2.partial =
+        async () => {
+          throw boom
+        }
+
+    await expect(aggr.get(testCtx, wsIds1, 'test')).rejects.toBe(boom)
+    await expect(aggr.read(testCtx, wsIds1, 'test')).rejects.toBe(boom)
+    await expect(aggr.partial(testCtx, wsIds1, 'test', 0)).rejects.toBe(boom)
+
+    // object found in a later adapter wins over the earlier failure
+    await mem1.put(testCtx, wsIds1, 'test', 'data', 'text/plain')
+    expect(Buffer.concat(await aggr.read(testCtx, wsIds1, 'test')).toString()).toEqual('data')
   })
 })

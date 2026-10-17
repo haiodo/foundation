@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { ColorDefinition } from '@hcengineering/ui'
-  import { IssueStatus, Project } from '@hcengineering/tracker'
+  import type { Ref } from '@hcengineering/core'
+  import type { ColorDefinition } from '@hcengineering/ui'
+  import type { IssueStatus, Project } from '@hcengineering/tracker'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
-  import { ProjectType, TaskType } from '@hcengineering/task'
+  import type { ProjectType, TaskType } from '@hcengineering/task'
 
   export let value: IssueStatus | undefined
   export let space: Ref<Project> | undefined = undefined
@@ -35,7 +35,7 @@
 
 {#if value}
   {#if kind === 'table-attrs'}
-    <button class="hulyTableAttr-content__row-icon-wrapper" on:click>
+    <button class="hulyTableAttr-content__row-icon-wrapper {size}" on:click>
       <IssueStatusIcon
         {value}
         {size}
@@ -54,7 +54,7 @@
       {value.name}
     </span>
   {:else}
-    <div class="flex-presenter" style:color={'inherit'}>
+    <div class="flex-presenter" style:color="inherit">
       {#if !inline && shouldShowAvatar}
         <IssueStatusIcon {value} {size} {space} on:accent-color {projectType} {taskType} />
       {/if}

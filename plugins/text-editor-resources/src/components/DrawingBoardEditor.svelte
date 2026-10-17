@@ -14,24 +14,21 @@
 -->
 <script lang="ts">
   import contact, { type Person } from '@hcengineering/contact'
-  import {
-    DrawingBoardToolbar,
+  import type {
     DrawingCmd,
     DrawingTool,
     DrawTextCmd,
-    drawing,
     CommandUid,
     Point,
-    DrawingCommandsProcessor,
-    ThemeAwareColor,
     ColorsList,
     ColorMetaNameOrHex
   } from '@hcengineering/presentation'
+  import { DrawingBoardToolbar, drawing, DrawingCommandsProcessor, ThemeAwareColor } from '@hcengineering/presentation'
   import presence from '@hcengineering/presence'
   import { getResource } from '@hcengineering/platform'
   import { Loading, Component, themeStore } from '@hcengineering/ui'
   import { onMount, onDestroy } from 'svelte'
-  import { Array as YArray, Map as YMap, Doc as YDoc } from 'yjs'
+  import type { Array as YArray, Map as YMap, Doc as YDoc } from 'yjs'
 
   export let boardId: string
   export let document: YDoc
@@ -232,7 +229,7 @@
     if (event.key === 'Delete' || event.key === 'Backspace') return
     if (!selected) return
     if (fullSize) return
-    if (cmdEditor !== undefined && cmdEditor.contains(window.document.activeElement)) return
+    if (cmdEditor?.contains(window.document.activeElement) === true) return
     event.preventDefault()
     if ((event.ctrlKey || event.metaKey) && event.code === 'KeyZ' && !readonly) {
       if (event.shiftKey && !disableRedo) {

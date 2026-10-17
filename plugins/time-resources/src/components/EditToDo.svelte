@@ -13,15 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Visibility } from '@hcengineering/calendar'
+  import type { Visibility } from '@hcengineering/calendar'
   import calendar from '@hcengineering/calendar-resources/src/plugin'
-  import core, { Class, Ref, Space, getCurrentAccount, Markup } from '@hcengineering/core'
-  import { SpaceSelector, getClient, createQuery } from '@hcengineering/presentation'
+  import type { Class, Ref, Space, Markup } from '@hcengineering/core'
+  import core, { getCurrentAccount } from '@hcengineering/core'
+  import presentation, { SpaceSelector, getClient, createQuery } from '@hcengineering/presentation'
   import tags from '@hcengineering/tags'
   import task from '@hcengineering/task'
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
-  import { ModernEditbox, CheckBox, Component, IconClose, Label, Modal, Spinner, ButtonIcon } from '@hcengineering/ui'
-  import { ToDo, ToDoPriority } from '@hcengineering/time'
+  import { ModernEditbox, CheckBox, Component, IconClose, Label, Modal, Spinner } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { ToDo, ToDoPriority } from '@hcengineering/time'
   import { createEventDispatcher } from 'svelte'
   import time from '../plugin'
   import DueDateEditor from './DueDateEditor.svelte'
@@ -43,13 +45,25 @@
   const queryClient = createQuery()
   const client = getClient()
 
+  // The query fires on every update to this ToDo - due date, priority, a work slot. Assigning the
+  // server values back unconditionally wipes an edit that has not round-tripped yet, so follow the
+  // server only when it is the server side that changed.
+  let lastTitle: string | undefined
+  let lastDescription: Markup | undefined
+
   $: _id !== undefined &&
     _class !== undefined &&
     queryClient.query<ToDo>(_class, { _id }, async (result) => {
       ;[object] = result
       if (object !== undefined) {
-        title = object.title
-        description = object.description
+        if (object.title !== lastTitle) {
+          lastTitle = object.title
+          title = object.title
+        }
+        if (object.description !== lastDescription) {
+          lastDescription = object.description
+          description = object.description
+        }
       }
     })
 
@@ -100,13 +114,13 @@
   }
 </script>
 
-<Modal type={'type-component'} padding={'0'}>
+<Modal type="type-component" padding="0">
   <svelte:fragment slot="beforeTitle">
     <div class="flex-center flex-no-shrink min-w-6 min-h-6">
       {#if object}
-        <CheckBox on:value={markDone} checked={object.doneOn != null} kind={'todo'} />
+        <CheckBox on:value={markDone} checked={object.doneOn != null} kind="todo" />
       {:else}
-        <Spinner size={'small'} />
+        <Spinner size="small" />
       {/if}
     </div>
   </svelte:fragment>
@@ -122,14 +136,20 @@
       />
       <VisibilityEditor
         value={object.visibility}
-        size={'small'}
+        size="small"
         disabled={object._class === time.class.ProjectToDo}
         on:change={(e) => visibilityChange(e.detail)}
       />
     {/if}
   </svelte:fragment>
   <svelte:fragment slot="actions">
-    <ButtonIcon icon={IconClose} kind={'tertiary'} size={'small'} on:click={() => dispatch('close')} />
+    <IconButton
+      icon={IconClose}
+      kind="tertiary"
+      size="small"
+      tooltip={{ label: presentation.string.Close }}
+      on:click={() => dispatch('close')}
+    />
   </svelte:fragment>
 
   {#if object}
@@ -137,8 +157,8 @@
       <ModernEditbox
         bind:value={title}
         label={time.string.AddTitle}
-        kind={'ghost'}
-        size={'large'}
+        kind="ghost"
+        size="large"
         focusIndex={10001}
         on:change={updateName}
       />
@@ -159,8 +179,8 @@
             _class={task.class.Project}
             query={{ archived: false, members: getCurrentAccount().uuid }}
             label={core.string.Space}
-            kind={'regular'}
-            size={'medium'}
+            kind="regular"
+            size="medium"
             allowDeselect
             autoSelect={false}
             readonly={object._class === time.class.ProjectToDo}

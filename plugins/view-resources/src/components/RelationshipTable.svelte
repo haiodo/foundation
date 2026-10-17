@@ -13,9 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { PermissionsStore } from '@hcengineering/contact'
-  import core, {
+  import type { PermissionsStore } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import type {
     AnyAttribute,
+    Association,
     AssociationQuery,
     Class,
     Doc,
@@ -23,13 +25,11 @@
     FindOptions,
     Lookup,
     Ref,
-    SortingOrder,
     TxOperations,
     TypedSpace,
-    WithLookup,
-    getObjectValue,
-    mergeQueries
+    WithLookup
   } from '@hcengineering/core'
+  import core, { SortingOrder, getObjectValue, mergeQueries } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient, reduceCalls, updateAttribute } from '@hcengineering/presentation'
   import ui, {
@@ -41,10 +41,16 @@
     resizeObserver,
     showPopup
   } from '@hcengineering/ui'
-  import { AttributeModel, BuildModelKey, BuildModelOptions, ViewOptionModel, ViewOptions } from '@hcengineering/view'
+  import type {
+    AttributeModel,
+    BuildModelKey,
+    BuildModelOptions,
+    ViewOptionModel,
+    ViewOptions
+  } from '@hcengineering/view'
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
-  import { Readable } from 'svelte/store'
+  import type { Readable } from 'svelte/store'
   import { showMenu } from '../actions'
   import { canChangeAttribute } from '../permissions'
   import view from '../plugin'
@@ -120,9 +126,9 @@
   function getSort (sortKey: string | string[]) {
     return Array.isArray(sortKey)
       ? sortKey.reduce((acc: Record<string, SortingOrder>, val) => {
-        acc[val] = sortOrder
-        return acc
-      }, {})
+          acc[val] = sortOrder
+          return acc
+        }, {})
       : { ...(options?.sort ?? {}), [sortKey]: sortOrder }
   }
 
@@ -243,7 +249,7 @@
   }
 
   function onChange (value: any, doc: Doc, key: string, attribute: AnyAttribute): void {
-    updateAttribute(client, doc, _class, { key, attr: attribute }, value)
+    void updateAttribute(client, doc, _class, { key, attr: attribute }, value)
   }
 
   function getOnChange (doc: Doc, attribute: AttributeModel) {
@@ -490,9 +496,27 @@
     }
   }
 
+  function isAssociationKey (key: string): boolean {
+    // A valid association key ends with `$associations.{assocId}_{direction}`
+    // Sub-field keys like `$associations.assocId_b.fieldName` should NOT be treated as associations
+    const parts = key.split('.')
+    // Find the last $associations segment
+    let lastAssocIdx = -1
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i] === '$associations') {
+        lastAssocIdx = i
+      }
+    }
+    if (lastAssocIdx === -1) return false
+    // The association identifier should be right after the last $associations
+    // and there should be no additional parts after it
+    return lastAssocIdx + 1 === parts.length - 1
+  }
+
   function getAssociations (model: AttributeModel[], associationId?: string): string[] {
     return model
       .filter((p) => {
+        if (!isAssociationKey(p.key)) return false
         if (associationId) {
           return (
             p.key.startsWith(`${associationId}.${assoc}`) &&
@@ -533,7 +557,18 @@
   function clickHandler (e: MouseEvent, cell: CellModel): void {
     if (cell.parentObject === undefined) return
     const parts = cell.attribute.key.split('$associations.')
-    const association = parts.pop()
+    let association = parts.pop()
+    if (association === undefined) return
+    // Strip sub-field suffix if present (e.g., 'assocId_b.name' -> 'assocId_b')
+    const dotIndex = association.indexOf('.')
+    if (dotIndex !== -1) {
+      association = association.substring(0, dotIndex)
+    }
+    const p = association.split('_')
+    const associationId = p[0] as Ref<Association>
+    const assoc = client.getModel().findObject(associationId)
+    if (assoc === undefined) return
+    if (assoc.automationOnly === true) return
     showPopup(
       RelationsSelectorPopup,
       {
@@ -610,7 +645,7 @@
                 {/if}
                 {#if attribute.sortingKey === _sortKey}
                   <div class="icon">
-                    <IconUpDown size={'small'} descending={sortOrder === SortingOrder.Descending} />
+                    <IconUpDown size="small" descending={sortOrder === SortingOrder.Descending} />
                   </div>
                 {/if}
               </div>
@@ -697,8 +732,8 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <Button
           label={ui.string.ShowMore}
-          kind={'ghost'}
-          size={'small'}
+          kind="ghost"
+          size="small"
           on:click={() => {
             limit = limit + 100
           }}

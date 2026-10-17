@@ -81,10 +81,10 @@
 
         <ActionIcon
           icon={view.icon.Open}
-          size={'small'}
+          size="small"
           action={() => {
             if (trainingObject !== null) {
-              openDoc(getClient().getHierarchy(), trainingObject)
+              void openDoc(getClient().getHierarchy(), trainingObject)
             }
           }}
         />

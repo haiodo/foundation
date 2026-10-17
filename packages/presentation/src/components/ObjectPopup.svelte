@@ -25,7 +25,8 @@
   import { Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import presentation, { searchFor, type SearchItem } from '..'
-  import { ObjectCreate, type ObjectSearchCategory } from '../types'
+  import type { ObjectCreate } from '../types'
+  import type { ObjectSearchCategory } from '../types'
   import { createQuery } from '../utils'
   import DocPopup from './DocPopup.svelte'
 
@@ -59,7 +60,7 @@
   export let type: 'text' | 'object' | 'presenter' = 'text'
   export let showVersions: boolean = false
   export let forceShowSelected: boolean = true
-
+  export let protectLastSelected: boolean = false
   export let onSelect: ((doc: Doc) => void) | undefined = undefined
 
   export let filter: (it: Doc) => boolean = () => {
@@ -67,8 +68,8 @@
   }
 
   export let sort: <T extends Doc>(a: T, b: T) => number = (a, b) => {
-    const aval: string = `${getObjectValue(groupBy, a as any)}`
-    const bval: string = `${getObjectValue(groupBy, b as any)}`
+    const aval: string = `${getObjectValue(groupBy, a)}`
+    const bval: string = `${getObjectValue(groupBy, b)}`
     return aval.localeCompare(bval)
   }
 
@@ -183,6 +184,7 @@
   {create}
   {readonly}
   {disallowDeselect}
+  {protectLastSelected}
   {embedded}
   {loading}
   {type}

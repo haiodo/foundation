@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,10 +21,13 @@ import type {
   Configuration,
   Doc,
   Mixin,
+  Rank,
   Ref,
+  Space,
   AccountUuid,
   Domain,
-  IntegrationKind
+  IntegrationKind,
+  Timestamp
 } from '@hcengineering/core'
 import type { Metadata, Plugin } from '@hcengineering/platform'
 import { Asset, IntlString, Resource, plugin } from '@hcengineering/platform'
@@ -32,10 +36,13 @@ import { Action, AnyComponent } from '@hcengineering/ui'
 import { type Integration as AccountIntegration } from '@hcengineering/account-client'
 
 import { SpaceTypeCreator, SpaceTypeEditor } from './spaceTypeEditor'
+import type { WebhookIncomingRule } from './webhookRules'
 
-export * from './spaceTypeEditor'
+export type * from './spaceTypeEditor'
 export * from './utils'
 export * from './analytics'
+export * from './webhookSecret'
+export * from './webhookRules'
 
 export const DOMAIN_SETTING = 'setting' as Domain
 
@@ -88,7 +95,16 @@ export interface Editable extends Class<Doc> {
  *
  * Mixin to allow delete of Custom classes.
  */
-export interface UserMixin extends Class<Doc> {}
+export type UserMixin = Class<Doc>
+
+/**
+ * @public
+ *
+ * Mixin to keep ordering of classifiers (mixins) in the class editor.
+ */
+export interface ClassifierOrder extends Class<Doc> {
+  rank: Rank
+}
 
 /**
  * @public
@@ -118,6 +134,16 @@ export interface SettingsCategory extends Doc {
 
 /**
  * @public
+ *
+ * Extends the attribute delete confirmation: `component` gets `attribute` and lists the documents
+ * that refer to it and will be cleaned up along with it; renders nothing when there are none.
+ */
+export interface AttributeUsageProvider extends Doc {
+  component: AnyComponent
+}
+
+/**
+ * @public
  */
 export interface InviteSettings extends Configuration {
   expirationTime: number
@@ -131,6 +157,7 @@ export interface InviteSettings extends Configuration {
 export interface OfficeSettings extends Configuration {
   defaultStartWithTranscription: boolean
   defaultStartWithRecording: boolean
+  defaultStartPrivate: boolean
 }
 
 /**
@@ -142,6 +169,231 @@ export interface WorkspaceSetting extends Doc {
 
 export enum IntegrationError {
   EMAIL_IS_ALREADY_USED = 'EMAIL_IS_ALREADY_USED'
+}
+
+/**
+ * @public
+ * One signing secret. Up to two may be active on an endpoint at once, for rotation without downtime.
+ */
+export interface WebhookSecretEntry {
+  id: string
+  secret: string
+  createdOn: Timestamp
+}
+
+/**
+ * @public
+ * A registered outgoing webhook recipient. Delivery worker reads/writes this via REST from the
+ * transactor - it never loads the workspace model directly (see docs/memory/webhook_ingest_pod.md).
+ */
+export interface WebhookEndpoint extends Doc {
+  url: string
+  /** Shown instead of the raw URL wherever the endpoint is named - several endpoints on one host
+   * are unreadable otherwise, and the auto-disable mail has nothing to call them by. */
+  name?: string
+  description?: string
+  /** Domain event names this endpoint subscribes to, e.g. 'issue.created'. */
+  events: string[]
+  /** Oldest first; all active secrets sign each delivery, so a receiver can rotate without downtime. */
+  secrets: WebhookSecretEntry[]
+  enabled: boolean
+  /** Whitelist. Empty means every non-private space: a private one is exported only when listed here,
+   * so configuring an endpoint never hands out content its owner cannot read themselves. */
+  spaces?: Ref<Space>[]
+  /** Consecutive delivery failures since the last success; auto-disables the endpoint past a threshold. */
+  failureCount: number
+  lastDeliveryOn?: Timestamp
+  lastError?: string
+}
+
+/**
+ * @public
+ * Domain event names outgoing webhooks can subscribe to - the single source of truth shared with
+ * pod-webhook's eventTable.ts (its domainRules[].type is typed against this union, so the two
+ * can't drift apart) and with the UI's event checkboxes.
+ */
+export const webhookEventTypes = [
+  'issue.created',
+  'issue.status_changed',
+  'issue.assigned',
+  'issue.commented',
+  'issue.time_reported',
+  'issue.time_report_updated',
+  'message.posted',
+  'document.created'
+] as const
+
+/**
+ * @public
+ */
+export type WebhookEventType = (typeof webhookEventTypes)[number]
+
+/**
+ * @public
+ * One example delivery body per event, shown in the settings dialog so the receiver's author sees
+ * the exact shape. `data` keys must match eventTable.ts's dataFields - a pod-webhook test asserts it.
+ */
+export const webhookEventSamples: Record<WebhookEventType, Record<string, unknown>> = {
+  'issue.created': {
+    action: 'create',
+    type: 'issue.created',
+    // Refs a receiver cannot use are sent as the tokens the ingest API accepts back: a person is an
+    // email, a status and a priority are names, and every object carries its front link.
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c91',
+      identifier: 'FUSIO-123',
+      title: 'Payment webhook retries indefinitely',
+      status: 'In Progress',
+      assignee: 'assignee@example.com',
+      priority: 'urgent'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  // `data.identifier` is present only if pod-webhook still has this issue's create cached in-process
+  // (see the cache note in txTranslator.ts) - unknown after a restart, same as `updatedFrom`. Without
+  // it there is no issue link either: the front resolves an issue by its identifier.
+  'issue.status_changed': {
+    action: 'update',
+    type: 'issue.status_changed',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c91',
+      identifier: 'FUSIO-123',
+      status: 'In Progress'
+    },
+    updatedFrom: {
+      status: 'Todo'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.assigned': {
+    action: 'update',
+    type: 'issue.assigned',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c91',
+      identifier: 'FUSIO-123',
+      assignee: 'assignee@example.com'
+    },
+    updatedFrom: {
+      assignee: null
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.commented': {
+    action: 'create',
+    type: 'issue.commented',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c95',
+      issue: 'FUSIO-123',
+      message: 'Reproduced on staging, looking into the retry loop now.'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.time_reported': {
+    action: 'create',
+    type: 'issue.time_reported',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c98',
+      // The issue identifier `issue:time_report` takes as its `issue`, and the report id it takes as
+      // `id` to update this very report later.
+      issue: 'FUSIO-123',
+      employee: 'assignee@example.com',
+      date: 1789084800000,
+      value: 2.5,
+      description: 'Investigated the retry loop'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.time_report_updated': {
+    action: 'update',
+    type: 'issue.time_report_updated',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c98',
+      issue: 'FUSIO-123',
+      value: 3.5
+    },
+    updatedFrom: {
+      value: 2.5
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'message.posted': {
+    action: 'create',
+    type: 'message.posted',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/chunter/64f10a1b2c3d4e5f6a7b8c90|chunter:class:Channel',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c96',
+      // The id `chat:post` takes as its `space`, so an answer can go straight back to this channel.
+      channel: '64f10a1b2c3d4e5f6a7b8c90',
+      channelName: 'general',
+      message: 'Deploy finished, all green.'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'document.created': {
+    action: 'create',
+    type: 'document.created',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/document/q3-roadmap-64f10a1b2c3d4e5f6a7b8c97',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c97',
+      title: 'Q3 Roadmap'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  }
+}
+
+/**
+ * @public
+ * One HTTP delivery attempt's outcome, kept for the endpoint's "recent deliveries" list. Bounded
+ * per endpoint (oldest trimmed on write, see pod-webhook's delivery.ts) - a debugging aid, not the
+ * source of truth for endpoint health (that's WebhookEndpoint.failureCount/lastError).
+ */
+export interface WebhookDelivery extends Doc {
+  endpoint: Ref<WebhookEndpoint>
+  deliveryId: string
+  attempt: number
+  /** HTTP status on a completed request; absent for a network/SSRF error (see `error`). */
+  status?: number
+  /** Set on failure only - either a transport error message or `http <status>` for a non-2xx. */
+  error?: string
+}
+
+/**
+ * @public
+ * A message counter, one doc per (direction, target, type). Kept as its own satellite doc rather than
+ * a `Record<type, number>` field on WebhookEndpoint/an API key - `$inc` only writes flat top-level
+ * numeric properties (see docs/memory/webhook_outgoing_delivery.md), a map field would need a
+ * read-modify-write and lose increments under concurrent deliveries.
+ */
+export interface WebhookStat extends Doc {
+  direction: 'in' | 'out'
+  /** keyId for an incoming stat, Ref<WebhookEndpoint> for an outgoing one. */
+  target: string
+  /** ApiKeyOperation for incoming, WebhookEventType for outgoing. */
+  type: string
+  count: number
+  lastOn: Timestamp
 }
 
 /**
@@ -162,20 +414,23 @@ export default plugin(settingId, {
     Terms: '' as Ref<Doc>,
     ClassSetting: '' as Ref<Doc>,
     General: '' as Ref<Doc>,
-    Owners: '' as Ref<Doc>,
+    Members: '' as Ref<Doc>,
     InviteSettings: '' as Ref<Doc>,
     WorkspaceSetting: '' as Ref<Doc>,
     ManageSpaces: '' as Ref<Doc>,
     Spaces: '' as Ref<Doc>,
     Backup: '' as Ref<Doc>,
+    ApiKeys: '' as Ref<Doc>,
     Export: '' as Ref<Doc>,
     OfficeSettings: '' as Ref<Doc>,
+    SidebarMenuSettings: '' as Ref<Doc>,
     DisablePermissionsConfiguration: '' as Ref<Configuration>,
     Mailboxes: '' as Ref<Doc>
   },
   mixin: {
     Editable: '' as Ref<Mixin<Editable>>,
     UserMixin: '' as Ref<Mixin<UserMixin>>,
+    ClassifierOrder: '' as Ref<Mixin<ClassifierOrder>>,
     SpaceTypeEditor: '' as Ref<Mixin<SpaceTypeEditor>>,
     SpaceTypeCreator: '' as Ref<Mixin<SpaceTypeCreator>>
   },
@@ -186,7 +441,12 @@ export default plugin(settingId, {
     IntegrationType: '' as Ref<Class<IntegrationType>>,
     InviteSettings: '' as Ref<Class<InviteSettings>>,
     OfficeSettings: '' as Ref<Class<OfficeSettings>>,
-    WorkspaceSetting: '' as Ref<Class<WorkspaceSetting>>
+    WorkspaceSetting: '' as Ref<Class<WorkspaceSetting>>,
+    WebhookEndpoint: '' as Ref<Class<WebhookEndpoint>>,
+    WebhookDelivery: '' as Ref<Class<WebhookDelivery>>,
+    WebhookStat: '' as Ref<Class<WebhookStat>>,
+    WebhookIncomingRule: '' as Ref<Class<WebhookIncomingRule>>,
+    AttributeUsageProvider: '' as Ref<Class<AttributeUsageProvider>>
   },
   component: {
     Settings: '' as AnyComponent,
@@ -209,19 +469,28 @@ export default plugin(settingId, {
     RoleAssignmentEditor: '' as AnyComponent,
     RelationSetting: '' as AnyComponent,
     Backup: '' as AnyComponent,
+    ApiKeys: '' as AnyComponent,
     CreateAttributePopup: '' as AnyComponent,
     CreateRelation: '' as AnyComponent,
     EditRelation: '' as AnyComponent,
     Mailboxes: '' as AnyComponent,
     AddEmailSocialId: '' as AnyComponent,
-    OfficeSettings: '' as AnyComponent
+    OfficeSettings: '' as AnyComponent,
+    SidebarMenuSettings: '' as AnyComponent
   },
   string: {
+    ConfirmOperation: '' as IntlString,
+    Confirm: '' as IntlString,
+    OtpCode: '' as IntlString,
+    OtpSent: '' as IntlString,
+    OtpSendFailed: '' as IntlString,
+    SendCode: '' as IntlString,
     Settings: '' as IntlString,
     Setting: '' as IntlString,
     Spaces: '' as IntlString,
     WorkspaceSettings: '' as IntlString,
     Integrations: '' as IntlString,
+    ApiAndWebhooks: '' as IntlString,
     Support: '' as IntlString,
     Privacy: '' as IntlString,
     Terms: '' as IntlString,
@@ -243,7 +512,7 @@ export default plugin(settingId, {
     Reconnect: '' as IntlString,
     ClassSetting: '' as IntlString,
     Classes: '' as IntlString,
-    Owners: '' as IntlString,
+    Members: '' as IntlString,
     Configure: '' as IntlString,
     InviteSettings: '' as IntlString,
     General: '' as IntlString,
@@ -272,10 +541,14 @@ export default plugin(settingId, {
     CreateMailboxPlaceholder: '' as IntlString,
     MailboxNoDomains: '' as IntlString,
     MailboxLimitReached: '' as IntlString,
+    SeatLimitReached: '' as IntlString,
+    SeatLimitReachedDescription: '' as IntlString,
     OfficeSettings: '' as IntlString,
+    SidebarMenuSettings: '' as IntlString,
     OfficeDefaultSettings: '' as IntlString,
     DefaultStartWithTranscription: '' as IntlString,
     DefaultStartWithRecording: '' as IntlString,
+    DefaultStartPrivate: '' as IntlString,
     MailboxErrorInvalidName: '' as IntlString,
     MailboxErrorDomainNotFound: '' as IntlString,
     MailboxErrorNameRulesViolated: '' as IntlString,
@@ -312,7 +585,7 @@ export default plugin(settingId, {
   },
   icon: {
     AccountSettings: '' as Asset,
-    Owners: '' as Asset,
+    Members: '' as Asset,
     Password: '' as Asset,
     Setting: '' as Asset,
     Integrations: '' as Asset,
@@ -341,6 +614,7 @@ export default plugin(settingId, {
     Value: '' as Ref<TemplateField>
   },
   metadata: {
-    BackupUrl: '' as Metadata<string>
+    BackupUrl: '' as Metadata<string>,
+    WebhookServiceUrl: '' as Metadata<string>
   }
 })

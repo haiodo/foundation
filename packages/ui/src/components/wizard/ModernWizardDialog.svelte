@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,12 +15,12 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import Button from '../Button.svelte'
   import Scroller from '../Scroller.svelte'
   import WizardBar from './ModernWizardBar.svelte'
   import ModernDialog from '../ModernDialog.svelte'
-  import { IWizardStep } from '../../types'
+  import type { IWizardStep } from '../../types'
   import ui from '../../plugin'
   import ArrowLeft from '../icons/ArrowLeft.svelte'
   import ArrowRight from '../icons/ArrowRight.svelte'
@@ -31,6 +32,7 @@
   export let submitLabel: IntlString
   export let steps: ReadonlyArray<IWizardStep>
   export let selectedStep: string
+  export let width: string | undefined = undefined
 
   const dispatch = createEventDispatcher()
 
@@ -70,7 +72,16 @@
   }
 </script>
 
-<ModernDialog {loading} {label} {canSubmit} noContentPadding={true} scrollableContent={false} on:submit on:close>
+<ModernDialog
+  {width}
+  {loading}
+  {label}
+  {canSubmit}
+  noContentPadding={true}
+  scrollableContent={false}
+  on:submit
+  on:close
+>
   <div class="root">
     <div class="side">
       <Scroller>
@@ -86,10 +97,11 @@
     </div>
   </div>
 
-  <div slot="footerExtra">
+  <div slot="footerExtra" class="footerExtra">
     {#if hasBack}
       <Button kind="regular" size="large" label={ui.string.Back} icon={ArrowLeft} on:click={handleBack} {loading} />
     {/if}
+    <slot name="footerMessage" />
   </div>
 
   <div slot="footerButtons">
@@ -128,9 +140,10 @@
   }
 
   .side {
-    flex: 0 0 12rem;
-    padding: 1.5rem;
+    flex: 0 0 14rem;
+    padding: 1.5rem 1rem 1.5rem 1.5rem;
     min-width: 0;
+    border-right: 1px solid var(--theme-dialog-border-color);
   }
 
   .content {
@@ -140,5 +153,12 @@
 
   .contentBody {
     padding: 1.5rem;
+  }
+
+  .footerExtra {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
   }
 </style>

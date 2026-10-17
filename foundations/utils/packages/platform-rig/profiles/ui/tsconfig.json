@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "target": "esnext",
     "module": "esnext",
     "declaration": true,
@@ -12,9 +12,14 @@
     "esModuleInterop": true,
     "declarationMap": true,
     "sourceMap": true,
-    "lib": ["esnext", "dom"],
+    "lib": [
+      "esnext",
+      "dom"
+    ],
     "incremental": true,
-    "types": ["jest"],
+    "types": [
+      "jest"
+    ],
     "isolatedModules": true
   }
 }

@@ -13,14 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { EnumOf } from '@hcengineering/core'
+  import type { EnumOf } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import { DropdownLabels, DropdownTextItem, tooltip } from '@hcengineering/ui'
+  import type { DropdownTextItem } from '@hcengineering/ui'
+  import { DropdownLabels, tooltip } from '@hcengineering/ui'
   import StringPresenter from './StringPresenter.svelte'
 
   export let value: string
   export let type: EnumOf | undefined = undefined
+  export let readonly = false
   export let onChange: ((value: string) => void) | undefined = undefined
 
   let items: DropdownTextItem[] = []
@@ -42,16 +45,16 @@
     )
 </script>
 
-{#if onChange !== undefined && type !== undefined}
+{#if onChange !== undefined && type !== undefined && !readonly}
   <span use:tooltip={value ? { label: getEmbeddedLabel(value) } : undefined}>
     <DropdownLabels
       bind:selected={value}
       {items}
       useFlexGrow={true}
-      justify={'left'}
-      size={'large'}
-      kind={'link'}
-      width={'100%'}
+      justify="left"
+      size="large"
+      kind="link"
+      width="100%"
       autoSelect={false}
       on:selected={(e) => {
         onChange?.(e.detail)

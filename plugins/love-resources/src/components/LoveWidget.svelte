@@ -13,12 +13,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccountRole, getCurrentAccount, hasAccountRole, Ref } from '@hcengineering/core'
-  import love, { Floor, Room } from '@hcengineering/love'
-  import { Breadcrumbs, ButtonIcon, eventToHTMLElement, Header, IconAdd, Scroller, showPopup } from '@hcengineering/ui'
-  import { floors, rooms, selectedFloor } from '../stores'
+  import type { Ref } from '@hcengineering/core'
+  import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import type { Floor, Room } from '@hcengineering/love'
+  import love from '@hcengineering/love'
+  import { Breadcrumbs, eventToHTMLElement, Header, IconAdd, Scroller, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import lovePlg from '../plugin'
+  import { ensureOfficeDetailsLoaded, floors, rooms, selectedFloor } from '../stores'
   import FloorPreview from './FloorPreview.svelte'
   import EditFloorPopup from './EditFloorPopup.svelte'
+
+  void ensureOfficeDetailsLoaded()
 
   let configure: boolean
 
@@ -54,7 +60,13 @@
   <Breadcrumbs items={[{ label: love.string.Office }]} currentOnly />
   <svelte:fragment slot="extra">
     {#if editable}
-      <ButtonIcon icon={IconAdd} kind={'primary'} size={'small'} on:click={addFloor} />
+      <IconButton
+        icon={IconAdd}
+        kind="primary"
+        size="small"
+        tooltip={{ label: lovePlg.string.AddAFloor }}
+        on:click={addFloor}
+      />
     {/if}
   </svelte:fragment>
 </Header>
@@ -69,7 +81,7 @@
           configure={configure && floor?._id === _floor._id}
           rooms={getRooms($rooms, _floor._id)}
           selected={floor?._id === _floor._id}
-          background={'var(--theme-panel-color)'}
+          background="var(--theme-panel-color)"
           on:configure={() => {
             if (floor?._id === _floor._id) {
               configure = !configure

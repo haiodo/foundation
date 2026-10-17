@@ -1,8 +1,10 @@
 <script lang="ts">
-  import core, { Data, Doc, Ref } from '@hcengineering/core'
+  import type { Data } from '@hcengineering/core'
+  import core, { Doc, Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Grid, Label, Toggle } from '@hcengineering/ui'
-  import notification, { NotificationAppearancePreference } from '@hcengineering/notification'
+  import type { NotificationAppearancePreference } from '@hcengineering/notification'
+  import notification from '@hcengineering/notification'
 
   import { appearancePreferences } from '../../stores'
 
@@ -18,7 +20,7 @@
       await client.diffUpdate(preference, { [propName]: value })
     } else {
       await client.createDoc(notification.class.NotificationAppearancePreference, core.space.Workspace, {
-        attachedTo: '' as Ref<Doc>,
+        attachedTo: '',
         ...defaultData,
         [propName]: value
       })

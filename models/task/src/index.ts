@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -57,12 +58,14 @@ import { createPublicLinkAction } from '@hcengineering/model-guest'
 import view, {
   classPresenter,
   createAction,
+  createAttributePresenter,
   template,
   actionTemplates as viewTemplates
 } from '@hcengineering/model-view'
 import { getEmbeddedLabel, type Asset, type IntlString, type Resource } from '@hcengineering/platform'
 import setting from '@hcengineering/setting'
 import tags from '@hcengineering/tags'
+import workflow from '@hcengineering/workflow'
 import {
   type KanbanCard,
   type Project,
@@ -74,8 +77,7 @@ import {
   type Task,
   type TaskType,
   type TaskTypeClass,
-  type TaskTypeDescriptor,
-  type TaskTypeKind
+  type TaskTypeDescriptor
 } from '@hcengineering/task'
 import { PaletteColorIndexes } from '@hcengineering/ui/src/colors'
 import type { AnyComponent } from '@hcengineering/ui/src/types'
@@ -83,7 +85,14 @@ import type { AnyComponent } from '@hcengineering/ui/src/types'
 import task from './plugin'
 
 export { createProjectType, taskId } from '@hcengineering/task'
-export { createSequence, migrateDefaultStatusesBase, taskOperation } from './migration'
+export {
+  createSequence,
+  migrateDefaultStatusesBase,
+  taskOperation,
+  migrateMixinToClassInModel,
+  migrateTaskTypesToClasses,
+  deleteOrphanedTaskTypeClasses
+} from './migration'
 export { default } from './plugin'
 
 export const DOMAIN_TASK = 'task' as Domain
@@ -96,46 +105,46 @@ export const DOMAIN_TASK = 'task' as Domain
 export class TTask extends TAttachedDoc implements Task {
   @Prop(TypeRef(core.class.Status), task.string.TaskState, { _id: task.attribute.State })
   @Index(IndexKind.Indexed)
-    status!: Ref<Status>
+  status!: Ref<Status>
 
   @Prop(TypeRef(task.class.TaskType), task.string.TaskType)
   @Index(IndexKind.Indexed)
   @ReadOnly()
-    kind!: Ref<TaskType>
+  kind!: Ref<TaskType>
 
   @Prop(TypeString(), task.string.TaskNumber)
   @Index(IndexKind.FullText)
   @Hidden()
-    number!: number
+  number!: number
 
   @Prop(TypeRef(contact.mixin.Employee), task.string.TaskAssignee)
-    assignee!: Ref<Person> | null
+  assignee!: Ref<Person> | null
 
   @Prop(TypeDate(), task.string.DueDate, { editor: task.component.DueDateEditor })
-    dueDate!: Timestamp | null
+  dueDate!: Timestamp | null
 
   @Prop(TypeRank(), task.string.Rank)
   @Index(IndexKind.IndexedDsc)
   @Hidden()
-    rank!: Rank
+  rank!: Rank
 
   @Prop(Collection(tags.class.TagReference, task.string.TaskLabels), task.string.TaskLabels)
-    labels?: number
+  labels?: number
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
-    comments?: number
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
+  comments?: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(TypeBoolean(), getEmbeddedLabel('isDone'))
   @Hidden()
-    isDone?: boolean
+  isDone?: boolean
 
   @Prop(TypeString(), task.string.Identifier)
   @ReadOnly()
   @Index(IndexKind.Indexed)
-    identifier!: string
+  identifier!: string
 }
 
 @Mixin(task.mixin.KanbanCard, core.class.Class)
@@ -153,6 +162,7 @@ export class TTaskTypeDescriptor extends TDoc implements TaskTypeDescriptor {
   // If specified, will allow to be created by users, system type overwize
   allowCreate!: boolean
   statusCategoriesFunc?: Resource<(project: ProjectType) => Ref<StatusCategory>[]>
+  defaultStatusesFunc?: Resource<(project: ProjectType) => Ref<Status>[]>
 }
 
 @Mixin(task.mixin.TaskTypeClass, core.class.Class)
@@ -179,52 +189,58 @@ export class TProjectType extends TSpaceType implements ProjectType {
 
   @Prop(TypeString(), task.string.Description)
   @Index(IndexKind.FullText)
-    description!: string
+  description!: string
 
   @Prop(ArrOf(TypeRef(task.class.TaskType)), getEmbeddedLabel('Tasks'))
-    tasks!: Ref<TaskType>[]
+  tasks!: Ref<TaskType>[]
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('Project statuses'))
-    statuses!: ProjectStatus[]
+  statuses!: ProjectStatus[]
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Target Class'))
   declare targetClass: Ref<Class<Project>>
 
   @Prop(TypeBoolean(), getEmbeddedLabel('Classic'))
-    classic!: boolean
+  classic!: boolean
 }
 
 @Model(task.class.TaskType, core.class.Doc, DOMAIN_MODEL)
 export class TTaskType extends TDoc implements TaskType {
   @Prop(TypeString(), getEmbeddedLabel('Name'))
-    name!: string
+  name!: string
 
   @Prop(TypeRef(task.class.TaskTypeDescriptor), getEmbeddedLabel('Descriptor'))
-    descriptor!: Ref<TaskTypeDescriptor>
+  descriptor!: Ref<TaskTypeDescriptor>
 
   @Prop(TypeRef(task.class.ProjectType), getEmbeddedLabel('Task class'))
-    parent!: Ref<ProjectType> // Base class for task
+  parent!: Ref<ProjectType> // Base class for task
 
-  @Prop(TypeString(), getEmbeddedLabel('Kind'))
-    kind!: TaskTypeKind
+  @Prop(TypeBoolean(), task.string.AllowRootTask)
+  isRootTaskType?: boolean
 
-  @Prop(ArrOf(TypeRef(task.class.TaskType)), getEmbeddedLabel('Parent'))
-    allowedAsChildOf!: Ref<TaskType>[] // In case of specified, task type is for sub-tasks
+  @Prop(TypeBoolean(), task.string.AllowAnyParent)
+  allowAnyParent?: boolean
+
+  @Prop(ArrOf(TypeRef(task.class.TaskType)), task.string.AllowedParentTaskTypes)
+  allowedAsChildOf!: Ref<TaskType>[]
+
+  @Prop(TypeBoolean(), task.string.ShowParentTasks)
+  showParentTasks?: boolean
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task class'))
-    ofClass!: Ref<Class<Task>> // Base class for task
+  ofClass!: Ref<Class<Task>> // Base class for task
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task target class'))
-    targetClass!: Ref<Class<Task>> // Class or Mixin mixin to hold all user defined attributes.
+  targetClass!: Ref<Class<Task>> // Class to hold all user defined attributes.
 
   @Prop(ArrOf(TypeRef(core.class.Status)), getEmbeddedLabel('Task statuses'))
-    statuses!: Ref<Status>[]
+  statuses!: Ref<Status>[]
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task status class'))
-    statusClass!: Ref<Class<Status>>
+  statusClass!: Ref<Class<Status>>
 
   @Prop(TypeRef(core.class.StatusCategory), getEmbeddedLabel('Task status categories'))
-    statusCategories!: Ref<StatusCategory>[]
+  statusCategories!: Ref<StatusCategory>[]
 }
 
 @Model(task.class.ProjectTypeDescriptor, core.class.SpaceTypeDescriptor, DOMAIN_MODEL)
@@ -232,6 +248,7 @@ export class TProjectTypeDescriptor extends TSpaceTypeDescriptor implements Proj
   editor?: AnyComponent
   allowedClassic?: boolean
   allowedTaskTypeDescriptors?: Ref<TaskTypeDescriptor>[] // if undefined we allow all possible
+  defaultTaskType?: { descriptor: Ref<TaskTypeDescriptor>, name: string }
   declare baseClass: Ref<Class<Project>>
 }
 
@@ -275,6 +292,12 @@ export function createModel (builder: Builder): void {
   builder.mixin(task.class.Task, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: view.component.ObjectPresenter
   })
+
+  builder.mixin(task.class.Task, core.class.Class, view.mixin.AttributePresenter, {
+    presenter: task.component.TaskPresenter
+  })
+
+  createAttributePresenter(builder, task.component.TaskPresenter, task.class.Task, 'attachedTo', 'attribute')
 
   builder.mixin(task.class.ProjectType, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: task.component.KanbanTemplatePresenter
@@ -498,14 +521,21 @@ export function createModel (builder: Builder): void {
         component: task.component.ProjectTypeTasksTypeSectionEditor
       },
       {
-        id: 'automations',
-        label: setting.string.Automations,
-        component: task.component.ProjectTypeAutomationsSectionEditor
+        id: 'screens',
+        label: workflow.string.Screens,
+        component: workflow.component.ProjectTypeScreensSectionEditor
+      },
+      {
+        id: 'workflows',
+        label: workflow.string.Workflows,
+        component: workflow.component.ProjectTypeWorkflowsSectionEditor
       }
     ],
     subEditors: {
       taskTypes: task.component.TaskTypeEditor,
-      roles: setting.component.RoleEditor
+      roles: setting.component.RoleEditor,
+      workflows: workflow.component.WorkflowEditor,
+      screens: workflow.component.ScreenEditor
     }
   })
 

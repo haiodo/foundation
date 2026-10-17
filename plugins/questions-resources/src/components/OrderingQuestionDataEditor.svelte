@@ -3,16 +3,16 @@
 -->
 
 <script lang="ts">
-  import {
-    type QuestionDataEditorProps,
-    type QuestionDataEditorPropsSubmit,
-    type QuestionDataPresenterProps,
-    type QuestionOption,
-    type OrderingAssessment,
-    type OrderingAssessmentData,
-    type OrderingQuestion,
-    type OrderingQuestionData,
-    type OrderingPosition
+  import type {
+    QuestionDataEditorProps,
+    QuestionDataEditorPropsSubmit,
+    QuestionDataPresenterProps,
+    QuestionOption,
+    OrderingAssessment,
+    OrderingAssessmentData,
+    OrderingQuestion,
+    OrderingQuestionData,
+    OrderingPosition
   } from '@hcengineering/questions'
   import {
     Button,
@@ -30,7 +30,7 @@
   type Q = OrderingQuestion | OrderingAssessment
 
   /**
-   * Declared $$Props help TypeScript ensure that your component properly implements interface
+   * Declared $$Props help TypeScript verify component prop interface conformance
    * @see https://raqueebuddinaziz.com/blog/svelte-type-events-slots-and-props/#restprops-props
    */
   type $$Props = QuestionDataPresenterProps<Q> | QuestionDataEditorProps<Q>

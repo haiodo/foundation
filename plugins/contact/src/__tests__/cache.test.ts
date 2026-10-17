@@ -43,6 +43,19 @@ describe('ContactCache', () => {
     }
   })
 
+  it('clear() forgets persons of the previous workspace', () => {
+    cache.fillCachesForPersonId(personId, { ...socialId, $lookup: { attachedTo: person } } as any)
+    expect(cache.personByPersonId.get(personId)).toBe(person)
+
+    cache.clear()
+
+    expect(cache.personByPersonId.has(personId)).toBe(false)
+    expect(cache.personRefByPersonId.has(personId)).toBe(false)
+    expect(cache.personByRef.has(personRef)).toBe(false)
+    expect(cache.socialIdByPersonId.has(personId)).toBe(false)
+    expect(cache.personIdsByPersonRef.has(personRef)).toBe(false)
+  })
+
   describe('fillCachesForPersonId', () => {
     it('should handle null social identity', () => {
       cache.fillCachesForPersonId(personId, null)
@@ -116,6 +129,54 @@ describe('ContactCache', () => {
       expect(cache.personRefByPersonId.get(personId2)).toBe(personRef)
       expect(cache.personByPersonId.get(personId)).toBe(personWLookup)
       expect(cache.personByPersonId.get(personId2)).toBe(personWLookup)
+    })
+
+    it('records every social id of the person, so a lookup by ref is complete', () => {
+      const personWLookup = {
+        ...person,
+        $lookup: {
+          socialIds: [
+            {
+              _id: personId as SocialIdentityRef,
+              _class: contact.class.SocialIdentity,
+              space: contact.space.Contacts,
+              modifiedOn: 0,
+              attachedTo: personRef,
+              createdBy: personId,
+              modifiedBy: personId,
+              attachedToClass: contact.class.Person,
+              type: SocialIdType.EMAIL,
+              value: 'tester@huly.me',
+              key: 'email:tester@huly.me',
+              collection: 'socialIds'
+            },
+            {
+              _id: personId2 as SocialIdentityRef,
+              _class: contact.class.SocialIdentity,
+              space: contact.space.Contacts,
+              modifiedOn: 0,
+              attachedTo: personRef,
+              createdBy: personId,
+              modifiedBy: personId,
+              attachedToClass: contact.class.Person,
+              type: SocialIdType.EMAIL,
+              value: 'tester2@huly.me',
+              key: 'email:tester2@huly.me',
+              collection: 'socialIds'
+            }
+          ]
+        }
+      }
+
+      cache.fillCachesForPersonRef(personRef, personWLookup)
+
+      expect(Array.from(cache.personIdsByPersonRef.get(personRef) ?? [])).toEqual([personId, personId2])
+    })
+
+    it('leaves no social ids for a person that has none', () => {
+      cache.fillCachesForPersonRef(personRef, null)
+
+      expect(cache.personIdsByPersonRef.get(personRef)).toBeUndefined()
     })
   })
 

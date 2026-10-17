@@ -13,18 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
   import { AttachmentPresenter, AttachmentStyledBox } from '@hcengineering/attachment-resources'
-  import { Channel, ContactEvents, Organization, findContacts } from '@hcengineering/contact'
-  import core, {
-    AttachedData,
-    fillDefaults,
-    generateId,
-    makeCollabId,
-    Ref,
-    TxOperations,
-    WithLookup
-  } from '@hcengineering/core'
+  import type { Channel, Organization } from '@hcengineering/contact'
+  import { ContactEvents, findContacts } from '@hcengineering/contact'
+  import type { AttachedData, Ref, TxOperations, WithLookup } from '@hcengineering/core'
+  import core, { fillDefaults, generateId, makeCollabId } from '@hcengineering/core'
   import { Card, createMarkup, getClient, InlineAttributeBar } from '@hcengineering/presentation'
   import { EmptyMarkup, isEmptyMarkup } from '@hcengineering/text'
   import { Button, createFocusManager, EditBox, FocusHandler, IconAttachment, IconInfo, Label } from '@hcengineering/ui'
@@ -117,12 +111,12 @@
 >
   <div class="flex-row-center clear-mins mb-3">
     <div class="mr-3">
-      <Button icon={Company} size={'medium'} kind={'link-bordered'} noFocus />
+      <Button icon={Company} size="medium" kind="link-bordered" noFocus />
     </div>
     <EditBox
       placeholder={contact.string.OrganizationNamePlaceholder}
       bind:value={object.name}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
       focusIndex={1}
     />
@@ -154,8 +148,8 @@
     <ChannelsDropdown
       bind:value={channels}
       focusIndex={10}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       editable
       highlighted={matchedChannels.map((it) => it.provider)}
     />
@@ -177,7 +171,7 @@
           showPreview
           removable
           on:remove={(result) => {
-            if (result.detail !== undefined) descriptionBox.removeAttachmentById(result.detail._id)
+            if (result.detail !== undefined) void descriptionBox.removeAttachmentById(result.detail._id)
           }}
         />
       {/each}
@@ -194,7 +188,7 @@
     />
     {#if matches.length > 0}
       <div class="flex-row-center error-color">
-        <IconInfo size={'small'} />
+        <IconInfo size="small" />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
         </span>

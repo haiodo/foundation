@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, DocumentQuery, Ref, Space, mergeQueries } from '@hcengineering/core'
+  import type { Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
+  import { mergeQueries } from '@hcengineering/core'
   import { Button } from '@hcengineering/ui'
   import { selectionStore } from '@hcengineering/view-resources'
   import type { TestCase } from '@hcengineering/test-management'
@@ -49,8 +50,8 @@
 
 <Button
   icon={testManagement.icon.Run}
-  justify={'left'}
-  kind={'primary'}
+  justify="left"
+  kind="primary"
   label={testManagement.string.RunTestCases}
   disabled={!haveTestCases}
   on:click={handleRun}

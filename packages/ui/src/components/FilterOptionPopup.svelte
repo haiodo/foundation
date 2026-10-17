@@ -57,7 +57,7 @@
       >
         <span class="option-label">{option.label}</span>
         {#if isSelected(option.id)}
-          <IconCheck size={'small'} />
+          <IconCheck size="small" />
         {/if}
       </button>
     {/each}

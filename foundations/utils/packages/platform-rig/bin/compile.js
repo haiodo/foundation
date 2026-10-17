@@ -8,12 +8,13 @@ const {
   readdirSync,
   lstatSync,
   writeFileSync,
-  copyFileSync
+  copyFileSync,
+  rmSync
 } = require('fs')
 
+const { spawnSync } = require('child_process')
+
 const esbuild = require('esbuild')
-const { copy } = require('esbuild-plugin-copy')
-const ts = require('typescript')
 const sveltePlugin = require('esbuild-svelte')
 const { svelte2tsx } = require('svelte2tsx')
 const sveltePreprocess = require('svelte-preprocess')
@@ -44,26 +45,6 @@ function collectFiles(source) {
     }
   }
   return result
-}
-
-function collectFileStats(source, result) {
-  if (!existsSync(source)) {
-    return
-  }
-  const files = readdirSync(source)
-  for (const f of files) {
-    const sourceFile = join(source, f)
-    const stat = lstatSync(sourceFile)
-    if (stat.isDirectory()) {
-      collectFileStats(sourceFile, result)
-    } else {
-      const ext = basename(sourceFile)
-      if (!ext.endsWith('.ts') && !ext.endsWith('.js') && !ext.endsWith('.svelte')) {
-        continue
-      }
-      result[sourceFile] = stat.mtime.getTime()
-    }
-  }
 }
 
 /**
@@ -106,26 +87,15 @@ function copyJsonFiles(srcDir, outDir, cwd) {
   }
 }
 
-/**
- * Transpile TypeScript/JavaScript files using esbuild
- * @param {string[]} filesToTranspile - Array of file paths to transpile
- * @param {object} options - Options object
- * @param {string} [options.srcDir='src'] - Source directory for JSON assets
- * @param {string} [options.cwd] - Working directory (defaults to process.cwd())
- * @param {string} [options.outDir='lib'] - Output directory
- */
+// Plain per-file transpile, no type information involved. Restored from the pre-tsc7 rig so the
+// build phase can emit JS here and leave tsc with declarations only.
 async function performESBuild(filesToTranspile, options = {}) {
-  const {
-    srcDir = 'src',
-    cwd = process.cwd(),
-    outDir = 'lib'
-  } = options
+  const { srcDir = 'src', cwd = process.cwd(), outDir = 'lib' } = options
 
   if (filesToTranspile.length === 0) {
     return
   }
 
-  // Copy JSON files manually (esbuild-plugin-copy doesn't work well with absWorkingDir)
   copyJsonFiles(srcDir, outDir, cwd)
 
   await esbuild.build({
@@ -133,13 +103,23 @@ async function performESBuild(filesToTranspile, options = {}) {
     bundle: false,
     minify: false,
     outdir: outDir,
+    outbase: srcDir,
     keepNames: true,
     sourcemap: 'linked',
     allowOverwrite: true,
     format: 'cjs',
     color: true,
+    logLevel: 'error',
     absWorkingDir: cwd
   })
+}
+
+// rootDir comes from the package's tsconfig: the sanity test packages compile ./tests, not ./src.
+async function emitLib(cwd) {
+  const m = /"rootDir"\s*:\s*"([^"]+)"/.exec(readFileSync(join(cwd, 'tsconfig.json'), 'utf8'))
+  const srcDir = m?.[1] ?? 'src'
+  const files = collectFiles(join(cwd, srcDir)).map((f) => relative(cwd, f))
+  await performESBuild(files, { srcDir, cwd, outDir: 'lib' })
 }
 
 async function performESBuildWithSvelte(filesToTranspile, options = {}) {
@@ -154,6 +134,9 @@ async function performESBuildWithSvelte(filesToTranspile, options = {}) {
 
   // Build non-Svelte files
   if (nonSvelteFiles.length > 0) {
+    // Not esbuild-plugin-copy: on Windows its glob reads the backslashes of an absolute path as
+    // escapes and crawls the whole repo from process.cwd(), growing the build process until OOM.
+    copyJsonFiles('src', 'lib', cwd)
     await esbuild.build({
       entryPoints: nonSvelteFiles,
       bundle: false,
@@ -166,17 +149,7 @@ async function performESBuildWithSvelte(filesToTranspile, options = {}) {
       allowOverwrite: true,
       format: 'cjs',
       color: true,
-      absWorkingDir: cwd,
-      plugins: [
-        copy({
-          resolveFrom: 'cwd',
-          assets: {
-            from: [join(cwd, 'src/**/*.json')],
-            to: [outdir]
-          },
-          watch: false
-        })
-      ]
+      absWorkingDir: cwd
     })
   }
 
@@ -198,7 +171,10 @@ async function performESBuildWithSvelte(filesToTranspile, options = {}) {
       absWorkingDir: cwd,
       plugins: [
         sveltePlugin({
-          preprocess: sveltePreprocess(),
+          // svelte-preprocess 6 elides imports that only the markup uses (a store referenced
+          // as $store) unless this is set. Deliberately not in tsconfig: esbuild reads it too
+          // and would then keep type-only imports, pulling .svelte source into node bundles.
+          preprocess: sveltePreprocess({ typescript: { compilerOptions: { verbatimModuleSyntax: true } } }),
           compilerOptions: {
             css: 'injected',
             generate: 'ssr'
@@ -248,132 +224,106 @@ async function generateSvelteTypes(options = {}) {
   }
 }
 
+// tsc sees a .svelte import only through the `*.svelte` shim; these give dependents real prop types
+// through types/ instead of compiling this package's sources again.
+async function emitSvelteDts(cwd) {
+  const srcDir = join(cwd, 'src')
+  if (!collectFiles(srcDir).some((f) => f.endsWith('.svelte'))) return
+  const { emitDts } = require('svelte2tsx')
+  const outDir = join(cwd, '.build', 'svelte-dts')
+  rmSync(outDir, { recursive: true, force: true })
+  await emitDts({
+    declarationDir: outDir,
+    svelteShimsPath: require.resolve('svelte2tsx/svelte-shims-v4.d.ts'),
+    libRoot: srcDir,
+    tsconfig: join(cwd, 'tsconfig.json')
+  })
+  // The .ts declarations stay tsc 7's; only the components come from here.
+  for (const f of collectDts(outDir)) {
+    const dest = join(cwd, 'types', relative(outDir, f))
+    mkdirSync(dirname(dest), { recursive: true })
+    copyFileSync(f, dest)
+  }
+}
+
+function collectDts(dir) {
+  const result = []
+  for (const f of existsSync(dir) ? readdirSync(dir) : []) {
+    const full = join(dir, f)
+    if (lstatSync(full).isDirectory()) result.push(...collectDts(full))
+    else if (f.endsWith('.svelte.d.ts')) result.push(full)
+  }
+  return result
+}
+
 /**
- * Validate TypeScript and emit declaration files
- * @param {object} options - Options object
- * @param {string} [options.cwd] - Working directory (defaults to process.cwd())
- * @param {boolean} [options.throwOnError=false] - Throw error instead of process.exit
+ * Resolve the native TypeScript 7 `tsc` binary.
  */
-async function validateTSC(options = {}) {
-  const { cwd = process.cwd(), throwOnError = false } = options
-  const buildDir = join(cwd, '.validate')
-  const typesDir = join(cwd, 'types')
+function resolveTsc7() {
+  if (process.env.TSC7_BIN != null && process.env.TSC7_BIN !== '') {
+    return process.env.TSC7_BIN
+  }
+  // Skip the `bin/tsc` node shim: it costs ~90ms of node startup per package.
+  const rig = dirname(require.resolve('typescript7/package.json'))
+  const platformPkg = `@typescript/typescript-${process.platform}-${process.arch}`
+  const exeDir = join(dirname(require.resolve(`${platformPkg}/package.json`, { paths: [rig] })), 'lib')
+  return join(exeDir, process.platform === 'win32' ? 'tsc.exe' : 'tsc')
+}
+
+/**
+ * Single-pass compile via tsc 7: JS + .d.ts + maps, or declarations only.
+ * @param {object} options
+ * @param {string} [options.cwd]
+ * @param {boolean} [options.emitDeclarationOnly=false]
+ * @param {boolean} [options.throwOnError=false]
+ */
+function tscCompile(options = {}) {
+  const { cwd = process.cwd(), emitDeclarationOnly = false, throwOnError = false } = options
+  const buildDir = join(cwd, '.build')
 
   if (!existsSync(buildDir)) {
     mkdirSync(buildDir, { recursive: true })
   }
 
-  const stdoutFilePath = join(buildDir, 'validate.log')
-  const stderrFilePath = join(buildDir, 'validate-err.log')
+  // Passed explicitly: a relative path in a rig profile resolves into the shared rig folder.
+  const args = ['-p', 'tsconfig.json', '--tsBuildInfoFile', join('.build', 'build.tsbuildinfo')]
+  if (emitDeclarationOnly) {
+    args.push('--emitDeclarationOnly')
+  }
 
-  // Read tsconfig.json
-  const configPath = ts.findConfigFile(cwd, ts.sys.fileExists, 'tsconfig.json')
+  const res = spawnSync(resolveTsc7(), args, { cwd, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 })
+  const output = (res.stdout ?? '') + (res.stderr ?? '')
+  writeFileSync(join(buildDir, 'compile.log'), output)
 
-  if (!configPath) {
-    const err = new Error('Could not find tsconfig.json')
+  if (res.error != null) {
+    throw res.error
+  }
+  if (res.status !== 0) {
     if (throwOnError) {
-      throw err
+      throw new Error(output)
     }
-    console.error(err.message)
-    process.exit(1)
+    console.error(output)
+    process.exit(res.status ?? 1)
   }
 
-  const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
-
-  // Prepare compiler options
-  // Note: We don't add typesDir to typeRoots because typeRoots expects directories
-  // containing type packages (like @types/node), not arbitrary .d.ts files.
-  // Subdirectories in typesDir (like __test__, main) would be treated as type packages,
-  // causing errors like "Cannot find type definition file for '__test__'"
-  const compilerOptionsOverride = {
-    emitDeclarationOnly: true,
-    declaration: true,
-    declarationDir: typesDir,  // Always emit to types directory
-    incremental: true,
-    tsBuildInfoFile: join(buildDir, 'tsBuildInfoFile.info'),
-    skipLibCheck: true,
-    noLib: false
-  }
-
-  const parsedConfig = ts.parseJsonConfigFileContent(configFile.config, ts.sys, cwd, compilerOptionsOverride)
-
-  // Add generated Svelte type files to the file list
-  if (existsSync(typesDir)) {
-    const svelteTypeFiles = collectFiles(typesDir).filter((f) => f.endsWith('.svelte.d.ts'))
-    parsedConfig.fileNames.push(...svelteTypeFiles)
-  }
-
-  // Create the TypeScript program
-  const program = ts.createProgram({
-    rootNames: parsedConfig.fileNames,
-    options: parsedConfig.options
-  })
-
-  // Get diagnostics
-  const emitResult = program.emit()
-  const allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics)
-
-  const stdout = []
-  const stderr = []
-
-  // Format diagnostics
-  allDiagnostics.forEach((diagnostic) => {
-    if (diagnostic.file && diagnostic.start !== undefined) {
-      const { line, character } = ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start)
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-      const output = `${diagnostic.file.fileName}(${line + 1},${character + 1}): error TS${diagnostic.code}: ${message}`
-      stderr.push(output)
-    } else {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-      stderr.push(`error TS${diagnostic.code}: ${message}`)
-    }
-  })
-
-  // Write logs
-  writeFileSync(stdoutFilePath, stdout.join('\n'))
-  writeFileSync(stderrFilePath, stderr.join('\n'))
-
-  if (allDiagnostics.length > 0) {
-    const errorMessage = stderr.join('\n')
-    if (throwOnError) {
-      throw new Error(errorMessage)
-    }
-    console.error('\n' + errorMessage)
-    process.exit(1)
-  }
-
-  if (emitResult.emitSkipped) {
-    const err = new Error('TypeScript emit was skipped')
-    if (throwOnError) {
-      throw err
-    }
-    process.exit(1)
+  if (!emitDeclarationOnly) {
+    copyJsonFiles('src', 'lib', cwd)
   }
 }
 
 // Main execution - only run when called directly
 if (require.main === module) {
   switch (args[0]) {
-    case 'ui': {
-      console.log('Nothing to compile for UI')
-      break
-    }
 
     case 'ui-esbuild': {
       console.log('Building UI package with Svelte support...')
       const st = performance.now()
       const filesToTranspile = collectFiles(join(process.cwd(), 'src'))
-      const before = {}
-      const after = {}
-      collectFileStats('lib', before)
-      collectFileStats('types', before)
 
       performESBuildWithSvelte(filesToTranspile, { cwd: process.cwd() })
         .then(() => generateSvelteTypes({ cwd: process.cwd() }))
         .then(() => {
           console.log('UI build time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
-          collectFileStats('lib', after)
-          collectFileStats('types', after)
         })
         .catch((err) => {
           console.error('UI build failed:', err)
@@ -382,48 +332,37 @@ if (require.main === module) {
       break
     }
 
-    case 'transpile': {
-      const srcDir = args[1] || 'src'
+    // `ui` kept as an alias: UI packages ship sources, only declarations are emitted.
+    case 'build-ui':
+    case 'ui': {
       const st = performance.now()
-      const filesToTranspile = collectFiles(join(process.cwd(), srcDir))
-      const before = {}
-      const after = {}
-      collectFileStats('lib', before)
-
-      performESBuild(filesToTranspile, { srcDir })
+      tscCompile({ cwd: process.cwd(), emitDeclarationOnly: true })
+      emitSvelteDts(process.cwd())
         .then(() => {
-          console.log('Transpile time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
-          collectFileStats('lib', after)
+          console.log('Build time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
         })
         .catch((err) => {
-          console.error('Transpile failed:', err)
+          console.error('Svelte declarations failed:', err)
           process.exit(1)
         })
       break
     }
 
-    case 'validate': {
-      const st = performance.now()
-
-      validateTSC()
-        .then(() => {
-          console.log('Validate time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
-        })
-        .catch((err) => {
-          console.error('Validate failed:', err)
-          process.exit(1)
-        })
+    case 'svelte-dts': {
+      emitSvelteDts(process.cwd()).catch((err) => {
+        console.error('Svelte declarations failed:', err)
+        process.exit(1)
+      })
       break
     }
 
+    case 'build':
     default: {
-      // Full build: transpile + validate
       const st = performance.now()
-      const filesToTranspile = collectFiles(join(process.cwd(), 'src'))
-
-      Promise.all([performESBuild(filesToTranspile, { srcDir: 'src' }), validateTSC()])
+      tscCompile({ cwd: process.cwd(), emitDeclarationOnly: true })
+      emitLib(process.cwd())
         .then(() => {
-          console.log('Full build time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
+          console.log('Build time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
         })
         .catch((err) => {
           console.error('Build failed:', err)
@@ -437,9 +376,11 @@ if (require.main === module) {
 // Export functions for use by other modules
 module.exports = {
   collectFiles,
-  collectFileStats,
   performESBuild,
+  emitLib,
   performESBuildWithSvelte,
   generateSvelteTypes,
-  validateTSC
+  emitSvelteDts,
+  tscCompile,
+  resolveTsc7
 }

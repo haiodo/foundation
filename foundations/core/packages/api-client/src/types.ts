@@ -45,9 +45,9 @@ type WithPropertyType<T, X, Y> = {
 
 /** @public */
 export type WithMarkup<T> = WithPropertyType<
-WithPropertyType<T, CollaborativeDoc | undefined, MarkupContent | undefined>,
-CollaborativeDoc,
-MarkupContent
+  WithPropertyType<T, CollaborativeDoc | undefined, MarkupContent | undefined>,
+  CollaborativeDoc,
+  MarkupContent
 >
 
 /**
@@ -70,11 +70,11 @@ export type PlatformClient = {
 
   close: () => Promise<void>
 } & FindOperations &
-DocOperations &
-CollectionOperations &
-MixinOperations &
-MarkupOperations &
-AsyncDisposable
+  DocOperations &
+  CollectionOperations &
+  MixinOperations &
+  MarkupOperations &
+  AsyncDisposable
 
 /**
  * @public
@@ -199,11 +199,20 @@ export interface TokenAuthOptions {
 }
 
 /**
- * Union type representing all authentication options
- * Can be either password-based or token-based authentication
+ * Configuration options for integration API key authentication
  * @public
  */
-export type AuthOptions = PasswordAuthOptions | TokenAuthOptions
+export interface ApiKeyAuthOptions {
+  /** Integration API key, `fus_...`. Names its own workspace, so none is passed. */
+  apiKey: string
+}
+
+/**
+ * Union type representing all authentication options
+ * Password-based, token-based or integration API key
+ * @public
+ */
+export type AuthOptions = PasswordAuthOptions | TokenAuthOptions | ApiKeyAuthOptions
 
 /**
  * Configuration options for socket connection

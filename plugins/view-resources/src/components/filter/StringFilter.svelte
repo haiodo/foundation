@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { Button, resizeObserver, deviceOptionsStore, EditWithIcon, IconSearch } from '@hcengineering/ui'
-  import { Filter } from '@hcengineering/view'
+  import type { Filter } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import view from '../../plugin'
 
@@ -56,8 +56,8 @@
   <div class="header no-border">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       placeholder={filter.key.label}

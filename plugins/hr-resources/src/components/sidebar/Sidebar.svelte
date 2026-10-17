@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { Department } from '@hcengineering/hr'
+  import type { Ref } from '@hcengineering/core'
+  import type { Department } from '@hcengineering/hr'
   import { Scroller, Separator, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { TreeNode } from '@hcengineering/view-resources'
   import { NavFooter, NavHeader } from '@hcengineering/workbench-resources'
@@ -45,10 +45,10 @@
   </div>
   {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
     <Separator
-      name={'schedule'}
+      name="schedule"
       float={$deviceInfo.navigator.float ? 'navigator' : true}
       index={0}
-      color={'var(--theme-navpanel-border)'}
+      color="var(--theme-navpanel-border)"
     />
   {/if}
 </div>

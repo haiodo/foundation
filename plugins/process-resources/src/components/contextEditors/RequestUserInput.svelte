@@ -13,14 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref, Space } from '@hcengineering/core'
+  import type { Ref, Space } from '@hcengineering/core'
   import presentation, { Card, getClient } from '@hcengineering/presentation'
-  import { ExecutionContext, Process, SelectedUserRequest, Transition } from '@hcengineering/process'
+  import type { ExecutionContext, Process, SelectedUserRequest, Transition } from '@hcengineering/process'
   import { Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
   import TransitionPresenter from '../settings/TransitionPresenter.svelte'
   import RequestUserInputAttribute from './RequestUserInputAttribute.svelte'
+  import ClassUserInput from './ClassUserInput.svelte'
 
   export let processId: Ref<Process>
   export let space: Ref<Space>
@@ -48,7 +49,7 @@
 
 <Card
   on:close
-  width={'small'}
+  width="small"
   label={plugin.string.EnterValue}
   canSave={canSaveValue}
   okAction={save}
@@ -66,16 +67,27 @@
   {/if}
   <div class="grid">
     {#each inputs as input}
-      <RequestUserInputAttribute
-        key={input.key}
-        _class={input._class}
-        {space}
-        value={values[input.id]}
-        on:change={(e) => {
-          values[input.id] = e.detail
-          values = values
-        }}
-      />
+      {#if input.key === '_class'}
+        <ClassUserInput
+          _class={input._class}
+          value={values[input.id]}
+          on:change={(e) => {
+            values[input.id] = e.detail
+            values = values
+          }}
+        />
+      {:else}
+        <RequestUserInputAttribute
+          key={input.key}
+          _class={input._class}
+          {space}
+          value={values[input.id]}
+          on:change={(e) => {
+            values[input.id] = e.detail
+            values = values
+          }}
+        />
+      {/if}
     {/each}
   </div>
 </Card>

@@ -38,9 +38,11 @@ export default mergeIds(loveId, love, {
     MeetingMinutesStatusPresenter: '' as AnyComponent,
     MeetingMinutesTranscriptionStatePresenter: '' as AnyComponent,
     MeetingMinutesRecordingStatePresenter: '' as AnyComponent,
+    MeetingSummaryEditor: '' as AnyComponent,
     RoomLanguageEditor: '' as AnyComponent,
     MediaPopupItemExt: '' as AnyComponent,
     SharingStateIndicator: '' as AnyComponent,
+    SpeakingWhileMutedIndicator: '' as AnyComponent,
     MeetingScheduleData: '' as AnyComponent,
     EditMeetingScheduleData: '' as AnyComponent,
     InviteEmployeeButton: '' as AnyComponent,
@@ -51,10 +53,18 @@ export default mergeIds(loveId, love, {
     CreateMeetingSchedule: '' as Resource<DocCreateFunction>,
     CanShowRoomSettings: '' as Resource<ViewActionAvailabilityFunction>,
     CanCopyGuestLink: '' as Resource<ViewActionAvailabilityFunction>,
+    CanCloseRoom: '' as Resource<ViewActionAvailabilityFunction>,
+    CanOpenRoom: '' as Resource<ViewActionAvailabilityFunction>,
     MeetingMinutesTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
+    RoomTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
     UserMeetingInviteTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>
   },
   string: {
+    SwitchWorkspaceInMeeting: '' as IntlString,
+    SwitchWorkspaceLeaveMeeting: '' as IntlString,
+    AlreadyInAnotherMeeting: '' as IntlString,
+    LeaveOtherMeeting: '' as IntlString,
+    SwitchWorkspaceEndsMeeting: '' as IntlString,
     CreateMeeting: '' as IntlString,
     LeaveRoom: '' as IntlString,
     AcceptRecording: '' as IntlString,
@@ -73,6 +83,11 @@ export default mergeIds(loveId, love, {
     ChangeFloor: '' as IntlString,
     ChangeAccess: '' as IntlString,
     AddAFloor: '' as IntlString,
+    AddRoom: '' as IntlString,
+    AddReaction: '' as IntlString,
+    ZoomIn: '' as IntlString,
+    ZoomOut: '' as IntlString,
+    ResetZoom: '' as IntlString,
     RenameAFloor: '' as IntlString,
     Cancel: '' as IntlString,
     EnterRoom: '' as IntlString,
@@ -126,6 +141,9 @@ export default mergeIds(loveId, love, {
     StayInRoom: '' as IntlString,
     From: '' as IntlString,
     To: '' as IntlString,
-    ExpiresAt: '' as IntlString
+    ExpiresAt: '' as IntlString,
+    Organizators: '' as IntlString,
+    SpeakingWhileMuted: '' as IntlString,
+    SpeakingWhileMutedAlert: '' as IntlString
   }
 })

@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccountRole, Ref, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { Button, ButtonWithDropdown, IconAdd, IconDropdown, Loading, SelectPopupValueType } from '@hcengineering/ui'
-  import { TestProject } from '@hcengineering/test-management'
+  import type { SelectPopupValueType } from '@hcengineering/ui'
+  import { Button, ButtonWithDropdown, IconAdd, IconDropdown, Loading } from '@hcengineering/ui'
+  import type { TestProject } from '@hcengineering/test-management'
 
   import { showCreateTestCasePopup, showCreateTestSuitePopup, showCreateProjectPopup } from '../utils'
   import { getTestSuiteIdFromLocation } from '../navigation'
@@ -105,8 +107,8 @@
     {#if hasProject}
       <ButtonWithDropdown
         icon={IconAdd}
-        justify={'left'}
-        kind={'primary'}
+        justify="left"
+        kind="primary"
         label={testManagement.string.CreateTestCase}
         dropdownIcon={IconDropdown}
         {dropdownItems}
@@ -120,10 +122,10 @@
       <Button
         icon={IconAdd}
         label={testManagement.string.CreateProject}
-        justify={'left'}
-        width={'100%'}
-        kind={'primary'}
-        gap={'large'}
+        justify="left"
+        width="100%"
+        kind="primary"
+        gap="large"
         on:click={showCreateProjectPopup}
       />
     {/if}

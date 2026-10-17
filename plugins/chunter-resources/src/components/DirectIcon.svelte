@@ -13,27 +13,29 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DirectMessage } from '@hcengineering/chunter'
-  import contact, { Person } from '@hcengineering/contact'
-  import { Avatar, CombineAvatars } from '@hcengineering/contact-resources'
-  import { Ref } from '@hcengineering/core'
+  import type { DirectMessage } from '@hcengineering/chunter'
+  import type { Person } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+  import { Avatar, CombineAvatars, SystemAvatar } from '@hcengineering/contact-resources'
+  import { type AccountUuid, type Ref, systemAccountUuid } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Icon, IconSize } from '@hcengineering/ui'
-  import { classIcon } from '@hcengineering/view-resources'
+  import type { IconSize } from '@hcengineering/ui'
 
   import chunter from '../plugin'
   import { getDmPersons } from '../utils'
 
   export let value: DirectMessage | undefined
+  export let members: AccountUuid[] = []
   export let _id: Ref<DirectMessage> | undefined = undefined
   export let size: IconSize = 'small'
   export let showStatus = false
   export let compact = false
+  export let visiblePersons = 4
 
-  const visiblePersons = 4
   const client = getClient()
 
   let persons: Person[] = []
+  let isLoaded = false
 
   if (_id !== undefined && value === undefined) {
     void client.findOne(chunter.class.DirectMessage, { _id }).then((res) => {
@@ -43,11 +45,10 @@
     value = undefined
   }
 
-  $: if (value !== undefined) {
-    void getDmPersons(client, value).then((res) => {
-      persons = res
-    })
-  }
+  $: void getDmPersons(client, value?.members ?? members ?? []).then((res) => {
+    persons = res
+    isLoaded = true
+  })
 
   let avatarSize = size
 
@@ -56,8 +57,10 @@
   }
 </script>
 
-{#if persons.length === 0}
-  <Icon icon={classIcon(client, chunter.class.DirectMessage) ?? chunter.icon.Chunter} {size} />
+{#if !isLoaded}
+  <div class="placeholder hulyAvatarSize-{avatarSize}" />
+{:else if persons.length === 0 && (value?.members ?? members).includes(systemAccountUuid)}
+  <SystemAvatar size={avatarSize} />
 {/if}
 
 {#if persons.length === 1}
@@ -98,6 +101,11 @@
 {/if}
 
 <style lang="scss">
+  .placeholder {
+    flex-shrink: 0;
+    aspect-ratio: 1;
+  }
+
   .group {
     display: flex;
     align-items: center;

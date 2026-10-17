@@ -17,7 +17,8 @@
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import { Icon, tooltip } from '@hcengineering/ui'
-  import documents, { Document, DocumentMeta, getDocumentName } from '@hcengineering/controlled-documents'
+  import type { Document, DocumentMeta } from '@hcengineering/controlled-documents'
+  import documents, { getDocumentName } from '@hcengineering/controlled-documents'
 
   import document from '../plugin'
 
@@ -52,7 +53,7 @@
   {@const title = getDocumentName(lastDoc)}
   <div class="flex-row-center" use:tooltip={{ label: getEmbeddedLabel(title) }}>
     <div class="icon mr-1">
-      <Icon icon={document.icon.Document} size={'small'} />
+      <Icon icon={document.icon.Document} size="small" />
     </div>
     <span class="label">{title}</span>
   </div>

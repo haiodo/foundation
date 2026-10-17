@@ -16,8 +16,8 @@
 -->
 
 <script lang="ts">
-  import { Product, ProductVersion } from '@hcengineering/products'
-  import { WithLookup } from '@hcengineering/core'
+  import type { Product, ProductVersion } from '@hcengineering/products'
+  import type { WithLookup } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { tooltip } from '@hcengineering/ui'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
@@ -52,7 +52,7 @@
       <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(name) }}>
         {#if shouldShowAvatar && product}
           <div class="icon">
-            <DocIcon value={product} size={'small'} defaultIcon={products.icon.ProductVersion} />
+            <DocIcon value={product} size="small" defaultIcon={products.icon.ProductVersion} />
           </div>
         {/if}
         <span class="label nowrap" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>

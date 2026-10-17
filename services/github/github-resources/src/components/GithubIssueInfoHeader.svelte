@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { DocumentUpdate, Ref } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { DocumentUpdate, Ref } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import tracker, { Project, ProjectTargetPreference } from '@hcengineering/tracker'
+  import type { Project, ProjectTargetPreference } from '@hcengineering/tracker'
+  import tracker from '@hcengineering/tracker'
   import {
     Button,
     ButtonWithDropdown,
@@ -14,8 +16,8 @@
     showPopup,
     type SelectPopupValueType
   } from '@hcengineering/ui'
-  import { GithubIntegrationRepository } from '@hcengineering/github'
-  import { Writable } from 'svelte/store'
+  import type { GithubIntegrationRepository } from '@hcengineering/github'
+  import type { Writable } from 'svelte/store'
   import github from '../plugin'
   import { integrationRepositories } from './utils'
 
@@ -111,7 +113,7 @@
         usedOn: Date.now(),
         props: [
           {
-            key: github.class.GithubIntegrationRepository as string,
+            key: github.class.GithubIntegrationRepository,
             value: repository
           }
         ]
@@ -153,8 +155,8 @@
 
 {#if githubProject !== undefined && rawRepositories.length > 0}
   <ButtonWithDropdown
-    kind={'primary'}
-    size={'large'}
+    kind="primary"
+    size="large"
     dropdownItems={repositories}
     disabled={!canSave}
     label={okLabel}
@@ -181,7 +183,7 @@
       {#if selectedRepository !== undefined}
         <div class="flex-row-center">
           <div class="p-1">
-            <Icon icon={github.icon.Github} size={'small'} />
+            <Icon icon={github.icon.Github} size="small" />
           </div>
           {selectedRepository.name}
         </div>
@@ -194,8 +196,8 @@
     focusIndex={10001}
     disabled={!canSave}
     label={okLabel}
-    kind={'primary'}
-    size={'large'}
+    kind="primary"
+    size="large"
     on:click={() => {
       performOK(repository)
     }}

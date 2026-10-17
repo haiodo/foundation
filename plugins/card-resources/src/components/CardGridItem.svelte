@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type Card } from '@hcengineering/card'
-  import { type WithLookup } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import type { WithLookup } from '@hcengineering/core'
   import { getClient, Image, remToPx } from '@hcengineering/presentation'
   import { Button, IconMoreH } from '@hcengineering/ui'
   import view from '@hcengineering/view'
@@ -71,21 +71,21 @@
           height={size}
           blurhash={mainBlob?.metadata?.thumbnail?.blurhash}
           responsive
-          fit={'cover'}
+          fit="cover"
         />
       {:else if isFile && mainBlob}
         <div class="flex-center ext-icon">
           {mainBlob.name.split('.').pop()?.substring(0, 4).toUpperCase()}
         </div>
       {:else}
-        <CardIcon value={object} size={'full'} />
+        <CardIcon value={object} size="full" />
       {/if}
     </div>
 
     <div class="header flex-col">
       <div class="flex-row-center flex-gap-2 h-8">
         <div class="title overflow-label flex-grow font-medium-14">
-          <CardPresenter value={object} type={'text'} />
+          <CardPresenter value={object} type="text" />
         </div>
         <div class="tools">
           <Button

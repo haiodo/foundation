@@ -13,17 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
-    AccountRole,
-    Doc,
-    DocumentQuery,
-    Ref,
-    WithLookup,
-    getCurrentAccount,
-    hasAccountRole
-  } from '@hcengineering/core'
+  import type { Doc, DocumentQuery, Ref, WithLookup } from '@hcengineering/core'
+  import core, { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { Vacancy } from '@hcengineering/recruit'
+  import type { Vacancy } from '@hcengineering/recruit'
   import {
     Button,
     Component,
@@ -35,7 +28,8 @@
     Header,
     Breadcrumb
   } from '@hcengineering/ui'
-  import view, { BuildModelKey, ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import type { BuildModelKey, ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { FilterBar, FilterButton, ViewletSelector, ViewletSettingButton } from '@hcengineering/view-resources'
   import recruit from '../plugin'
   import CreateVacancy from './CreateVacancy.svelte'
@@ -138,7 +132,7 @@
 </script>
 
 <Header
-  adaptive={'freezeActions'}
+  adaptive="freezeActions"
   hideActions={!(viewlet?.descriptor === view.viewlet.Table || hasAccountRole(getCurrentAccount(), AccountRole.User))}
 >
   <svelte:fragment slot="beforeTitle">
@@ -155,7 +149,7 @@
     <ViewletSettingButton bind:viewOptions bind:viewlet />
   </svelte:fragment>
 
-  <Breadcrumb icon={IconVacancy} label={recruit.string.Vacancies} size={'large'} isCurrent />
+  <Breadcrumb icon={IconVacancy} label={recruit.string.Vacancies} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed on:change={(e) => (search = e.detail)} />
@@ -183,7 +177,7 @@
       />
     {/if}
     {#if hasAccountRole(getCurrentAccount(), AccountRole.User)}
-      <Button icon={IconAdd} label={recruit.string.VacancyCreateLabel} kind={'primary'} on:click={showCreateDialog} />
+      <Button icon={IconAdd} label={recruit.string.VacancyCreateLabel} kind="primary" on:click={showCreateDialog} />
     {/if}
   </svelte:fragment>
 </Header>
@@ -197,7 +191,7 @@
 
 {#if loading}
   <Loading />
-{:else if viewlet && viewlet?.$lookup?.descriptor?.component}
+{:else if viewlet?.$lookup?.descriptor?.component}
   <Component
     is={viewlet.$lookup.descriptor.component}
     props={{

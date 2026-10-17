@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IModeSelector, ModeSelector, resolvedLocationStore } from '@hcengineering/ui'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IModeSelector } from '@hcengineering/ui'
+  import { ModeSelector, resolvedLocationStore } from '@hcengineering/ui'
+  import type { IntlString } from '@hcengineering/platform'
 
   import { getCurrentMode, onModeChanged } from '../../navigation'
 
@@ -37,5 +38,5 @@
 </script>
 
 {#if modeSelectorProps !== undefined}
-  <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+  <ModeSelector kind="subtle" props={modeSelectorProps} />
 {/if}

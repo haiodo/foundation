@@ -13,13 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset } from '@hcengineering/platform'
-  import { AnySvelteComponent, Icon, IconSize, getPlatformColorDef, themeStore } from '@hcengineering/ui'
+  import type { Asset } from '@hcengineering/platform'
+  import type { AnySvelteComponent, IconSize } from '@hcengineering/ui'
+  import { Icon, getPaletteColorDef, themeStore } from '@hcengineering/ui'
   import { IconWithEmoji } from '@hcengineering/presentation'
-  import view, { IconProps } from '@hcengineering/view'
+  import type { IconProps } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import document from '@hcengineering/document'
 
-  import { ComponentType } from 'svelte'
+  import type { ComponentType } from 'svelte'
 
   export let value: IconProps | undefined
   export let size: IconSize
@@ -33,9 +35,6 @@
   iconProps={value?.icon === iconWithEmoji && iconWithEmoji
     ? { icon: value?.color }
     : {
-        fill:
-          value?.color !== undefined && typeof value?.color !== 'string'
-            ? getPlatformColorDef(value?.color, $themeStore.dark).icon
-            : 'currentColor'
+        fill: getPaletteColorDef(value?.color, $themeStore.dark)?.icon ?? 'currentColor'
       }}
 />

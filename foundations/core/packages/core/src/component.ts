@@ -196,7 +196,10 @@ export default plugin(coreId, {
     TypeRef: '' as Asset,
     TypeArray: '' as Asset,
     TypeEnumOf: '' as Asset,
-    TypeCollection: '' as Asset
+    TypeCollection: '' as Asset,
+    TypePersonId: '' as Asset,
+    Status: '' as Asset,
+    Time: '' as Asset
   },
   mixin: {
     ConfigurationElement: '' as Ref<Mixin<ConfigurationElement>>,
@@ -303,7 +306,10 @@ export default plugin(coreId, {
     Version: '' as IntlString,
     Collaborator: '' as IntlString,
     Collaborators: '' as IntlString,
-    RoleAdmin: '' as IntlString
+    RoleAdmin: '' as IntlString,
+    Archived: '' as IntlString,
+    AddedCollaborator: '' as IntlString,
+    RemovedCollaborator: '' as IntlString
   },
   descriptor: {
     SpacesType: '' as Ref<SpaceTypeDescriptor>

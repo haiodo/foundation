@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,7 +21,9 @@ const Dotenv = require('dotenv-webpack')
 const path = require('path')
 const CompressionPlugin = require('compression-webpack-plugin')
 const DefinePlugin = require('webpack').DefinePlugin
+const ContextReplacementPlugin = require('webpack').ContextReplacementPlugin
 const HtmlWebpackPlugin = require('html-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const { Configuration } = require('webpack')
 
 const mode = process.env.NODE_ENV || 'development'
@@ -46,7 +49,25 @@ const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 
 const doValidate = !prod || process.env.DO_VALIDATE === 'true'
 
-const doCompression = prod
+// Precompressed assets; front falls back to plain files. Default .gz only (brotli 11 is most of the
+// compression time), DO_COMPRESS=true adds .br for release images, DO_COMPRESS=false skips both.
+const compress = process.env.DO_COMPRESS ?? 'gzip'
+const doCompression = prod && compress !== 'false'
+const doBrotli = prod && compress === 'true'
+
+const MinimizerPlugin = require('minimizer-webpack-plugin')
+const { EscapeNonLatin1Plugin } = require('../../common/scripts/escape-non-latin1.js')
+const minifiers = {
+  swc: { minify: MinimizerPlugin.swcMinify, minimizerOptions: { ecma: 2022 } },
+  // Same as the server bundles (common/scripts/esbuild.js): keep names, no syntax lowering.
+  esbuild: { minify: MinimizerPlugin.esbuildMinify, minimizerOptions: { target: 'esnext', keepNames: true, charset: 'ascii' } },
+  terser: { minify: MinimizerPlugin.terserMinify }
+}
+// MINIFIER=esbuild|swc|terser selects the JS minifier for production builds; esbuild by default.
+const minifier = minifiers[process.env.MINIFIER ?? 'esbuild']
+if (minifier === undefined) {
+  throw new Error(`Unknown MINIFIER=${process.env.MINIFIER}, expected one of: ${Object.keys(minifiers).join(', ')}`)
+}
 
 const useCache = process.env.USE_CACHE === 'true'
 
@@ -57,52 +78,190 @@ const StatoscopeWebpackPlugin = require('@statoscope/webpack-plugin').default;
 
 
 const devProxy = {
-  '/account': {
-    target: 'http://huly.local:3000',
+  '/_account': {
+    target: 'http://localhost:8087',
     changeOrigin: true,
-    pathRewrite: { '^/account': '' },
+    logger: console
+  },
+  '/_tr': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_cl': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_rekoni': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_stats': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_webhook': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
     logLevel: 'debug'
+  },
+  '/_datalake': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_stream': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_preview': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_billing': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_payment': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_ai': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_love': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_print': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_sign': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_export': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_link-preview': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_mail': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_fulltext': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logger: console
   },
   '/files': {
-    target: 'http://huly.local:8087',
+    target: 'http://localhost:8087',
     changeOrigin: true,
-    logLevel: 'debug'
+    logger: console
   },
   '/api/v1': {
-    target: 'http://huly.local:8087',
+    target: 'http://localhost:8087',
     changeOrigin: true,
-    logLevel: 'debug'
+    logger: console
   },
-  '/rekoni/recognize': {
-    target: 'http://huly.local:4004',
+  '/import': {
+    target: 'http://localhost:8087',
     changeOrigin: true,
-    pathRewrite: { '^/rekoni/recognize': '/recognize' },
-    logLevel: 'debug'
+    logger: console
   }
 }
 
 const devProxyTest = {
-  '/account': {
-    target: 'http://huly.local:3003',
+  '/_account': {
+    target: 'http://localhost:8083',
     changeOrigin: true,
-    pathRewrite: { '^/account': '' },
-    logLevel: 'debug'
+    logger: console
+  },
+  '/_tr': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_cl': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    ws: true,
+    logger: console
+  },
+  '/_rekoni': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_stats': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_datalake': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_stream': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_fulltext': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_billing': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
+  },
+  '/_payment': {
+    target: 'http://localhost:8083',
+    changeOrigin: true,
+    logger: console
   },
   '/files': {
-    target: 'http://huly.local:8083',
+    target: 'http://localhost:8083',
     changeOrigin: true,
-    logLevel: 'debug'
+    logger: console
   },
   '/api/v1': {
-    target: 'http://huly.local:8083',
+    target: 'http://localhost:8083',
     changeOrigin: true,
-    logLevel: 'debug'
+    logger: console
   },
-  '/rekoni/recognize': {
-    target: 'http://huly.local:4004',
+  '/import': {
+    target: 'http://localhost:8083',
     changeOrigin: true,
-    pathRewrite: { '^/rekoni/recognize': '/recognize' },
-    logLevel: 'debug'
+    logger: console
   }
 }
 
@@ -111,24 +270,24 @@ const devHulyProxy = {
     target: 'https://platform.intabia.ru/_account',
     changeOrigin: true,
     pathRewrite: { '^/account': '' },
-    logLevel: 'debug'
+    logger: console
   },
   '/api/v1': {
     target: 'http://platform.intabia.ru',
     changeOrigin: true,
-    logLevel: 'debug'
+    logger: console
   },
   '/files': {
     target: 'https://platform.intabia.ru/files',
     changeOrigin: true,
     pathRewrite: { '^/files': '' },
-    logLevel: 'debug'
+    logger: console
   },
   '/rekoni/recognize': {
     target: 'https://platform.intabia.ru/_rekoni',
     changeOrigin: true,
     pathRewrite: { '^/rekoni/recognize': '/recognize' },
-    logLevel: 'debug'
+    logger: console
   }
 }
 
@@ -137,24 +296,24 @@ const devBoldProxy = {
     target: 'https://account.bold.ru/',
     changeOrigin: true,
     pathRewrite: { '^/account': '' },
-    logLevel: 'debug'
+    logger: console
   },
   '/files': {
     target: 'https://app.bold.ru/files',
     changeOrigin: true,
     pathRewrite: { '^/files': '' },
-    logLevel: 'debug'
+    logger: console
   },
   '/api/v1': {
     target: 'http://app.bold.ru',
     changeOrigin: true,
-    logLevel: 'debug'
+    logger: console
   },
   '/rekoni/recognize': {
     target: 'https://rekoni.bold.ru',
     changeOrigin: true,
     pathRewrite: { '^/rekoni/recognize': '/recognize' },
-    logLevel: 'debug'
+    logger: console
   }
 }
 
@@ -163,19 +322,19 @@ const devFrontProxy = {
     target: 'https://account.hc.engineering/',
     changeOrigin: true,
     pathRewrite: { '^/account': '' },
-    logLevel: 'debug'
+    logger: console
   },
   '/files': {
     target: 'https://front.hc.engineering/files',
     changeOrigin: true,
     pathRewrite: { '^/files': '' },
-    logLevel: 'debug'
+    logger: console
   },
   '/rekoni/recognize': {
     target: 'https://rekoni.hc.enigneering',
     changeOrigin: true,
     pathRewrite: { '^/rekoni/recognize': '/recognize' },
-    logLevel: 'debug'
+    logger: console
   }
 }
 
@@ -192,9 +351,30 @@ const proxy = {
 /**
  * @type {Configuration}
  */
+const cacheConfig = (name) => useCache
+  ? {
+    type: 'filesystem',
+    allowCollectingMemory: true,
+    compression: 'gzip',
+    cacheLocation: path.resolve(__dirname, `.build_dev/${name}`),
+    buildDependencies: {
+      config: [__filename, path.resolve(__dirname, 'package.json'), path.resolve(__dirname, '../../pnpm-lock.yaml')]
+    }
+  }
+  : { type: 'memory' }
+
+const snapshotConfig = {
+  managedPaths: [path.resolve(__dirname, '../../node_modules'), path.resolve(__dirname, 'node_modules')],
+  buildDependencies: { hash: true, timestamp: false },
+  module: { hash: true, timestamp: false },
+  resolve: { hash: true, timestamp: false }
+}
+
 module.exports = [
   {
     mode: dev ? 'development' : mode,
+    cache: cacheConfig('sw'),
+    snapshot: snapshotConfig,
     entry: {
       serviceWorker: '@hcengineering/notification/src/serviceWorker.ts'
     },
@@ -206,7 +386,7 @@ module.exports = [
           use: {
             loader: 'esbuild-loader',
             options: {
-              target: 'es2021',
+              target: 'es2022',
               keepNames: true,
               minify: prod,
               sourcemap: !prod
@@ -220,7 +400,8 @@ module.exports = [
       filename: '[name].js',
       chunkFilename: '[name].js',
       publicPath: '/',
-      pathinfo: false
+      pathinfo: false,
+      hashFunction: 'xxhash64'
     },
     resolve: {
       extensions: ['.ts', '.js'],
@@ -228,13 +409,9 @@ module.exports = [
     }
   },
   {
-    cache: useCache
-      ? {
-          type: 'filesystem',
-          allowCollectingMemory: true,
-          cacheLocation: path.resolve(__dirname, '.build_dev')
-        }
-      : undefined,
+    cache: cacheConfig('main'),
+    snapshot: snapshotConfig,
+    parallelism: 100,
     entry: {
       bundle: ['@hcengineering/theme/styles/global.scss',
         ...(dev ? ['./src/main-dev.ts'] : ['./src/main.ts'])
@@ -265,10 +442,12 @@ module.exports = [
       filename: '[name].[contenthash].js',
       publicPath: '/',
       pathinfo: false,
-      asyncChunks: true
+      asyncChunks: true,
+      hashFunction: 'xxhash64'
     },
     optimization: {
       minimize: prod,
+      minimizer: [new MinimizerPlugin(minifier), new EscapeNonLatin1Plugin()],
       //moduleIds: 'named',
       chunkIds: prod ? 'deterministic' : 'named',
       // chunkIds: 'named',
@@ -327,7 +506,7 @@ module.exports = [
             priority: -5,
             enforce: true,
             reuseExistingChunk: true,
-            name (module, chunks, cacheGroupKey) {
+            name(module, chunks, cacheGroupKey) {
               // Extract language code from path (e.g., /lang/en.json -> en)
               const match = module.resource?.match(/[\\/]lang[\\/]([a-z-]+)\.json$/)
               const lang = match ? match[1] : 'unknown'
@@ -340,7 +519,7 @@ module.exports = [
             type: 'json',
             priority: 3,
             reuseExistingChunk: true,
-            name (module, chunks, cacheGroupKey) {
+            name(module, chunks, cacheGroupKey) {
               // Extract language from path: emojibase-data/en/data.json -> emoji-data-en
               const match = module.resource?.match(/emojibase-data[\\/]([a-z-]+)[\\/]/)
               const lang = match ? match[1] : 'unknown'
@@ -371,7 +550,7 @@ module.exports = [
           test: /\.ts?$/,
           loader: 'esbuild-loader',
           options: {
-            target: 'es2021',
+            target: 'es2022',
             keepNames: true,
             minify: prod,
             sourcemap: true
@@ -390,6 +569,8 @@ module.exports = [
                 emitCss: true,
                 hotReload: !prod,
                 preprocess: require('svelte-preprocess')({
+                  // Keeps imports that only the markup uses; see platform-rig/bin/compile.js.
+                  typescript: { compilerOptions: { verbatimModuleSyntax: true } },
                   postcss: true,
                   sourceMap: true,
                   scss: {
@@ -429,8 +610,7 @@ module.exports = [
         {
           test: /\.css$/,
           use: [
-            // prod ? MiniCssExtractPlugin.loader :
-            'style-loader',
+            prod ? MiniCssExtractPlugin.loader : 'style-loader',
             'css-loader',
             'postcss-loader'
           ]
@@ -439,8 +619,7 @@ module.exports = [
         {
           test: /\.scss$/,
           use: [
-            // prod ? MiniCssExtractPlugin.loader :
-            'style-loader',
+            prod ? MiniCssExtractPlugin.loader : 'style-loader',
             'css-loader',
             'postcss-loader',
             {
@@ -510,7 +689,7 @@ module.exports = [
     },
     mode,
     plugins: [
-      ...(doAnalyze ? [new StatoscopeWebpackPlugin()]: []),
+      ...(doAnalyze ? [new StatoscopeWebpackPlugin()] : []),
       // ...(doAnalyze
       //   ? [
       //       new BundleAnalyzerPlugin({
@@ -524,27 +703,36 @@ module.exports = [
           viewport: 'width=device-width, initial-scale=1.0'
         }
       }),
+      ...(prod
+        ? [new MiniCssExtractPlugin({
+          filename: '[name].[contenthash].css',
+          chunkFilename: '[name].[contenthash].css'
+        })]
+        : []),
       ...(doCompression
         ? [
-            new CompressionPlugin({
-              filename: '[path][base].gz',
-              algorithm: 'gzip',
-            }),
-            new CompressionPlugin({
-              filename: '[path][base].br',
-              algorithm: 'brotliCompress',
-              compressionOptions: { level: 11 }
-            })
-          ]
+          new CompressionPlugin({
+            filename: '[path][base].gz',
+            algorithm: 'gzip',
+            exclude: /\.map$/
+          }),
+          ...(doBrotli
+            ? [
+                new CompressionPlugin({
+                  filename: '[path][base].br',
+                  algorithm: 'brotliCompress',
+                  compressionOptions: { level: 11 },
+                  exclude: /\.map$/
+                })
+              ]
+            : [])
+        ]
         : []),
-      // ...(doCompression ? [new CompressionPlugin()] : []),
-      // new MiniCssExtractPlugin({
-      //   filename: '[name].[id][contenthash].css'
-      // }),
       new Dotenv({ path: prod ? '.env-prod' : '.env' }),
       new DefinePlugin({
         'process.env.CLIENT_TYPE': JSON.stringify(process.env.CLIENT_TYPE)
       }),
+      new ContextReplacementPlugin(/emojibase-data/, /^\.\/(en|ru|de|es|es-mx|fr|it|ja|pt|zh)(\/.*)?\.json$/),
       ...(doValidate ? [new ForkTsCheckerWebpackPlugin()] : [])
     ],
     watchOptions: {
@@ -601,7 +789,7 @@ module.exports = [
         },
         progress: false
       },
-      proxy: proxy[clientType]
+      proxy: Object.entries(proxy[clientType] ?? {}).map(([context, options]) => ({ context: [context], ...options }))
     }
   }
 ]

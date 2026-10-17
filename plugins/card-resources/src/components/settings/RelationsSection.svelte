@@ -13,13 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { CardEvents, MasterTag } from '@hcengineering/card'
-  import core, { Association, Class, Doc, Ref } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { createQuery, getClient } from '@hcengineering/presentation'
+  import type { MasterTag } from '@hcengineering/card'
+  import { CardEvents } from '@hcengineering/card'
+  import type { Association, Class, Doc, Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import presentation, { createQuery, getClient } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
-  import { ButtonIcon, Icon, IconAdd, Label, showPopup } from '@hcengineering/ui'
+  import { Icon, IconAdd, Label, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { onDestroy } from 'svelte'
   import CreateRelation from './CreateRelation.svelte'
   import { Analytics } from '@hcengineering/analytics'
@@ -76,7 +79,14 @@
 <div class="hulyTableAttr-header font-medium-12">
   <Icon icon={setting.icon.Relations} size="small" />
   <span><Label label={core.string.Relations} /></span>
-  <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId={'btnAdd'} on:click={addRelation} />
+  <IconButton
+    kind="primary"
+    icon={IconAdd}
+    size="small"
+    data-id="btnAdd"
+    tooltip={{ label: presentation.string.Add }}
+    on:click={addRelation}
+  />
 </div>
 {#if filtered.length}
   <div class="hulyTableAttr-content task">

@@ -14,11 +14,11 @@
 -->
 <script lang="ts">
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import { Data, Ref } from '@hcengineering/core'
+  import type { Data, Ref } from '@hcengineering/core'
   import { IntlString } from '@hcengineering/platform'
   import { Card, SpaceSelector, getClient } from '@hcengineering/presentation'
   import { StyledTextArea } from '@hcengineering/text-editor-resources'
-  import { Component, Project } from '@hcengineering/tracker'
+  import type { Component, Project } from '@hcengineering/tracker'
   import { EditBox } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../plugin'
@@ -29,7 +29,7 @@
   const client = getClient()
 
   const object: Data<Component> = {
-    label: '' as IntlString,
+    label: '',
     description: '',
     lead: null,
     comments: 0,
@@ -48,7 +48,7 @@
   okAction={onSave}
   canSave={object.label !== ''}
   okLabel={tracker.string.CreateComponent}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => dispatch('close')}
   on:changeContent
 >
@@ -57,8 +57,8 @@
       _class={tracker.class.Project}
       label={tracker.string.Project}
       bind:space={_space}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
       component={ProjectPresenter}
       defaultIcon={tracker.icon.Home}
     />
@@ -68,7 +68,7 @@
       focusIndex={1}
       bind:value={object.label}
       placeholder={tracker.string.ComponentNamePlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       autoFocus
       fullSize
     />
@@ -77,7 +77,7 @@
     <StyledTextArea
       bind:content={object.description}
       placeholder={tracker.string.ComponentDescriptionPlaceholder}
-      kind={'indented'}
+      kind="indented"
       showButtons={false}
     />
   </div>
@@ -89,8 +89,8 @@
       allowDeselect
       titleDeselect={tracker.string.Unassigned}
       showNavigate={false}
-      kind={'regular'}
-      size={'large'}
+      kind="regular"
+      size="large"
     />
   </svelte:fragment>
 </Card>

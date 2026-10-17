@@ -14,7 +14,10 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { IconClose, ButtonIcon, LabelAndProps, tooltip as tp } from '..'
+  import IconButton from '../ui-kit/button/IconButton.svelte'
+  import ui from '../plugin'
+  import type { LabelAndProps } from '..'
+  import { IconClose, tooltip as tp } from '..'
 
   export let label: string
   export let size: 'small' | 'min' = 'small'
@@ -24,7 +27,7 @@
 
   const dispatch = createEventDispatcher()
 
-  let buttonRef: ButtonIcon | undefined
+  let buttonRef: IconButton | undefined
 
   function handleBackspace (event: KeyboardEvent) {
     if (event.key === 'Backspace') {
@@ -45,13 +48,17 @@
 >
   <span class="px-2 overflow-label chip-label">{label}</span>
   {#if isRemovable}
-    <ButtonIcon
+    <IconButton
       bind:this={buttonRef}
       kind="tertiary"
       size="min"
       icon={IconClose}
       inheritColor={true}
-      on:click={() => dispatch('remove')}
+      tooltip={{ label: ui.string.Remove }}
+      on:click={(e) => {
+        e.stopPropagation()
+        dispatch('remove')
+      }}
       on:keydown={handleBackspace}
     />
   {/if}

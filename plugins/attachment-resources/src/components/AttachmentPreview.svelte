@@ -14,12 +14,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment } from '@hcengineering/attachment'
-  import { BlobType, WithLookup } from '@hcengineering/core'
-  import { ListSelectionProvider } from '@hcengineering/view-resources'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
+  import type { BlobType, WithLookup } from '@hcengineering/core'
+  import type { ListSelectionProvider } from '@hcengineering/view-resources'
+  import { getClient } from '@hcengineering/presentation'
+  import { Component } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
-  import { AttachmentImageSize } from '../types'
-  import { getType, isAttachment, showAttachmentPreviewPopup } from '../utils'
+  import type { AttachmentImageSize } from '../types'
+  import { getCustomPresenter, getType, isAttachment, showAttachmentPreviewPopup } from '../utils'
   import AttachmentActions from './AttachmentActions.svelte'
   import AttachmentImagePreview from './AttachmentImagePreview.svelte'
   import AttachmentPresenter from './AttachmentPresenter.svelte'
@@ -32,20 +35,29 @@
   export let imageSize: AttachmentImageSize = 'auto'
   export let removable: boolean = false
   export let videoPreload = false
+  export let withActions = true
 
   const dispatch = createEventDispatcher()
+  const hierarchy = getClient().getHierarchy()
 
   let hovered = false
 
   $: type = getType(value.type)
+  // A subclass of Attachment (e.g. AudioTranscribe) may register its own ObjectPresenter mixin;
+  // render that instead of the generic audio player so voice-notes show their transcript.
+  $: customPresenter = isAttachment(value) ? getCustomPresenter(hierarchy, value._class) : undefined
 </script>
 
-{#if type === 'video'}
+{#if customPresenter !== undefined}
+  <Component is={customPresenter} props={{ value }} />
+{:else if type === 'video'}
   <div class="content buttonContainer flex-center" class:hovered>
     <AttachmentVideoPreview {value} preload={videoPreload} />
-    <div class="actions">
-      <AttachmentActions bind:hovered attachment={value} {isSaved} {removable} />
-    </div>
+    {#if withActions}
+      <div class="actions">
+        <AttachmentActions bind:hovered attachment={value} {isSaved} {removable} />
+      </div>
+    {/if}
   </div>
 {:else if value.metadata?.thumbnail !== undefined || type === 'image'}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -53,30 +65,38 @@
   <div
     class="content flex-center buttonContainer cursor-pointer"
     class:hovered
-    on:click={() => {
+    on:click={(e) => {
+      e.preventDefault()
+      e.stopPropagation()
       if (listProvider !== undefined && isAttachment(value)) listProvider.updateFocus(value)
       const popupInfo = showAttachmentPreviewPopup(value)
       dispatch('open', popupInfo.id)
     }}
   >
     <AttachmentImagePreview {value} size={imageSize} />
-    <div class="actions">
-      <AttachmentActions bind:hovered attachment={value} {isSaved} {removable} />
-    </div>
+    {#if withActions}
+      <div class="actions">
+        <AttachmentActions bind:hovered attachment={value} {isSaved} {removable} />
+      </div>
+    {/if}
   </div>
 {:else if type === 'audio'}
   <div class="buttonContainer" class:hovered>
     <AudioPlayer {value} />
-    <div class="actions" style:padding={'0.125rem 0.25rem'}>
-      <AttachmentActions attachment={value} {isSaved} {removable} />
-    </div>
+    {#if withActions}
+      <div class="actions" style:padding="0.125rem 0.25rem">
+        <AttachmentActions attachment={value} {isSaved} {removable} />
+      </div>
+    {/if}
   </div>
 {:else}
   <div class="flex buttonContainer extraWidth" class:hovered>
     <AttachmentPresenter {value} />
-    <div class="actions">
-      <AttachmentActions bind:hovered attachment={value} {isSaved} {removable} />
-    </div>
+    {#if withActions}
+      <div class="actions">
+        <AttachmentActions bind:hovered attachment={value} {isSaved} {removable} />
+      </div>
+    {/if}
   </div>
 {/if}
 

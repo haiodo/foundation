@@ -13,10 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, platformNow, platformNowDiff, Ref, toIdMap } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { platformNow, platformNowDiff, toIdMap } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
-  import tags, { TagCategory, TagElement, TagReference } from '@hcengineering/tags'
+  import type { TagCategory, TagElement, TagReference } from '@hcengineering/tags'
+  import tags from '@hcengineering/tags'
   import { Button, CheckBox, EditBox, Expandable, Lazy, ListView, Loading } from '@hcengineering/ui'
   import { FILTER_DEBOUNCE_MS } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -30,13 +32,8 @@
 
   const dispatch = createEventDispatcher()
 
-  // const query = createQuery()
-  // const elementsQuery = createQuery()
-  // const refsQuery = createQuery()
-
   let categories: TagCategory[] = []
   let elements: TagElement[] = []
-  // let refs: TagReference[] = []
 
   let loading1: boolean = false
   let loading2: boolean = false
@@ -523,7 +520,7 @@
               })
             } else {
               updateClasses.add(a._class)
-              // Let's remove and add new tag reference
+              // remove and add new tag reference
               await ops.remove(a)
               updateClasses.add(tags.class.TagReference)
               await ops.addCollection(tags.class.TagReference, a.space, a.attachedTo, a.attachedToClass, a.collection, {
@@ -626,7 +623,7 @@
   on:changeContent
 >
   <div class="flex-row-center">
-    <EditBox kind={'search-style'} bind:value={search} />
+    <EditBox kind="search-style" bind:value={search} />
     {#if processed > 0 || doProcessing}
       <div class="p-1">
         <Loading />
@@ -643,7 +640,7 @@
       {titles.length} =>
       {titles.filter((it) => titlesStates.get(it) ?? true).length}
     </svelte:fragment>
-    <div class="h-60" style:overflow={'auto'}>
+    <div class="h-60" style:overflow="auto">
       <ListView count={searchTitles.length}>
         <svelte:fragment slot="item" let:item>
           {@const el = searchTitles[item]}
@@ -671,9 +668,9 @@
         {/if}
       </div>
     </svelte:fragment>
-    <div class="h-60" style:overflow={'auto'}>
+    <div class="h-60" style:overflow="auto">
       {#if plan.elements.length > 0}
-        <div class="flex clear-mins" style:overflow={'auto'}>
+        <div class="flex clear-mins" style:overflow="auto">
           <div class="flex-grow flex-nowrap no-word-wrap">
             <ListView count={searchPlanElements.length}>
               <svelte:fragment slot="item" let:item>

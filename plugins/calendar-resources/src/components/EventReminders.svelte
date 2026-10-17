@@ -50,10 +50,10 @@
     <Button
       label={reminders.length > 0 ? calendar.string.AddReminder : calendar.string.Reminders}
       {disabled}
-      justify={'left'}
+      justify="left"
       flex="1"
       padding="0.5rem"
-      kind={'ghost'}
+      kind="ghost"
       {focusIndex}
       on:click={(e) => {
         addReminder(e)
@@ -62,7 +62,7 @@
   </div>
 {/if}
 {#if reminders.length}
-  <Scroller padding={'.125rem 0 0 1.25rem'} shrink>
+  <Scroller padding=".125rem 0 0 1.25rem" shrink>
     {#if disabled}
       <div style="position:absolute; left:0; top:0.625rem">
         <Icon icon={calendar.icon.Participants} size="small" />
@@ -85,9 +85,9 @@
       <div class="antiOption cursor-pointer step-tb25" tabindex={0}>
         <Button
           icon={IconMoreV}
-          kind={'ghost'}
-          size={'x-small'}
-          padding={'0 .5rem'}
+          kind="ghost"
+          size="x-small"
+          padding="0 .5rem"
           {disabled}
           focusIndex={-1}
           on:click={() => (shown = true)}

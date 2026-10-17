@@ -181,7 +181,7 @@ async function assignWorkspaceRoles (client: MigrationClient): Promise<void> {
       continue
     }
     const employee = client.hierarchy.as(personObj, contact.mixin.Employee)
-    if (employee === undefined || !employee.active) {
+    if (!employee?.active) {
       continue
     }
     const socialKey = getSocialKeyByOldEmail(email)
@@ -213,7 +213,7 @@ async function assignEmployeeRoles (client: MigrationClient): Promise<void> {
       const updates: { filter: MigrationDocumentQuery<Contact>, update: MigrateUpdate<Contact> }[] = []
       for (const d of docs) {
         const employee = client.hierarchy.as(d, contact.mixin.Employee)
-        if (employee === undefined || !employee.active) {
+        if (!employee?.active) {
           continue
         }
         if (!employee.active) continue
@@ -310,11 +310,8 @@ async function migrateMergedAccounts (client: MigrationClient): Promise<void> {
     try {
       if (oldAccounts.length < 2) continue
 
-      // Every social id in the old account might either be already in the new account or not in the accounts at all
-      // So we want to
-      // 1. Take the first social id with the existing account
-      // 2. Merge all other accounts into the first one
-      // 3. Create social ids for the first account which haven't had their own accounts
+      // Pick the first social id that already has an account, merge the other
+      // accounts into it, then create social ids for it where none existed.
       const toAdd: Array<SocialKey> = []
       const toMergePersons = new Set<PersonUuid>()
       const toMerge = new Set<AccountUuid>()

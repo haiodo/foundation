@@ -14,16 +14,18 @@
 -->
 
 <script lang="ts">
-  import activity, {
+  import type {
+    ActivityMessageLite,
     ActivityMessagePreviewType,
     DocUpdateMessage,
     DocUpdateMessageViewlet
   } from '@hcengineering/activity'
-  import { Action, Component, Icon } from '@hcengineering/ui'
+  import activity from '@hcengineering/activity'
+  import { Component, Icon } from '@hcengineering/ui'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { IntlString } from '@hcengineering/platform'
-  import { AttachedDoc, Class, Collection, Doc, Ref, Space } from '@hcengineering/core'
-  import { AttributeModel } from '@hcengineering/view'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { AttachedDoc, Class, Collection, Doc, Ref, Space } from '@hcengineering/core'
+  import type { AttributeModel } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import { buildRemovedDoc, checkIsObjectRemoved } from '@hcengineering/view-resources'
 
@@ -33,10 +35,9 @@
   import DocUpdateMessageAttributes from './DocUpdateMessageAttributes.svelte'
 
   export let doc: Doc | undefined
-  export let value: DocUpdateMessage
+  export let value: ActivityMessageLite<DocUpdateMessage>
   export let readonly = false
   export let type: ActivityMessagePreviewType = 'full'
-  export let actions: Action[] = []
   export let space: Ref<Space> | undefined = undefined
 
   const client = getClient()
@@ -66,20 +67,20 @@
     attributeModel = model
   })
 
-  $: viewlet?.component && loadObject(value.objectId, value.objectClass, value.space, doc)
+  $: void (viewlet?.component && loadObject(value.objectId, value.objectClass, doc))
 
-  async function loadObject (_id: Ref<Doc>, _class: Ref<Class<Doc>>, space: Ref<Space>, doc?: Doc): Promise<void> {
+  async function loadObject (_id: Ref<Doc>, _class: Ref<Class<Doc>>, doc?: Doc): Promise<void> {
     if (doc?._id === _id) {
       object = doc
       return
     }
 
-    const isObjectRemoved = await checkIsObjectRemoved(client, _id, _class)
+    const isObjectRemoved = await checkIsObjectRemoved(client, _id, client.getHierarchy().getParentClass(_class))
 
     if (isObjectRemoved) {
       object = await buildRemovedDoc(client, _id, _class)
     } else {
-      objectQuery.query(_class, { _id, space }, (res) => {
+      objectQuery.query(_class, { _id }, (res) => {
         object = res[0]
       })
     }
@@ -91,7 +92,7 @@
   }
 </script>
 
-<BaseMessagePreview message={value} {type} {readonly} {actions} on:click>
+<BaseMessagePreview message={value} {type} {readonly} on:click>
   <span class="textContent overflow-label flex-presenter" class:contentOnly={type === 'content-only'}>
     {#if viewlet?.component && object}
       <span class="customContent flex-presenter">
@@ -142,7 +143,7 @@
   .textContent {
     display: inline;
     overflow: hidden;
-    max-height: 1.25rem;
+    max-height: 1.75rem;
     color: var(--global-primary-TextColor);
     margin-left: var(--spacing-0_5);
 

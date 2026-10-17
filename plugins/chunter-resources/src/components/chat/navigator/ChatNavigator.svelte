@@ -14,18 +14,25 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccountRole, Doc, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
-  import { Scroller, Label, ButtonIcon, IconEdit, showPopup, Menu, SearchInput } from '@hcengineering/ui'
-  import { SpecialNavModel } from '@hcengineering/workbench'
+  import type { Doc } from '@hcengineering/core'
+  import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import { Scroller, Label, IconEdit, showPopup, Menu, SearchInput } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { SpecialNavModel } from '@hcengineering/workbench'
   import { NavLink } from '@hcengineering/view-resources'
   import { TreeSeparator } from '@hcengineering/workbench-resources'
-  import { Chat } from '@hcengineering/chunter'
-  import { createQuery } from '@hcengineering/presentation'
-  import contact, { Employee } from '@hcengineering/contact'
+  import type { Chat } from '@hcengineering/chunter'
+  import presentation, { createQuery } from '@hcengineering/presentation'
+  import type { Employee } from '@hcengineering/contact'
+  import contact from '@hcengineering/contact'
+
+  import view from '@hcengineering/view'
 
   import chunter from '../../../plugin'
   import ChatNavGroup from './ChatNavGroup.svelte'
   import { chatNavGroupModels, chatSpecials } from '../utils'
+  import type { ChatNavGroupModel } from '../types'
+  import { openBotDirect } from '../../../utils'
   import ChatSpecialElement from './ChatSpecialElement.svelte'
 
   export let object: Doc | undefined
@@ -41,6 +48,17 @@
   let employees: Employee[] = []
   let pinned: Chat[] = []
 
+  let pinnedLoaded = false
+  let loadedGroups = new Set<string>()
+  $: firstWaveLoaded =
+    pinnedLoaded && chatNavGroupModels.every((model) => model.deferred === true || loadedGroups.has(model.id))
+
+  function isGroupActive (model: ChatNavGroupModel, pinnedLoaded: boolean, firstWaveLoaded: boolean): boolean {
+    if (model.deferred === true) return firstWaveLoaded
+    if (model.id === 'starred') return pinnedLoaded
+    return true
+  }
+
   $: pinnedChatsQuery.query(
     chunter.class.Chat,
     {
@@ -49,7 +67,7 @@
       ...(search !== ''
         ? {
             $search: `*${search}*`,
-            $searchStrict: true
+            $searchIn: ['title', 'identifier']
           }
         : {
             hidden: false
@@ -57,6 +75,7 @@
     },
     (res) => {
       pinned = res
+      pinnedLoaded = true
     }
   )
 
@@ -65,7 +84,7 @@
       contact.mixin.Employee,
       {
         $search: `*${search}*`,
-        $searchStrict: true
+        $searchIn: ['title', 'identifier']
       },
       (res) => {
         employees = res
@@ -93,6 +112,11 @@
       action: async (): Promise<void> => {
         showPopup(chunter.component.CreateDirectChat, {}, 'top')
       }
+    },
+    {
+      label: chunter.string.TalkToYulia,
+      icon: view.icon.AiStar,
+      action: openBotDirect
     }
   ]
 
@@ -116,13 +140,14 @@
   {#if hasAccountRole(getCurrentAccount(), AccountRole.User)}
     <div class="header-actions">
       <SearchInput bind:value={search} collapsed kind="ghost" width="100%" />
-      <ButtonIcon
+      <IconButton
         icon={IconEdit}
         hasMenu
         {pressed}
         size="small"
         kind="tertiary"
         inheritColor
+        tooltip={{ label: presentation.string.Create }}
         on:click={handlePenClick}
       />
     </div>
@@ -142,7 +167,19 @@
 
 <Scroller shrink bottomPadding="3rem">
   {#each chatNavGroupModels as model (model.id)}
-    <ChatNavGroup {object} {chat} {model} {pinned} {search} {employees} on:select />
+    <ChatNavGroup
+      {object}
+      {chat}
+      {model}
+      {pinned}
+      {search}
+      {employees}
+      active={isGroupActive(model, pinnedLoaded, firstWaveLoaded)}
+      on:loaded={() => {
+        loadedGroups = loadedGroups.add(model.id)
+      }}
+      on:select
+    />
   {/each}
 </Scroller>
 

@@ -25,7 +25,8 @@ import EnumSetting from './components/EnumSetting.svelte'
 import Integrations from './components/integrations/Integrations.svelte'
 import General from './components/General.svelte'
 import Backup from './components/Backup.svelte'
-import Owners from './components/Owners.svelte'
+import IntegrationsSettings from './components/IntegrationsSettings.svelte'
+import Members from './components/Members.svelte'
 import Password from './components/Password.svelte'
 import Privacy from './components/Privacy.svelte'
 import Profile from './components/Profile.svelte'
@@ -60,6 +61,7 @@ import RefEditor from './components/typeEditors/RefEditor.svelte'
 import IdentifierTypeEditor from './components/typeEditors/IdentifierTypeEditor.svelte'
 import RelationSetting from './components/RelationSetting.svelte'
 import RoleAssignmentEditor from './components/typeEditors/RoleAssignmentEditor.svelte'
+import MarkupTypeEditor from './components/typeEditors/MarkupTypeEditor.svelte'
 import StringTypeEditor from './components/typeEditors/StringTypeEditor.svelte'
 import WorkspaceSettings from './components/WorkspaceSettings.svelte'
 import SettingsWidget from './components/SettingsWidget.svelte'
@@ -71,6 +73,7 @@ import AddSocialId from './components/socialIds/AddSocialId.svelte'
 import AddEmailSocialId from './components/socialIds/AddEmailSocialId.svelte'
 import Mailboxes from './components/Mailboxes.svelte'
 import OfficeSettings from './components/OfficeSettings.svelte'
+import SidebarMenuSettings from './components/SidebarMenuSettings.svelte'
 import BaseIntegrationState from './components/integrations/BaseIntegrationState.svelte'
 import IntegrationStateRow from './components/integrations/IntegrationStateRow.svelte'
 import EmployeeRefEditor from './components/typeEditors/EmployeeRefEditor.svelte'
@@ -137,7 +140,8 @@ export default async (): Promise<Resources> => ({
     EnumSetting,
     General,
     Backup,
-    Owners,
+    ApiKeys: IntegrationsSettings,
+    Members,
     CreateMixin,
     InviteSetting,
     Configure,
@@ -149,6 +153,7 @@ export default async (): Promise<Resources> => ({
     ClassPermissionPresenter,
     SpaceTypeDescriptorPresenter,
     SpaceTypeGeneralSectionEditor,
+    MarkupTypeEditor,
     SpaceTypePropertiesSectionEditor,
     SpaceTypeRolesSectionEditor,
     RoleEditor,
@@ -159,6 +164,7 @@ export default async (): Promise<Resources> => ({
     EditRelation,
     Mailboxes,
     OfficeSettings,
+    SidebarMenuSettings,
     AddSocialId,
     AddEmailSocialId,
     EmployeeRefEditor

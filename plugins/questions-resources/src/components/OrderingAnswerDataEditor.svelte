@@ -3,17 +3,17 @@
 -->
 
 <script lang="ts">
-  import {
-    type AnswerDataEditorProps,
-    type AnswerDataPresenterProps,
-    type OrderingAnswerData,
-    type OrderingAssessment,
-    type OrderingAssessmentAnswer,
-    type OrderingAssessmentData,
-    type OrderingPosition,
-    type OrderingQuestion,
-    type OrderingQuestionAnswer,
-    type OrderingQuestionData
+  import type {
+    AnswerDataEditorProps,
+    AnswerDataPresenterProps,
+    OrderingAnswerData,
+    OrderingAssessment,
+    OrderingAssessmentAnswer,
+    OrderingAssessmentData,
+    OrderingPosition,
+    OrderingQuestion,
+    OrderingQuestionAnswer,
+    OrderingQuestionData
   } from '@hcengineering/questions'
   import { Loading } from '@hcengineering/ui'
   import { moveItem } from '../utils'
@@ -21,7 +21,7 @@
   import OptionsList, { type OptionsListDropEvent } from './OptionsList.svelte'
 
   /**
-   * Declared $$Props help TypeScript ensure that your component properly implements interface
+   * Declared $$Props help TypeScript verify component prop interface conformance
    * @see https://raqueebuddinaziz.com/blog/svelte-type-events-slots-and-props/#restprops-props
    */
   type $$Props =
@@ -38,7 +38,7 @@
 
   $: if (answerData === null && submit !== null) {
     const order = questionData.options.map((_, index) => index + 1) as [OrderingPosition, ...OrderingPosition[]]
-    submit({ order })
+    void submit({ order })
   }
 
   let indices = questionData.options.map((_, index) => index) as [number, ...number[]]
@@ -71,7 +71,7 @@
         aInitialIndex > bInitialIndex ? 1 : aInitialIndex < bInitialIndex ? -1 : 0
       )
       .map(([_, index]) => index + 1) as [OrderingPosition, ...OrderingPosition[]]
-    submit({ order })
+    void submit({ order })
   }
 </script>
 

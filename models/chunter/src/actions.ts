@@ -17,6 +17,7 @@ import { type Builder } from '@hcengineering/model'
 import view, { createAction } from '@hcengineering/model-view'
 import activity from '@hcengineering/activity'
 import core from '@hcengineering/model-core'
+import contact from '@hcengineering/contact'
 
 import chunter from './plugin'
 
@@ -45,7 +46,8 @@ function defineMessageActions (builder: Builder): void {
       inline: true,
       context: {
         mode: 'context',
-        group: 'edit'
+        group: 'edit',
+        order: 20
       }
     },
     activity.action.Reply
@@ -77,6 +79,39 @@ function defineMessageActions (builder: Builder): void {
   createAction(
     builder,
     {
+      action: chunter.actionImpl.ReportMessage,
+      actionPopup: chunter.component.ReportReasonPopup,
+      label: chunter.string.ReportMessage,
+      icon: chunter.icon.Report,
+      input: 'focus',
+      category: chunter.category.Chunter,
+      target: chunter.class.ChatMessage,
+      visibilityTester: chunter.function.CanReportMessage,
+      // Last before Delete: the owner has Delete, everybody else has Report.
+      context: { mode: ['context', 'browser'], group: 'remove', order: 10 }
+    },
+    chunter.action.ReportMessage
+  )
+
+  createAction(
+    builder,
+    {
+      action: chunter.actionImpl.ReportPerson,
+      actionPopup: chunter.component.ReportReasonPopup,
+      label: chunter.string.ReportMessage,
+      icon: chunter.icon.Report,
+      input: 'focus',
+      category: chunter.category.Chunter,
+      target: contact.class.Person,
+      visibilityTester: chunter.function.CanReportPerson,
+      context: { mode: ['context'], group: 'remove', order: 10 }
+    },
+    chunter.action.ReportPerson
+  )
+
+  createAction(
+    builder,
+    {
       action: chunter.actionImpl.DeleteChatMessage,
       label: view.string.Delete,
       icon: view.icon.Delete,
@@ -85,7 +120,7 @@ function defineMessageActions (builder: Builder): void {
       category: chunter.category.Chunter,
       target: chunter.class.ChatMessage,
       visibilityTester: chunter.function.CanDeleteMessage,
-      context: { mode: ['context', 'browser'], group: 'remove' }
+      context: { mode: ['context', 'browser'], group: 'remove', order: 20 }
     },
     chunter.action.DeleteChatMessage
   )
@@ -118,7 +153,8 @@ function defineMessageActions (builder: Builder): void {
       inline: true,
       context: {
         mode: 'context',
-        group: 'edit'
+        group: 'associate',
+        order: 30
       }
     },
     chunter.action.TranslateMessage
@@ -136,10 +172,49 @@ function defineMessageActions (builder: Builder): void {
       inline: true,
       context: {
         mode: 'context',
-        group: 'edit'
+        group: 'associate',
+        order: 30
       }
     },
     chunter.action.ShowOriginalMessage
+  )
+
+  createAction(
+    builder,
+    {
+      action: chunter.actionImpl.ReplyToMessage,
+      label: activity.string.Reply,
+      icon: activity.icon.ReplyTo,
+      input: 'focus',
+      category: chunter.category.Chunter,
+      target: chunter.class.ChatMessage,
+      inline: true,
+      context: {
+        mode: 'context',
+        group: 'edit',
+        order: 30
+      }
+    },
+    chunter.action.ReplyToMessage
+  )
+
+  createAction(
+    builder,
+    {
+      action: chunter.actionImpl.ForwardMessage,
+      label: activity.string.ForwardMessage,
+      icon: activity.icon.Forward,
+      input: 'focus',
+      category: chunter.category.Chunter,
+      target: chunter.class.ChatMessage,
+      inline: false,
+      context: {
+        mode: 'context',
+        group: 'edit',
+        order: 40
+      }
+    },
+    chunter.action.ForwardMessage
   )
 }
 

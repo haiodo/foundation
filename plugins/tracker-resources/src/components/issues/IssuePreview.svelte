@@ -16,10 +16,10 @@
   import attachment from '@hcengineering/attachment'
   import { AttachmentDocList } from '@hcengineering/attachment-resources'
   import { ChatMessagePopup } from '@hcengineering/chunter-resources'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { IconForward, createQuery, getClient } from '@hcengineering/presentation'
   import { CollaborativeTextEditor } from '@hcengineering/text-editor-resources'
-  import { Issue } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
   import { Label, Scroller, resizeObserver } from '@hcengineering/ui'
   import { getCollaborationUser } from '@hcengineering/view-resources'
 
@@ -60,7 +60,7 @@
     }
   }
 
-  $: void getParent(issue?.attachedTo as Ref<Issue>)
+  $: void getParent(issue?.attachedTo)
   $: descriptionKey = {
     key: 'description',
     attr: client.getHierarchy().getAttribute(tracker.class.Issue, 'description')
@@ -73,19 +73,19 @@
       <div class="flex-row-center gap-1">
         {#if parent}
           <span class="overflow-label content-color">{parent.title}</span>
-          <IconForward size={'x-small'} />
+          <IconForward size="x-small" />
         {/if}
         <span class="content-dark-color">{issue.identifier}</span>
       </div>
       <span class="overflow-label text-xl caption-color">{issue.title}</span>
     </div>
   </div>
-  <Scroller padding={'0.75rem 1.75rem 0'} noFade>
+  <Scroller padding="0.75rem 1.75rem 0" noFade>
     <div class="flex-row-center gap-2 mb-2">
-      <StatusEditor value={issue} shouldShowLabel kind={'regular'} />
-      <PriorityEditor value={issue} shouldShowLabel kind={'regular'} />
+      <StatusEditor value={issue} shouldShowLabel kind="regular" />
+      <PriorityEditor value={issue} shouldShowLabel kind="regular" />
       {#if issue.assignee}
-        <AssigneeEditor object={issue} kind={'regular'} />
+        <AssigneeEditor object={issue} kind="regular" />
       {/if}
     </div>
 

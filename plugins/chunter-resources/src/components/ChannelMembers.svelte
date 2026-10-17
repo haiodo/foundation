@@ -13,10 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Person } from '@hcengineering/contact'
-  import { ButtonIcon, IconDelete, ModernButton, Scroller } from '@hcengineering/ui'
+  import type { Person } from '@hcengineering/contact'
+  import presentation from '@hcengineering/presentation'
+  import { IconDelete, Scroller } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { getPersonByPersonRefStore, IconAddMember, UserDetails } from '@hcengineering/contact-resources'
-  import { notEmpty, Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import { notEmpty } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
 
   import chunter from '../plugin'
@@ -34,7 +37,7 @@
 <div class="root">
   {#if !readonly}
     <div class="item" style:padding="var(--spacing-1_5)" class:withoutBorder={persons.length === 0}>
-      <ModernButton
+      <Button
         label={chunter.string.AddMembers}
         icon={IconAddMember}
         iconSize="small"
@@ -51,9 +54,10 @@
           <UserDetails {person} showStatus />
           {#if !readonly && !disableRemoveFor.includes(person._id)}
             <div class="item__action">
-              <ButtonIcon
+              <IconButton
                 icon={IconDelete}
                 size="small"
+                tooltip={{ label: presentation.string.Remove }}
                 on:click={() => {
                   dispatch('remove', person._id)
                 }}

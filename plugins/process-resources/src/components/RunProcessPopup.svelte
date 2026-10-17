@@ -13,10 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Card } from '@hcengineering/card'
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Card, MasterTag, Tag } from '@hcengineering/card'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Process } from '@hcengineering/process'
+  import type { Process } from '@hcengineering/process'
   import { Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import process from '../plugin'
@@ -34,13 +34,21 @@
   const res = client.getModel().findAllSync(process.class.Process, {})
   const processes = res.filter((it) => resClasses.includes(it.masterTag) && it.automationOnly !== true)
 
-  function getCardPossibleClasses (card: Card): Ref<Class<Doc>>[] {
-    const asc = h.getAncestors(card._class)
-    const mixins = h.getDescendants(card._class).filter((p) => h.hasMixin(card, p))
-    return [...asc, ...mixins]
+  type PossibleProcessClass = Ref<MasterTag | Tag>
+
+  function getCardPossibleClasses (card: Card): PossibleProcessClass[] {
+    const ancestors = h.getAncestors(card._class) as PossibleProcessClass[]
+    const res = new Set<PossibleProcessClass>(ancestors)
+
+    const mixins = h.getAllPossibleMixins(card._class).filter((mixin) => h.hasMixin(card, mixin))
+    for (const mixin of mixins) {
+      res.add(mixin)
+    }
+
+    return [...res]
   }
 
-  function getPossibleClasses (): Ref<Class<Doc>>[] {
+  function getPossibleClasses (): PossibleProcessClass[] {
     if (!value) {
       return []
     }

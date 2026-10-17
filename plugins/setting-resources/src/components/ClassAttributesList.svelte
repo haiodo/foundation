@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,47 +15,34 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import core, {
-    AnyAttribute,
-    ArrOf,
-    AttachedDoc,
-    Class,
-    Collection,
-    Doc,
-    Rank,
-    Ref,
-    RefTo,
-    Type
-  } from '@hcengineering/core'
-  import { IntlString, getResource } from '@hcengineering/platform'
-  import presentation, { MessageBox, createQuery, getClient } from '@hcengineering/presentation'
-  import {
-    Action,
-    AnySvelteComponent,
-    IconDelete,
-    IconEdit,
-    Menu,
-    getEventPositionElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import type { AnyAttribute, ArrOf, AttachedDoc, Class, Collection, Doc, Ref, RefTo, Type } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
+  import presentation, { createQuery, getClient } from '@hcengineering/presentation'
+  import type { Action, AnySvelteComponent } from '@hcengineering/ui'
+  import { IconCopy, IconDelete, IconEdit, Menu, getEventPositionElement, showPopup } from '@hcengineering/ui'
   import { getContextActions, SortableList } from '@hcengineering/view-resources'
   import settings from '../plugin'
   import ClassAttributeRow from './ClassAttributeRow.svelte'
-  import { makeRank } from '@hcengineering/rank'
+  import { makeRank, toRank } from '@hcengineering/rank'
   import EditAttribute from './EditAttribute.svelte'
+  import { showDeleteAttributePopup } from '../utils'
+  import { TypeIdentifier } from '@hcengineering/model'
 
   export let _class: Ref<Class<Doc>>
   export let ofClass: Ref<Class<Doc>> | undefined = undefined
   export let notUseOfClass: boolean = false
   export let selected: AnyAttribute | undefined = undefined
+  export let showAll: boolean = false
 
   export let attributeMapper:
-  | {
-    component: AnySvelteComponent
-    label: IntlString
-    props: Record<string, any>
-  }
-  | undefined = undefined
+    | {
+      component: AnySvelteComponent
+      label: IntlString
+      props: Record<string, any>
+    }
+    | undefined = undefined
 
   const dispatch = createEventDispatcher()
 
@@ -73,9 +61,8 @@
 
   function getCustomAttributes (_class: Ref<Class<Doc>>): AnyAttribute[] {
     const cl = hierarchy.getClass(_class)
-    const attributes = Array.from(
-      hierarchy.getAllAttributes(_class, _class === ofClass && !notUseOfClass ? core.class.Doc : cl.extends).values()
-    ).sort((a, b) => {
+    const to = showAll ? ofClass : _class === ofClass && !notUseOfClass ? core.class.Doc : cl.extends
+    const attributes = Array.from(hierarchy.getAllAttributes(_class, to).values()).sort((a, b) => {
       const rankA = a.rank ?? toRank(a._id) ?? ''
       const rankB = b.rank ?? toRank(b._id) ?? ''
       return rankA.localeCompare(rankB)
@@ -97,19 +84,25 @@
     showPopup(EditAttribute, { attribute, exist }, 'top', update)
   }
 
+  export async function overrideAttribute (source: AnyAttribute): Promise<void> {
+    const newSeq = await client.createDoc(core.class.CustomSequence, core.space.Workspace, {
+      prefix: '',
+      sequence: 0,
+      attachedTo: core.class.CustomSequence
+    })
+    const _id = await client.createDoc(core.class.Attribute, core.space.Model, {
+      ...source,
+      type: TypeIdentifier(newSeq),
+      attributeOf: _class
+    })
+    const attribute = await client.findOne(core.class.Attribute, _id)
+    if (attribute !== undefined) {
+      showPopup(EditAttribute, { attribute, exist: true }, 'top', update)
+    }
+  }
+
   export async function removeAttribute (attribute: AnyAttribute, exist: boolean): Promise<void> {
-    showPopup(
-      MessageBox,
-      {
-        label: settings.string.DeleteAttribute,
-        message: exist ? settings.string.DeleteAttributeExistConfirm : settings.string.DeleteAttributeConfirm,
-        action: async () => {
-          await client.remove(attribute)
-          update()
-        }
-      },
-      'top'
-    )
+    await showDeleteAttributePopup(attribute, exist, update)
   }
 
   async function showMenu (ev: MouseEvent, attribute: AnyAttribute): Promise<void> {
@@ -125,6 +118,15 @@
       }
     ]
     if (attribute.isCustom === true) {
+      if (attribute.attributeOf !== _class && attribute.type._class === core.class.TypeIdentifier) {
+        actions.push({
+          label: settings.string.OverrideAttribute,
+          icon: IconCopy,
+          action: async () => {
+            await overrideAttribute(attribute)
+          }
+        })
+      }
       actions.push({
         label: presentation.string.Remove,
         icon: IconDelete,
@@ -149,25 +151,22 @@
     })
   }
 
+  function getClassLabel (_class: Ref<Class<Doc>>): IntlString | undefined {
+    const hierarchy = client.getHierarchy()
+    return hierarchy.hasClass(_class) ? hierarchy.getClass(_class).label : undefined
+  }
+
   function getAttrType (type: Type<any>): IntlString | undefined {
     switch (type._class) {
       case core.class.RefTo:
-        return client.getHierarchy().getClass((type as RefTo<Doc>).to)?.label
+        return getClassLabel((type as RefTo<Doc>).to)
       case core.class.Collection:
-        return client.getHierarchy().getClass((type as Collection<AttachedDoc>).of)?.label
+        return getClassLabel((type as Collection<AttachedDoc>).of)
       case core.class.ArrOf:
         return (type as ArrOf<Doc>).of?.label
       default:
         return undefined
     }
-  }
-
-  function toRank (str: string | undefined): Rank | undefined {
-    if (str === undefined) return
-    if (str.startsWith('0|')) {
-      return str
-    }
-    return '0|' + str.replaceAll(/[-:_]/g, '').toLowerCase()
   }
 
   async function moveHadler (e: CustomEvent<any>): Promise<void> {

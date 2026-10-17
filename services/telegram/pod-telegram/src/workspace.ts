@@ -35,11 +35,11 @@ import { createPlatformClient, getFiles, normalizeValue } from './utils'
 
 export class WorkspaceWorker {
   private readonly clients = new Map<
-  string,
-  {
-    conn: TelegramConnectionInterface
-    queue?: MsgQueue
-  }
+    string,
+    {
+      conn: TelegramConnectionInterface
+      queue?: MsgQueue
+    }
   >()
 
   private channels: Map<string, Channel[]> = new Map<string, Channel[]>()
@@ -168,34 +168,9 @@ export class WorkspaceWorker {
     throw new Error('Not implemented')
     // const user = this.client.getModel().getAccountByEmail(email)
 
-    // if (user === undefined) {
-    //   throw Error(`Unable to find user by email: ${email}`)
-    // }
-
     // const token = conn.getToken()
 
-    // if (token === undefined) {
-    //   throw Error('Unable to get telegram token')
-    // }
-
-    // const res = await this.userStorage.insertOne({
-    //   userId: user._id,
-    //   email,
-    //   workspace: this.workspace,
-    //   phone,
-    //   token
-    // })
-
     // const rec = await this.userStorage.findOne({ _id: res.insertedId })
-
-    // if (rec === null) {
-    //   console.error(
-    //     `Something went wrong, failed to get inserted obj: ${
-    //       this.userStorage.collectionName
-    //     }/${res.insertedId.toString()}`
-    //   )
-    //   return
-    // }
 
     // this.clients.set(phone, { conn })
 
@@ -205,13 +180,6 @@ export class WorkspaceWorker {
   async checkUsers (): Promise<void> {
     // TODO: FIXME
     throw new Error('Not implemented')
-    // const employees = await this.client.findAll(contact.mixin.Employee, { active: false })
-    // const accounts = await this.client.findAll(contact.class.PersonAccount, {
-    //   person: { $in: employees.map((p) => p._id) }
-    // })
-    // for (const acc of accounts) {
-    //   await this.deactivateUser(acc._id)
-    // }
   }
 
   private async deactivateUser (acc: PersonId): Promise<void> {
@@ -236,13 +204,6 @@ export class WorkspaceWorker {
   private async handleEmployeeUpdate (tx: TxUpdateDoc<Doc>): Promise<void> {
     // TODO: FIXME
     throw new Error('Not implemented')
-    // const ctx = tx as TxUpdateDoc<Employee>
-    // if (ctx.operations.active === false) {
-    //   const acc = await this.client.findOne(contact.class.PersonAccount, { person: ctx.objectId })
-    //   if (acc !== undefined) {
-    //     await this.deactivateUser(acc._id)
-    //   }
-    // }
   }
 
   async removeUser ({ phone }: Pick<TgUser, 'phone'>): Promise<void> {
@@ -639,7 +600,7 @@ export class WorkspaceWorker {
     const res: Buffer[] = []
     for (const attachment of attachments) {
       const chunks = await this.storageAdapter.read(this.ctx, this.workspace as any, attachment.file) // TODO: FIXME <--WorkspaceIds
-      const buffer = Buffer.concat(chunks as unknown as Uint8Array[])
+      const buffer = Buffer.concat(chunks)
       if (buffer.length > 0) {
         res.push(
           Object.assign(buffer, {

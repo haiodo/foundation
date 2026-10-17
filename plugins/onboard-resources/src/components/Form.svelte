@@ -18,7 +18,7 @@
   import { Button, Label, StylishEdit, deviceOptionsStore as deviceInfo, themeStore } from '@hcengineering/ui'
   import { onMount } from 'svelte'
 
-  import { BottomAction } from '..'
+  import type { BottomAction } from '..'
   import onboard from '../plugin'
 
   import BottomActionComponent from './BottomAction.svelte'
@@ -168,9 +168,9 @@
     <div class="form-row send">
       <Button
         label={action.i18n}
-        kind={'contrast'}
-        shape={'round2'}
-        size={'x-large'}
+        kind="contrast"
+        shape="round2"
+        size="x-large"
         width="100%"
         loading={inAction}
         disabled={status.severity !== Severity.OK && status.severity !== Severity.ERROR}

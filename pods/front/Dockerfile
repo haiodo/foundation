@@ -1,5 +1,9 @@
-FROM haiodo/front-base:v20260504
+FROM intabiafusion/front-base:v20260917
 WORKDIR /app
+
+# Reported in /config.json so a running stand can be traced back to its build
+ARG BUILD_ID
+ENV BUILD_ID=${BUILD_ID}
 
 COPY bundle/bundle.js ./
 COPY bundle/bundle.js.map ./

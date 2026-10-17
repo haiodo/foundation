@@ -1,10 +1,13 @@
 <script lang="ts">
-  import core, { Class, Data, generateId, type Doc, Ref } from '@hcengineering/core'
-  import { Floor, getFreePosition, Office, Room, RoomAccess, RoomType } from '@hcengineering/love'
+  import type { Class, Data, Ref } from '@hcengineering/core'
+  import core, { generateId, type Doc } from '@hcengineering/core'
+  import type { Floor, Office, Room } from '@hcengineering/love'
+  import { getFreePosition, RoomType } from '@hcengineering/love'
   import { translate } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import setting, { type OfficeSettings } from '@hcengineering/setting'
-  import { Button, DropdownIntlItem } from '@hcengineering/ui'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import love from '../plugin'
   import { rooms, selectedFloor } from '../stores'
@@ -19,7 +22,6 @@
     id: TypeIds
     type: RoomType
     _class: Ref<Class<Room>>
-    access: RoomAccess
   }
 
   const items: Item[] = [
@@ -27,22 +29,19 @@
       id: 'meetingRoom',
       label: love.string.MeetingRoom,
       type: RoomType.Video,
-      _class: love.class.Room,
-      access: RoomAccess.Open
+      _class: love.class.Room
     },
     {
       id: 'teamRoom',
       label: love.string.TeamRoom,
       type: RoomType.Audio,
-      _class: love.class.Room,
-      access: RoomAccess.Open
+      _class: love.class.Room
     },
     {
       id: 'office',
       label: love.string.Office,
       type: RoomType.Video,
-      _class: love.class.Office,
-      access: RoomAccess.Knock
+      _class: love.class.Office
     }
   ] as const
 
@@ -57,11 +56,13 @@
     // Get workspace settings for Video rooms
     let defaultTranscription = false
     let defaultRecording = false
+    let defaultPrivate = false
     if (val.type === RoomType.Video && val._class !== love.class.Office) {
       const officeSettings = await client.findAll<OfficeSettings>(setting.class.OfficeSettings, {})
       if (officeSettings !== undefined && officeSettings.length > 0) {
         defaultTranscription = officeSettings[0].defaultStartWithTranscription ?? false
         defaultRecording = officeSettings[0].defaultStartWithRecording ?? false
+        defaultPrivate = officeSettings[0].defaultStartPrivate ?? false
       }
     }
     const data: Data<Room> = {
@@ -72,10 +73,10 @@
       width: 2,
       height: 1,
       type: val.type,
-      access: val.access,
       language: 'en',
       startWithTranscription: defaultTranscription,
       startWithRecording: defaultRecording,
+      startPrivate: val._class === love.class.Office ? true : defaultPrivate,
       description: null
     }
     if (val._class === love.class.Office) {

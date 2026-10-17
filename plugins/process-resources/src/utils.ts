@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { type Card, type MasterTag } from '@hcengineering/card'
+import card, { type Card, type MasterTag } from '@hcengineering/card'
 import core, {
   type AnyAttribute,
   type ArrOf,
@@ -23,6 +23,7 @@ import core, {
   type DocumentUpdate,
   findProperty,
   generateId,
+  getObjectValue,
   matchQuery,
   type Ref,
   type RefTo,
@@ -33,6 +34,7 @@ import core, {
   type Type
 } from '@hcengineering/core'
 import { getResource, type IntlString, PlatformError, Severity, Status } from '@hcengineering/platform'
+import { toRank } from '@hcengineering/rank'
 import { getClient } from '@hcengineering/presentation'
 import {
   type Context,
@@ -58,17 +60,35 @@ import {
   type UpdateCriteriaComponent,
   type UserResult
 } from '@hcengineering/process'
+import { isEmptyMarkup } from '@hcengineering/text-core'
 import { showPopup } from '@hcengineering/ui'
 import { type AttributeCategory } from '@hcengineering/view'
 import process from './plugin'
 
-export function isTypeEqual (toCheck: Type<any> | undefined, attr: Type<any>): boolean {
-  const skip = ['label', 'icon', 'hidden', 'readonly']
+export function isTypeEqual (toCheck: any | undefined, attr: Type<any>, bindings?: Record<string, string>): boolean {
   if (toCheck === undefined) return true
-  if (Object.keys(attr).length !== Object.keys(toCheck).length) return true
-  for (const key of Object.keys(attr)) {
-    if (skip.includes(key)) continue
-    if (toCheck[key as keyof Type<any>] !== attr[key as keyof Type<any>]) return false
+  const check = toCheck.type !== undefined ? toCheck.type : toCheck
+  if (check._class !== attr._class) return false
+  if (check._class === core.class.RefTo) {
+    let checkTo = (check as RefTo<Doc>).to
+    if (checkTo.startsWith('__SLOT_')) {
+      const slotId = checkTo.replace(/^__SLOT_(.+)__$/, '$1')
+      checkTo = (bindings?.[slotId] ?? slotId) as unknown as Ref<Class<Doc>>
+    }
+
+    let attrTo = (attr as RefTo<Doc>).to
+    if (attrTo.startsWith('__SLOT_')) {
+      const slotId = attrTo.replace(/^__SLOT_(.+)__$/, '$1')
+      attrTo = (bindings?.[slotId] ?? slotId) as unknown as Ref<Class<Doc>>
+    }
+
+    return checkTo === attrTo
+  }
+  if (check._class === core.class.ArrOf) {
+    return isTypeEqual((check as ArrOf<Doc>).of, (attr as ArrOf<Doc>).of, bindings)
+  }
+  if (check._class === core.class.EnumOf) {
+    return check.of === (attr as any).of
   }
   return true
 }
@@ -517,6 +537,10 @@ export async function requestUserInput (
   return { context: userContext, state: target.to, changed }
 }
 
+function getAttributeRank (attribute: AnyAttribute | undefined): string {
+  return attribute === undefined ? '' : (attribute.rank ?? toRank(attribute._id) ?? '')
+}
+
 export async function getTransitionUserInput (
   processId: Ref<Process>,
   space: Ref<Space>,
@@ -525,27 +549,85 @@ export async function getTransitionUserInput (
   skipExisting: boolean = false
 ): Promise<ExecutionContext | undefined> {
   let changed = false
+  const client = getClient()
+  const hierarchy = client.getHierarchy()
+
   for (const action of transition.actions) {
     if (action == null) continue
     const inputs: SelectedUserRequest[] = []
+
+    // Map of: tempInputId -> { attrName, virtualContextId }
+    const dynamicMappings: Record<string, { attrName: string, virtualContextId: string }> = {}
+
+    // Check for virtual required attributes
+    let virtualContext: SelectedUserRequest | undefined
+    let virtualKey = ''
+    if (action.params.requiredFields !== undefined) {
+      virtualContext = parseContext(action.params.requiredFields) as SelectedUserRequest
+      virtualKey = 'requiredFields'
+    } else if (action.params.requiredProperties !== undefined) {
+      virtualContext = parseContext(action.params.requiredProperties) as SelectedUserRequest
+      virtualKey = 'requiredProperties'
+    }
+
+    if (virtualContext?.type === 'userRequest') {
+      const classId = virtualContext._class
+      const allAttributes =
+        virtualKey === 'requiredFields'
+          ? Array.from(hierarchy.getAllAttributes(classId, core.class.Doc).values())
+          : Array.from(hierarchy.getOwnAttributes(classId).values())
+
+      for (const attr of allAttributes) {
+        if (virtualKey === 'requiredFields' && attr.name === 'title') continue
+        if (attr.hidden === true) continue
+
+        const isConfigured =
+          virtualKey === 'requiredFields'
+            ? action.params[attr.name] !== undefined
+            : action.params.props !== undefined && action.params.props[attr.name] !== undefined
+
+        if (attr.required === true && !isConfigured) {
+          const tempInputId = generateContextId()
+          dynamicMappings[tempInputId] = { attrName: attr.name, virtualContextId: virtualContext.id }
+          inputs.push({
+            type: 'userRequest',
+            id: tempInputId,
+            key: attr.name,
+            _class: classId
+          })
+        }
+      }
+    }
+
     for (const key in action.params) {
+      if (key === 'requiredFields' || key === 'requiredProperties') continue
+
       const value = (action.params as any)[key]
       if (typeof value === 'string') {
         const context = parseContext(value)
-        if (context !== undefined && context.type === 'userRequest') {
+        if (context?.type === 'userRequest') {
           if (skipExisting && userContext[context.id] !== undefined) continue
           inputs.push(context)
         }
       } else if (typeof value === 'object' && !Array.isArray(value)) {
         for (const element of Object.values(value)) {
           const context = parseContext(element)
-          if (context !== undefined && context.type === 'userRequest') {
+          if (context?.type === 'userRequest') {
             if (skipExisting && userContext[context.id] !== undefined) continue
             inputs.push(context)
           }
         }
       }
     }
+
+    if (virtualContext?.type === 'userRequest' && virtualKey === 'requiredFields') {
+      inputs.sort((a, b) => {
+        const rankA = getAttributeRank(hierarchy.findAttribute(a._class, a.key))
+        const rankB = getAttributeRank(hierarchy.findAttribute(b._class, b.key))
+        return rankA.localeCompare(rankB)
+      })
+    }
+
     if (inputs.length > 0) {
       const promise = new Promise<void>((resolve, reject) => {
         showPopup(
@@ -562,9 +644,22 @@ export async function getTransitionUserInput (
             const isComplete = res?.value !== undefined && inputs.every((input) => res.value[input.id] != null)
             if (isComplete) {
               changed = true
+              const groupedValues: Record<string, Record<string, any>> = {}
+
               for (const [key, value] of Object.entries(res.value)) {
-                userContext[key as ContextId] = value
+                const mapping = dynamicMappings[key]
+                if (mapping !== undefined) {
+                  groupedValues[mapping.virtualContextId] ??= {}
+                  groupedValues[mapping.virtualContextId][mapping.attrName] = value
+                } else {
+                  userContext[key as ContextId] = value
+                }
               }
+
+              for (const [virtualId, obj] of Object.entries(groupedValues)) {
+                userContext[virtualId as ContextId] = obj
+              }
+
               resolve()
             } else {
               reject(new PlatformError(new Status(Severity.ERROR, process.error.ResultNotProvided, {})))
@@ -597,7 +692,7 @@ export async function getSubProcessesUserInput (
     const context: ExecutionContext = JSON.parse(JSON.stringify(action.params.context ?? getEmptyContext()))
     for (const [k, v] of Object.entries(context)) {
       const c = parseContext(v)
-      if (c !== undefined && c.type === 'userRequest') {
+      if (c?.type === 'userRequest') {
         if (userContext[c.id] !== undefined) continue
         ;(context as any)[k] = userContext[c.id]
       }
@@ -736,8 +831,17 @@ export async function requestResult (
   context: ExecutionContext
 ): Promise<ExecutionContext | undefined> {
   if (results == null || results.length === 0) return
+  const client = getClient()
+  const doc = await client.findOne(card.class.Card, { _id: execution.card })
+  if (doc === undefined) return
+  const _process = client.getModel().findObject(execution.process)
+  if (_process === undefined) return
+  const h = client.getHierarchy()
+  const isMixin = h.isMixin(_process.masterTag)
+  const targetDoc = isMixin ? h.as(doc, _process.masterTag) : doc
+
   const promise = new Promise<void>((resolve, reject) => {
-    showPopup(process.component.ResultInput, { results, context }, undefined, (res) => {
+    showPopup(process.component.ResultInput, { results, context, doc: targetDoc }, undefined, (res) => {
       if (res !== undefined) {
         for (const contextId in res) {
           const val = res[contextId]
@@ -812,6 +916,17 @@ export async function approveRequestRejected (
   return context.todo?.group === params._id && context.todo?.approved === false
 }
 
+function getMarkupParams (process: Process, params: Record<string, any>, client: Client): Record<string, any> {
+  const markup: Record<string, any> = {}
+  for (const [key, value] of Object.entries(params)) {
+    const attr = client.getHierarchy().findAttribute(process.masterTag, key)
+    if (attr?.type?._class === core.class.TypeMarkup) {
+      markup[key] = value
+    }
+  }
+  return markup
+}
+
 export function matchCardCheck (
   client: Client,
   execution: Execution,
@@ -825,6 +940,11 @@ export function matchCardCheck (
   if (client.getHierarchy().isMixin(process.masterTag)) {
     doc = client.getHierarchy().as(doc, process.masterTag)
   }
+  const markup = getMarkupParams(process, params, client)
+  for (const key of Object.keys(markup)) {
+    if (isEmptyMarkup(doc[key])) return false
+  }
+
   const res = matchQuery([doc], params, doc._class, client.getHierarchy(), true)
   return res.length > 0
 }
@@ -835,13 +955,53 @@ export function fieldChangesCheck (
   params: Record<string, any>,
   context: Record<string, any>
 ): boolean {
-  const doc = context.card
+  let doc = context.card
   if (doc === undefined) return false
+  const process = client.getModel().findObject(execution.process)
+  if (process === undefined) return false
+  if (client.getHierarchy().isMixin(process.masterTag)) {
+    doc = client.getHierarchy().as(doc, process.masterTag)
+  }
   const operations = (context.operations ?? {}) as DocumentUpdate<Doc>
   const target = Object.keys(params)[0]
   if (!TxProcessor.hasUpdate(operations, target)) return false
+  const markup = getMarkupParams(process, params, client)
+  for (const key of Object.keys(markup)) {
+    if (isEmptyMarkup(doc[key])) return false
+  }
+
   const res = matchQuery([doc], params, doc._class, client.getHierarchy(), true)
   return res.length > 0
+}
+
+function isRequiredValueFilled (value: any, attr: AnyAttribute): boolean {
+  if (attr.type?._class === core.class.TypeMarkup) return !isEmptyMarkup(value)
+  if (Array.isArray(value)) return value.length > 0
+  return value !== undefined && value !== null && value !== ''
+}
+
+export function requiredFieldsFilledCheck (
+  client: Client,
+  execution: Execution,
+  params: Record<string, any>,
+  context: Record<string, any>
+): boolean {
+  let doc = context.card
+  if (doc === undefined) return false
+  const _process = client.getModel().findObject(execution.process)
+  if (_process === undefined) return false
+  const hierarchy = client.getHierarchy()
+  const attributes = Array.from(
+    hierarchy.isMixin(_process.masterTag)
+      ? hierarchy.getOwnAttributes(_process.masterTag).entries()
+      : hierarchy.getAllAttributes(_process.masterTag, core.class.Doc).entries()
+  ).filter(([, attr]) => attr.required === true && attr.hidden !== true)
+
+  if (hierarchy.isMixin(_process.masterTag)) {
+    doc = hierarchy.as(doc, _process.masterTag)
+  }
+
+  return attributes.every(([key, attr]) => isRequiredValueFilled(getObjectValue(key, doc), attr))
 }
 
 export async function subProcessesDoneCheck (
@@ -928,6 +1088,9 @@ export function getMockAttribute (_class: Ref<Class<Doc>>, label: IntlString, ty
 export async function checkProcessSectionVisibility (doc: Card): Promise<boolean> {
   const client = getClient()
   const anc = client.getHierarchy().getAncestors(doc._class)
-  const processes = client.getModel().findAllSync(process.class.Process, { masterTag: { $in: anc } })
+  const processes = client.getModel().findAllSync(process.class.Process, {
+    masterTag: { $in: anc },
+    automationOnly: { $ne: true }
+  })
   return processes.length > 0
 }

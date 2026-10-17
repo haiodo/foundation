@@ -3,6 +3,7 @@
     "CreateFunnel": "Nuevo Embudo",
     "CreateLead": "Nuevo Cliente Potencial",
     "Funnel": "Embudo",
+    "DefaultFunnel": "Embudo por defecto",
     "FunnelName": "Nombre del Embudo",
     "Funnels": "Embudos",
     "LeadApplication": "Clientes Potenciales (beta)",
@@ -35,7 +36,9 @@
     "EditFunnel": "Editar Embudo",
     "FunnelMembers": "Miembros",
     "ForbidCreateFunnelPermission": "Prohibir crear embudo",
-    "ForbidCreateFunnelPermissionDescription": "Prohíbe a los usuarios crear nuevos embudos"
+    "ForbidCreateFunnelPermissionDescription": "Prohíbe a los usuarios crear nuevos embudos",
+    "Website": "Sitio web",
+    "Industry": "Industria"
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{doc} was assigned to you by {sender}",

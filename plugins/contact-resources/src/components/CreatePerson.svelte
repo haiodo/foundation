@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AvatarType, Channel, combineName, ContactEvents, findPerson, Person } from '@hcengineering/contact'
-  import { AttachedData, Data, generateId } from '@hcengineering/core'
+  import type { Channel, Person } from '@hcengineering/contact'
+  import { AvatarType, combineName, ContactEvents, findPerson } from '@hcengineering/contact'
+  import type { AttachedData, Data } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
   import { createFocusManager, EditBox, FocusHandler, IconInfo, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -69,7 +71,7 @@
   let channels: AttachedData<Channel>[] = []
 
   let matches: Person[] = []
-  $: findPerson(client, combineName(firstName, lastName), channels).then((p) => {
+  $: void findPerson(client, combineName(firstName, lastName), channels).then((p) => {
     matches = p
   })
 
@@ -90,7 +92,7 @@
   <svelte:fragment slot="error">
     {#if matches.length > 0}
       <div class="flex-row-center error-color">
-        <IconInfo size={'small'} />
+        <IconInfo size="small" />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
         </span>
@@ -103,30 +105,30 @@
       <EditBox
         placeholder={contact.string.PersonFirstNamePlaceholder}
         bind:value={firstName}
-        kind={'large-style'}
+        kind="large-style"
         autoFocus
         focusIndex={1}
       />
       <EditBox
         placeholder={contact.string.PersonLastNamePlaceholder}
         bind:value={lastName}
-        kind={'large-style'}
+        kind="large-style"
         focusIndex={2}
       />
       <div class="mt-1">
         <EditBox
           placeholder={contact.string.PersonLocationPlaceholder}
           bind:value={object.city}
-          kind={'small-style'}
+          kind="small-style"
           focusIndex={3}
         />
       </div>
     </div>
     <div class="ml-4">
-      <EditableAvatar person={object} name={combineName(firstName, lastName)} size={'large'} bind:this={avatarEditor} />
+      <EditableAvatar person={object} name={combineName(firstName, lastName)} size="large" bind:this={avatarEditor} />
     </div>
   </div>
   <svelte:fragment slot="pool">
-    <ChannelsDropdown bind:value={channels} focusIndex={10} kind={'regular'} size={'large'} editable />
+    <ChannelsDropdown bind:value={channels} focusIndex={10} kind="regular" size="large" editable />
   </svelte:fragment>
 </Card>

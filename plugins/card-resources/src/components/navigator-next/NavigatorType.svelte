@@ -15,16 +15,19 @@
 
 <script lang="ts">
   import view from '@hcengineering/view'
-  import { IconAdd, NavGroup, Action, NavItem, ButtonIcon, showPopup, languageStore } from '@hcengineering/ui'
-  import { Ref } from '@hcengineering/core'
+  import type { Action } from '@hcengineering/ui'
+  import { IconAdd, NavGroup, NavItem, showPopup, languageStore } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { Ref } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
-  import { CardSpace, MasterTag } from '@hcengineering/card'
+  import type { CardSpace, MasterTag } from '@hcengineering/card'
   import presentation, { IconWithEmoji, getClient } from '@hcengineering/presentation'
   import { translate, getEmbeddedLabel } from '@hcengineering/platform'
 
   import type { NavigatorConfig } from '../../types'
   import cardPlugin from '../../plugin'
   import CreateCardPopup from '../CreateCardPopup.svelte'
+  import { isBaseTypeWithSubtypes } from '../../utils'
 
   export let type: MasterTag
   export let level: number = -1
@@ -39,13 +42,18 @@
   let activeAction: string | undefined = undefined
 
   async function handleCreateCard (): Promise<void> {
-    showPopup(CreateCardPopup, { type: type._id, space: space?._id }, 'center', async (result) => {
-      if (result !== undefined) {
-        const card = await getClient().findOne(cardPlugin.class.Card, { _id: result })
-        if (card === undefined) return
-        dispatch('selectCard', card)
+    showPopup(
+      CreateCardPopup,
+      { type: type._id, space: space?._id, changeType: isBaseTypeWithSubtypes(getClient().getHierarchy(), type._id) },
+      'center',
+      async (result) => {
+        if (result !== undefined) {
+          const card = await getClient().findOne(cardPlugin.class.Card, { _id: result })
+          if (card === undefined) return
+          dispatch('selectCard', card)
+        }
       }
-    })
+    )
   }
 
   async function getActions (lang: string): Promise<Action[]> {
@@ -118,15 +126,13 @@
     <slot />
     <svelte:fragment slot="actions">
       {#each actions as action}
-        <ButtonIcon
+        <IconButton
           icon={action.icon ?? view.icon.Edit}
           size="extra-small"
           kind="tertiary"
           pressed={activeAction === action.id}
           tooltip={{ label: action.label }}
           on:click={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
             void action.action(action.props, e)
           }}
         />

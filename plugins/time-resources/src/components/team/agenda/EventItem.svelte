@@ -1,5 +1,6 @@
 <script lang="ts">
-  import calendar, { Event } from '@hcengineering/calendar'
+  import type { Event } from '@hcengineering/calendar'
+  import calendar from '@hcengineering/calendar'
   import { DateRangeMode } from '@hcengineering/core'
   import { Icon, DatePresenter, IconArrowRight } from '@hcengineering/ui'
   import TimePresenter from '../../presenters/TimePresenter.svelte'
@@ -13,7 +14,7 @@
 <div class="item flex-between">
   <div class="flex-col">
     <div class="flex-row-center">
-      <Icon icon={calendar.icon.Calendar} size={'medium'} />
+      <Icon icon={calendar.icon.Calendar} size="medium" />
       <span class="ml-1 select-text">
         {item.title}
       </span>
@@ -23,7 +24,7 @@
         <div class="flex-row-center">
           <DatePresenter mode={DateRangeMode.TIMEONLY} value={item.date} />
           <div class="p-1">
-            <Icon icon={IconArrowRight} size={'small'} />
+            <Icon icon={IconArrowRight} size="small" />
           </div>
           <DatePresenter mode={DateRangeMode.TIMEONLY} value={item.dueDate} />
         </div>

@@ -37,7 +37,7 @@
   }
 
   function change (field: string, value: any) {
-    client.updateDoc(object._class, object.space, object._id, { [field]: value })
+    void client.updateDoc(object._class, object.space, object._id, { [field]: value })
   }
 
   onMount(() => {
@@ -50,7 +50,7 @@
     <EditBox
       bind:value={rawTitle}
       placeholder={lead.string.LeadPlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       disabled={readonly}
       focusable
       on:blur={() => {
@@ -63,10 +63,10 @@
       placeholder={lead.string.SelectCustomer}
       showNavigate={!$restrictionStore.disableNavigation}
       {readonly}
-      kind={'link'}
-      size={'x-large'}
-      justify={'left'}
-      width={'100%'}
+      kind="link"
+      size="x-large"
+      justify="left"
+      width="100%"
       bind:value={object.attachedTo}
       on:change={() => {
         change('attachedTo', object.attachedTo)

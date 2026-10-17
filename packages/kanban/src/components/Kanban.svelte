@@ -14,23 +14,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
+  import type {
     CategoryType,
     Class,
     Doc,
     DocumentQuery,
     DocumentUpdate,
     FindOptions,
-    type Rank,
-    RateLimiter,
     Ref,
     Space
   } from '@hcengineering/core'
+  import { type Rank, RateLimiter } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { makeRank } from '@hcengineering/rank'
   import { IconChevronDown, IconChevronRight, Scroller, themeStore, defaultBackground } from '@hcengineering/ui'
   import { createEventDispatcher, onDestroy, tick } from 'svelte'
-  import { CardDragEvent, DocWithRank, Item, SwimLane } from '../types'
+  import type { CardDragEvent, DocWithRank, Item, SwimLane } from '../types'
   import KanbanRow from './KanbanRow.svelte'
 
   export let categories: CategoryType[] = []
@@ -55,6 +54,7 @@
   export let dontUpdateRank: boolean = false
   export let orderBy: [string, 1 | -1] | undefined = undefined
   export let onMoveCommit: ((id: string, fields: Record<string, unknown>) => void) | undefined = undefined
+  export let onMoveRollback: ((id: string) => void) | undefined = undefined
 
   export let getUpdateProps: (doc: Doc, state: CategoryType) => DocumentUpdate<Item> | undefined
   export let getAvailableCategories: ((doc: Doc) => Promise<CategoryType[]>) | undefined = undefined
@@ -69,8 +69,8 @@
   export let storageKey: string | undefined = undefined
   export let controlKey: string | undefined = undefined
   export let getSwimLaneHeaderStyle:
-  | ((swimLane: SwimLane) => { background?: string, color?: string } | undefined)
-  | undefined = undefined
+    | ((swimLane: SwimLane) => { background?: string, color?: string } | undefined)
+    | undefined = undefined
   export let compact: boolean = false
 
   import { registerSwimLaneControls } from '../swimlane'
@@ -156,15 +156,9 @@
     const raw = getGroupByValues(_groupByDocs, category) ?? []
     const ofDoc = getSwimLaneOfDoc
     const inThisLane =
-      _dragCard !== undefined &&
-      _dragCardCurrentSwimLane !== undefined &&
-      _dragCardCurrentSwimLane._id === swimLane._id &&
-      _dragCardState === category
+      _dragCard !== undefined && _dragCardCurrentSwimLane?._id === swimLane._id && _dragCardState === category
     const isOriginal =
-      _dragCard !== undefined &&
-      dragCardInitialSwimLane !== undefined &&
-      dragCardInitialSwimLane._id === swimLane._id &&
-      dragCardInitialState === category
+      _dragCard !== undefined && dragCardInitialSwimLane?._id === swimLane._id && dragCardInitialState === category
     if (inThisLane && isOriginal && _dragCardTargetIndex === undefined) {
       // Card stays at its original position in the original cell — no filtering of dragCard.
       return ofDoc === undefined ? raw : raw.filter((doc) => doc._id === _dragCard?._id || ofDoc(doc) === swimLane._id)
@@ -233,7 +227,7 @@
       swimLaneMode &&
       targetSwimLane !== undefined &&
       getSwimLaneUpdateProps !== undefined &&
-      (dragCardInitialSwimLane === undefined || dragCardInitialSwimLane._id !== targetSwimLane._id)
+      dragCardInitialSwimLane?._id !== targetSwimLane._id
     ) {
       swimUpdates = getSwimLaneUpdateProps(dragCard, targetSwimLane)
     }
@@ -300,7 +294,11 @@
     // from there, mirroring the mouse-hover focus path.
     dispatch('obj-focus', { ...movedCard, ...merged })
     if (Object.keys(merged).length > 0) {
-      await client.update(dragCard, merged)
+      try {
+        await client.update(dragCard, merged)
+      } catch (err) {
+        onMoveRollback?.(movedCard._id)
+      }
     }
     dragCard = undefined
     dragCardAvailableCategories = undefined
@@ -377,8 +375,7 @@
     event?.preventDefault()
     if (dragCard === undefined) return
 
-    const swimLaneChanged =
-      swimLane !== undefined && (dragCardCurrentSwimLane === undefined || dragCardCurrentSwimLane._id !== swimLane._id)
+    const swimLaneChanged = swimLane !== undefined && dragCardCurrentSwimLane?._id !== swimLane._id
 
     if (dragCardState !== state || swimLaneChanged) {
       const canDrop = dragCardAvailableCategories === undefined || dragCardAvailableCategories.includes(state)
@@ -437,6 +434,9 @@
   }
 
   function cardDragOver (evt: CardDragEvent, object: Item, state: CategoryType): void {
+    if (dragCardAvailableCategories !== undefined && !dragCardAvailableCategories.includes(state)) {
+      return
+    }
     if (swimLaneMode) {
       if (dragCard === undefined) return
       if (object._id === dragCard._id) return
@@ -498,6 +498,13 @@
 
   async function cardDrop (evt: CardDragEvent, object: Item, state: CategoryType, swimLane?: SwimLane): Promise<void> {
     if (dragCard !== undefined) {
+      const canDrop = dragCardAvailableCategories === undefined || dragCardAvailableCategories.includes(state)
+      if (!canDrop) {
+        dragCard = undefined
+        dragCardAvailableCategories = undefined
+        isDragging = false
+        return
+      }
       let updates: DocumentUpdate<Item> | undefined
       // Drop on the source card itself with no movement: skip rank update entirely.
       const droppedOnSelf = object._id === dragCard._id && dragCardTargetIndex === undefined
@@ -545,7 +552,7 @@
         swimLaneMode &&
         swimLane !== undefined &&
         getSwimLaneUpdateProps !== undefined &&
-        (dragCardInitialSwimLane === undefined || dragCardInitialSwimLane._id !== swimLane._id)
+        dragCardInitialSwimLane?._id !== swimLane._id
       ) {
         swimUpdates = getSwimLaneUpdateProps(dragCard, swimLane)
       }
@@ -559,11 +566,15 @@
       // Restore focus on the just-moved card so keyboard navigation continues
       // from there, mirroring the mouse-hover focus path.
       dispatch('obj-focus', { ...dragCard, ...overlay })
-      if (updates !== undefined && Object.keys(updates).length > 0) {
-        await client.diffUpdate(dragCard, updates)
-      }
-      if (swimUpdates !== undefined && Object.keys(swimUpdates).length > 0) {
-        await client.update(dragCard, swimUpdates)
+      try {
+        if (updates !== undefined && Object.keys(updates).length > 0) {
+          await client.diffUpdate(dragCard, updates)
+        }
+        if (swimUpdates !== undefined && Object.keys(swimUpdates).length > 0) {
+          await client.update(dragCard, swimUpdates)
+        }
+      } catch (err) {
+        onMoveRollback?.(dragCard._id)
       }
     }
     isDragging = false
@@ -578,7 +589,17 @@
     dragCard = object
     isDragging = true
     dragCardTargetIndex = undefined
-    dragCardAvailableCategories = await getAvailableCategories?.(object)
+    const available = await getAvailableCategories?.(object)
+    if (isDragging) {
+      dragCardAvailableCategories = available
+    }
+  }
+
+  function onDragEnd (): void {
+    isDragging = false
+    dragCard = undefined
+    dragCardAvailableCategories = undefined
+    stopAutoScroll()
   }
   // eslint-disable-next-line
   let dragged: boolean = false
@@ -768,7 +789,6 @@
       }
     }
     if (offset === 0) {
-      // scrollInto(objState, obj)
       dispatch('obj-focus', obj)
     }
   }
@@ -796,8 +816,8 @@
   class:swimlane-mode={swimLaneMode}
   class:compact
   on:dragover={handleDragMove}
-  on:dragend={stopAutoScroll}
-  on:drop={stopAutoScroll}
+  on:dragend={onDragEnd}
+  on:drop={onDragEnd}
 >
   {#if swimLaneMode}
     <Scroller horizontal bind:divScroll={scrollerEl}>
@@ -810,7 +830,14 @@
         >
           {#each categories as state, si (typeof state === 'object' ? state.name : state)}
             {@const stateObjects = getGroupByValues(groupByDocs, state)}
-            <div class="swimlane-col-header">
+            <div
+              class="swimlane-col-header"
+              class:drop-allowed={isDragging &&
+                (dragCardAvailableCategories === undefined || dragCardAvailableCategories.includes(state))}
+              class:drop-disabled={isDragging &&
+                dragCardAvailableCategories !== undefined &&
+                !dragCardAvailableCategories.includes(state)}
+            >
               {#if $$slots.header !== undefined}
                 {#key si}
                   <slot name="header" state={toAny(state)} count={stateObjects.length} index={si} />
@@ -839,7 +866,7 @@
               }}
             >
               <div class="swimlane-toggle">
-                <svelte:component this={isCollapsed ? IconChevronRight : IconChevronDown} size={'small'} />
+                <svelte:component this={isCollapsed ? IconChevronRight : IconChevronDown} size="small" />
               </div>
               {#if $$slots.swimLaneHeader !== undefined}
                 <slot
@@ -873,6 +900,11 @@
                   <div
                     class="swimlane-cell"
                     class:drop-target={isDragging}
+                    class:drop-allowed={isDragging &&
+                      (dragCardAvailableCategories === undefined || dragCardAvailableCategories.includes(state))}
+                    class:drop-disabled={isDragging &&
+                      dragCardAvailableCategories !== undefined &&
+                      !dragCardAvailableCategories.includes(state)}
                     data-id="kanban-swimlane-cell"
                     data-swimlane-id={swimLane._id}
                     data-state={stateKey(state)}
@@ -938,6 +970,11 @@
           <!-- svelte-ignore a11y-no-static-element-interactions -->
           <div
             class="panel-container"
+            class:drop-allowed={isDragging &&
+              (dragCardAvailableCategories === undefined || dragCardAvailableCategories.includes(state))}
+            class:drop-disabled={isDragging &&
+              dragCardAvailableCategories !== undefined &&
+              !dragCardAvailableCategories.includes(state)}
             data-id="kanban-column"
             data-state={stateKey(state)}
             bind:this={stateRefs[si]}
@@ -955,7 +992,7 @@
                 <slot name="header" state={toAny(state)} count={stateObjects.length} index={si} />
               {/key}
             {/if}
-            <Scroller padding={'.25rem .5rem'} on:dragover on:drop>
+            <Scroller padding=".25rem .5rem" on:dragover on:drop>
               <slot name="beforeCard" {state} />
               <KanbanRow
                 bind:this={stateRows[si]}
@@ -1121,6 +1158,21 @@
     &.drop-target {
       background-color: var(--theme-drop-zone-bg-color, var(--theme-button-hovered));
       border: 1px dashed var(--theme-divider-color);
+    }
+  }
+
+  .panel-container,
+  .swimlane-cell,
+  .swimlane-col-header {
+    transition:
+      opacity 0.15s ease,
+      filter 0.15s ease;
+
+    &.drop-disabled {
+      opacity: 0.45;
+      filter: grayscale(0.6);
+      pointer-events: none;
+      cursor: not-allowed;
     }
   }
   .swimlane-title {

@@ -4,19 +4,13 @@
 //
 -->
 <script lang="ts">
-  import { Class, Doc, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
+  import type { Class, Doc, DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { translateCB } from '@hcengineering/platform'
-  import {
-    Breadcrumb,
-    Header,
-    HeaderAdaptive,
-    IModeSelector,
-    ModeSelector,
-    SearchInput,
-    themeStore
-  } from '@hcengineering/ui'
-  import view, { ViewOptions, Viewlet, ViewletPreference, type ViewletViewAction } from '@hcengineering/view'
+  import type { HeaderAdaptive, IModeSelector } from '@hcengineering/ui'
+  import { Breadcrumb, Header, ModeSelector, SearchInput, themeStore } from '@hcengineering/ui'
+  import type { ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view, { type ViewletViewAction } from '@hcengineering/view'
   import { ComponentExtensions, getClient } from '@hcengineering/presentation'
   import { getViewletSpecialActions } from '../viewletUtils'
 
@@ -64,7 +58,7 @@
     <slot name="header-tools" />
   </svelte:fragment>
 
-  <Breadcrumb {icon} title={label} size={'large'} isCurrent />
+  <Breadcrumb {icon} title={label} size="large" isCurrent />
 
   <svelte:fragment slot="search">
     <SearchInput bind:value={search} collapsed />
@@ -86,7 +80,7 @@
   <svelte:fragment slot="extra">
     <slot name="extra" />
     {#if modeSelectorProps !== undefined}
-      <ModeSelector kind={'subtle'} props={modeSelectorProps} />
+      <ModeSelector kind="subtle" props={modeSelectorProps} />
     {/if}
   </svelte:fragment>
 </Header>

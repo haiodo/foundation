@@ -15,10 +15,12 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { Doc, Ref, SortingOrder } from '@hcengineering/core'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import activity from '@hcengineering/activity'
-  import chunter, { ChatMessage } from '@hcengineering/chunter'
+  import type { ChatMessage } from '@hcengineering/chunter'
+  import chunter from '@hcengineering/chunter'
   import { closeTooltip, Label, Lazy, Spinner, resizeObserver, MiniToggle } from '@hcengineering/ui'
   import { ObjectPresenter, DocNavLink } from '@hcengineering/view-resources'
   import { canGroupMessages, getActivityNewestFirst, setActivityNewestFirst } from '@hcengineering/activity-resources'
@@ -92,7 +94,7 @@
         {@const canGroup = canGroupMessages(message, messages[index - 1])}
         <div class="item">
           <Lazy>
-            <ChatMessagePresenter value={message} hideLink type={canGroup ? 'short' : 'default'} />
+            <ChatMessagePresenter value={message} type={canGroup ? 'short' : 'default'} />
           </Lazy>
         </div>
       {/each}

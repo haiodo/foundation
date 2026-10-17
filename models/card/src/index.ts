@@ -12,7 +12,6 @@
 // limitations under the License.
 
 import activity from '@hcengineering/activity'
-import communication from '@hcengineering/communication'
 import {
   type CanCreateCardResource,
   type Card,
@@ -23,6 +22,7 @@ import {
   type CardViewDefaults,
   type CreateCardExtension,
   DOMAIN_CARD,
+  type DuplicateSetting,
   type ExportExtension,
   type ExportFunc,
   type FavoriteCard,
@@ -34,6 +34,7 @@ import {
   type Tag
 } from '@hcengineering/card'
 import chunter from '@hcengineering/chunter'
+import converter from '@hcengineering/converter'
 import core, {
   AccountRole,
   type Blobs,
@@ -45,6 +46,7 @@ import core, {
   DOMAIN_SPACE,
   IndexKind,
   type MarkupBlobRef,
+  type Mixin as MixinType,
   type MixinData,
   type Rank,
   type Ref,
@@ -76,16 +78,15 @@ import presentation from '@hcengineering/model-presentation'
 import setting from '@hcengineering/model-setting'
 import view, { type Viewlet } from '@hcengineering/model-view'
 import workbench, { WidgetType } from '@hcengineering/model-workbench'
-import converter from '@hcengineering/converter'
+import notification, { type NotificationGroup } from '@hcengineering/notification'
 import { type Asset, getEmbeddedLabel, type IntlString, type Resource } from '@hcengineering/platform'
 import time, { type ToDo } from '@hcengineering/time'
 import { PaletteColorIndexes } from '@hcengineering/ui/src/colors'
 import { type AnyComponent } from '@hcengineering/ui/src/types'
-import { type BuildModelKey } from '@hcengineering/view'
+import { type BuildModelKey, type ViewOptionModel } from '@hcengineering/view'
 import { createActions } from './actions'
 import { defineActionPermissions, definePermissions } from './permissions'
 import card from './plugin'
-import notification, { type NotificationGroup } from '@hcengineering/notification'
 import { generateClassNotificationTypes } from '@hcengineering/model-notification'
 
 export { cardId } from '@hcengineering/card'
@@ -97,7 +98,10 @@ export class TMasterTag extends TClass implements MasterTag {
   removed?: boolean
 
   @Prop(TypeBoolean(), card.string.SingleColumn)
-    singleColumn?: boolean
+  singleColumn?: boolean
+
+  @Prop(TypeBoolean(), card.string.BaseType)
+  baseType?: boolean
 }
 
 @Model(card.class.Tag, core.class.Mixin)
@@ -119,36 +123,36 @@ export class TCard extends TDoc implements Card {
 
   @Prop(TypeString(), view.string.Title)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeCollaborativeDoc(), core.string.Description)
-    content!: MarkupBlobRef
+  content!: MarkupBlobRef
 
   blobs!: Blobs
 
   @Prop(TypeRef(card.class.Card), card.string.Parent)
-    parent?: Ref<Card> | null
+  parent?: Ref<Card> | null
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(TypeRank(), core.string.Rank)
   @Hidden()
-    rank!: Rank
+  rank!: Rank
 
   @Prop(Collection(time.class.ToDo), getEmbeddedLabel('Action Items'))
-    todos?: CollectionSize<ToDo>
+  todos?: CollectionSize<ToDo>
 
   @Prop(TypeString(), view.string.Icon)
   @Hidden()
-    icon?: Asset
+  icon?: Asset
 
   @Prop(TypeNumber(), view.string.Color)
   @Hidden()
-    color?: number
+  color?: number
 
   @Hidden()
-    readonly?: boolean
+  readonly?: boolean
 
   children?: number
 
@@ -156,17 +160,17 @@ export class TCard extends TDoc implements Card {
 
   @Hidden()
   @ReadOnly()
-    peerId?: string
+  peerId?: string
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
-    comments?: number
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
+  comments?: number
 }
 
 @Model(card.class.CardSpace, core.class.TypedSpace, DOMAIN_SPACE)
 @UX(core.string.Space)
 export class TCardSpace extends TTypedSpace implements CardSpace {
   @Prop(ArrOf(TypeRef(card.class.MasterTag)), card.string.MasterTags)
-    types!: Ref<MasterTag>[]
+  types!: Ref<MasterTag>[]
 }
 
 @Model(card.class.MasterTagEditorSection, core.class.Doc, DOMAIN_MODEL)
@@ -223,7 +227,23 @@ export class TExportExtension extends TDoc implements ExportExtension {
   func!: Resource<ExportFunc>
 }
 
+@Mixin(card.mixin.DuplicateSetting, card.class.MasterTag)
+export class TDuplicateSetting extends TMasterTag implements DuplicateSetting {
+  excludedProperties?: string[]
+  excludedRelations?: string[] // ${associationId}_${a|b}
+  excludeMixins?: Ref<MixinType<Doc>>[]
+}
+
 export * from './migration'
+
+const showAllVersionsOption: ViewOptionModel = {
+  key: 'showAllVersions',
+  type: 'toggle',
+  defaultValue: false,
+  actionTarget: 'query',
+  action: card.function.ShowAllVersions,
+  label: card.string.ShowAllVersions
+}
 
 const listConfig: (BuildModelKey | string)[] = [
   { key: '' },
@@ -237,12 +257,6 @@ const listConfig: (BuildModelKey | string)[] = [
       showType: false
     },
     displayProps: { optional: true }
-  },
-  {
-    key: '',
-    presenter: card.component.LabelsPresenter,
-    label: card.string.Labels,
-    props: { fullSize: true }
   },
   {
     key: 'modifiedOn',
@@ -291,12 +305,6 @@ const favoritesViewletConfig: (BuildModelKey | string)[] = [
       showType: false
     },
     presenter: card.component.CardTagsColored
-  },
-  {
-    key: '$lookup.attachedTo',
-    presenter: card.component.LabelsPresenter,
-    label: card.string.Labels,
-    props: { fullSize: true, key: 'labels' }
   },
   {
     key: '$lookup.attachedTo.parent'
@@ -350,6 +358,11 @@ export function createSystemType (
       hiddenKeys: ['content', 'title'],
       sortable: true
     },
+    viewOptions: {
+      groupBy: [],
+      orderBy: [],
+      other: [showAllVersionsOption]
+    },
     baseQuery: {
       isLatest: true
     },
@@ -364,12 +377,6 @@ export function createSystemType (
           showType: false
         }
       },
-      {
-        key: '',
-        presenter: card.component.LabelsPresenter,
-        label: card.string.Labels,
-        props: { fullSize: true }
-      },
       'modifiedOn'
     ]
   })
@@ -383,7 +390,7 @@ export function createSystemType (
         ['modifiedOn', SortingOrder.Descending],
         ['rank', SortingOrder.Ascending]
       ],
-      other: []
+      other: [showAllVersionsOption]
     },
     baseQuery: {
       isLatest: true
@@ -397,6 +404,11 @@ export function createSystemType (
   builder.createDoc(view.class.Viewlet, core.space.Model, {
     attachTo: type,
     descriptor: card.viewlet.CardGridDescriptor,
+    viewOptions: {
+      groupBy: [],
+      orderBy: [],
+      other: [showAllVersionsOption]
+    },
     baseQuery: {
       isLatest: true
     },
@@ -422,7 +434,8 @@ export function createModel (builder: Builder): void {
     TFavoriteCard,
     TFavoriteType,
     TCreateCardExtension,
-    TExportExtension
+    TExportExtension,
+    TDuplicateSetting
   )
 
   defineCollaborators(builder, card.class.Card, { fields: ['modifiedBy'], allFields: true })
@@ -615,7 +628,7 @@ export function createModel (builder: Builder): void {
             spaceClass: card.class.CardSpace,
             addSpaceLabel: core.string.Space,
             icon: card.icon.Space,
-            // intentionally left empty in order to make space presenter working
+            // empty placeholder for the space presenter
             specials: []
           }
         ],
@@ -664,6 +677,11 @@ export function createModel (builder: Builder): void {
         hiddenKeys: ['content', 'title'],
         sortable: true
       },
+      viewOptions: {
+        groupBy: [],
+        orderBy: [],
+        other: [showAllVersionsOption]
+      },
       baseQuery: {
         isLatest: true
       },
@@ -696,7 +714,7 @@ export function createModel (builder: Builder): void {
           ['modifiedOn', SortingOrder.Descending],
           ['rank', SortingOrder.Ascending]
         ],
-        other: []
+        other: [showAllVersionsOption]
       },
       configOptions: {
         hiddenKeys: ['content', 'title']
@@ -722,7 +740,7 @@ export function createModel (builder: Builder): void {
           ['modifiedOn', SortingOrder.Descending],
           ['rank', SortingOrder.Ascending]
         ],
-        other: []
+        other: [showAllVersionsOption]
       },
       configOptions: {
         strict: true,
@@ -765,6 +783,11 @@ export function createModel (builder: Builder): void {
         hiddenKeys: ['content', 'title'],
         sortable: true
       },
+      viewOptions: {
+        groupBy: [],
+        orderBy: [],
+        other: [showAllVersionsOption]
+      },
       baseQuery: {
         isLatest: true
       },
@@ -804,7 +827,7 @@ export function createModel (builder: Builder): void {
           ['rank', SortingOrder.Ascending],
           ['title', SortingOrder.Descending]
         ],
-        other: []
+        other: [showAllVersionsOption]
       }
     },
     card.viewlet.CardGrid
@@ -904,6 +927,10 @@ export function createModel (builder: Builder): void {
     titleProvider: card.function.CardTitleProvider
   })
 
+  builder.mixin(card.class.Card, core.class.Class, view.mixin.ReferenceObjectProvider, {
+    provider: card.function.CardReferenceObjectProvider
+  })
+
   builder.mixin(card.class.Card, core.class.Class, view.mixin.LinkProvider, {
     encode: card.function.GetCardLink
   })
@@ -963,6 +990,7 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(card.class.Card, core.class.Class, view.mixin.ObjectFactory, {
+    component: card.component.CreateCard,
     create: card.function.CardFactory
   })
 
@@ -1123,19 +1151,6 @@ function defineTabs (builder: Builder): void {
       checkVisibility: card.function.CheckOldMessagesSectionVisibility
     },
     card.section.OldMessages
-  )
-
-  builder.createDoc(
-    card.class.CardSection,
-    core.space.Model,
-    {
-      label: activity.string.Messages,
-      component: card.sectionComponent.CommunicationMessagesSection,
-      order: 1000,
-      navigation: [],
-      checkVisibility: card.function.CheckCommunicationMessagesSectionVisibility
-    },
-    communication.ids.CardMessagesSection
   )
 
   builder.createDoc<Viewlet>(view.class.Viewlet, core.space.Model, {

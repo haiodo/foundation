@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import { onDestroy } from 'svelte'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import { reduceCalls } from '@hcengineering/core'
   import type {
     NotificationType,
     NotificationGroup,
@@ -23,13 +24,13 @@
   } from '@hcengineering/notification'
   import { getResource } from '@hcengineering/platform'
   import { getClient, isDisabled } from '@hcengineering/presentation'
+  import type { Location } from '@hcengineering/ui'
   import {
     Breadcrumb,
     defineSeparators,
     getCurrentResolvedLocation,
     Header,
     Loading,
-    Location,
     navigate,
     NavItem,
     resolvedLocationStore,
@@ -40,7 +41,7 @@
 
   import notification from '../../plugin'
   import NotificationGroupSetting from './NotificationGroupSetting.svelte'
-  import { providersSettings, typesSettings } from '../../utils'
+  import { providersSettings, typesSettings } from '../../stores'
 
   const client = getClient()
   const groups: NotificationGroup[] = client
@@ -84,11 +85,13 @@
     }
   }
 
+  const syncLocation = reduceCalls(async (loc: Location): Promise<void> => {
+    group = loc.path[4] as Ref<NotificationGroup>
+    currentPreferenceGroup = undefined
+  })
+
   const unsubscribeLocation = resolvedLocationStore.subscribe((loc) => {
-    void (async (loc: Location): Promise<void> => {
-      group = loc.path[4] as Ref<NotificationGroup>
-      currentPreferenceGroup = undefined
-    })(loc)
+    void syncLocation(loc)
   })
 
   onDestroy(() => {
@@ -100,11 +103,11 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <Breadcrumb
       icon={notification.icon.Notifications}
       label={notification.string.Notifications}
-      size={'large'}
+      size="large"
       isCurrent
     />
   </Header>
@@ -153,9 +156,9 @@
         <div class="antiNav-space" />
       </Scroller>
     </div>
-    <Separator name="notificationSettings" index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="notificationSettings" index={0} color="var(--theme-divider-color)" />
     <div class="hulyComponent-content__column content">
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content">
           {#if loading}
             <Loading />

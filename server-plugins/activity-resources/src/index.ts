@@ -1,5 +1,6 @@
 //
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,15 +14,19 @@
 // limitations under the License.
 //
 
-import activity from '@hcengineering/activity'
-import core, { type Doc, type Ref, type Tx, type TxCUD } from '@hcengineering/core'
+import activity, { type ActivityMessage, type DocUpdateMessage } from '@hcengineering/activity'
+import core, {
+  type Class,
+  type Doc,
+  type DocumentUpdate,
+  type Ref,
+  type Tx,
+  type TxCUD,
+  type TxUpdateDoc
+} from '@hcengineering/core'
 import type { TriggerControl } from '@hcengineering/server-core'
-import { type Card } from '@hcengineering/card'
 
 import { ReferenceTrigger } from './references'
-import { generateActivity } from './newActivity'
-
-export { ActivityMiddleware } from './middleware'
 
 async function OnDocRemoved (txes: TxCUD<Doc>[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
@@ -45,23 +50,58 @@ async function OnDocRemoved (txes: TxCUD<Doc>[], control: TriggerControl): Promi
   return result
 }
 
-async function HandleCardActivity (txes: TxCUD<Card>[], control: TriggerControl): Promise<Tx[]> {
-  const cache = new Map<Ref<Card>, Card>()
+// Bookmarks belong to every user who saved the message, not only to the one removing it.
+export async function OnActivityMessageRemoved (txes: TxCUD<Doc>[], control: TriggerControl): Promise<Tx[]> {
+  const removed = txes.filter((tx) => tx._class === core.class.TxRemoveDoc).map((tx) => tx.objectId)
+  if (removed.length === 0) return []
+
+  const saved = await control.findAll(
+    control.ctx,
+    activity.class.SavedMessage,
+    { attachedTo: { $in: removed as Ref<ActivityMessage>[] } },
+    { projection: { _id: 1, _class: 1, space: 1 } }
+  )
+  return saved.map((it) => control.txFactory.createTxRemoveDoc(it._class, it.space, it._id))
+}
+
+export async function OnDocClassChanged (txes: TxCUD<Doc>[], control: TriggerControl): Promise<Tx[]> {
+  const result: Tx[] = []
+
   for (const tx of txes) {
-    await generateActivity(tx, control, cache)
+    if (tx._class !== core.class.TxUpdateDoc) continue
+
+    const objectClass = ((tx as TxUpdateDoc<Doc>).operations as any)._class as Ref<Class<Doc>> | undefined
+    if (objectClass == null || objectClass === tx.objectClass) continue
+
+    const messages = await control.findAll(control.ctx, activity.class.ActivityMessage, {
+      attachedTo: tx.objectId
+    })
+    for (const message of messages) {
+      const ops: DocumentUpdate<ActivityMessage> = {}
+      if (message.attachedToClass !== objectClass) {
+        ops.attachedToClass = objectClass
+      }
+      // DocUpdateMessage keeps its own copy of the class it describes.
+      const own = (message as DocUpdateMessage).objectClass
+      if (own != null && own !== objectClass) {
+        ;(ops as DocumentUpdate<DocUpdateMessage>).objectClass = objectClass
+      }
+      if (Object.keys(ops).length === 0) continue
+      result.push(control.txFactory.createTxUpdateDoc(message._class, message.space, message._id, ops))
+    }
   }
 
-  return []
+  return result
 }
 
 export * from './references'
-export { getDocTitle, getDocUrl, getDocIdentifier, isActivityDoc } from './utils'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   trigger: {
     ReferenceTrigger,
     OnDocRemoved,
-    HandleCardActivity
+    OnDocClassChanged,
+    OnActivityMessageRemoved
   }
 })

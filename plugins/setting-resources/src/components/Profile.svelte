@@ -13,6 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import { getAccountClient, requestOperationOtpCode } from '../utils'
   import contact, { combineName, getFirstName, getLastName } from '@hcengineering/contact'
   import { ChannelsEditor, EditableAvatar, myEmployeeStore } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, SocialIdType } from '@hcengineering/core'
@@ -76,14 +77,33 @@
 
   const manager = createFocusManager()
 
+  /** The workspace cannot be left without an owner, and asking for a code first would waste it. */
+  async function isLastOwner (): Promise<boolean> {
+    if (account.role !== AccountRole.Owner) return false
+    const members = await getAccountClient().getWorkspaceMembers()
+    return members.filter((m) => m.role === AccountRole.Owner).length === 1
+  }
+
   async function leave (): Promise<void> {
+    if (await isLastOwner()) {
+      showPopup(MessageBox, {
+        label: setting.string.LastOwnerLeaveTitle,
+        message: setting.string.LastOwnerLeaveMessage,
+        canSubmit: false
+      })
+      return
+    }
+
     showPopup(MessageBox, {
       label: setting.string.Leave,
       message: setting.string.LeaveDescr,
       action: async () => {
         const leaveWorkspace = await getResource(login.function.LeaveWorkspace)
+        // Self-leave is not undoable by the user: confirm with a code sent to their email.
+        const code = await requestOperationOtpCode()
+        if (code === undefined) return
         try {
-          const loginInfo = await leaveWorkspace(account.uuid)
+          const loginInfo = await leaveWorkspace(account.uuid, code)
 
           if (loginInfo?.token != null) {
             await logIn(loginInfo)
@@ -111,6 +131,36 @@
     })
   }
 
+  async function deleteAccount (): Promise<void> {
+    const { canDelete, ownedWorkspaces } = await getAccountClient().canDeleteAccount()
+    if (!canDelete) {
+      showPopup(MessageBox, {
+        label: setting.string.DeleteAccount,
+        message: setting.string.DeleteAccountBlocked,
+        params: { workspaces: ownedWorkspaces.map((ws) => ws.name).join(', ') },
+        canSubmit: false
+      })
+      return
+    }
+
+    const policy = await getAccountClient()
+      .getDeletionPolicy()
+      .catch(() => ({ graceDays: 21, readonlyDays: 7 }))
+    showPopup(MessageBox, {
+      label: setting.string.DeleteAccount,
+      message: setting.string.DeleteAccountConfirm,
+      params: { days: policy.graceDays },
+      dangerous: true,
+      action: async () => {
+        const code = await requestOperationOtpCode()
+        if (code === undefined) return
+        await getAccountClient().deleteAccount(account.uuid, code)
+        await logOut()
+        navigate({ path: [loginId] })
+      }
+    })
+  }
+
   async function nameChange (): Promise<void> {
     if ($myEmployeeStore !== undefined) {
       await client.diffUpdate($myEmployeeStore, {
@@ -123,8 +173,8 @@
 <FocusHandler {manager} />
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.AccountSettings} label={setting.string.AccountSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.AccountSettings} label={setting.string.AccountSettings} size="large" isCurrent />
   </Header>
   <Scroller>
     <div class="ac-body p-10 flex-col max-w-240 content">
@@ -134,7 +184,7 @@
             <EditableAvatar
               person={$myEmployeeStore}
               {email}
-              size={'x-large'}
+              size="x-large"
               name={$myEmployeeStore.name}
               bind:this={avatarEditor}
               on:done={onAvatarDone}
@@ -152,7 +202,7 @@
             <EditBox
               placeholder={contact.string.PersonFirstNamePlaceholder}
               bind:value={firstName}
-              kind={'large-style'}
+              kind="large-style"
               autoFocus
               focusIndex={1}
               on:change={nameChange}
@@ -160,7 +210,7 @@
             <EditBox
               placeholder={contact.string.PersonLastNamePlaceholder}
               bind:value={lastName}
-              kind={'large-style'}
+              kind="large-style"
               focusIndex={2}
               on:change={nameChange}
             />
@@ -196,6 +246,13 @@
       <SocialIdsEditor rating={personRating} />
       <div class="footer">
         <Button
+          label={setting.string.DeleteAccount}
+          kind="dangerous"
+          on:click={() => {
+            void deleteAccount()
+          }}
+        />
+        <Button
           icon={setting.icon.Signout}
           label={setting.string.Leave}
           kind="dangerous"
@@ -225,6 +282,8 @@
   }
 
   .footer {
+    display: flex;
+    gap: 0.5rem;
     margin-top: 2rem;
     align-self: flex-end;
   }

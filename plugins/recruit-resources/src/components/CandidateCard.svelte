@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import attachment from '@hcengineering/attachment'
-  import contact, { Channel, getName, Person } from '@hcengineering/contact'
+  import type { Channel, Person } from '@hcengineering/contact'
+  import contact, { getName } from '@hcengineering/contact'
   import { ChannelsEditor, Avatar } from '@hcengineering/contact-resources'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Component, Label } from '@hcengineering/ui'
@@ -45,7 +46,7 @@
 
 <div class="antiContactCard">
   <div class="label uppercase"><Label label={recruit.string.Talent} /></div>
-  <Avatar person={candidate} size={'large'} name={candidate?.name} />
+  <Avatar person={candidate} size="large" name={candidate?.name} />
   {#if candidate}
     <DocNavLink object={candidate} {disabled}>
       <div class="name lines-limit-2">
@@ -75,7 +76,7 @@
         <ChannelsEditor
           attachedTo={channels[0].attachedTo}
           attachedClass={channels[0].attachedToClass}
-          length={'short'}
+          length="short"
           editable={!disabled}
           focusIndex={10}
         />

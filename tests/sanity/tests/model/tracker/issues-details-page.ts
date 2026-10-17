@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { Issue, NewIssue } from './types'
 import { convertEstimation } from '../../tracker/tracker.utils'
+import { retry, retryIntervals, waitStable } from '../../retry'
 
 export class IssuesDetailsPage extends CommonTrackerPage {
   readonly page: Page
@@ -27,9 +28,15 @@ export class IssuesDetailsPage extends CommonTrackerPage {
     this.page.locator('//span[text()="Milestone"]/following-sibling::div[1]/div/button')
 
   readonly textEstimation = (): Locator =>
-    this.page.locator('//span[text()="Estimation"]/following-sibling::div[1]/button/span')
+    this.page.locator(
+      '//span[contains(@class, "labelOnPanel") and normalize-space(text())="Estimation"]/following-sibling::div[1]//div[contains(@class, "link-container")]'
+    )
 
-  readonly buttonEstimation = (): Locator => this.page.locator('(//span[text()="Estimation"]/../div/button)[3]')
+  readonly buttonEstimation = (): Locator =>
+    this.page.locator(
+      '//span[contains(@class, "labelOnPanel") and normalize-space(text())="Estimation"]/following-sibling::div[1]//div[contains(@class, "link-container")]'
+    )
+
   readonly buttonCreatedBy = (): Locator =>
     this.page.locator('//span[text()="Created by"]/following-sibling::div[1]/button')
 
@@ -37,7 +44,10 @@ export class IssuesDetailsPage extends CommonTrackerPage {
   readonly textParentTitle = (): Locator => this.page.locator('span.issue-title')
   readonly buttonAddSubIssue = (): Locator => this.page.locator('#add-sub-issue')
   readonly textRelated = (): Locator =>
-    this.page.locator('//span[text()="Related"]/following-sibling::div[1]/div//span')
+    this.page
+      .locator('text=Related to Issues')
+      .locator('xpath=ancestor::div[contains(@class, "mt-6")][1]//span[contains(text(), "TSK-")]')
+      .first()
 
   readonly buttonCollaborators = (): Locator =>
     this.page.locator('//span[text()="Collaborators"]/following-sibling::div[1]/button')
@@ -47,13 +57,34 @@ export class IssuesDetailsPage extends CommonTrackerPage {
 
   readonly inputSearchOnSearchForIssueModal = (): Locator => this.page.locator('div.popup input[type="text"]')
   readonly textBlockedBy = (): Locator =>
-    this.page.locator('//span[text()="Blocked by"]/following-sibling::div[1]/div/div/button/span')
+    this.page
+      .locator('text=Blocked by Issues')
+      .locator('xpath=ancestor::div[contains(@class, "mt-6")][1]//span[contains(text(), "TSK-")]')
+      .first()
 
   readonly textBlocks = (): Locator =>
-    this.page.locator('//span[text()="Blocks"]/following-sibling::div[1]/div/div/button/span')
+    this.page
+      .locator('text=Blocking Issues')
+      .locator('xpath=ancestor::div[contains(@class, "mt-6")][1]//span[contains(text(), "TSK-")]')
+      .first()
 
   readonly buttonRemoveBlockedBy = (): Locator =>
-    this.page.locator('//span[text()="Blocked by"]/following-sibling::div[1]/div/button')
+    this.page
+      .locator('text=Blocked by Issues')
+      .locator('xpath=ancestor::div[contains(@class, "mt-6")][1]//button[contains(@class, "btn-remove-relation")]')
+      .first()
+
+  readonly buttonRemoveRelated = (): Locator =>
+    this.page
+      .locator('text=Related to Issues')
+      .locator('xpath=ancestor::div[contains(@class, "mt-6")][1]//button[contains(@class, "btn-remove-relation")]')
+      .first()
+
+  readonly buttonRemoveBlocking = (): Locator =>
+    this.page
+      .locator('text=Blocking Issues')
+      .locator('xpath=ancestor::div[contains(@class, "mt-6")][1]//button[contains(@class, "btn-remove-relation")]')
+      .first()
 
   readonly details = (): Locator =>
     this.page.locator('//span[text()="Blocked by"]/following-sibling::div[1]/div/button')
@@ -86,21 +117,65 @@ export class IssuesDetailsPage extends CommonTrackerPage {
     await this.buttonRemoveBlockedBy().click()
   }
 
+  async clickRemoveRelated (): Promise<void> {
+    await this.buttonRemoveRelated().click()
+  }
+
+  async clickRemoveBlocking (): Promise<void> {
+    await this.buttonRemoveBlocking().click()
+  }
+
+  // The panel binds the document after the input mounts, so an early fill is overwritten by the
+  // stored title with nothing failing until a later check.
+  async setTitle (title: string): Promise<void> {
+    await expect(async () => {
+      await this.inputTitle().fill(title)
+      const settled = await waitStable(async () => await this.inputTitle().inputValue(), {
+        stableFor: 1000,
+        interval: 100,
+        timeout: 5000
+      })
+      expect(settled).toBe(title)
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+  }
+
   async editIssue (data: Issue): Promise<void> {
     if (data.title != null) {
-      await this.inputTitle().fill(data.title)
+      await this.setTitle(data.title)
     }
     if (data.status != null) {
-      await this.buttonStatus().click()
-      await this.selectFromDropdown(this.page, data.status)
+      const status = data.status
+      // The dropdown locator matches any element whose class ends in "opup", so a stray tooltip or
+      // leftover popup can swallow the click and leave the status untouched. Retry until it sticks.
+      // Compare lowercase - callers pass "ToDo" vs UI's "Todo".
+      const target = status.toLowerCase()
+      const read = async (): Promise<string> => ((await this.buttonStatus().textContent()) ?? '').trim().toLowerCase()
+      await expect(async () => {
+        // Not again once it took: closing statuses open a dialog over the button.
+        if ((await read()) !== target) {
+          await this.buttonStatus().click()
+          await this.selectFromDropdown(this.page, status)
+        }
+        // The button keeps the old status until the update's round trip, over a second under load:
+        // only a reached value may count as settled. The stored status can still overwrite it.
+        await expect.poll(read, { timeout: 8000 }).toBe(target)
+        const settled = await waitStable(read, { stableFor: 1000, interval: 200, timeout: 8000 })
+        expect(settled).toBe(target)
+      }).toPass({ intervals: retryIntervals, timeout: 20000 })
     }
     if (data.priority != null) {
       await this.buttonPriority().click()
       await this.selectMenuItem(this.page, data.priority)
     }
     if (data.assignee != null) {
-      await this.buttonAssignee().click()
-      await this.selectAssignee(this.page, data.assignee)
+      const assignee = data.assignee
+      // Same swallowed popup click as the status above: unchecked, the failure lands on the other
+      // user waiting for an issue that was never assigned.
+      await expect(async () => {
+        await this.buttonAssignee().click()
+        await this.selectAssignee(this.page, assignee)
+        await expect(this.buttonAssignee()).toContainText(assignee, { timeout: 3000 })
+      }).toPass({ intervals: retryIntervals, timeout: 20000 })
     }
     if (data.labels != null && data.createLabel != null) {
       if (data.createLabel) {
@@ -110,7 +185,7 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       } else {
         await this.checkFromDropdownWithSearch(this.page, data.labels)
       }
-      await this.inputTitle().press('Escape')
+      await this.closePopups()
     }
     if (data.component != null) {
       await this.buttonComponent().click()
@@ -121,9 +196,39 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       await this.selectMenuItem(this.page, data.milestone)
     }
     if (data.estimation != null) {
-      await this.buttonEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      const estimation = data.estimation
+      // Same story as the status above: the popup click can be swallowed, leaving the old value
+      // and turning the later check into a 10s wait for something that never happens.
+      await expect(async () => {
+        await this.buttonEstimation().click()
+        await this.fillEstimationPopup(this.page, estimation)
+        await expect(this.textEstimation()).toHaveText(convertEstimation(estimation), { timeout: 3000 })
+        // The write is lost when a previous estimation update is still in flight: the panel renders
+        // the new value optimistically and then falls back to the stored one about 70ms later, and
+        // the server never sees it. Settle before believing the first read, so the retry re-saves.
+        // 200ms was not enough: `Edit an issue` then read the previous value (1d instead of 0m).
+        await this.page.waitForTimeout(500)
+        await expect(this.textEstimation()).toHaveText(convertEstimation(estimation), { timeout: 3000 })
+      }).toPass({ intervals: retryIntervals, timeout: 20000 })
     }
+  }
+
+  async addExistingLabel (label: string): Promise<void> {
+    await this.buttonAddLabel().click()
+    await this.selectPopupInput().fill(label)
+    const item = this.selectPopupSpanLines(label)
+    // In a project of a freshly created type the popup can open before the client knows the new
+    // task type class and then lists nothing. Reopen it instead of waiting an empty list out.
+    await expect(async () => {
+      if ((await item.count()) === 0) {
+        await this.closePopups()
+        await this.buttonAddLabel().click()
+        await this.selectPopupInput().fill(label)
+      }
+      await expect(item).toHaveCount(1, { timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+    await item.click()
+    await this.closePopups()
   }
 
   async checkIssue (data: NewIssue): Promise<void> {
@@ -152,8 +257,12 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       const val = convertEstimation(data.estimation)
       await expect(async () => {
         const curValue = JSON.stringify((await this.textEstimation().allTextContents()).join(' '))
-        await expect(this.textEstimation(), `should be ${JSON.stringify(val)} but it ${curValue})}`).toHaveText(val)
-      }).toPass({ intervals: [100, 200, 500, 1000], timeout: 10000 })
+        // Short inner timeout on purpose: the default 15s outlives the enclosing toPass, so the
+        // retry never happens and the failure carries no value to look at.
+        await expect(this.textEstimation(), `should be ${JSON.stringify(val)} but it is ${curValue}`).toHaveText(val, {
+          timeout: 2000
+        })
+      }).toPass({ intervals: retryIntervals, timeout: 15000 })
     }
     if (data.parentIssue != null) {
       await expect(this.textParentTitle()).toHaveText(data.parentIssue)
@@ -183,7 +292,7 @@ export class IssuesDetailsPage extends CommonTrackerPage {
   }
 
   async checkIssueContainsAttachment (fileName: string): Promise<void> {
-    await this.page.locator('div.attachment-grid div.name', { hasText: fileName }).click()
+    await this.page.locator('div.attachment-list div.name', { hasText: fileName }).click()
   }
 
   async checkCollaborators (names: Array<string>): Promise<void> {
@@ -215,18 +324,42 @@ export class IssuesDetailsPage extends CommonTrackerPage {
   async fillSearchForIssueModal (issueTitle: string): Promise<void> {
     await this.buttonIssueOnSearchForIssueModal().click()
     await this.inputSearchOnSearchForIssueModal().fill(issueTitle)
-    await this.popupListItems(issueTitle).click()
+    // Wait for the list to re-filter: clicking while the pre-filter rows are still there either
+    // hits a strict-mode violation or links the wrong issue, and the relation check fails later.
+    const item = this.popupListItems(issueTitle)
+    await expect(item).toHaveCount(1, { timeout: 15000 })
+    // The popup closing is the receipt for the click: one landing mid re-render leaves it open and
+    // the relation never gets created - showing up later only as a missing row on the issue.
+    await retry(async () => {
+      if ((await this.page.locator('div.popup').count()) === 0) return
+      await item.click()
+      await expect(this.page.locator('div.popup')).toHaveCount(0, { timeout: 3000 })
+    }, 20000)
   }
 
   async moreActionOnIssueWithSecondLevel (actionFirst: string, actionSecond: string): Promise<void> {
     await this.buttonMoreActions().click()
-    await this.antiPopupSubMenueBtn(actionFirst).hover()
-    await this.antiPopupSubMenueBtn(actionFirst).click()
+    // The submenu is gated by MouseSpeedTracker (openSubmenu): a fast hover then click leaves the
+    // parent marked active with nothing under it, so the second-level click waits out the timeout.
+    await retry(async () => {
+      if (await this.popupSpanLabel(actionSecond).isVisible()) return
+      await this.antiPopupSubMenueBtn(actionFirst).hover()
+      await this.antiPopupSubMenueBtn(actionFirst).click()
+      await expect(this.popupSpanLabel(actionSecond)).toBeVisible({ timeout: 3000 })
+    })
     await this.selectFromDropdown(this.page, actionSecond)
   }
 
   async checkIfTextBlockedByIsVisible (): Promise<void> {
     await expect(this.textBlockedBy()).toBeVisible({ visible: false })
+  }
+
+  async checkIfTextRelatedIsVisible (): Promise<void> {
+    await expect(this.textRelated()).toBeVisible({ visible: false })
+  }
+
+  async checkIfTextBlocksIsVisible (): Promise<void> {
+    await expect(this.textBlocks()).toBeVisible({ visible: false })
   }
 
   async checkIfButtonCreatedByHaveRealName (modifierName: string): Promise<void> {

@@ -1,14 +1,17 @@
 <script lang="ts">
-  import calendar, { AccessLevel, Calendar, Event, generateEventId, getAllEvents } from '@hcengineering/calendar'
+  import type { BusySlot, Calendar, Event } from '@hcengineering/calendar'
+  import calendar, { AccessLevel, generateEventId, getAllEvents, getBusyIntervals } from '@hcengineering/calendar'
   import { DayCalendar, calendarByIdStore, hidePrivateEvents } from '@hcengineering/calendar-resources'
-  import { getCurrentEmployee } from '@hcengineering/contact'
-  import { Ref, SortingOrder, Timestamp, getCurrentAccount } from '@hcengineering/core'
-  import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
-  import { createQuery } from '@hcengineering/presentation'
-  import {
-    AnyComponent,
-    ButtonBase,
-    ButtonIcon,
+  import type { Employee, Person } from '@hcengineering/contact'
+  import contact, { getCurrentEmployee, getName } from '@hcengineering/contact'
+  import { UserBoxList, employeeByIdStore } from '@hcengineering/contact-resources'
+  import type { IdMap, PersonId, Ref, Timestamp } from '@hcengineering/core'
+  import { SortingOrder, getCurrentAccount } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
+  import { createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
+  import type { AnyComponent } from '@hcengineering/ui'
+  import ui, {
     IconChevronLeft,
     IconChevronRight,
     Label,
@@ -18,10 +21,16 @@
     Header,
     getFormattedDate,
     resizeObserver,
-    deviceOptionsStore as deviceInfo
+    deviceOptionsStore as deviceInfo,
+    languageStore,
+    getCurrentLocale
   } from '@hcengineering/ui'
-  import { ToDo, WorkSlot } from '@hcengineering/time'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
+  import type { ToDo, WorkSlot } from '@hcengineering/time'
+  import type { PlannerCalendarMode } from '..'
   import time from '../plugin'
+  import PlannerViewSwitch from './PlannerViewSwitch.svelte'
+  import { eventWindowQueries, getWorkSlotSpace } from '../utils'
   import IconSun from './icons/Sun.svelte'
 
   export let dragItem: ToDo | null = null
@@ -29,6 +38,8 @@
   export let displayedDaysCount = 1
   export let element: HTMLElement | undefined = undefined
   export let createComponent: AnyComponent | undefined = calendar.component.CreateEvent
+  export let calMode: PlannerCalendarMode = 'personal'
+  export let showToDos: boolean = true
 
   const q = createQuery()
 
@@ -63,20 +74,150 @@
   $: from = getFrom(currentDate)
   $: to = getTo(currentDate, displayedDaysCount)
 
-  function update (calendars: Calendar[]): void {
+  const extraPersonsKey = 'planner_extra_persons'
+  let extraPersons: Array<Ref<Person>> = JSON.parse(localStorage.getItem(extraPersonsKey) ?? '[]')
+  let showMine: boolean = localStorage.getItem('planner_show_mine') !== 'false'
+
+  const hierarchy = getClient().getHierarchy()
+
+  const busyQuery = createQuery()
+  const busyRecurringQuery = createQuery()
+  let busyPlain: BusySlot[] = []
+  let busyRecurring: BusySlot[] = []
+
+  // My own events are already on the grid in full detail, an extra busy block would double them.
+  $: overlayPersons = extraPersons.filter((it) => it !== getCurrentEmployee())
+
+  $: if (overlayPersons.length > 0) {
+    busyQuery.query(
+      calendar.class.BusySlot,
+      { person: { $in: overlayPersons }, date: { $lte: to }, dueDate: { $gte: from } },
+      (res) => {
+        busyPlain = res
+      }
+    )
+    // A recurring slot's date/dueDate describe its first occurrence, so the window's start
+    // cannot be applied server-side - but nothing starting after `to` can occur inside it.
+    busyRecurringQuery.query(
+      calendar.class.BusySlot,
+      { person: { $in: overlayPersons }, rules: { $exists: true }, date: { $lte: to } },
+      (res) => {
+        busyRecurring = res
+      }
+    )
+  } else {
+    busyQuery.unsubscribe()
+    busyRecurringQuery.unsubscribe()
+    busyPlain = []
+    busyRecurring = []
+  }
+
+  // Colleagues' events live in their own PersonSpace and are unreadable here, only their
+  // BusySlots are - so the overlay is synthetic: one freeBusy event per merged busy interval.
+  function mkOverlay (
+    person: Ref<Person>,
+    interval: { date: Timestamp, dueDate: Timestamp },
+    label: string,
+    idx: number
+  ): Event {
+    return {
+      _id: `busy-${person}-${label}-${idx}` as Ref<Event>,
+      _class: calendar.class.Event,
+      space: calendar.space.Calendar,
+      attachedTo: calendar.ids.NoAttached,
+      attachedToClass: calendar.class.Event,
+      collection: 'events',
+      modifiedBy: myAcc.primarySocialId,
+      modifiedOn: interval.date,
+      eventId: `busy-${person}-${label}-${idx}`,
+      calendar: '' as Ref<Calendar>,
+      title: label,
+      description: '',
+      date: interval.date,
+      dueDate: interval.dueDate,
+      allDay: false,
+      blockTime: true,
+      participants: [person],
+      access: AccessLevel.Reader,
+      visibility: 'freeBusy',
+      user: '' as PersonId
+    } as unknown as Event
+  }
+
+  function busyOverlay (slots: BusySlot[], from: Timestamp, to: Timestamp, employees: IdMap<Employee>): Event[] {
+    const me = getCurrentEmployee()
+    const unique = slots.filter(
+      (slot, idx, arr) => slot.person !== me && arr.findIndex((it) => it._id === slot._id) === idx
+    )
+    const nameOf = (person: Ref<Person>): string => {
+      const employee = employees.get(person as Ref<Employee>)
+      return employee !== undefined ? getName(hierarchy, employee) : ''
+    }
+    const res: Event[] = []
+    // A public event keeps its title on the slot, so it is shown by name instead of being merged
+    // into the anonymous busy time around it.
+    for (const slot of unique.filter((it) => (it.title ?? '') !== '')) {
+      for (const [person, intervals] of getBusyIntervals([slot], from, to)) {
+        intervals.forEach((interval, idx) => {
+          res.push(mkOverlay(person, interval, slot.title ?? '', idx))
+        })
+      }
+    }
+    for (const [person, intervals] of getBusyIntervals(
+      unique.filter((it) => (it.title ?? '') === ''),
+      from,
+      to
+    )) {
+      intervals.forEach((interval, idx) => {
+        res.push(mkOverlay(person, interval, nameOf(person), idx))
+      })
+    }
+    return res
+  }
+
+  $: overlay = busyOverlay(busyPlain.concat(busyRecurring), from, to, $employeeByIdStore)
+
+  const qR = createQuery()
+  const qI = createQuery()
+  let rawPlain: Event[] = []
+  let rawRecurring: Event[] = []
+  let rawInstances: Event[] = []
+
+  // Masters and overrides come unwindowed: neither is described by the date range (see
+  // eventWindowQueries).
+  const update = reduceCalls(async (calendars: Calendar[], from: Timestamp, to: Timestamp): Promise<void> => {
+    const queries = eventWindowQueries([personalCalendar, ...calendars.map((p) => p._id)], from, to)
     q.query<Event>(
       calendar.class.Event,
-      { calendar: { $in: [personalCalendar, ...calendars.map((p) => p._id)] } },
+      queries.plain,
       (result) => {
-        raw = result
+        rawPlain = result
       },
       { sort: { date: SortingOrder.Ascending } }
     )
-  }
+    qR.query<Event>(
+      calendar.class.ReccuringEvent,
+      queries.recurring,
+      (result) => {
+        rawRecurring = result
+      },
+      { sort: { date: SortingOrder.Ascending } }
+    )
+    qI.query<Event>(
+      calendar.class.ReccuringInstance,
+      queries.instances,
+      (result) => {
+        rawInstances = result
+      },
+      { sort: { date: SortingOrder.Ascending } }
+    )
+  })
 
-  $: update(calendars)
+  $: void update(calendars, from, to)
+  $: raw = rawPlain.concat(rawRecurring, rawInstances)
   $: all = getAllEvents(raw, from, to)
-  $: objects = hidePrivateEvents(all, $calendarByIdStore)
+  // Hiding my own schedule keeps the drag preview, there is nothing to drop onto otherwise.
+  $: objects = showMine ? hidePrivateEvents(all, $calendarByIdStore) : all.filter((it) => it._id === dragItemId)
 
   function inc (val: number): void {
     if (val === 0) {
@@ -97,7 +238,7 @@
     if (areDatesEqual(day, tomorrow)) return time.string.Tomorrow
     const isCurrentYear = day.getFullYear() === new Date().getFullYear()
     return getEmbeddedLabel(
-      day.toLocaleDateString('default', {
+      day.toLocaleDateString(getCurrentLocale(), {
         month: 'long',
         day: 'numeric',
         year: isCurrentYear ? undefined : 'numeric'
@@ -129,7 +270,7 @@
           visibility: 'public',
           blockTime: true,
           calendar: personalCalendar,
-          space: calendar.space.Calendar,
+          space: getWorkSlotSpace(dragItem),
           modifiedBy: myAcc.primarySocialId,
           participants: [getCurrentEmployee()],
           modifiedOn: Date.now(),
@@ -141,7 +282,7 @@
       }
       raw = raw
       all = getAllEvents(raw, from, to)
-      objects = hidePrivateEvents(all, $calendarByIdStore)
+      objects = showMine ? hidePrivateEvents(all, $calendarByIdStore) : all.filter((it) => it._id === dragItemId)
     }
   }
   function dragLeave (event: DragEvent) {
@@ -161,7 +302,7 @@
     if (dragItem === null) {
       raw = raw.filter((p) => p._id !== dragItemId)
       all = getAllEvents(raw, from, to)
-      objects = hidePrivateEvents(all, $calendarByIdStore)
+      objects = showMine ? hidePrivateEvents(all, $calendarByIdStore) : all.filter((it) => it._id === dragItemId)
     }
   }
   $: clear(dragItem)
@@ -174,6 +315,8 @@
   }
 
   $: isToday = areDatesEqual(currentDate, new Date($ticker))
+
+  $: lang = $languageStore
 </script>
 
 <div
@@ -183,37 +326,71 @@
     showLabel = showLabel ? element.clientWidth > rem(3.5) + 399 : element.clientWidth > rem(3.5) + 400
   }}
 >
-  <Header adaptive={'disabled'}>
-    <div class="heading-medium-20 line-height-auto overflow-label">
-      <Label label={time.string.Schedule} />: <Label label={getTitle(currentDate, $ticker)} />
-    </div>
+  <Header adaptive="disabled">
+    <PlannerViewSwitch bind:calMode bind:showToDos />
+    <!-- On a narrow panel the day columns already carry the date, and the heading would push
+         the actions out of the header. -->
+    {#if showLabel}
+      <div class="heading-medium-20 line-height-auto overflow-label">
+        {#key lang}
+          <Label label={getTitle(currentDate, $ticker)} />
+        {/key}
+      </div>
+    {/if}
     <svelte:fragment slot="actions">
-      <ButtonIcon
+      <IconButton
+        icon={contact.icon.Person}
+        kind="secondary"
+        size="small"
+        pressed={showMine}
+        tooltip={{ label: time.string.Schedule }}
+        on:click={() => {
+          showMine = !showMine
+          localStorage.setItem('planner_show_mine', showMine ? 'true' : 'false')
+        }}
+      />
+      <UserBoxList
+        items={extraPersons}
+        docQuery={{ _id: { $nin: [getCurrentEmployee()] } }}
+        kind="regular"
+        size="small"
+        on:update={(e) => {
+          extraPersons = e.detail
+          localStorage.setItem(extraPersonsKey, JSON.stringify(extraPersons))
+        }}
+      />
+      <IconButton
         icon={IconChevronLeft}
-        kind={'secondary'}
-        size={'small'}
+        kind="secondary"
+        size="small"
+        data-id="btnPrev"
+        tooltip={{ label: ui.string.Back }}
         on:click={() => {
           inc(-1)
         }}
       />
-      <ButtonBase
-        icon={IconSun}
-        label={showLabel ? time.string.TodayColon : undefined}
-        title={showLabel ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
-        type={showLabel ? 'type-button' : 'type-button-icon'}
-        kind={'secondary'}
-        size={'small'}
-        inheritFont
-        hasMenu
-        disabled={isToday}
-        on:click={() => {
-          inc(0)
-        }}
-      />
-      <ButtonIcon
+      {#key lang}
+        <Button
+          icon={IconSun}
+          label={showLabel ? ui.string.TodayDate : undefined}
+          labelParams={{ date: getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) }}
+          tooltip={!showLabel ? { label: time.string.Today } : undefined}
+          kind="secondary"
+          size="small"
+          inheritFont
+          hasMenu
+          disabled={isToday}
+          on:click={() => {
+            inc(0)
+          }}
+        />
+      {/key}
+      <IconButton
         icon={IconChevronRight}
-        kind={'secondary'}
-        size={'small'}
+        kind="secondary"
+        size="small"
+        data-id="btnNext"
+        tooltip={{ label: ui.string.Next }}
         on:click={() => {
           inc(1)
         }}
@@ -224,6 +401,7 @@
     <DayCalendar
       bind:this={dayCalendar}
       events={objects}
+      backgroundEvents={overlay}
       bind:displayedDaysCount
       startFromWeekStart={false}
       clearCells={dragItem !== null}

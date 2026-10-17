@@ -15,11 +15,16 @@
 
 import { Analytics } from '@hcengineering/analytics'
 import { configureAnalytics, createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/analytics-service'
-import { newMetrics, type Tx } from '@hcengineering/core'
+import { generateId, newMetrics, type Tx } from '@hcengineering/core'
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { setMetadata } from '@hcengineering/platform'
 import serverClient from '@hcengineering/server-client'
-import { initStatisticsContext, QueueTopic } from '@hcengineering/server-core'
+import {
+  initStatisticsContext,
+  QueueTopic,
+  QueueWorkspaceEvent,
+  type QueueWorkspaceMessage
+} from '@hcengineering/server-core'
 import serverToken from '@hcengineering/server-token'
 import { join } from 'path'
 import { readFileSync } from 'fs'
@@ -28,8 +33,7 @@ import {
   registerDestroyFactory,
   registerServerPlugins,
   registerStringLoaders,
-  registerTxAdapterFactory,
-  setAdapterSecurity
+  registerTxAdapterFactory
 } from '@hcengineering/server-pipeline'
 import { createPostgreeDestroyAdapter, createPostgresAdapter, createPostgresTxAdapter } from '@hcengineering/postgres'
 
@@ -64,7 +68,6 @@ async function main (): Promise<void> {
   registerTxAdapterFactory('postgresql', createPostgresTxAdapter, true)
   registerAdapterFactory('postgresql', createPostgresAdapter, true)
   registerDestroyFactory('postgresql', createPostgreeDestroyAdapter, true)
-  setAdapterSecurity('postgresql', true)
 
   const queue = getPlatformQueue(config.ServiceId, config.QueueRegion)
   const model = JSON.parse(readFileSync(process.env.MODEL_JSON ?? 'model.json').toString()) as Tx[]
@@ -82,8 +85,26 @@ async function main (): Promise<void> {
     }
   })
 
+  // Own group per process, like the transactor: every replica holds its own workspace cache.
+  const wsConsumer = queue.createConsumer<QueueWorkspaceMessage>(
+    ctx,
+    QueueTopic.Workspace,
+    `${queue.getClientId()}-${generateId()}`,
+    async (ctx, queueMessage) => {
+      const type = queueMessage.value.type
+      if (
+        type === QueueWorkspaceEvent.Restored ||
+        type === QueueWorkspaceEvent.Upgraded ||
+        type === QueueWorkspaceEvent.Deleted
+      ) {
+        ctx.info('dropping cached workspace', { workspace: queueMessage.workspace, type })
+        await worker.dropWorkspace(queueMessage.workspace)
+      }
+    }
+  )
+
   const shutdown = (): void => {
-    void Promise.all([consumer.close()]).then(() => {
+    void Promise.all([consumer.close(), wsConsumer.close()]).then(() => {
       process.exit()
     })
   }

@@ -18,7 +18,8 @@
   import NavLink from './NavLink.svelte'
 
   import { getHref } from '../utils'
-  import { BottomAction, goTo } from '../index'
+  import type { BottomAction } from '../index'
+  import { goTo } from '../index'
 
   export let action: BottomAction
 </script>
@@ -39,7 +40,7 @@
       }}><Label label={action.i18n} /></NavLink
     >
   {:else}
-    <a href="." on:click|preventDefault={action.func}><Label label={action.i18n} className={'login-label-link'} /></a>
+    <a href="." on:click|preventDefault={action.func}><Label label={action.i18n} className="login-label-link" /></a>
   {/if}
 </div>
 

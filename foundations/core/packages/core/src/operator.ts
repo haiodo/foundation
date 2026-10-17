@@ -31,11 +31,28 @@ function $push (document: Doc, keyval: Record<string, PropertyType>): void {
     }
     const kvk = keyval[key]
     if (typeof kvk === 'object' && kvk != null) {
-      const arr = doc[key] as Array<any>
+      let arr = doc[key] as Array<any>
       const desc = kvk as Position<PropertyType>
+      if (!Array.isArray(arr)) {
+        if (arr !== null) {
+          Analytics.handleError(new Error(`invalid array value: ${JSON.stringify(arr)} `))
+        }
+        arr = doc[key] = []
+      }
       if ('$each' in desc) {
-        if (arr != null && Array.isArray(arr)) {
-          arr.splice(desc.$position ?? 0, 0, ...desc.$each)
+        arr.splice(desc.$position ?? 0, 0, ...desc.$each)
+        if (desc.$slice !== undefined) {
+          if (desc.$slice === 0) {
+            arr.splice(0, arr.length)
+          } else if (desc.$slice > 0) {
+            if (arr.length > desc.$slice) {
+              arr.splice(desc.$slice)
+            }
+          } else if (desc.$slice < 0) {
+            if (arr.length > -desc.$slice) {
+              arr.splice(0, arr.length + desc.$slice)
+            }
+          }
         }
       } else {
         arr.push(kvk)
@@ -78,7 +95,12 @@ function $pull (document: Doc, keyval: Record<string, PropertyType>): void {
         } else {
           // We need to match all fields
           for (const [kk, kv] of Object.entries(kvk)) {
-            if (val[kk] !== kv) {
+            if (typeof kv === 'object' && kv !== null && '$in' in kv) {
+              const inArr = (kv as any).$in
+              if (!Array.isArray(inArr) || !inArr.includes(val[kk])) {
+                return true
+              }
+            } else if (val[kk] !== kv) {
               return true
             }
           }
@@ -201,6 +223,13 @@ export function isOperator (o: Record<string, any>): boolean {
   }
   const keys = Object.keys(o)
   return keys.length > 0 && keys.every((key) => key.startsWith('$'))
+}
+
+export function hasOperator (o?: Record<string, any> | null): boolean {
+  if (o == null || typeof o !== 'object') {
+    return false
+  }
+  return Object.keys(o).some((key) => key.startsWith('$'))
 }
 
 /**

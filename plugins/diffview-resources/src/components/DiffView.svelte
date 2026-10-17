@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { Label } from '@hcengineering/ui'
-  import { Diff, DiffFile, DiffFileId, DiffViewMode } from '@hcengineering/diffview'
+  import type { Diff, DiffFile, DiffFileId, DiffViewMode } from '@hcengineering/diffview'
   import DiffViewModeDropdown from './DiffViewModeDropdown.svelte'
   import FileDiffView from './FileDiffView.svelte'
   import { parseDiff } from '../parser'
@@ -46,8 +46,8 @@
 <div class="flex-row-center justify-end gap-2 mb-1">
   <span class="overflow-label"><Label label={diffview.string.ViewMode} /></span>
   <DiffViewModeDropdown
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     label={diffview.string.ViewMode}
     bind:selected={mode}
     on:selected={({ detail }) => {

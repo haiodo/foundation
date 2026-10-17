@@ -1,7 +1,7 @@
 /**
  * Optimized bundle phase with unified caching
  * For packages using common/scripts/esbuild.js, runs esbuild directly in-process
- * For others, falls back to rushx bundle
+ * For others, falls back to the package's own bundle script
  */
 
 const { createHash } = require('crypto')
@@ -9,6 +9,7 @@ const { spawn } = require('child_process')
 const { performance } = require('perf_hooks')
 const { join, resolve } = require('path')
 const fs = require('fs')
+const PNPM_CMD = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 const {
   isPhaseCached,
@@ -26,6 +27,7 @@ let cachedVersion = null
 let cachedGitRevision = null
 
 const versionFilePath = join(commonScriptsPath, 'version.txt')
+const { escapeNonLatin1File } = require(join(commonScriptsPath, 'escape-non-latin1.js'))
 let cachedModelVersion = null
 
 try {
@@ -37,7 +39,7 @@ try {
 }
 
 // Path to models-all
-const modelsAllPath = resolve(__dirname, '../../../../../../../models/all')
+const modelsAllPath = resolve(__dirname, '../../../../../../models/all')
 const modelsAllBundlePath = join(modelsAllPath, 'bundle', 'model.json')
 const modelsAllCachePath = join(modelsAllPath, '.fast-build-cache.json')
 
@@ -63,9 +65,10 @@ function getModelHash() {
 }
 
 function getVersion() {
+  if (cachedVersion !== null) return cachedVersion
   try {
     const { execSync } = require('child_process')
-    const stdout = execSync('git describe --tags --abbrev=0').toString().trim()
+    const stdout = execSync('git describe --tags --abbrev=0 --match="v*"').toString().trim()
     const rawVersion = stdout.replace('v', '').replace('s', '').split('.')
     if (rawVersion.length === 3) {
       const version = {
@@ -73,36 +76,39 @@ function getVersion() {
         minor: parseInt(rawVersion[1]),
         patch: parseInt(rawVersion[2])
       }
-      return `${version.major}.${version.minor}.${version.patch}`
+      cachedVersion = `${version.major}.${version.minor}.${version.patch}`
     } else {
-      return '0.7.0'
+      cachedVersion = '0.7.0'
     }
   } catch {
-    return '0.7.0'
+    cachedVersion = '0.7.0'
   }
+  return cachedVersion
 }
 
 function getGitRevisionCached() {
+  if (cachedGitRevision !== null) return cachedGitRevision
   try {
     const { execSync } = require('child_process')
-    return execSync('git describe --all --long').toString().trim()
+    cachedGitRevision = execSync('git describe --all --long').toString().trim()
   } catch {
-    return ''
+    cachedGitRevision = ''
   }
+  return cachedGitRevision
 }
 
 // Check if bundle script uses standard esbuild (common/scripts/esbuild.js or local esbuild.js)
 function isStandardEsbuild(bundleScript) {
   if (!bundleScript) return false
   const hasCommonEsbuild = bundleScript.includes('common/scripts/esbuild.js')
-  const hasRushxBundle = /\brushx\s+bundle\b/.test(bundleScript) && !bundleScript.includes('get-model')
-  return hasCommonEsbuild && !hasRushxBundle
+  const hasRunnerBundle = /\b(?:rushx|pnpm run)\s+bundle\b/.test(bundleScript) && !bundleScript.includes('get-model')
+  return hasCommonEsbuild && !hasRunnerBundle
 }
 
-// Check if script needs get-model step (rushx get-model && node ...esbuild.js)
+// Check if script needs a get-model step
 function needsGetModel(bundleScript) {
   if (!bundleScript) return false
-  return bundleScript.includes('rushx get-model') || bundleScript.includes('get-model &&')
+  return /\b(?:rushx|pnpm run)\s+get-model\b/.test(bundleScript) || bundleScript.includes('get-model &&')
 }
 
 // Check if script has post-processing (&& node ... after esbuild)
@@ -187,12 +193,12 @@ async function runGetModel(cwd, bundleScript, packageName) {
     return { success: true, fromCache: true }
   }
 
-  // Check if bundle script explicitly calls rushx get-model
-  if (bundleScript && bundleScript.includes('rushx get-model')) {
-    console.log(`    [get-model] Running rushx get-model for ${cwd}`)
+  // Check if bundle script explicitly calls get-model
+  if (bundleScript && /\b(?:rushx|pnpm run)\s+get-model\b/.test(bundleScript)) {
+    console.log(`    [get-model] Running get-model for ${cwd}`)
     try {
       const { execSync } = require('child_process')
-      execSync('rushx get-model', { cwd, stdio: 'pipe' })
+      execSync('pnpm run get-model', { cwd, stdio: 'pipe' })
       console.log(`    [get-model] Completed`)
       getModelCache.set(cacheKey, { modelHash: currentModelHash, pkgHash: currentPkgHash })
       return { success: true }
@@ -212,7 +218,7 @@ async function runGetModel(cwd, bundleScript, packageName) {
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
     const scripts = packageJson.scripts || {}
 
-    if (scripts['get-model'] && !bundleScript?.includes('rushx get-model')) {
+    if (scripts['get-model'] && !/\b(?:rushx|pnpm run)\s+get-model\b/.test(bundleScript ?? '')) {
       console.log(`    [get-model] Running for ${packageJson.name}`)
 
       const script = scripts['get-model']
@@ -259,9 +265,19 @@ async function runGetModel(cwd, bundleScript, packageName) {
           define
         })
 
-        const { execSync } = require('child_process')
-        const modelJson = execSync(`node ${join(args.outdir, 'bundle.js')}`, { cwd }).toString()
-        fs.writeFileSync(join(args.outdir, 'model.json'), modelJson)
+        // Stream to the file: model.json is megabytes and execSync would hit maxBuffer.
+        const { spawnSync } = require('child_process')
+        const modelOut = fs.openSync(join(cwd, args.outdir, 'model.json'), 'w')
+        try {
+          const res = spawnSync(process.execPath, [join(args.outdir, 'bundle.js')], {
+            cwd,
+            stdio: ['ignore', modelOut, 'inherit']
+          })
+          if (res.error != null) throw res.error
+          if (res.status !== 0) throw new Error(`get-model exited with ${res.status}`)
+        } finally {
+          fs.closeSync(modelOut)
+        }
 
         console.log(`    [get-model] Generated model.json`)
       }
@@ -334,8 +350,10 @@ async function runEsbuildDirect(cwd, config, bundleScript, packageName) {
       keepNames: config.keepNames,
       sourcemap: config.sourcemap,
       external: config.external,
-      define
+      define,
+      charset: 'ascii'
     })
+    escapeNonLatin1File(path.join(cwd, config.outdir, 'bundle.js'))
 
     // Handle post-processing (e.g., models/all: && node ./bundle/bundle.js > ./bundle/model.json)
     if (bundleScript && hasPostProcessing(bundleScript)) {
@@ -357,22 +375,23 @@ async function runEsbuildDirect(cwd, config, bundleScript, packageName) {
   }
 }
 
-// Run bundle via rushx (with optional arguments)
-async function runBundleRushx(cwd, bundleScript) {
+// Run the package's own `bundle` script (with optional arguments)
+async function runBundleScript(cwd, bundleScript) {
   return new Promise((resolve) => {
-    let args = ['bundle']
+    let args = ['run', 'bundle']
     if (bundleScript) {
-      const rushxMatch = bundleScript.match(/\brushx\s+bundle\s+(.+)$/)
-      if (rushxMatch) {
-        const extraArgs = rushxMatch[1].trim().split(/\s+/)
+      const argsMatch = bundleScript.match(/\b(?:rushx|pnpm run)\s+bundle\s+(.+)$/)
+      if (argsMatch) {
+        const extraArgs = argsMatch[1].trim().split(/\s+/)
         args = args.concat(extraArgs)
       }
     }
 
     const startTime = performance.now()
-    const child = spawn('rushx', args, {
+    const child = spawn(PNPM_CMD, args, {
       cwd,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true
     })
 
     let stdout = ''
@@ -433,11 +452,11 @@ async function runBundlePhase(graph, packageNames, concurrency, options = {}) {
   async function bundlePackage(packageName) {
     const node = graph.get(packageName)
     const cwd = node.project.fullPath
-    // Use phaseBundle (_phase:bundle) if it contains arguments after 'rushx bundle',
+    // Use phaseBundle (_phase:bundle) if it carries arguments after the bundle script,
     // otherwise use bundleScript (bundle) directly
     let bundleScript = node.bundleScript
-    if (node.phaseBundle?.includes('rushx bundle')) {
-      const argsMatch = node.phaseBundle.match(/\brushx\s+bundle\s+(.+)$/)
+    if (/\b(?:rushx|pnpm run)\s+bundle\b/.test(node.phaseBundle ?? '')) {
+      const argsMatch = node.phaseBundle.match(/\b(?:rushx|pnpm run)\s+bundle\s+(.+)$/)
       if (argsMatch && argsMatch[1].trim()) {
         bundleScript = node.bundleScript + ' ' + argsMatch[1].trim()
       }
@@ -462,9 +481,23 @@ async function runBundlePhase(graph, packageNames, concurrency, options = {}) {
       console.log(`    [esbuild] ${packageName} - direct build`)
       result = await runEsbuildDirect(cwd, config, bundleScript, packageName)
     } else {
-      // Fall back to rushx bundle
-      console.log(`    [rushx] ${packageName} - using rushx bundle`)
-      result = await runBundleRushx(cwd, bundleScript)
+      console.log(`    [pnpm] ${packageName} - using its own bundle script`)
+      result = await runBundleScript(cwd, bundleScript)
+    }
+
+    // esbuild has exited 0 after writing a truncated bundle.js, and the break only surfaced
+    // as a SyntaxError inside the running container. Parse the output before caching it.
+    if (result.success && isStandardEsbuild(bundleScript)) {
+      const bundleFile = join(cwd, 'bundle', 'bundle.js')
+      const { spawnSync } = require('child_process')
+      const check = spawnSync(process.execPath, ['--check', bundleFile], { stdio: 'pipe' })
+      if (check.status !== 0) {
+        const size = fs.existsSync(bundleFile) ? fs.statSync(bundleFile).size : 0
+        return {
+          success: false,
+          error: new Error(`bundle.js is not parseable (${size} bytes): ${String(check.stderr).trim()}`)
+        }
+      }
     }
 
     if (result.success && packageHash) {

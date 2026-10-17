@@ -1,13 +1,7 @@
 import { Event, Schedule } from '@hcengineering/calendar'
 import { Person } from '@hcengineering/contact'
-import { AccountUuid, AttachedDoc, Doc, MarkupBlobRef, Ref, Timestamp, WorkspaceUuid } from '@hcengineering/core'
+import { AccountUuid, AttachedDoc, Doc, MarkupBlobRef, Ref, Space, Timestamp, WorkspaceUuid } from '@hcengineering/core'
 import { Preference } from '@hcengineering/preference'
-
-export enum RoomAccess {
-  Open,
-  Knock,
-  DND
-}
 
 export enum RoomType {
   Video,
@@ -94,6 +88,12 @@ export interface RoomMetadata {
   // Status for operations
   transcription?: boolean
   recording?: boolean
+
+  /** When the office owner left. Set by the love webhook, cleared once they are back. */
+  ownerLeftAt?: number
+
+  /** When the last human left an agent-only room. Set by the love polling, cleared once anyone is back. */
+  humansLeftAt?: number
 }
 
 export interface ParticipantMetadata {
@@ -105,7 +105,6 @@ export interface ParticipantMetadata {
 export interface Room extends Doc {
   name: string
   type: RoomType
-  access: RoomAccess
   floor: Ref<Floor>
   width: number
   height: number
@@ -114,9 +113,9 @@ export interface Room extends Doc {
   language: RoomLanguage
   startWithTranscription: boolean
   startWithRecording: boolean
+  startPrivate: boolean
   description: MarkupBlobRef | null
   attachments?: number
-  meetings?: number
   messages?: number
 }
 
@@ -158,6 +157,8 @@ export interface DevicesPreference extends Preference {
   noiseCancellation: boolean
   blurRadius: number
   camEnabled: boolean
+  // Alert when the user talks while muted. Undefined = enabled (opt-out).
+  speakingWhileMutedAlert?: boolean
 }
 
 export enum MeetingStatus {
@@ -179,10 +180,12 @@ export const recordingStateLabel = {
   [RecordingState.Finished]: 'Finished'
 }
 
-// Meeting minutes
-export interface MeetingMinutes extends AttachedDoc {
-  title: string
-  description: MarkupBlobRef | null
+// Meeting minutes - now extends Space for access control
+export interface MeetingMinutes extends Space {
+  // Rich description (MarkupBlobRef) - should sync with Space description
+  descriptionRef: MarkupBlobRef | null
+
+  summary: MarkupBlobRef | null
 
   status: MeetingStatus
   transcriptionState: TranscriptionState
@@ -197,13 +200,17 @@ export interface MeetingMinutes extends AttachedDoc {
   /** Number of active recordings (PendingRecording collection) */
   recordings?: number
 
-  access: RoomAccess
+  /** Reference to the room where meeting takes place (optional, for navigation) */
+  roomId?: Ref<Room>
+
   language: RoomLanguage
 
   // If defined, should start with recording
   startWithRecording?: boolean
   // If defined, should start with transcription
   startWithTranscription?: boolean
+
+  traceId?: string
 }
 
 /**
@@ -239,23 +246,37 @@ export interface PendingRecording extends AttachedDoc {
 }
 
 /**
- * User meeting invite - stored in user's personal space
- * Used for knock/invite notifications with 30-second TTL
+ * User meeting invite - stored in user's personal space.
+ * Lives in DOMAIN_TRANSIENT with TransientTTL=30s; sender refreshes the
+ * TTL via a 15s heartbeat (no-op update) while still calling.
  *
- * kind: 'invite-request' - created in sender's space, tracks outgoing invites
- * kind: 'invite-response' - created in recipient's space by server trigger, used for display
+ * kind: 'invite-request' - created in sender's space, tracks outgoing invites.
+ * kind: 'invite-response' - created in recipient's space (or each owner's
+ *   space for a knock) by the server trigger.
  */
 export interface UserMeetingInvite extends Doc {
-  /** Type of invite record */
   kind: 'invite-request' | 'invite-response'
-  /** Person who sent the invite */
   from: Ref<Person>
-  /** Person who should receive the invite */
   to: Ref<Person>
-  /** Meeting ID if already created */
+  /** Existing meeting ref (A1, or set on Б by trigger after accept). */
   meeting?: Ref<MeetingMinutes>
-  /** Expiration timestamp (30 seconds from creation) */
-  expiresAt: Timestamp
-  /** Status of the invite */
+  /**
+   * Room ref — set ONLY for Б (knock) flow. Sender knows the room but not
+   * the meeting; trigger uses it to fan-out to all owners of the active
+   * private meeting in that room.
+   */
+  room?: Ref<Room>
   status: 'pending' | 'accepted' | 'declined'
+  /**
+   * Recipient's browser session ID set on accept. Multi-tab guard: only
+   * the tab whose `presentation.metadata.SessionId` matches this value
+   * auto-joins the meeting.
+   */
+  acceptedSessionId?: string
+  /**
+   * Sender's browser session ID set when the request is created. Multi-tab
+   * guard for the sender: only the tab that started the call reacts to the
+   * accept (joins, or creates the A2 meeting).
+   */
+  senderSessionId?: string
 }

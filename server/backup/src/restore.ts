@@ -23,6 +23,7 @@ import core, {
   Domain,
   DOMAIN_BLOB,
   MeasureContext,
+  type PersonUuid,
   RateLimiter,
   Ref,
   toIdMap,
@@ -36,16 +37,134 @@ import { BlobClient } from '@hcengineering/server-client'
 import { BackupClientOps, createDummyStorageAdapter, type Pipeline } from '@hcengineering/server-core'
 import { deepEqual } from 'fast-equals'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { promisify } from 'node:util'
 import { extract } from 'tar-stream'
-import { createGunzip, gunzipSync } from 'zlib'
+import { createGunzip, gunzip } from 'zlib'
 import { BackupStorage } from './storage'
-import type { BackupInfo } from './types'
+import type { BackupInfo, BackupSnapshot } from './types'
 import { chunkArray, doTrimHash, isAccountDomain, loadDigest, migradeBlobData, toAccountDomain } from './utils'
 export * from './storage'
 
 const dataUploadSize = 2 * 1024 * 1024
 
 const defaultLevel = 9
+
+// Same rationale as backup.ts: keep the index read off the event loop.
+const gunzipAsync = promisify(gunzip)
+
+type BlobVerifyResult = 'ok' | 'missing' | 'mismatch'
+
+// Download a blob back and compare its content byte-for-byte with the source.
+async function verifyBlobContent (
+  ctx: MeasureContext,
+  blobClient: BlobClient,
+  name: string,
+  expected: Buffer
+): Promise<BlobVerifyResult> {
+  const stat = await blobClient.storageAdapter.stat(ctx, blobClient.workspace, name)
+  if (stat === undefined) {
+    return 'missing'
+  }
+  // Size guard: writeTo reads only expected.length, so a longer remote blob would compare equal otherwise.
+  if (stat.size !== expected.length) {
+    return 'mismatch'
+  }
+  const chunks: Buffer[] = []
+  try {
+    await blobClient.writeTo(ctx, name, expected.length, {
+      write: (buffer, cb) => {
+        chunks.push(buffer)
+        cb()
+      },
+      end: (cb) => {
+        cb()
+      }
+    })
+  } catch (err: any) {
+    ctx.warn('failed to download blob for verification', { name, err })
+    return 'mismatch'
+  }
+  return Buffer.concat(chunks).equals(expected) ? 'ok' : 'mismatch'
+}
+
+/**
+ * @public
+ * Collect account-domain objects (person/socialId) from backup snapshots for a domain.
+ * Shared by restore and account-remap analysis.
+ */
+export async function collectAccountObjects (
+  ctx: MeasureContext,
+  storage: BackupStorage,
+  snapshots: BackupSnapshot[],
+  domain: Domain,
+  date: number
+): Promise<any[]> {
+  const changeset = await loadDigest(ctx, storage, snapshots, domain, date)
+  if (changeset.size === 0) return []
+
+  const rsnapshots = Array.from(snapshots).reverse()
+  const processed = new Set<string>()
+  const collectedObjects: any[] = []
+
+  for (const s of rsnapshots) {
+    const d = s.domains[domain]
+    if (d === undefined) continue
+
+    for (const sf of d.storage ?? []) {
+      const readStream = await storage.load(sf)
+      const ex = extract()
+
+      const endPromise = new Promise<void>((resolve, reject) => {
+        ex.on('entry', (headers, stream, next) => {
+          const name = headers.name ?? ''
+          if (name.endsWith('.json')) {
+            const objKey = name.substring(0, name.length - 5)
+            if (changeset.has(objKey) && !processed.has(objKey)) {
+              const chunks: Buffer[] = []
+              stream.on('data', (chunk) => {
+                chunks.push(chunk)
+              })
+              stream.on('end', () => {
+                try {
+                  processed.add(objKey)
+                  collectedObjects.push(JSON.parse(Buffer.concat(chunks).toString()))
+                } catch (err) {
+                  ctx.warn('failed to parse account object', { name, err })
+                }
+                next()
+              })
+            } else {
+              next()
+            }
+          } else {
+            next()
+          }
+          stream.resume()
+        })
+        const onError = (err: any): void => {
+          readStream.destroy()
+          reject(err)
+        }
+        ex.on('finish', () => {
+          resolve()
+        })
+        ex.on('error', onError)
+        const unzip = createGunzip({ level: defaultLevel })
+        readStream.on('end', () => {
+          readStream.destroy()
+        })
+        readStream.on('error', onError)
+        unzip.on('error', onError)
+        readStream.pipe(unzip)
+        unzip.pipe(ex)
+      })
+
+      await endPromise
+    }
+  }
+
+  return collectedObjects
+}
 
 /**
  * @public
@@ -69,6 +188,9 @@ export async function restore (
     progress?: (progress: number) => Promise<void>
     cleanIndexState?: boolean
     historyFile?: string
+    verifyBlobs?: boolean
+    // Do not upload anything. For blobs: download from storage and compare content, report missing/mismatch.
+    verifyOnly?: boolean
   }
 ): Promise<boolean> {
   const infoFile = 'backup.json.gz'
@@ -77,7 +199,9 @@ export async function restore (
     ctx.error('file not pressent', { file: infoFile })
     throw new Error(`${infoFile} should present to restore`)
   }
-  const backupInfo: BackupInfo = JSON.parse(gunzipSync(new Uint8Array(await storage.loadFile(infoFile))).toString())
+  const backupInfo: BackupInfo = JSON.parse(
+    (await gunzipAsync(new Uint8Array(await storage.loadFile(infoFile)))).toString()
+  )
   let snapshots = backupInfo.snapshots
   if (opt.date !== -1) {
     const bk = backupInfo.snapshots.findIndex((it) => it.date === opt.date)
@@ -90,9 +214,7 @@ export async function restore (
     opt.date = snapshots[snapshots.length - 1].date
   }
 
-  if (backupInfo.domainHashes === undefined) {
-    backupInfo.domainHashes = {}
-  }
+  backupInfo.domainHashes ??= {}
   ctx.info('restore to ', { id: opt.date, date: new Date(opt.date).toDateString() })
   const rsnapshots = Array.from(snapshots).reverse()
 
@@ -109,6 +231,12 @@ export async function restore (
 
   const blobClient = new BlobClient(pipeline.context.storageAdapter ?? createDummyStorageAdapter(), wsIds)
   console.log('connected')
+
+  // verifyOnly report counters (full counts in verifyStats; ids capped to bound memory)
+  const verifyIdCap = 1000
+  const verifyStats = { ok: 0, missing: 0, mismatch: 0 }
+  const verifyMissing: string[] = []
+  const verifyMismatch: string[] = []
 
   // We need to find empty domains and clean them.
   const allDomains = pipeline.context.hierarchy.domains()
@@ -213,15 +341,15 @@ export async function restore (
       workspace: workspaceId
     })
 
-    // Let's find difference
+    // find difference
     const docsToAdd = new Map(
-      opt.recheck === true // If recheck we check all documents.
+      opt.recheck === true || opt.verifyOnly === true // recheck/verifyOnly process all documents.
         ? Array.from(changeset.entries())
         : Array.from(changeset.entries()).filter(
-          ([it]) =>
-            !serverChangeset.has(it) ||
+            ([it]) =>
+              !serverChangeset.has(it) ||
               (serverChangeset.has(it) && doTrimHash(serverChangeset.get(it)) !== doTrimHash(changeset.get(it)))
-        )
+          )
     )
     const docsToRemove = Array.from(serverChangeset.keys()).filter((it) => !changeset.has(it))
 
@@ -251,15 +379,11 @@ export async function restore (
         })
         // Correct docs without space
         for (const d of docs) {
-          if (d.space == null) {
-            d.space = core.space.Workspace
-          }
+          d.space ??= core.space.Workspace
 
           if (TxProcessor.isExtendsCUD(d._class)) {
             const tx = d as TxCUD<Doc>
-            if (tx.objectSpace == null) {
-              tx.objectSpace = core.space.Workspace
-            }
+            tx.objectSpace ??= core.space.Workspace
           }
         }
 
@@ -283,10 +407,12 @@ export async function restore (
             return true
           })
         }
-        try {
-          await ops.upload(ctx, c, docsToSend)
-        } catch (err: any) {
-          ctx.error('error during upload', { err, docs: JSON.stringify(docs) })
+        if (opt.verifyOnly !== true) {
+          try {
+            await ops.upload(ctx, c, docsToSend)
+          } catch (err: any) {
+            ctx.error('error during upload', { err, docs: JSON.stringify(docs) })
+          }
         }
 
         docs.length = 0
@@ -317,9 +443,31 @@ export async function restore (
               }
             }
 
-            if (needSend) {
+            if (opt.verifyOnly === true) {
+              // No upload. Download existing blob and compare content.
+              const res = await verifyBlobContent(ctx, blobClient, blob._id, data)
+              verifyStats[res]++
+              if (res === 'missing') {
+                if (verifyMissing.length < verifyIdCap) verifyMissing.push(blob._id)
+                ctx.warn('blob missing', { _id: blob._id, size: blob.size, workspace: wsIds.uuid })
+              } else if (res === 'mismatch') {
+                if (verifyMismatch.length < verifyIdCap) verifyMismatch.push(blob._id)
+                ctx.warn('blob content mismatch', { _id: blob._id, size: blob.size, workspace: wsIds.uuid })
+              }
+            } else if (needSend) {
               try {
                 await blobClient.upload(ctx, blob._id, blob.size, blob.contentType, data)
+                if (opt.verifyBlobs === true) {
+                  let res = await verifyBlobContent(ctx, blobClient, blob._id, data)
+                  if (res !== 'ok') {
+                    ctx.warn('blob content mismatch, re-uploading', { _id: blob._id, res, workspace: wsIds.uuid })
+                    await blobClient.upload(ctx, blob._id, blob.size, blob.contentType, data)
+                    res = await verifyBlobContent(ctx, blobClient, blob._id, data)
+                    if (res !== 'ok') {
+                      ctx.error('blob content mismatch after re-upload', { _id: blob._id, res, workspace: wsIds.uuid })
+                    }
+                  }
+                }
                 if (opt.historyFile !== undefined) {
                   historyFile[blob._id] = blob.etag
                   if (totalSend % 1000 === 0) {
@@ -370,7 +518,7 @@ export async function restore (
                     chunks.push(chunk)
                   })
                   stream.on('end', () => {
-                    const bf = Buffer.concat(chunks as any)
+                    const bf = Buffer.concat(chunks)
                     const d = blobs.get(name)
                     if (d === undefined) {
                       blobs.set(name, { doc: undefined, buffer: bf })
@@ -395,7 +543,7 @@ export async function restore (
                     chunks.push(chunk)
                   })
                   stream.on('end', () => {
-                    const bf = Buffer.concat(chunks as any)
+                    const bf = Buffer.concat(chunks)
                     let doc: Doc
                     try {
                       doc = JSON.parse(bf.toString()) as Doc
@@ -447,17 +595,21 @@ export async function restore (
               const unzip = createGunzip({ level: defaultLevel })
 
               const endPromise = new Promise((resolve, reject) => {
+                const onError = (err: any): void => {
+                  readStream.destroy()
+                  reject(err)
+                }
                 ex.on('finish', () => {
                   resolve(null)
                 })
+                ex.on('error', onError)
 
                 readStream.on('end', () => {
                   readStream.destroy()
                 })
-                readStream.pipe(unzip).on('error', (err) => {
-                  readStream.destroy()
-                  reject(err)
-                })
+                readStream.on('error', onError)
+                unzip.on('error', onError)
+                readStream.pipe(unzip)
                 unzip.pipe(ex)
               })
 
@@ -498,73 +650,11 @@ export async function restore (
     }
 
     const isPersonDomain = c === toAccountDomain('person')
-    const changeset = await loadDigest(ctx, storage, snapshots, c, opt.date)
 
-    if (changeset.size === 0) {
+    const collectedObjects = await collectAccountObjects(ctx, storage, snapshots, c, opt.date)
+    if (collectedObjects.length === 0) {
       ctx.info('no account domain data to restore', { domain: c })
       return
-    }
-
-    ctx.info('restoring account domain', { domain: c, total: changeset.size, workspace: workspaceId })
-
-    const processed = new Set<string>()
-    const collectedObjects: any[] = []
-
-    // Collect all objects from backup snapshots
-    for (const s of rsnapshots) {
-      const d = s.domains[c]
-      if (d === undefined) continue
-
-      for (const sf of d.storage ?? []) {
-        const readStream = await storage.load(sf)
-        const ex = extract()
-
-        const endPromise = new Promise<void>((resolve, reject) => {
-          ex.on('entry', (headers, stream, next) => {
-            const name = headers.name ?? ''
-            if (name.endsWith('.json')) {
-              const objKey = name.substring(0, name.length - 5)
-              if (changeset.has(objKey) && !processed.has(objKey)) {
-                const chunks: Buffer[] = []
-                stream.on('data', (chunk) => {
-                  chunks.push(chunk)
-                })
-                stream.on('end', () => {
-                  try {
-                    const obj = JSON.parse(Buffer.concat(chunks as any).toString())
-                    processed.add(objKey)
-                    collectedObjects.push(obj)
-                  } catch (err) {
-                    ctx.warn('failed to parse account object', { name, err })
-                  }
-                  next()
-                })
-              } else {
-                next()
-              }
-            } else {
-              next()
-            }
-            stream.resume()
-          })
-
-          ex.on('finish', () => {
-            resolve()
-          })
-
-          const unzip = createGunzip({ level: defaultLevel })
-          readStream.on('end', () => {
-            readStream.destroy()
-          })
-          readStream.pipe(unzip).on('error', (err) => {
-            readStream.destroy()
-            reject(err)
-          })
-          unzip.pipe(ex)
-        })
-
-        await endPromise
-      }
     }
 
     ctx.info('collected account objects', { domain: c, count: collectedObjects.length, workspace: workspaceId })
@@ -621,6 +711,20 @@ export async function restore (
     Analytics.handleError(err)
     return false
   }
+  if (opt.verifyOnly === true) {
+    ctx.info('blob verification report', {
+      workspace: workspaceId,
+      ok: verifyStats.ok,
+      missing: verifyStats.missing,
+      mismatch: verifyStats.mismatch
+    })
+    if (verifyMissing.length > 0) {
+      ctx.warn('missing blobs', { count: verifyMissing.length, ids: verifyMissing.slice(0, 100) })
+    }
+    if (verifyMismatch.length > 0) {
+      ctx.warn('mismatch blobs', { count: verifyMismatch.length, ids: verifyMismatch.slice(0, 100) })
+    }
+  }
   return true
 }
 
@@ -645,7 +749,8 @@ async function restorePersons (
       .filter((p) => !existingPersonUuids.has(p.uuid))
       .map((it) => {
         const { '%hash%': _, ...data } = it as any
-        return data
+        // firstName/lastName are NOT NULL in account_db; backup may carry nulls
+        return { ...data, firstName: data.firstName ?? '', lastName: data.lastName ?? '' }
       })
     if (personsToInsert.length > 0) {
       await accountDb.person.insertMany(personsToInsert)
@@ -703,6 +808,21 @@ async function restoreSocialIds (ctx: MeasureContext, accountDb: AccountDB, soci
         return data
       })
     if (socialIdsToInsert.length > 0) {
+      // Orphan socialId (person removed in source) gets a stub person to satisfy social_id_person_fk.
+      const refPersonUuids = Array.from(
+        new Set(socialIdsToInsert.map((s) => s.personUuid).filter((u): u is PersonUuid => u != null))
+      )
+      if (refPersonUuids.length > 0) {
+        const existingPersons = await accountDb.person.find({ uuid: { $in: refPersonUuids } })
+        const existingPersonUuids = new Set(existingPersons.map((p) => p.uuid))
+        const stubPersons = refPersonUuids
+          .filter((u) => !existingPersonUuids.has(u))
+          .map((uuid) => ({ uuid, firstName: '', lastName: '' }))
+        if (stubPersons.length > 0) {
+          await accountDb.person.insertMany(stubPersons)
+          ctx.warn('inserted stub persons for orphan socialIds', { count: stubPersons.length })
+        }
+      }
       await accountDb.socialId.insertMany(socialIdsToInsert)
       ctx.info('inserted socialIds', { count: socialIdsToInsert.length })
     }

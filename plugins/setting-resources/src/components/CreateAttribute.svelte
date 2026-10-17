@@ -13,22 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, {
-    AnyAttribute,
-    Class,
-    Data,
-    Doc,
-    generateId,
-    IndexKind,
-    PropertyType,
-    Ref,
-    Type
-  } from '@hcengineering/core'
-  import { Asset, getEmbeddedLabel } from '@hcengineering/platform'
+  import type { AnyAttribute, Class, Data, Doc, IndexKind, PropertyType, Ref, Type } from '@hcengineering/core'
+  import core, { generateId } from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
+  import type { AnyComponent } from '@hcengineering/ui'
   import {
-    AnyComponent,
-    ButtonIcon,
     Component,
     DropdownLabelsIntl,
     IconCopy,
@@ -39,12 +30,13 @@
     showPopup,
     Toggle
   } from '@hcengineering/ui'
-  import { DropdownIntlItem } from '@hcengineering/ui/src/types'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import viewRes from '@hcengineering/view-resources/src/plugin'
+  import type { DropdownIntlItem } from '@hcengineering/ui/src/types'
   import view from '@hcengineering/view'
   import { IconPicker } from '@hcengineering/view-resources'
   import setting from '../plugin'
   import { clearSettingsStore } from '../store'
-  import { debug } from 'console'
 
   export let _class: Ref<Class<Doc>>
   export let isCard: boolean = false
@@ -57,6 +49,7 @@
   let extra: Record<string, any> = {}
   let is: AnyComponent | undefined
   let readonly: boolean = false
+  let required: boolean = false
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
@@ -72,7 +65,8 @@
       type,
       defaultValue,
       readonly,
-      automationOnly: readonly
+      automationOnly: readonly,
+      required
     }
     if (index !== undefined) {
       data.index = index
@@ -138,7 +132,7 @@
 
 <Modal
   label={setting.string.CreatingAttribute}
-  type={'type-aside'}
+  type="type-aside"
   okLabel={presentation.string.Create}
   okAction={save}
   canSave={!(type === undefined || name === undefined || name.trim().length === 0)}
@@ -147,22 +141,23 @@
   }}
 >
   <svelte:fragment slot="actions">
-    <ButtonIcon icon={IconDelete} size={'small'} kind={'tertiary'} />
-    <ButtonIcon icon={IconCopy} size={'small'} kind={'tertiary'} />
+    <IconButton icon={IconDelete} size="small" kind="tertiary" tooltip={{ label: setting.string.DeleteAttribute }} />
+    <IconButton icon={IconCopy} size="small" kind="tertiary" tooltip={{ label: presentation.string.Copy }} />
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
     <div class="hulyChip-item font-medium-12">
       <Label label={setting.string.Custom} />
     </div>
     <div class="flex items-center">
-      <ButtonIcon
+      <IconButton
+        tooltip={{ label: viewRes.string.ChooseIcon }}
         icon={icon ?? setting.icon.Enums}
-        size={'medium'}
-        iconSize={'large'}
-        kind={'tertiary'}
+        size="medium"
+        iconSize="large"
+        kind="tertiary"
         on:click={setIcon}
       />
-      <ModernEditbox bind:value={name} label={core.string.Name} size={'large'} kind={'ghost'} autoFocus />
+      <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" autoFocus />
     </div>
   </div>
   <div class="grid">
@@ -172,8 +167,8 @@
     <DropdownLabelsIntl
       label={setting.string.Type}
       {items}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       bind:selected={selectedType}
       on:selected={handleSelection}
     />
@@ -196,6 +191,10 @@
       <Label label={view.string.AutomationOnly} />
     </span>
     <Toggle bind:on={readonly} />
+    <span class="label">
+      <Label label={setting.string.Required} />
+    </span>
+    <Toggle bind:on={required} />
   </div>
 </Modal>
 

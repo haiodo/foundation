@@ -13,13 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import activity, { ActivityMessage } from '@hcengineering/activity'
-  import { Action, IconMoreV, showPopup } from '@hcengineering/ui'
-  import { getActions, Menu } from '@hcengineering/view-resources'
+  import { onDestroy } from 'svelte'
+  import type { ActivityMessage } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
+  import type { Action } from '@hcengineering/ui'
+  import { closeTooltip, IconMoreV, showPopup } from '@hcengineering/ui'
+  import { actionGroupOrder, getActions, Menu } from '@hcengineering/view-resources'
   import { getClient } from '@hcengineering/presentation'
   import { getResource } from '@hcengineering/platform'
-  import view, { Action as ViewAction } from '@hcengineering/view'
-  import { Ref } from '@hcengineering/core'
+  import type { Action as ViewAction } from '@hcengineering/view'
+  import view from '@hcengineering/view'
+  import type { Ref } from '@hcengineering/core'
 
   import ActivityMessageAction from './ActivityMessageAction.svelte'
   import { savedMessagesStore } from '../activity'
@@ -45,9 +49,11 @@
 
   $: void updateInlineActions(message, excludedActions)
 
-  savedMessagesStore.subscribe(() => {
-    void updateInlineActions(message, excludedActions)
-  })
+  onDestroy(
+    savedMessagesStore.subscribe(() => {
+      void updateInlineActions(message, excludedActions)
+    })
+  )
 
   function handleActionMenuOpened (): void {
     isActionMenuOpened = true
@@ -82,6 +88,19 @@
     inlineActions = (await getActions(client, message, activity.class.ActivityMessage))
       .filter((action) => action.inline)
       .filter((action) => !excludedAction.includes(action._id))
+      .sort((a, b) => {
+        const groupA = (actionGroupOrder as any)[a.context.group ?? 'other']
+        const groupB = (actionGroupOrder as any)[b.context.group ?? 'other']
+
+        if (groupA !== groupB) {
+          return groupA - groupB
+        }
+
+        const orderA = a.context.order ?? 99999
+        const orderB = b.context.order ?? 99999
+
+        return orderA - orderB
+      })
   }
 
   async function handleAction (action: ViewAction, ev?: Event): Promise<void> {
@@ -90,11 +109,13 @@
     if (onReply !== undefined && action._id === activity.action.Reply) {
       onReply(message)
       handleActionMenuClosed()
+      closeTooltip()
       return
     }
     const fn = await getResource(action.action)
 
     await fn(message, ev, { onOpen, onClose })
+    closeTooltip()
   }
 </script>
 
@@ -104,7 +125,7 @@
       {#if inline.icon}
         <ActivityMessageAction
           label={inline.label}
-          size={'small'}
+          size="small"
           icon={inline.icon}
           action={(ev) => inline.action({}, ev)}
         />
@@ -128,9 +149,9 @@
       <ActivityMessageAction
         icon={IconMoreV}
         label={view.string.MoreActions}
-        size={'small'}
+        size="small"
         opened={isActionMenuOpened}
-        dataId={'btnMoreActions'}
+        dataId="btnMoreActions"
         action={showMenu}
       />
     {/if}

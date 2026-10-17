@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Doc, FindResult, IdMap, Ref, RefTo, Space, Status, toIdMap } from '@hcengineering/core'
+  import type { Doc, FindResult, IdMap, Ref, RefTo, Space, Status } from '@hcengineering/core'
+  import core, { toIdMap } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import { ProjectStatus, ProjectType, TaskType } from '@hcengineering/task'
+  import type { ProjectStatus, ProjectType, TaskType } from '@hcengineering/task'
   import ui, {
     EditWithIcon,
     Icon,
@@ -29,7 +30,7 @@
     resizeObserver,
     themeStore
   } from '@hcengineering/ui'
-  import { Filter } from '@hcengineering/view'
+  import type { Filter } from '@hcengineering/view'
   import {
     FILTER_DEBOUNCE_MS,
     FilterRemovedNotification,
@@ -39,7 +40,14 @@
   import view from '@hcengineering/view-resources/src/plugin'
   import { buildConfigLookup, getPresenter } from '@hcengineering/view-resources/src/utils'
   import { createEventDispatcher } from 'svelte'
-  import { typesOfJoinedProjectsStore, selectedTaskTypeStore, selectedTypeStore, taskTypeStore, typeStore } from '..'
+  import {
+    getProjectType,
+    typesOfJoinedProjectsStore,
+    selectedTaskTypeStore,
+    selectedTypeStore,
+    taskTypeStore,
+    typeStore
+  } from '..'
 
   export let filter: Filter
   export let space: Ref<Space> | undefined = undefined
@@ -73,6 +81,7 @@
     joinedSpacesTypes: Ref<ProjectType>[]
   ): Promise<void> {
     await objectsPromise
+    const projectType = selectedProjectType ?? (await getProjectType(space))
     targets.clear()
 
     for (const object of filter.value) {
@@ -94,7 +103,7 @@
         .filter((it, index, arr) => it !== undefined && arr.indexOf(it) === index) as ProjectStatus[]
       const prjStatuses = new Map(
         (
-          (selectedProjectType !== undefined ? projectTypeStore.get(selectedProjectType) : undefined)?.statuses ??
+          (projectType !== undefined ? projectTypeStore.get(projectType) : undefined)?.statuses ??
           projectTypesNeeded ??
           []
         ).map((p) => [p._id, p])
@@ -104,7 +113,7 @@
           continue
         }
         if (hierarchy.isDerived(status._class, targetClass)) {
-          if (selectedProjectType === undefined) {
+          if (projectType === undefined) {
             if (status.ofAttribute === filter.key.attribute._id) {
               statuses.push(status)
               targets.add(status._id)
@@ -205,8 +214,8 @@
     <div class="header">
       <EditWithIcon
         icon={IconSearch}
-        size={'large'}
-        width={'100%'}
+        size="large"
+        width="100%"
         autoFocus={!$deviceOptionsStore.isMobile}
         bind:value={search}
         placeholder={presentation.string.Search}
@@ -247,7 +256,7 @@
                 </div>
                 <div class="pointer-events-none">
                   {#if isSelected(value, filter.value)}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </div>

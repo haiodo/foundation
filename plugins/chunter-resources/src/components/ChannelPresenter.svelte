@@ -13,12 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Channel, chunterId } from '@hcengineering/chunter'
+  import type { Channel } from '@hcengineering/chunter'
+  import { chunterId } from '@hcengineering/chunter'
   import { getClient } from '@hcengineering/presentation'
   import { Icon, tooltip } from '@hcengineering/ui'
   import { NavLink } from '@hcengineering/view-resources'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { ObjectPresenterType } from '@hcengineering/view'
+
+  import { encodeChatURI } from '../navigation'
 
   export let value: Channel
   export let inline: boolean = false
@@ -32,12 +35,12 @@
 
 {#if value}
   {#if type === 'link'}
-    <NavLink app={chunterId} space={`${value._id}|${value._class}`}>
+    <NavLink app={chunterId} space={encodeChatURI(value._id, value._class)}>
       <div class="flex-presenter">
         {#if !inline && shouldShowAvatar}
           <div class="icon">
             {#if icon}
-              <Icon {icon} size={'small'} />
+              <Icon {icon} size="small" />
             {/if}
           </div>
         {/if}

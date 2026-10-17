@@ -16,7 +16,7 @@
   import { BreadcrumbsElement } from '@hcengineering/presentation'
   import { ScrollerBar } from '@hcengineering/ui'
 
-  import { type TestRunStats } from '../../testRunUtils'
+  import type { TestRunStats } from '../../testRunUtils'
 
   export let value: TestRunStats
 
@@ -28,8 +28,8 @@
   <BreadcrumbsElement
     noGap
     label={value.untested.toString()}
-    position={'start'}
-    color={'#4CA6EE'}
+    position="start"
+    color="#4CA6EE"
     fontColor="white"
     title="Untested"
     selected
@@ -37,8 +37,8 @@
   <BreadcrumbsElement
     label={value.blocked.toString()}
     noGap
-    position={'middle'}
-    color={'#D27540'}
+    position="middle"
+    color="#D27540"
     selected
     fontColor="white"
     title="Failed"
@@ -46,8 +46,8 @@
   <BreadcrumbsElement
     label={value.failed.toString()}
     noGap
-    position={'middle'}
-    color={'#D15045'}
+    position="middle"
+    color="#D15045"
     selected
     fontColor="white"
     title="Failed"
@@ -55,8 +55,8 @@
   <BreadcrumbsElement
     noGap
     label={value.completed.toString()}
-    position={'end'}
-    color={'#46A44F'}
+    position="end"
+    color="#46A44F"
     fontColor="white"
     title="Passed"
     selected

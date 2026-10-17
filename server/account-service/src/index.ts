@@ -6,24 +6,43 @@ import account, {
   type AccountMethods,
   type Meta,
   type ClientNetworkPosition,
-  EndpointKind,
   accountId,
   getAccountDB,
-  getAllTransactors,
   getMethods,
   cleanExpiredOtp,
   accountPlugin,
   type AccountNotification,
   type CrmNotification,
-  initRegionConfig
+  parseFreePlanLimits,
+  initRegionConfig,
+  generateShortId,
+  sweepScheduledDeletions
 } from '@hcengineering/account'
+import accountCs from '@hcengineering/account/lang/cs.json'
+import accountDe from '@hcengineering/account/lang/de.json'
 import accountEn from '@hcengineering/account/lang/en.json'
+import accountEs from '@hcengineering/account/lang/es.json'
+import accountFr from '@hcengineering/account/lang/fr.json'
+import accountIt from '@hcengineering/account/lang/it.json'
+import accountJa from '@hcengineering/account/lang/ja.json'
+import accountPtBr from '@hcengineering/account/lang/pt-br.json'
+import accountPt from '@hcengineering/account/lang/pt.json'
 import accountRu from '@hcengineering/account/lang/ru.json'
+import accountTr from '@hcengineering/account/lang/tr.json'
+import accountZh from '@hcengineering/account/lang/zh.json'
 import { Analytics } from '@hcengineering/analytics'
 import { registerProviders } from '@hcengineering/auth-providers'
 import { metricsAggregate, type Branding, type BrandingMap, type MeasureContext } from '@hcengineering/core'
 import platform, { Severity, Status, addStringsLoader, setMetadata, unknownStatus } from '@hcengineering/platform'
-import serverToken, { decodeToken, decodeTokenVerbose, generateToken } from '@hcengineering/server-token'
+import serverToken, {
+  decodeToken,
+  decodeTokenVerbose,
+  extractCookieToken,
+  generateToken,
+  resolveEdition,
+  resolveMaxUsers,
+  verifyLicense
+} from '@hcengineering/server-token'
 import cors from '@koa/cors'
 import type Cookies from 'cookies'
 import { type IncomingHttpHeaders } from 'http'
@@ -31,16 +50,39 @@ import Koa from 'koa'
 import bodyParser from 'koa-bodyparser'
 import Router from 'koa-router'
 import os from 'os'
-import { migrateFromOldAccounts } from './migration/migration'
-
 import { getPlatformQueue } from '@hcengineering/kafka'
-import { QueueTopic } from '@hcengineering/server-core'
-import { randomBytes } from 'crypto'
+import {
+  QueueTopic,
+  type QueueUserMessage,
+  type QueueOnlineUserTx,
+  type QueueWorkspaceMessage,
+  type QueuePaymentOperationMessage,
+  type QueueSubscriptionMessage
+} from '@hcengineering/server-core'
 
+import { handlePresenceBatch } from './presence'
+import { apiKeyLoginRateLimit } from './rateLimit'
 export * from './migration/utils'
-export * from './migration/types'
+export type * from './migration/types'
 
+const SERVICE_ID = 'account'
 const AUTH_TOKEN_COOKIE = 'account-metadata-Token'
+
+// Keyed by Branding.defaultLanguage. A language without a file here gets the English letters.
+const accountStrings: Record<string, Record<string, Record<string, string>>> = {
+  cs: accountCs,
+  de: accountDe,
+  en: accountEn,
+  es: accountEs,
+  fr: accountFr,
+  it: accountIt,
+  ja: accountJa,
+  'pt-br': accountPtBr,
+  pt: accountPt,
+  ru: accountRu,
+  tr: accountTr,
+  zh: accountZh
+}
 
 const KEEP_ALIVE_HEADERS = {
   'Content-Type': 'application/json',
@@ -83,10 +125,8 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     }
   }
 
-  const oldAccsUrl = process.env.OLD_ACCOUNTS_URL ?? (dbUrl.startsWith('mongodb://') ? dbUrl : undefined)
-  const oldAccsNs = process.env.OLD_ACCOUNTS_NS
-
   const hasRegionConfig = process.env.REGION_CONFIG !== undefined || process.env.REGION_CONFIG_JSON !== undefined
+
   const transactorUri = process.env.TRANSACTOR_URL
   if (transactorUri === undefined && !hasRegionConfig) {
     console.log('Please provide transactor url or region config')
@@ -99,7 +139,7 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     process.exit(1)
   }
 
-  const platformQueue = getPlatformQueue('account')
+  const platformQueue = getPlatformQueue(SERVICE_ID)
 
   const notificationProducer = platformQueue.getProducer<AccountNotification>(measureCtx, QueueTopic.NotificationQueue)
   setMetadata(accountPlugin.metadata.MailQueue, notificationProducer)
@@ -107,16 +147,19 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   const crmProducer = platformQueue.getProducer<CrmNotification>(measureCtx, QueueTopic.CrmQueue)
   setMetadata(accountPlugin.metadata.CrmQueue, crmProducer)
 
-  addStringsLoader(accountId, async (lang: string) => {
-    switch (lang) {
-      case 'en':
-        return accountEn
-      case 'ru':
-        return accountRu
-      default:
-        return accountEn
-    }
-  })
+  // Limits/payment/maintenance events for transactor/datalake/aibot consumers
+  const workspaceProducer = platformQueue.getProducer<QueueWorkspaceMessage>(measureCtx, QueueTopic.Workspace)
+  setMetadata(accountPlugin.metadata.WorkspaceQueue, workspaceProducer)
+
+  // Admin-triggered fulltext reindex requests
+  const fulltextProducer = platformQueue.getProducer<QueueWorkspaceMessage>(measureCtx, QueueTopic.Fulltext)
+  setMetadata(accountPlugin.metadata.FulltextQueue, fulltextProducer)
+
+  // Admin-initiated subscription events consumed by pod-payment (free-plan fallback after a cancel)
+  const subscriptionProducer = platformQueue.getProducer<QueueSubscriptionMessage>(measureCtx, QueueTopic.Subscription)
+  setMetadata(accountPlugin.metadata.SubscriptionQueue, subscriptionProducer)
+
+  addStringsLoader(accountId, async (lang: string) => accountStrings[lang] ?? accountEn)
 
   const frontURL = process.env.FRONT_URL
   const productName = process.env.PRODUCT_NAME
@@ -139,8 +182,26 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   setMetadata(account.metadata.ProductName, productName)
   setMetadata(account.metadata.OtpTimeToLiveSec, parseInt(process.env.OTP_TIME_TO_LIVE ?? '60'))
   setMetadata(account.metadata.OtpRetryDelaySec, parseInt(process.env.OTP_RETRY_DELAY ?? '60'))
+  setMetadata(
+    account.metadata.SignUpLinkTimeToLiveSec,
+    parseInt(process.env.SIGNUP_LINK_TIME_TO_LIVE ?? `${7 * 24 * 60 * 60}`)
+  )
+  setMetadata(account.metadata.AdminOtpDevCode, process.env.ADMIN_OTP_DEV_CODE)
 
   setMetadata(account.metadata.AllowReadonlyGuests, process.env.ALLOW_READONLY_GUESTS === 'true')
+  setMetadata(account.metadata.AllowSkipOtpPasswordSignUp, process.env.ALLOW_SKIP_OTP_PASSWORD_SIGNUP === 'true')
+  // Self-host edition: account is the single LICENSE_KEY holder. Verify once at startup; payment pods
+  // fetch the result via getLicenseInfo (no key of their own). maxUsers=0 on dev (no baked key) ->
+  // no clamp; community (no/invalid key) -> 15; licensed -> key's maxUsers. Payment allowed on dev,
+  // per-key when licensed, never in community.
+  const licenseEdition = resolveEdition(process.env.LICENSE_KEY)
+  setMetadata(account.metadata.LicenseMaxUsers, resolveMaxUsers(process.env.LICENSE_KEY))
+  setMetadata(account.metadata.LicenseEdition, licenseEdition)
+  setMetadata(
+    account.metadata.LicenseCanRunPayment,
+    licenseEdition === 'dev' || verifyLicense(process.env.LICENSE_KEY)?.canRunPayment === true
+  )
+  setMetadata(account.metadata.FreePlanLimits, parseFreePlanLimits(process.env.FREE_PLAN_LIMITS))
 
   setMetadata(account.metadata.FrontURL, frontURL)
   setMetadata(account.metadata.WsLivenessDays, wsLivenessDays)
@@ -154,12 +215,51 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
 
   const dbNs = process.env.DB_NS
   const accountsDb = getAccountDB(dbUrl, dbNs)
-  const migrations = accountsDb.then(async ([db]) => {
-    if (oldAccsUrl !== undefined) {
-      await migrateFromOldAccounts(oldAccsUrl, db, oldAccsNs)
-      console.log('Migrations verified/done')
-    }
-  })
+
+  const onlineUserTxProducer = platformQueue.getProducer<QueueOnlineUserTx>(
+    measureCtx.newChild('online-user-tx-producer', {}, { span: false }),
+    QueueTopic.OnlineUserTx
+  )
+
+  const usersConsumer = platformQueue.createBatchConsumer<QueueUserMessage>(
+    measureCtx.newChild('users-consumer', {}, { span: false }),
+    QueueTopic.Users,
+    'presence-tracker',
+    async (ctx, msgs) => {
+      await handlePresenceBatch(ctx, msgs, accountsDb, onlineUserTxProducer)
+    },
+    { batchSize: 500, batchTimeout: 1000 }
+  )
+
+  // Payment audit: any provider pod publishes operations; the account service appends the ledger row.
+  // Durable — a provider ack's its webhook immediately, this consumer persists the audit later.
+  const paymentOperationConsumer = platformQueue.createBatchConsumer<QueuePaymentOperationMessage>(
+    measureCtx.newChild('payment-operation-consumer', {}, { span: false }),
+    QueueTopic.PaymentOperation,
+    'payment-ledger',
+    async (ctx, msgs) => {
+      const [db] = await accountsDb
+      for (const m of msgs) {
+        const op = m.value
+        await db.logPaymentOperation({
+          provider: op.provider,
+          operation: op.operation,
+          status: op.status,
+          paymentId: op.paymentId,
+          orderId: op.orderId,
+          subscriptionId: op.subscriptionId,
+          workspaceUuid: op.workspaceUuid as any,
+          accountUuid: op.accountUuid as any,
+          actionId: op.actionId,
+          actor: op.actor,
+          amount: op.amount,
+          raw: op.raw,
+          createdOn: op.at
+        })
+      }
+    },
+    { batchSize: 200, batchTimeout: 1000 }
+  )
 
   const app = new Koa()
   const router = new Router()
@@ -195,17 +295,14 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
       },
       3 * 60 * 1000
     )
-  })
-
-  const extractCookieToken = (headers: IncomingHttpHeaders): string | undefined => {
-    if (headers.cookie != null) {
-      const cookies = headers.cookie.split(';')
-      const tokenCookie = cookies.find((cookie) => cookie.includes(AUTH_TOKEN_COOKIE))
-      return tokenCookie?.split('=')[1]
+    const sweep = (): void => {
+      void sweepScheduledDeletions(measureCtx, db, brandings).catch((err) => {
+        measureCtx.error('Scheduled deletion sweep failed', { err })
+      })
     }
-
-    return undefined
-  }
+    setInterval(sweep, 60 * 60 * 1000)
+    sweep()
+  })
 
   const extractAuthorizationToken = (headers: IncomingHttpHeaders): string | undefined => {
     try {
@@ -216,17 +313,7 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   }
 
   const extractToken = (headers: IncomingHttpHeaders): string | undefined => {
-    return extractAuthorizationToken(headers) ?? extractCookieToken(headers)
-  }
-
-  function generateShortId (length = 12): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    const bytes = randomBytes(length)
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += chars[bytes[i] % chars.length]
-    }
-    return result
+    return extractAuthorizationToken(headers) ?? extractCookieToken(headers.cookie, AUTH_TOKEN_COOKIE)
   }
 
   const getRequestMeta = (headers: IncomingHttpHeaders, isServiceRequest: boolean): Meta => {
@@ -331,7 +418,7 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     try {
       const token = (req.query.token as string) ?? extractToken(req.headers)
       const payload = decodeToken(token)
-      const admin = payload.extra?.admin === 'true'
+      const admin = payload.extra?.admin === 'true' || payload.extra?.billingAdmin === 'true'
       const data: Record<string, any> = {
         metrics: admin ? metricsAggregate((measureCtx as any).metrics) : {},
         statistics: {}
@@ -390,49 +477,6 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     ctx.res.end()
   })
 
-  router.put('/api/v1/manage', async (req, res) => {
-    try {
-      const token = (req.query.token as string) ?? extractToken(req.headers)
-      const payload = decodeToken(token)
-      if (payload.extra?.admin !== 'true') {
-        req.res.writeHead(404, {})
-        req.res.end()
-        return
-      }
-
-      const operation = req.query.operation
-
-      switch (operation) {
-        case 'maintenance': {
-          const timeMinutes = parseInt((req.query.timeout as string) ?? '5')
-          const transactors = getAllTransactors(EndpointKind.Internal)
-          for (const tr of transactors) {
-            const serverEndpoint = tr.replaceAll('wss://', 'https://').replace('ws://', 'http://')
-            const jsonBody = JSON.stringify(req.request.body as any)
-            await fetch(serverEndpoint + `/api/v1/manage?token=${token}&operation=maintenance&timeout=${timeMinutes}`, {
-              method: 'PUT',
-              body: jsonBody,
-              headers: {
-                'Content-Type': 'application/json;charset=utf-8'
-              }
-            })
-          }
-
-          req.res.writeHead(200)
-          req.res.end()
-          return
-        }
-      }
-
-      req.res.writeHead(404, {})
-      req.res.end()
-    } catch (err: any) {
-      Analytics.handleError(err)
-      req.res.writeHead(404, {})
-      req.res.end()
-    }
-  })
-
   router.post('rpc', '/', async (ctx) => {
     const token = extractToken(ctx.request.headers)
 
@@ -450,8 +494,22 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
       return
     }
 
+    const rateLimit = apiKeyLoginRateLimit(request.method, ctx.request.headers, ctx.request.ip)
+    if (rateLimit !== undefined) {
+      // Same shape the transactor answers a rate limit with, so clients handle both alike.
+      ctx.res.writeHead(429, {
+        ...KEEP_ALIVE_HEADERS,
+        'Retry-After': `${Math.max(Math.round((rateLimit.retryAfter ?? 0) / 1000), 1)}`,
+        'Retry-After-ms': `${rateLimit.retryAfter ?? 1000}`,
+        'X-RateLimit-Limit': `${rateLimit.limit}`,
+        'X-RateLimit-Remaining': `${rateLimit.remaining}`,
+        'X-RateLimit-Reset': `${rateLimit.reset}`
+      })
+      ctx.res.end(JSON.stringify({ id: request.id, error: unknownStatus('Rate limit') }))
+      return
+    }
+
     const [db] = await accountsDb
-    await migrations
 
     const branding = getBranding(ctx)
 
@@ -535,10 +593,14 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
 
     try {
       const [db] = await accountsDb
-      await migrations
 
-      const shortId = generateShortId()
-      await db.shortLink.insertOne({ id: shortId, payload, workspaceId })
+      // Reuse an existing link for the same payload so repeated requests
+      // (e.g. "copy guest link" for one meeting) yield a stable URL.
+      const existing = await db.shortLink.findOne({ payload, workspaceId })
+      const shortId = existing?.id ?? generateShortId()
+      if (existing == null) {
+        await db.shortLink.insertOne({ id: shortId, payload, workspaceId })
+      }
 
       ctx.res.writeHead(200, KEEP_ALIVE_HEADERS)
       ctx.res.end(JSON.stringify({ shortId }))
@@ -561,7 +623,6 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
 
     try {
       const [db] = await accountsDb
-      await migrations
 
       const link = await db.shortLink.findOne({ id: shortId })
 
@@ -587,15 +648,34 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     console.log(`server started on port ${ACCOUNT_PORT}`)
   })
 
+  // Without an explicit exit the process outlives SIGTERM: kafka sockets and koa keep-alive
+  // connections hold the event loop, and the pod only dies when the orchestrator SIGKILLs it.
+  let closing = false
   const close = (): void => {
+    if (closing) return
+    closing = true
     onClose?.()
-    void notificationProducer.close()
-    void crmProducer.close()
-    void platformQueue.shutdown()
-    void accountsDb.then(([, closeAccountsDb]) => {
-      closeAccountsDb()
-    })
+    const closed = Promise.allSettled([
+      notificationProducer.close(),
+      crmProducer.close(),
+      subscriptionProducer.close(),
+      usersConsumer.close(),
+      paymentOperationConsumer.close(),
+      platformQueue.shutdown(),
+      accountsDb.then(([, closeAccountsDb]) => {
+        closeAccountsDb()
+      })
+    ])
     server.close()
+    server.closeAllConnections()
+    // Cap the wait so a stuck client cannot keep the pod alive either.
+    const cap = setTimeout(() => {
+      process.exit(0)
+    }, 5000)
+    cap.unref()
+    void closed.then(() => {
+      process.exit(0)
+    })
   }
 
   process.on('uncaughtException', (e) => {

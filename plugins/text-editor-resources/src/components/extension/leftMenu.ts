@@ -31,6 +31,9 @@ export interface LeftMenuOptions {
 }
 
 function nodeDOMAtCoords (coords: { x: number, y: number }): Element | undefined {
+  if (!Number.isFinite(coords.x) || !Number.isFinite(coords.y)) {
+    return undefined
+  }
   return document
     .elementsFromPoint(coords.x, coords.y)
     .find((elem: Element) => elem.parentElement?.matches?.('.ProseMirror') === true)
@@ -88,20 +91,22 @@ function LeftMenu (options: LeftMenuOptions): Plugin {
     key: new PluginKey('left-menu'),
     view: (view) => {
       leftMenuElement = document.createElement('div')
-      leftMenuElement.classList.add(options.className) // Style externally with CSS
+      leftMenuElement.className = options.className // Style externally with CSS
       leftMenuElement.style.position = 'absolute'
       hideLeftMenu()
 
       const svgNs = 'http://www.w3.org/2000/svg'
       const icon = document.createElementNS(svgNs, 'svg')
-      const { className: iconClassName, ...restIconProps } = options.iconProps
-      icon.classList.add(iconClassName)
+      const { className: iconClassName, ...restIconProps } = options.iconProps ?? {}
+      if (iconClassName !== undefined) {
+        icon.classList.add(iconClassName)
+      }
       Object.entries(restIconProps).forEach(([key, value]) => {
         icon.setAttribute(key, value as string)
       })
 
       const use = document.createElementNS(svgNs, 'use')
-      const href = getMetadata(options.icon)
+      const href = options.icon !== undefined ? getMetadata(options.icon) : undefined
 
       if (href !== undefined) {
         use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href)
@@ -161,7 +166,12 @@ function LeftMenu (options: LeftMenuOptions): Plugin {
               y: event.clientY
             })
 
-            if (!(node instanceof HTMLElement) || node.nodeName === 'HR') {
+            if (
+              !(node instanceof HTMLElement) ||
+              node.nodeName === 'HR' ||
+              options.items === undefined ||
+              options.items.length === 0
+            ) {
               hideLeftMenu()
               return
             }
@@ -172,8 +182,7 @@ function LeftMenu (options: LeftMenuOptions): Plugin {
               return
             }
 
-            // For some reason the offsetTop value for all elements is shifted by the first element's margin
-            // so taking it into account here
+            // offsetTop is shifted by the first element's margin; account for it
             let firstMargin = 0
             const firstChild = parent.firstChild
             if (firstChild !== null && firstChild instanceof HTMLElement) {

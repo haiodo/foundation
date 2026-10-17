@@ -131,7 +131,7 @@
       {#if index === fields.length / 2}
         <div class="separator" />
       {/if}
-      <div class={'form-row'}>
+      <div class="form-row">
         <CodeInput
           id={field.id}
           name={field.name}

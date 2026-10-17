@@ -6,7 +6,7 @@
   import emojiPlugin, { shortcodeRegex } from '@hcengineering/emoji'
   import { createEventDispatcher } from 'svelte'
   import { getClient, MessageBox, uploadFile } from '@hcengineering/presentation'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
 
   const client = getClient()
   const dispatch = createEventDispatcher()
@@ -108,7 +108,7 @@
 
 <Modal
   label={emojiPlugin.string.CreateTitle}
-  type={'type-popup'}
+  type="type-popup"
   okLabel={emojiPlugin.string.Create}
   okAction={save}
   canSave={shortcode.trim().length > 0 &&
@@ -129,7 +129,7 @@
             id="teamspace-title"
             bind:value={shortcode}
             placeholder={emojiPlugin.string.Shortcode}
-            kind={'large-style'}
+            kind="large-style"
             autoFocus
             on:input={onShortcodeChange}
           />
@@ -148,8 +148,8 @@
         <div class="padding">
           <Button
             label={emojiPlugin.string.UploadImage}
-            kind={'primary'}
-            size={'medium'}
+            kind="primary"
+            size="medium"
             on:click={() => {
               inputFile.click()
             }}

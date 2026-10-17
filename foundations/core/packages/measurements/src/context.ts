@@ -1,7 +1,7 @@
 // Basic performance metrics suite.
 
 import { platformNow, platformNowDiff } from '.'
-import { childMetrics, newMetrics, updateMeasure } from './metrics'
+import { childMetricsSingle, newMetrics, updateMeasure } from './metrics'
 import {
   type FullParamsType,
   type MeasureContext,
@@ -40,7 +40,12 @@ export const consoleLogger = (logParams: Record<string, any>): MeasureLogger => 
     )
   },
   warn: (msg, args) => {
-    console.warn(msg, ...Object.entries(args ?? {}).map((it) => `${it[0]}=${JSON.stringify(replacer(it[1]))}`))
+    console.warn(
+      msg,
+      ...Object.entries({ ...(args ?? {}), ...(logParams ?? {}) }).map(
+        (it) => `${it[0]}=${JSON.stringify(replacer(it[1]))}`
+      )
+    )
   },
   close: async () => {},
   logOperation: (operation, time, params) => {}
@@ -81,8 +86,11 @@ export class MeasureMetricsContext implements MeasureContext {
     this.params = params
     this.fullParams = fullParams
     this.metrics = metrics
-    this.metrics.namedParams = this.metrics.namedParams ?? {}
-    for (const [k, v] of Object.entries(params)) {
+    // Fast path: skip Object.entries alloc when no params. ctx.with('name', {}, ...)
+    // is by far the most common call site. namedParams is always pre-allocated.
+    for (const k in params) {
+      if (!Object.prototype.hasOwnProperty.call(params, k)) continue
+      const v = (params as any)[k]
       if (this.metrics.namedParams[k] !== v) {
         this.metrics.namedParams[k] = v
       } else {
@@ -101,7 +109,7 @@ export class MeasureMetricsContext implements MeasureContext {
       '#' + name,
       labels ?? {},
       {},
-      childMetrics(this.metrics, ['#' + name]),
+      childMetricsSingle(this.metrics, '#' + name),
       this.logger,
       this
     )
@@ -120,7 +128,7 @@ export class MeasureMetricsContext implements MeasureContext {
       '@' + name,
       labels ?? {},
       {},
-      childMetrics(this.metrics, ['@' + name]),
+      childMetricsSingle(this.metrics, '@' + name),
       this.logger,
       this
     )
@@ -149,7 +157,7 @@ export class MeasureMetricsContext implements MeasureContext {
       name,
       params,
       opt?.fullParams ?? {},
-      childMetrics(this.metrics, [name]),
+      childMetricsSingle(this.metrics, name),
       opt?.logger ?? this.logger,
       this,
       this.logParams
@@ -355,13 +363,9 @@ export function registerOperationLog (ctx: MeasureContext): { opLogMetrics?: Met
   const op: OperationLog = { start: platformNow(), ops: [], end: -1 }
   let opLogMetrics: Metrics | undefined
 
-  if (ctx.id === undefined) {
-    ctx.id = 'op_' + (++globalId).toString(16)
-  }
+  ctx.id ??= 'op_' + (++globalId).toString(16)
   if (ctx.metrics !== undefined) {
-    if (ctx.metrics.opLog === undefined) {
-      ctx.metrics.opLog = {}
-    }
+    ctx.metrics.opLog ??= {}
     ctx.metrics.opLog[ctx.id] = op
     opLogMetrics = ctx.metrics
   }

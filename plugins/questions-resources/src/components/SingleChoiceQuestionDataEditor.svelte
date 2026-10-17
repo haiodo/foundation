@@ -3,15 +3,15 @@
 -->
 
 <script lang="ts">
-  import {
-    type QuestionDataEditorProps,
-    type QuestionDataEditorPropsSubmit,
-    type QuestionDataPresenterProps,
-    type QuestionOption,
-    type SingleChoiceAssessment,
-    type SingleChoiceAssessmentData,
-    type SingleChoiceQuestion,
-    type SingleChoiceQuestionData
+  import type {
+    QuestionDataEditorProps,
+    QuestionDataEditorPropsSubmit,
+    QuestionDataPresenterProps,
+    QuestionOption,
+    SingleChoiceAssessment,
+    SingleChoiceAssessmentData,
+    SingleChoiceQuestion,
+    SingleChoiceQuestionData
   } from '@hcengineering/questions'
   import { moveItem } from '../utils'
   import LabelEditor from './LabelEditor.svelte'
@@ -23,7 +23,7 @@
   type Q = SingleChoiceQuestion | SingleChoiceAssessment
 
   /**
-   * Declared $$Props help TypeScript ensure that your component properly implements interface
+   * Declared $$Props help TypeScript verify component prop interface conformance
    * @see https://raqueebuddinaziz.com/blog/svelte-type-events-slots-and-props/#restprops-props
    */
   type $$Props = QuestionDataPresenterProps<Q> | QuestionDataEditorProps<Q>

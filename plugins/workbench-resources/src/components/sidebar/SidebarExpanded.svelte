@@ -13,22 +13,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Widget, WidgetPreference, WidgetTab } from '@hcengineering/workbench'
-  import { Ref } from '@hcengineering/core'
+  import type { Widget, WidgetPreference, WidgetTab } from '@hcengineering/workbench'
+  import type { Ref } from '@hcengineering/core'
   import {
     Component,
     resizeObserver,
-    location as locationStore,
-    Location,
     Header,
     Breadcrumbs,
-    getCurrentLocation,
     Separator,
     deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
-  import { onDestroy, onMount } from 'svelte'
 
-  import { closeWidgetTab, sidebarStore, SidebarVariant, WidgetState, openWidgetTab, closeWidget } from '../../sidebar'
+  import type { WidgetState } from '../../sidebar'
+  import { closeWidgetTab, sidebarStore, SidebarVariant, openWidgetTab, closeWidget } from '../../sidebar'
   import WidgetsBar from './widgets/WidgetsBar.svelte'
   import SidebarTabs from './SidebarTabs.svelte'
 
@@ -56,33 +53,6 @@
   }
   $: float = $sidebarStore.float
 
-  function closeWrongTabs (loc: Location): void {
-    if (widget === undefined) return
-    for (const tab of tabs) {
-      if (tab.allowedPath !== undefined && !tab.isPinned) {
-        const path = loc.path.join('/')
-        if (!path.startsWith(tab.allowedPath)) {
-          void handleTabClose(tab.id, widget)
-        }
-      }
-    }
-  }
-
-  const unsubscribe = locationStore.subscribe((loc: Location) => {
-    closeWrongTabs(loc)
-  })
-
-  onMount(() => {
-    // We need to wait for location to be updated
-    setTimeout(() => {
-      closeWrongTabs(getCurrentLocation())
-    }, 100)
-  })
-
-  onDestroy(() => {
-    unsubscribe()
-  })
-
   async function handleTabClose (tabId: string, widget?: Widget): Promise<void> {
     if (widget === undefined) return
     await closeWidgetTab(widget, tabId)
@@ -104,7 +74,7 @@
 
 <div class="sidebar-wrap__content{float ? ` float apps-${$deviceInfo.navigator.direction}` : ''}">
   {#if float && !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
-    <Separator name={'main'} index={0} color={'var(--theme-navpanel-border)'} float={'sidebar'} />
+    <Separator name="main" index={0} color="var(--theme-navpanel-border)" float="sidebar" />
   {/if}
   <div class="sidebar-content">
     {#if widget?.component}

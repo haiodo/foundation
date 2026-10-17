@@ -13,16 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ModernButton, getCurrentLocation } from '@hcengineering/ui'
-  import view, { decodeObjectURI } from '@hcengineering/view'
-  import { Employee } from '@hcengineering/contact'
-  import { Asset } from '@hcengineering/platform'
-  import { createDirect } from '@hcengineering/chunter'
-  import { getClient } from '@hcengineering/presentation'
-  import { getCurrentAccount } from '@hcengineering/core'
+  import { Button } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
+  import type { Employee } from '@hcengineering/contact'
+  import type { Asset } from '@hcengineering/platform'
 
   import chunter from '../plugin'
-  import { openChannelInSidebar } from '../navigation'
+  import { openDirectForPerson } from '../utils'
 
   export let employee: Employee
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
@@ -30,31 +27,19 @@
   export let type: 'type-button' | 'type-button-icon' = 'type-button'
 
   async function openDirect (): Promise<void> {
-    if (employee.personUuid == null) return
-
-    const client = getClient()
-    const me = getCurrentAccount()
-    const dm = await createDirect(client, [me.uuid, employee.personUuid])
-    if (dm == null) return
-    const loc = getCurrentLocation()
-    const [_id] = decodeObjectURI(loc.path[3]) ?? []
-
-    if (_id === dm) {
-      return
-    }
-
-    await openChannelInSidebar(dm, chunter.class.DirectMessage, undefined, undefined, true)
+    await openDirectForPerson(employee, true)
   }
 </script>
 
 <div class="button-container">
-  <ModernButton
+  <Button
     label={type === 'type-button-icon' ? undefined : chunter.string.Message}
     icon={icon ?? view.icon.Bubble}
     size="small"
     iconSize="small"
-    {type}
     {kind}
+    tooltip={type === 'type-button-icon' ? { label: chunter.string.Message } : undefined}
+    data-id="btnDirectMessage"
     on:click={openDirect}
   />
 </div>

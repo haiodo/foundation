@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -37,7 +38,7 @@ import core, {
   getClassCollaborators,
   groupByArray,
   type Hierarchy,
-  isOperator,
+  hasOperator,
   type Iterator,
   type Lookup,
   type MeasureContext,
@@ -49,6 +50,7 @@ import core, {
   type ReverseLookups,
   type SessionData,
   shouldShowArchived,
+  SortingOrder,
   type SortingQuery,
   type StorageIterator,
   systemAccountUuid,
@@ -69,6 +71,8 @@ import core, {
 import {
   type ConnectionMgr,
   createDBClient,
+  getDBFlavor,
+  type DBFlavor,
   type DBClient,
   type DBResult,
   doFetchTypes,
@@ -80,6 +84,7 @@ import {
   type DbAdapterHandler,
   type DomainHelperOperations,
   estimateDocSize,
+  getApiKeyGrantableClasses,
   type RawFindIterator,
   type ServerFindOptions,
   type TxAdapter
@@ -88,13 +93,16 @@ import type postgres from 'postgres'
 import {
   getDocFieldsByDomains,
   getSchema,
+  type DataType,
   getSchemaAndFields,
   type Schema,
   type SchemaAndFields,
   translateDomain
 } from './schemas'
 import { type ValueType } from './types'
+import { waitForSchemaVersion } from './version'
 import {
+  castForColumn,
   convertArrayParams,
   convertDoc,
   createTables,
@@ -112,6 +120,7 @@ import {
   simpleEscape,
   toWithLookup
 } from './utils'
+
 async function * createCursorGenerator (
   client: postgres.Sql,
   sql: string,
@@ -213,9 +222,22 @@ class ValuesVariables {
 
 const DB_QUERY_DURATION = 'db.query.duration'
 
+// Locale-independent collation used for case-insensitive matching ($like).
+// "und-x-icu" is the ICU root locale: it is always present in PostgreSQL builds
+// with ICU support and folds case for all scripts, unlike the database LC_CTYPE
+// which only handles ASCII when the database was created with LC_CTYPE=C.
+const SEARCH_COLLATION = '"und-x-icu"'
+
+// Declared type of a real column of the domain, undefined for jsonb fields and dotted paths.
+function columnTypeOf (domain: string, key: string): DataType | undefined {
+  return key.includes('.') ? undefined : getSchema(domain)[key]?.type
+}
+
 abstract class PostgresAdapterBase implements DbAdapter {
   protected readonly _helper: DBCollectionHelper
   protected readonly tableFields = new Map<string, string[]>()
+
+  protected dbFlavor: DBFlavor | undefined
 
   constructor (
     protected readonly client: DBClient,
@@ -231,6 +253,15 @@ abstract class PostgresAdapterBase implements DbAdapter {
     readonly mgrId: string
   ) {
     this._helper = new DBCollectionHelper(this.client, this.workspaceId)
+  }
+
+  async initFlavor (connection: postgres.Sql): Promise<void> {
+    try {
+      this.dbFlavor = await getDBFlavor(connection, this.refClient.url())
+    } catch (err: any) {
+      // Not worth failing startup over: $like falls back to plain ILIKE.
+      this.dbFlavor = 'unknown'
+    }
   }
 
   reserveContext (id: string): () => void {
@@ -347,7 +378,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
     for (const key in query) {
       const value = query[key]
       const tkey = this.transformKey(domain, core.class.Doc, key, false)
-      const translated = this.translateQueryValue(vars, tkey, value, 'common')
+      const translated = this.translateQueryValue(vars, tkey, value, 'common', columnTypeOf(domain, key))
       if (translated !== undefined) {
         res.push(translated)
       }
@@ -365,7 +396,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
     if ((operations as any).$set !== undefined) {
       ;(operations as any) = { ...(operations as any).$set }
     }
-    const isOps = isOperator(operations)
+    const isOps = hasOperator(operations)
     if ((operations as any)['%hash%'] == null) {
       ;(operations as any)['%hash%'] = this.curHash()
     }
@@ -489,7 +520,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
             sqlChunks.push(secJoin)
           }
           if (options?.sort !== undefined) {
-            sqlChunks.push(this.buildOrder(_class, domain, options.sort, joins))
+            sqlChunks.push(this.buildOrder(vars, _class, domain, options.sort, joins))
           }
           if (options?.limit !== undefined) {
             sqlChunks.push(`LIMIT ${escape(options.limit)}`)
@@ -640,19 +671,29 @@ abstract class PostgresAdapterBase implements DbAdapter {
           return `AND (${domain}.archived = false OR ${domain}."_class" = '${core.class.SystemSpace}')`
         }
         const key = domain === DOMAIN_SPACE ? '_id' : domain === DOMAIN_TX ? '"objectSpace"' : 'space'
-        const privateCheck = domain === DOMAIN_SPACE ? ' OR sec.private = false' : ''
+        const privateCheck =
+          domain === DOMAIN_SPACE || query.space != null || query._id != null || query.attachedTo != null
+            ? ' OR sec.private = false'
+            : ''
         const archivedCheck = showArchived ? '' : ' AND sec.archived = false'
-        const q = `(sec._id = '${core.space.Space}' OR sec."_class" = '${core.class.SystemSpace}' OR sec.members @> '{"${acc.uuid}"}'${privateCheck})${archivedCheck}`
+        const accUuidVar = vars.add(acc.uuid, '::text')
+        // A workspace API key reads the spaces it was issued for without being their member.
+        const apiKey = sessionContext.apiKey
+        const keyCheck =
+          apiKey?.grantsSpaces === true && apiKey.spaces.length > 0
+            ? ` OR (sec._id = ANY(${vars.add(apiKey.spaces, '::text[]')}) AND sec."_class" = ANY(${vars.add(getApiKeyGrantableClasses(this.hierarchy), '::text[]')}))`
+            : ''
+        const q = `(sec._id = '${core.space.Space}' OR sec."_class" = '${core.class.SystemSpace}' OR sec.members @> ARRAY[${accUuidVar}]${privateCheck}${keyCheck})${archivedCheck}`
         const res = `EXISTS (SELECT 1 FROM ${translateDomain(DOMAIN_SPACE)} sec WHERE sec._id = ${domain}.${key} AND sec."workspaceId" = ${vars.add(this.workspaceId, '::uuid')} AND ${q})`
 
         const collabSec = getClassCollaborators(this.modelDb, this.hierarchy, _class)
         let collabRes = ''
         if ([AccountRole.Guest, AccountRole.ReadOnlyGuest].includes(acc.role)) {
           if (collabSec?.provideSecurity === true) {
-            collabRes += ` OR EXISTS (SELECT 1 FROM ${translateDomain(DOMAIN_COLLABORATOR)} collab_sec WHERE collab_sec."workspaceId" = ${vars.add(this.workspaceId, '::uuid')} AND collab_sec."attachedTo" = ${domain}._id AND collab_sec.collaborator = '${acc.uuid}')`
+            collabRes += ` OR EXISTS (SELECT 1 FROM ${translateDomain(DOMAIN_COLLABORATOR)} collab_sec WHERE collab_sec."workspaceId" = ${vars.add(this.workspaceId, '::uuid')} AND collab_sec."attachedTo" = ${domain}._id AND collab_sec.collaborator = ${accUuidVar})`
           }
           if (collabSec?.provideAttachedSecurity === true) {
-            collabRes += ` OR EXISTS (SELECT 1 FROM ${translateDomain(DOMAIN_COLLABORATOR)} collab_sec WHERE collab_sec."workspaceId" = ${vars.add(this.workspaceId, '::uuid')} AND collab_sec."attachedTo" = ${domain}."attachedTo" AND collab_sec.collaborator = '${acc.uuid}')`
+            collabRes += ` OR EXISTS (SELECT 1 FROM ${translateDomain(DOMAIN_COLLABORATOR)} collab_sec WHERE collab_sec."workspaceId" = ${vars.add(this.workspaceId, '::uuid')} AND collab_sec."attachedTo" = ${domain}."attachedTo" AND collab_sec.collaborator = ${accUuidVar})`
           }
         }
         return `AND (${res}${collabRes})`
@@ -680,12 +721,14 @@ abstract class PostgresAdapterBase implements DbAdapter {
       else if (join.path !== '') simpleJoins.push(join)
     }
 
+    // By the domain: domainSchemas has no class keys, and the default schema leaves numeric columns strings.
+    const schema = getSchema(domain)
     for (const row of rows) {
-      const doc = toWithLookup<T>(parseDoc(row, getSchema(row._class)))
+      const doc = toWithLookup<T>(parseDoc(row, schema))
 
       const lookup = doc.$lookup as Record<string, any>
 
-      this.parseLookupColumns(row, simpleJoins, reverseJoins, lookup, domain)
+      this.parseLookupColumns(row, simpleJoins, reverseJoins, lookup)
 
       for (const modelJoin of modelJoins) {
         const res = this.getLookupValue(modelJoin.path, lookup)
@@ -763,18 +806,17 @@ abstract class PostgresAdapterBase implements DbAdapter {
       const key = `${assocId}_${!isReverse ? 'b' : 'a'}`
 
       const nextParentMap = new Map<string, WithLookup<Doc>>()
+      const schema = getSchema(tagetDomain)
       for (const row of rows) {
         const parentId = row.parent_id
-        const parsed = nextParentMap.get(row._id) ?? parseDoc(row, getSchema(row._class))
+        const parsed = nextParentMap.get(row._id) ?? parseDoc(row, schema)
 
         const parent = parentMap.get(parentId)
         if (parent === undefined) continue
 
-        if (parent.$associations === undefined) {
-          parent.$associations = {}
-        }
+        parent.$associations ??= {}
 
-        if (parent.$associations[key] === undefined) parent.$associations[key] = []
+        parent.$associations[key] ??= []
         parent.$associations[key].push(parsed)
         if (!nextParentMap.has(parsed._id)) {
           nextParentMap.set(parsed._id, parsed)
@@ -791,10 +833,8 @@ abstract class PostgresAdapterBase implements DbAdapter {
     row: any,
     simpleJoins: JoinProps[],
     reverseJoins: JoinProps[],
-    lookup: Record<string, any>,
-    domain: string
+    lookup: Record<string, any>
   ): void {
-    const schema = getSchema(domain)
     let joinIndex: number | undefined
     let skip = false
 
@@ -803,6 +843,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
         const join = reverseJoins.find((j) => j.toAlias.toLowerCase() === column)
         if (join === undefined || row[column] == null) continue
 
+        const schema = getSchema(join.table)
         const parsed = row[column].map((p: any) => parseDoc(p, schema))
 
         const res = this.getLookupValue(join.path, lookup, false)
@@ -842,7 +883,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
 
         if (key === 'data') {
           obj[p] = { ...obj[p], ...row[column] }
-        } else if (key === 'createdOn' || key === 'modifiedOn') {
+        } else if (isNumericColumn(getSchema(join.table)[key]?.type)) {
           const val = parseInt(row[column])
           obj[p][key] = Number.isNaN(val) ? null : val
         } else if (key === '%hash%') {
@@ -1054,6 +1095,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
   }
 
   private buildOrder<T extends Doc>(
+    vars: ValuesVariables,
     _class: Ref<Class<T>>,
     baseDomain: string,
     sort: SortingQuery<T>,
@@ -1068,9 +1110,16 @@ abstract class PostgresAdapterBase implements DbAdapter {
       }
       if (typeof val === 'number') {
         const key = escape(_key)
+        const reverseOrder = this.getReverseLookupOrder(vars, key, joins, val)
+        if (reverseOrder !== undefined) {
+          res.push(reverseOrder)
+          continue
+        }
         if (attr !== undefined && NumericTypes.includes(attr.type._class)) {
-          res.push(`(${this.getKey(_class, baseDomain, key, joins)})::numeric ${val === 1 ? 'ASC' : 'DESC'}`)
-        } else if (attr !== undefined && attr.type._class === core.class.TypeIdentifier) {
+          const sqlKey = this.getKey(_class, baseDomain, key, joins)
+          const dir = val === 1 ? 'ASC' : 'DESC'
+          res.push(`${numericOrderKey(sqlKey, columnTypeOf(baseDomain, key), this.dbFlavor)} ${dir}`)
+        } else if (attr?.type._class === core.class.TypeIdentifier) {
           res.push(
             `regexp_replace(COALESCE(${this.getKey(_class, baseDomain, key, joins)}, ''), '-?\\d+$', '') ${val === 1 ? 'ASC' : 'DESC'}`
           )
@@ -1121,12 +1170,21 @@ abstract class PostgresAdapterBase implements DbAdapter {
       if (options?.skipClass === true && _key === '_class') {
         continue
       }
-      const value = query[_key]
+      let value = query[_key]
       if (value === undefined) continue
-      const key = escape(_key)
+      let key = escape(_key)
+      // 'arr._id': v over an array of objects is the containment form {arr: {_id: v}}
+      const dot = key.indexOf('.')
+      if (dot > 0 && typeof value !== 'object' && !key.startsWith('$') && !key.includes('.', dot + 1)) {
+        const head = key.slice(0, dot)
+        if (!this.hierarchy.isMixin(head as Ref<Class<Doc>>) && this.getValueType(_class, head) === 'dataArray') {
+          value = { [key.slice(dot + 1)]: value }
+          key = head
+        }
+      }
       const valueType = this.getValueType(_class, key)
       const tkey = this.getKey(_class, baseDomain, key, joins, valueType === 'dataArray')
-      const translated = this.translateQueryValue(vars, tkey, value, valueType)
+      const translated = this.translateQueryValue(vars, tkey, value, valueType, columnTypeOf(baseDomain, key))
       if (translated !== undefined) {
         res.push(translated)
       }
@@ -1141,13 +1199,13 @@ abstract class PostgresAdapterBase implements DbAdapter {
     if (this.hierarchy.isMixin(mixinOrKey as Ref<Class<Doc>>)) {
       key = splitted.slice(1).join('.')
       const attr = this.hierarchy.findAttribute(mixinOrKey as Ref<Class<Doc>>, key)
-      if (attr !== undefined && attr.type._class === core.class.ArrOf) {
+      if (attr?.type._class === core.class.ArrOf) {
         return isDataField(domain, key) ? 'dataArray' : 'array'
       }
       return 'common'
     } else {
       const attr = this.hierarchy.findAttribute(_class, key)
-      if (attr !== undefined && attr.type._class === core.class.ArrOf) {
+      if (attr?.type._class === core.class.ArrOf) {
         return isDataField(domain, key) ? 'dataArray' : 'array'
       }
       return 'common'
@@ -1205,6 +1263,29 @@ abstract class PostgresAdapterBase implements DbAdapter {
     return value
   }
 
+  // A reverse lookup is a jsonb_agg alias in SELECT, and Postgres can't use an output alias inside
+  // an ORDER BY expression, so aggregate the key again: min for ASC, max for DESC, like Mongo arrays.
+  private getReverseLookupOrder (
+    vars: ValuesVariables,
+    key: string,
+    joins: JoinProps[],
+    order: SortingOrder
+  ): string | undefined {
+    if (!key.startsWith('$lookup')) return
+    const arr = key.split('.').filter((p) => p !== '$lookup')
+    const tKey = arr.pop() ?? ''
+    const join = joins.find((p) => p.path === arr.join('.'))
+    if (join?.isReverse !== true) return
+    const attr = join.toClass !== undefined ? this.hierarchy.findAttribute(join.toClass, tKey) : undefined
+    const value = isDataField(join.table, tKey) ? `${join.toAlias}."data"#>>'{${tKey}}'` : `${join.toAlias}."${tKey}"`
+    const typed =
+      attr !== undefined && NumericTypes.includes(attr.type._class)
+        ? numericOrderKey(value, columnTypeOf(join.table, tKey), this.dbFlavor)
+        : value
+    const agg = order === SortingOrder.Ascending ? 'min' : 'max'
+    return `(SELECT ${agg}(${typed}) ${this.getReverseFrom(vars, join)}) ${order === SortingOrder.Ascending ? 'ASC' : 'DESC'}`
+  }
+
   private getKey<T extends Doc>(
     _class: Ref<Class<T>>,
     baseDomain: string,
@@ -1229,7 +1310,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
     if (join.isReverse) {
       return `${join.toAlias}->'${tKey}'`
     }
-    if (isDataField(domain, tKey)) {
+    if (isDataField(join.table, tKey)) {
       if (isDataArray) {
         return `${join.toAlias}."data"->'${tKey}'`
       }
@@ -1245,7 +1326,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
     isDataArray: boolean = false
   ): string {
     if (!isDataField(domain, key)) return `"${key}"`
-    const arr = key.split('.').filter((p) => p)
+    const arr = key.split('.').filter((p) => p !== '')
     let tKey = ''
     let isNestedField = false
 
@@ -1291,14 +1372,45 @@ abstract class PostgresAdapterBase implements DbAdapter {
     return key
   }
 
-  private translateQueryValue (vars: ValuesVariables, tkey: string, value: any, type: ValueType): string | undefined {
+  private translateQueryValue (
+    vars: ValuesVariables,
+    tkey: string,
+    value: any,
+    type: ValueType,
+    columnType?: DataType
+  ): string | undefined {
     const tkeyData = tkey.includes('data') && (tkey.includes('->') || tkey.includes('#>>'))
+    // A value of another type for a real column ({space: 0}, {modifiedOn: 'x'}) fails as
+    // `text = numeric` or `bigint = text`; such a value is compared with the column as text.
+    const textColumn = columnType === 'text' || columnType === 'text[]'
+    const mismatched = (it: any): boolean =>
+      it != null &&
+      columnType !== undefined &&
+      (textColumn
+        ? typeof it !== 'string'
+        : columnType === 'bool'
+          ? typeof it !== 'boolean'
+          : typeof it !== 'number' || !Number.isFinite(it))
+    const anyMismatched = (v: any): boolean => (Array.isArray(v) ? v.some(mismatched) : mismatched(v))
+    const toText = (it: any): string | null =>
+      it == null ? null : typeof it === 'object' ? JSON.stringify(it) : `${it}`
+    const asText = (v: any): any => (Array.isArray(v) ? v.map(toText) : toText(v))
+    const textKey = textColumn ? tkey : `${tkey}::text`
+    let keyAsText = false
+    const rawValue = value
+    if (Array.isArray(value) && columnType !== undefined && !columnType.endsWith('[]')) {
+      // A scalar column never equals an array, and `=` on it fails as `text = text[]`.
+      return 'FALSE'
+    }
     if (tkeyData && (Array.isArray(value) || (typeof value !== 'object' && typeof value !== 'string'))) {
       value = Array.isArray(value)
         ? value.map((it) => (it == null ? null : `${it}`))
         : value == null
           ? null
           : `${value}`
+    } else if ((typeof value !== 'object' || Array.isArray(value)) && anyMismatched(value)) {
+      value = asText(value)
+      keyAsText = true
     }
 
     if (value === null) {
@@ -1309,14 +1421,37 @@ abstract class PostgresAdapterBase implements DbAdapter {
       const nonOperator: Record<string, any> = {}
       for (const operator in value) {
         let val = value[operator]
+        let opKeyAsText = false
         if (tkeyData && (Array.isArray(val) || (typeof val !== 'object' && typeof val !== 'string'))) {
           val = Array.isArray(val) ? val.map((it) => (it == null ? null : `${it}`)) : val == null ? null : `${val}`
+        } else if (operator !== '$exists' && operator !== '$size' && anyMismatched(val)) {
+          val = asText(val)
+          opKeyAsText = true
         }
 
-        let valType = inferType(val)
-        const { tlkey, arrowCount } = prepareJsonValue(tkey, valType)
+        let valType = castForColumn(inferType(val), columnType, val)
+        const prepared = prepareJsonValue(tkey, valType)
+        const tlkey = opKeyAsText ? textKey : prepared.tlkey
+        const arrowCount = prepared.arrowCount
         if (arrowCount > 0 && valType === '::text') {
           valType = ''
+        }
+
+        const rangeOperator = rangeOperators[operator]
+        const rangeValue = value[operator]
+        if (
+          rangeOperator !== undefined &&
+          (opKeyAsText || (tkeyData && typeof rangeValue === 'number' && !Number.isFinite(rangeValue)))
+        ) {
+          // A range across types matches nothing: as text, '10' < '5' and the column index is lost.
+          res.push('FALSE')
+          continue
+        }
+        // A jsonb value is read as text, and text orders '10' before '9': a number is compared as
+        // a number.
+        if (rangeOperator !== undefined && tkeyData && typeof rangeValue === 'number') {
+          res.push(`${numericJsonKey(tkey, this.dbFlavor)} ${rangeOperator} ${vars.add(rangeValue, '::numeric')}`)
+          continue
         }
 
         switch (operator) {
@@ -1328,21 +1463,15 @@ abstract class PostgresAdapterBase implements DbAdapter {
             }
             break
           case '$gt':
-            res.push(`${tlkey} > ${vars.add(val, valType)}`)
-            break
           case '$gte':
-            res.push(`${tlkey} >= ${vars.add(val, valType)}`)
-            break
           case '$lt':
-            res.push(`${tlkey} < ${vars.add(val, valType)}`)
-            break
           case '$lte':
-            res.push(`${tlkey} <= ${vars.add(val, valType)}`)
+            res.push(`${tlkey} ${rangeOperators[operator]} ${vars.add(val, valType)}`)
             break
           case '$in':
             switch (type) {
               case 'common':
-                if (Array.isArray(val) && val.includes(null)) {
+                if (Array.isArray(val) && val.some((it) => it == null)) {
                   const vv = vars.addArray(val, valType)
                   res.push(`(${tlkey} = ANY(${vv}) OR ${tkey} IS NULL)`)
                 } else {
@@ -1368,14 +1497,26 @@ abstract class PostgresAdapterBase implements DbAdapter {
             }
             break
           case '$nin':
-            if (Array.isArray(val) && val.includes(null)) {
+            if (type === 'array') {
+              res.push(`NOT (${tkey} && ${vars.addArrayI(val, valType)})`)
+            } else if (type === 'dataArray') {
+              res.push(`(${tkey} IS NULL OR NOT (${tkey} ?| ${vars.addArrayI(val, valType)}))`)
+            } else if (Array.isArray(val) && val.some((it) => it == null)) {
               res.push(`(${tlkey} != ALL(${vars.addArray(val, valType)}) AND ${tkey} IS NOT NULL)`)
             } else if (Array.isArray(val) && val.length > 0) {
               res.push(`${tlkey} != ALL(${vars.addArray(val, valType)})`)
             }
             break
           case '$like':
-            res.push(`${tlkey} ILIKE ${vars.add(val, valType)}`)
+            // ILIKE folds case using the database LC_CTYPE. Databases created with
+            // LC_CTYPE=C only fold ASCII, so Cyrillic (and any non-ASCII) search is
+            // case-sensitive. An explicit ICU collation folds case correctly on any
+            // database, regardless of how it was created.
+            if (this.dbFlavor === 'postgres') {
+              res.push(`(${tlkey}) COLLATE ${SEARCH_COLLATION} ILIKE ${vars.add(val, valType)}`)
+            } else {
+              res.push(`${tlkey} ILIKE ${vars.add(val, valType)}`)
+            }
             break
           case '$exists':
             res.push(`${tlkey} IS ${val === true || val === 'true' ? 'NOT NULL' : 'NULL'}`)
@@ -1387,7 +1528,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
             break
           case '$all':
             if (arrowCount > 0) {
-              res.push(`${tkey} @> '${JSON.stringify(val)}'::jsonb`)
+              res.push(`${tkey} @> '${simpleEscape(JSON.stringify(val))}'::jsonb`)
             } else {
               res.push(`${tkey} @> ${vars.addArray(val, valType)}`)
             }
@@ -1422,26 +1563,30 @@ abstract class PostgresAdapterBase implements DbAdapter {
             break
         }
       }
-      if (Object.keys(nonOperator).length > 0) {
+      if (Object.keys(nonOperator).length > 0 && columnType !== undefined) {
+        // An object never equals a scalar column value, and `@>` on it fails as `text @> unknown`.
+        res.push('FALSE')
+      } else if (Object.keys(nonOperator).length > 0) {
         const qkey = tkey.replace('#>>', '->').replace('{', '').replace('}', '')
-        res.push(`(${qkey} @> '${JSON.stringify(nonOperator)}' or ${qkey} @> '[${JSON.stringify(nonOperator)}]')`)
+        const lit = simpleEscape(JSON.stringify(nonOperator))
+        res.push(`(${qkey} @> '${lit}' or ${qkey} @> '[${lit}]')`)
       }
       return res.length === 0 ? undefined : res.join(' AND ')
     }
 
-    let valType = inferType(value)
+    let valType = castForColumn(inferType(value), columnType, value)
     const { tlkey, arrowCount } = prepareJsonValue(tkey, valType)
     if (arrowCount > 0 && valType === '::text') {
       valType = ''
     }
     return type === 'common'
-      ? `${tlkey} = ${vars.add(value, valType)}`
+      ? `${keyAsText ? textKey : tlkey} = ${vars.add(value, valType)}`
       : type === 'array'
         ? `${tkey} @> '${typeof value === 'string' ? '{"' + escape(value) + '"}' : value}'`
-        : `${tkey} @> '${typeof value === 'string' ? '"' + escape(value) + '"' : value}'`
+        : `${tkey} @> '${typeof rawValue === 'number' || typeof rawValue === 'boolean' ? JSON.stringify(rawValue) : typeof value === 'string' ? '"' + escape(value) + '"' : value}'`
   }
 
-  private getReverseProjection (vars: ValuesVariables, join: JoinProps): string[] {
+  private getReverseFrom (vars: ValuesVariables, join: JoinProps): string {
     let classsesQuery = ''
     if (join.classes !== undefined) {
       if (join.classes.length === 1) {
@@ -1451,9 +1596,11 @@ abstract class PostgresAdapterBase implements DbAdapter {
       }
     }
     const wsId = vars.add(this.workspaceId, '::uuid')
-    return [
-      `(SELECT jsonb_agg(${join.toAlias}.*) FROM ${join.table} AS ${join.toAlias} WHERE ${join.toAlias}."${join.toField}" = ${join.fromAlias}${join.fromAlias !== '' ? '.' : ''}${join.fromField} AND ${join.toAlias}."workspaceId" = ${wsId}${classsesQuery}) AS ${join.toAlias}`
-    ]
+    return `FROM ${join.table} AS ${join.toAlias} WHERE ${join.toAlias}."${join.toField}" = ${join.fromAlias}${join.fromAlias !== '' ? '.' : ''}${join.fromField} AND ${join.toAlias}."workspaceId" = ${wsId}${classsesQuery}`
+  }
+
+  private getReverseProjection (vars: ValuesVariables, join: JoinProps): string[] {
+    return [`(SELECT jsonb_agg(${join.toAlias}.*) ${this.getReverseFrom(vars, join)}) AS ${join.toAlias}`]
   }
 
   private getProjectionsAliases (vars: ValuesVariables, join: JoinProps): string[] {
@@ -1547,7 +1694,6 @@ abstract class PostgresAdapterBase implements DbAdapter {
   find (_ctx: MeasureContext, domain: Domain): StorageIterator {
     const ctx = _ctx.newChild('find', { domain })
 
-    let initialized: boolean = false
     let client: DBClient
 
     const tdomain = translateDomain(domain)
@@ -1564,19 +1710,27 @@ abstract class PostgresAdapterBase implements DbAdapter {
 
       return createCursorGenerator(client.raw(), sql, undefined, schema, limit, true)
     }
-    let bulk: AsyncGenerator<Doc[]>
+    let bulk: AsyncGenerator<Doc[]> | undefined
+    let init: Promise<AsyncGenerator<Doc[]>> | undefined
+
+    // Memoized: concurrent next() calls must not reserve two clients, the second would leak.
+    const ensureBulk = async (): Promise<AsyncGenerator<Doc[]>> => {
+      init ??= (async () => {
+        client = await this.client.reserve()
+        bulk = createBulk('_id, "%hash%"')
+        return bulk
+      })().catch((err) => {
+        init = undefined // reserve() may fail transiently, let the next call retry
+        throw err
+      })
+      return await init
+    }
 
     return {
       next: async () => {
-        if (!initialized) {
-          if (client === undefined) {
-            client = await this.client.reserve()
-          }
-          initialized = true
-          bulk = createBulk('_id, "%hash%"')
-        }
+        const it = await ensureBulk()
 
-        const docs = await ctx.with('next', { domain }, () => bulk.next(), undefined, { metric: DB_QUERY_DURATION })
+        const docs = await ctx.with('next', { domain }, () => it.next(), undefined, { metric: DB_QUERY_DURATION })
         if (docs.done === true || docs.value.length === 0) {
           return []
         }
@@ -1590,9 +1744,12 @@ abstract class PostgresAdapterBase implements DbAdapter {
         return result
       },
       close: async () => {
-        await bulk.return([]) // We need to close generator, just in case
-        client?.release()
-        ctx.end()
+        try {
+          await bulk?.return([]) // Undefined if next()/find() was never reached
+        } finally {
+          client?.release()
+          ctx.end()
+        }
       }
     }
   }
@@ -1600,7 +1757,6 @@ abstract class PostgresAdapterBase implements DbAdapter {
   rawFind (_ctx: MeasureContext, domain: Domain): RawFindIterator {
     const ctx = _ctx.newChild('findRaw', { domain })
 
-    let initialized: boolean = false
     let client: DBClient
 
     const tdomain = translateDomain(domain)
@@ -1617,19 +1773,27 @@ abstract class PostgresAdapterBase implements DbAdapter {
 
       return createCursorGenerator(client.raw(), sql, undefined, schema, limit)
     }
-    let bulk: AsyncGenerator<Doc[]>
+    let bulk: AsyncGenerator<Doc[]> | undefined
+    let init: Promise<AsyncGenerator<Doc[]>> | undefined
+
+    // Memoized: concurrent find() calls must not reserve two clients, the second would leak.
+    const ensureBulk = async (): Promise<AsyncGenerator<Doc[]>> => {
+      init ??= (async () => {
+        client = await this.client.reserve()
+        bulk = createBulk('*')
+        return bulk
+      })().catch((err) => {
+        init = undefined // reserve() may fail transiently, let the next call retry
+        throw err
+      })
+      return await init
+    }
 
     return {
       find: async () => {
-        if (!initialized) {
-          if (client === undefined) {
-            client = await this.client.reserve()
-          }
-          initialized = true
-          bulk = createBulk('*')
-        }
+        const it = await ensureBulk()
 
-        const docs = await ctx.with('next', { domain }, () => bulk.next(), undefined, { metric: DB_QUERY_DURATION })
+        const docs = await ctx.with('next', { domain }, () => it.next(), undefined, { metric: DB_QUERY_DURATION })
         if (docs.done === true || docs.value.length === 0) {
           return []
         }
@@ -1638,9 +1802,12 @@ abstract class PostgresAdapterBase implements DbAdapter {
         return result
       },
       close: async () => {
-        await bulk.return([]) // We need to close generator, just in case
-        client?.release()
-        ctx.end()
+        try {
+          await bulk?.return([]) // Undefined if next()/find() was never reached
+        } finally {
+          client?.release()
+          ctx.end()
+        }
       }
     }
   }
@@ -1811,6 +1978,7 @@ export class PostgresAdapter extends PostgresAdapterBase {
     }
     const url = this.refClient.url()
     await initRateLimit.exec(async () => {
+      await waitForSchemaVersion(ctx, this.client)
       await createTables(ctx, this.client.raw(), url, resultDomains)
     })
     this._helper.domains = new Set(resultDomains as Domain[])
@@ -1831,13 +1999,15 @@ export class PostgresAdapter extends PostgresAdapterBase {
           break
         case core.class.TxUpdateDoc: {
           const updateTx = tx as TxUpdateDoc<Doc>
-          if (isOperator(updateTx.operations)) {
+          if (hasOperator(updateTx.operations)) {
             ops.updates.push(updateTx)
           } else {
             const current = updateGroup.get(updateTx.objectId)
             if (current !== undefined) {
-              current.operations = { ...current.operations, ...updateTx.operations }
-              updateGroup.set(updateTx.objectId, current)
+              updateGroup.set(updateTx.objectId, {
+                ...current,
+                operations: { ...current.operations, ...updateTx.operations }
+              })
             } else {
               updateGroup.set(updateTx.objectId, updateTx)
             }
@@ -1958,7 +2128,11 @@ export class PostgresAdapter extends PostgresAdapterBase {
     txes: TxUpdateDoc<Doc>[],
     schemaFields: SchemaAndFields
   ): Promise<TxResult[]> {
-    const byOperator = groupByArray(txes, (it) => isOperator(it.operations))
+    // An undefined value removes the key; the bulk jsonb merge can only add keys, so such updates go row by row.
+    const byOperator = groupByArray(
+      txes,
+      (it) => hasOperator(it.operations) || Object.values(it.operations).includes(undefined)
+    )
 
     const withOperator = byOperator.get(true)
     const withoutOperator = byOperator.get(false)
@@ -2053,7 +2227,6 @@ export class PostgresAdapter extends PostgresAdapterBase {
           }
           if (Object.keys(remainingData).length > 0) {
             const jsonData: Record<string, any> = {}
-            // const vals: string[] = []
             for (const key in remainingData) {
               if (ops[key] === undefined) continue
               const val = (remainingData as any)[key]
@@ -2113,6 +2286,7 @@ export class PostgresAdapter extends PostgresAdapterBase {
           }
         } catch (err: any) {
           ctx.error('failed to update docs', { err })
+          throw err
         }
         return result
       },
@@ -2158,6 +2332,7 @@ class PostgresTxAdapter extends PostgresAdapterBase implements TxAdapter {
     const resultDomains = domains ?? [DOMAIN_TX, DOMAIN_MODEL_TX]
     await initRateLimit.exec(async () => {
       const url = this.refClient.url()
+      await waitForSchemaVersion(ctx, this.client)
       await createTables(ctx, this.client.raw(), url, resultDomains)
     })
     this._helper.domains = new Set(resultDomains as Domain[])
@@ -2167,24 +2342,20 @@ class PostgresTxAdapter extends PostgresAdapterBase implements TxAdapter {
     if (tx.length === 0) {
       return []
     }
-    try {
-      const modelTxes: Tx[] = []
-      const baseTxes: Tx[] = []
-      for (const _tx of tx) {
-        if (_tx.objectSpace === core.space.Model) {
-          modelTxes.push(_tx)
-        } else {
-          baseTxes.push(_tx)
-        }
+    const modelTxes: Tx[] = []
+    const baseTxes: Tx[] = []
+    for (const _tx of tx) {
+      if (_tx.objectSpace === core.space.Model) {
+        modelTxes.push(_tx)
+      } else {
+        baseTxes.push(_tx)
       }
-      if (modelTxes.length > 0) {
-        await this.insert(ctx, DOMAIN_MODEL_TX, modelTxes)
-      }
-      if (baseTxes.length > 0) {
-        await this.insert(ctx, DOMAIN_TX, baseTxes)
-      }
-    } catch (err) {
-      console.error(err)
+    }
+    if (modelTxes.length > 0) {
+      await this.insert(ctx, DOMAIN_MODEL_TX, modelTxes)
+    }
+    if (baseTxes.length > 0) {
+      await this.insert(ctx, DOMAIN_TX, baseTxes)
     }
     return []
   }
@@ -2204,6 +2375,39 @@ class PostgresTxAdapter extends PostgresAdapterBase implements TxAdapter {
     return this.stripHash(model) as Tx[]
   }
 }
+const rangeOperators: Record<string, string | undefined> = { $gt: '>', $gte: '>=', $lt: '<', $lte: '<=' }
+
+/**
+ * A jsonb field as a number. The same field holds 'n/a', a boolean or an object in an old or
+ * foreign document, and a bare cast would fail the whole query on it; such a row is null here, so
+ * it does not match a range and sorts last.
+ */
+function numericJsonKey (tkey: string, flavor: DBFlavor | undefined): string {
+  // `data#>>'{a,b}'` already reads text; `data->'a'->'b'` is json and needs `->>` on the last step.
+  const text = tkey.includes('#>>') ? tkey : tkey.replace(/->(?!.*->)/, '->>')
+  if (flavor === 'postgres') {
+    return `(CASE WHEN pg_input_is_valid(${text}, 'numeric') THEN (${text})::numeric END)`
+  }
+  const json = tkey.replace('#>>', '#>')
+  return `(CASE WHEN jsonb_typeof(${json}) = 'number' THEN (${text})::numeric END)`
+}
+
+/**
+ * A numeric attribute as an ORDER BY key. A real bigint/integer column orders as is: a cast would
+ * keep Postgres from using the column's btree index, for the sort itself or for the min/max of a
+ * reverse lookup. A jsonb path is read as a number (see numericJsonKey), so a stray string sorts
+ * as null instead of failing the query. Any other column is cast.
+ */
+function isNumericColumn (type: DataType | undefined): boolean {
+  return type === 'bigint' || type === 'integer'
+}
+
+function numericOrderKey (sqlKey: string, columnType: DataType | undefined, flavor: DBFlavor | undefined): string {
+  if (columnType === 'bigint' || columnType === 'integer') return sqlKey
+  if (sqlKey.includes('->') || sqlKey.includes('#>>')) return numericJsonKey(sqlKey, flavor)
+  return `(${sqlKey})::numeric`
+}
+
 function prepareJsonValue (tkey: string, valType: string): { tlkey: string, arrowCount: number } {
   if (valType === '::string') {
     valType = '' // No need to add a string conversion
@@ -2231,7 +2435,7 @@ export async function createPostgresAdapter (
 ): Promise<DbAdapter> {
   const client = getDBClient(url)
   const connection = await client.getClient()
-  return new PostgresAdapter(
+  const adapter = new PostgresAdapter(
     createDBClient(connection),
     client.mgr,
     client,
@@ -2240,6 +2444,8 @@ export async function createPostgresAdapter (
     modelDb,
     'default-' + wsIds.url
   )
+  await adapter.initFlavor(connection)
+  return adapter
 }
 /**
  * @public
@@ -2254,7 +2460,7 @@ export async function createPostgresTxAdapter (
   const client = getDBClient(url)
   const connection = await client.getClient()
 
-  return new PostgresTxAdapter(
+  const adapter = new PostgresTxAdapter(
     createDBClient(connection),
     client.mgr,
     client,
@@ -2263,4 +2469,6 @@ export async function createPostgresTxAdapter (
     modelDb,
     'tx' + wsIds.url
   )
+  await adapter.initFlavor(connection)
+  return adapter
 }

@@ -14,11 +14,12 @@
 -->
 <script lang="ts">
   import attachment from '@hcengineering/attachment'
-  import { Card } from '@hcengineering/card'
-  import { Blob, BlobMetadata, Ref } from '@hcengineering/core'
+  import type { Card } from '@hcengineering/card'
+  import type { Blob, Ref } from '@hcengineering/core'
+  import { BlobMetadata } from '@hcengineering/core'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import { Heading } from '@hcengineering/text-editor'
+  import type { Heading } from '@hcengineering/text-editor'
   import { TableOfContents } from '@hcengineering/text-editor-resources'
   import { createEventDispatcher } from 'svelte'
 
@@ -43,23 +44,6 @@
     try {
       const uploadFile = await getResource(attachment.helper.UploadFile)
       const { uuid } = await uploadFile(file)
-      // const attachmentId: Ref<Attachment> = generateId()
-
-      // await client.addCollection(
-      //   attachment.class.Embedding,
-      //   doc.space,
-      //   doc._id,
-      //   doc._class,
-      //   'embeddings',
-      //   {
-      //     file: uuid,
-      //     name: file.name,
-      //     type: file.type,
-      //     size: file.size,
-      //     lastModified: file.lastModified
-      //   },
-      //   attachmentId
-      // )
 
       return { file: uuid, type: file.type }
     } catch (err: any) {
@@ -92,7 +76,7 @@
       object={doc}
       {readonly}
       boundary={content}
-      overflow={'none'}
+      overflow="none"
       editorAttributes={{ style: `padding: 0 2em 2em; margin: 0 -2em; min-height: ${minHeight}` }}
       attachFile={async (file) => {
         return await createEmbedding(file)

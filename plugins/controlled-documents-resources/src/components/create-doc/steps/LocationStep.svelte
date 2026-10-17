@@ -14,7 +14,8 @@
 -->
 
 <script lang="ts">
-  import { TypedSpace, type Doc, type Ref, type Space } from '@hcengineering/core'
+  import type { TypedSpace } from '@hcengineering/core'
+  import type { Doc, Ref, Space } from '@hcengineering/core'
   import documents, {
     type DocumentSpace,
     type DocumentSpaceType,
@@ -105,13 +106,13 @@
         autoSelect={true}
       />
     </div>
-    {#if space && spaceType && spaceType.projects}
+    {#if space && spaceType?.projects}
       <div class="space">
         <ProjectSelector
           value={projectRef}
           space={space._id}
-          kind={'no-border'}
-          size={'small'}
+          kind="no-border"
+          size="small"
           justify="left"
           showReadonly={false}
           on:change={(e) => {

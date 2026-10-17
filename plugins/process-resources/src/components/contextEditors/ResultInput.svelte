@@ -13,14 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import type { Doc } from '@hcengineering/core'
+  import { getObjectValue } from '@hcengineering/core'
   import presentation, { Card, getAttrEditor, getClient } from '@hcengineering/presentation'
-  import { ContextId, ExecutionContext, UserResult } from '@hcengineering/process'
+  import type { ContextId, ExecutionContext, UserResult } from '@hcengineering/process'
   import { Component, tooltip } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
 
   export let results: UserResult[]
   export let context: ExecutionContext
+  export let doc: Doc
 
   const dispatch = createEventDispatcher()
   const client = getClient()
@@ -28,10 +31,21 @@
 
   let values: Record<ContextId, any> = {}
 
-  results.forEach((r) => {
-    values[r._id] = context[r._id]
+  function fillValues (): void {
+    results.forEach((r) => {
+      values[r._id] = getVal(r)
+    })
     values = values
-  })
+  }
+
+  function getVal (res: UserResult): any {
+    if (res.key !== undefined) {
+      return getObjectValue(res.key, doc) ?? context[res._id]
+    }
+    return context[res._id]
+  }
+
+  fillValues()
 
   export function canClose (): boolean {
     return false
@@ -50,7 +64,7 @@
 </script>
 
 <Card
-  width={'small'}
+  width="small"
   on:close
   label={plugin.string.Result}
   canSave={Object.values(values).filter((v) => v != null).length === results.length}

@@ -13,16 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Visibility } from '@hcengineering/calendar'
-  import {
-    Button,
-    ButtonMenu,
-    closeTooltip,
-    DropdownIntlItem,
-    eventToHTMLElement,
-    showPopup,
-    ModernPopup
-  } from '@hcengineering/ui'
+  import type { Visibility } from '@hcengineering/calendar'
+  import type { DropdownIntlItem } from '@hcengineering/ui'
+  import { Button, closeTooltip, eventToHTMLElement, showPopup, ModernPopup } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import calendar from '../plugin'
 
@@ -37,7 +31,7 @@
 
   const dispatch = createEventDispatcher()
 
-  const items: DropdownIntlItem[] = [
+  const items: Array<DropdownIntlItem<Visibility>> = [
     {
       id: 'public',
       label: calendar.string.Public,
@@ -65,6 +59,7 @@
   }
 
   function openPopup (ev: MouseEvent): void {
+    ev.stopPropagation()
     if (!opened) {
       opened = true
       closeTooltip()
@@ -89,11 +84,11 @@
     {size}
     {disabled}
     {focusIndex}
-    id={'visibleButton'}
+    id="visibleButton"
     on:click={openPopup}
   />
 {:else}
-  <ButtonMenu
+  <MenuButton
     icon={withoutIcon ? undefined : (selected?.icon ?? calendar.icon.Hidden)}
     label={selected?.label}
     selected={selected?.id}
@@ -102,7 +97,7 @@
     {size}
     {disabled}
     {focusIndex}
-    id={'visibleButton'}
+    id="visibleButton"
     on:selected={(event) => {
       change(event.detail)
     }}

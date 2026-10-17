@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Employee, getCurrentEmployee } from '@hcengineering/contact'
-  import { Class, flipSet, getObjectValue, Ref } from '@hcengineering/core'
+  import type { Employee } from '@hcengineering/contact'
+  import contact, { getCurrentEmployee } from '@hcengineering/contact'
+  import type { Class, Ref } from '@hcengineering/core'
+  import { flipSet, getObjectValue } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import { CheckBox, createFocusManager, FocusHandler, ListView } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -60,8 +62,8 @@
     },
     (result) => {
       result.sort((a, b) => {
-        const aval: string = `${getObjectValue(groupBy, a as any)}`
-        const bval: string = `${getObjectValue(groupBy, b as any)}`
+        const aval: string = `${getObjectValue(groupBy, a)}`
+        const bval: string = `${getObjectValue(groupBy, b)}`
         return aval.localeCompare(bval)
       })
       persons = result

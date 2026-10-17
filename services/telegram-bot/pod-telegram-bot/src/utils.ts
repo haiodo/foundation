@@ -14,17 +14,23 @@
 //
 
 import otpGenerator from 'otp-generator'
-import { Message } from 'telegraf/typings/core/types/typegram'
+import {
+  Convenience,
+  Message,
+  InputMediaAudio,
+  InputMediaDocument,
+  InputMediaPhoto,
+  InputMediaVideo
+} from 'telegraf/types'
 import { Parser } from 'htmlparser2'
-import { MediaGroup } from 'telegraf/typings/telegram-types'
-import { InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo } from 'telegraf/src/core/types/typegram'
 import { Context, Input } from 'telegraf'
-import { TelegramNotificationQueueMessage } from '@hcengineering/server-telegram'
 import { systemAccountUuid } from '@hcengineering/core'
 import { generateToken } from '@hcengineering/server-token'
 
 import { PlatformFileInfo, TelegramFileInfo } from './types'
 import { PostgresDB } from './db'
+
+type MediaGroup = Convenience.MediaGroup
 
 export async function getNewOtp (db: PostgresDB): Promise<string> {
   let otp = otpGenerator.generate(6, {
@@ -50,7 +56,7 @@ const maxQuoteLength = 500
 const maxBodyLength = 2000
 const maxSenderLength = 100
 
-export function toTelegramHtml (record: TelegramNotificationQueueMessage): {
+export function toTelegramHtml (record: any): {
   full: string
   short: string
 } {
@@ -79,12 +85,12 @@ export function platformToTelegram (message: string, limit: number): string {
   let textLength = 0
   let newMessage = ''
   const openedTags = new Map<
-  string,
-  {
-    count: number
-    hasContent: boolean
-    defaultText: string
-  }
+    string,
+    {
+      count: number
+      hasContent: boolean
+      defaultText: string
+    }
   >()
 
   const parser = new Parser({
@@ -254,12 +260,12 @@ export function toMediaGroups (files: PlatformFileInfo[], fullMessage: string, s
 export async function toTelegramFileInfo (
   ctx: Context,
   message:
-  | Message.CommonMessage
-  | Message.PhotoMessage
-  | Message.VideoMessage
-  | Message.VoiceMessage
-  | Message.VideoNoteMessage
-  | Message.DocumentMessage
+    | Message.CommonMessage
+    | Message.PhotoMessage
+    | Message.VideoMessage
+    | Message.VoiceMessage
+    | Message.VideoNoteMessage
+    | Message.DocumentMessage
 ): Promise<TelegramFileInfo | undefined> {
   try {
     if ('photo' in message) {

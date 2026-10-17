@@ -13,10 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { Button, DropdownLabelsIntl, IconBack, IconForward } from '@hcengineering/ui'
 
-  import { CalendarMode } from '../index'
+  import type { CalendarMode } from '../index'
   import calendar from '../plugin'
 
   export let ddItems: {
@@ -37,12 +37,12 @@
       items={ddItems.map((it) => {
         return { id: it.id, label: it.label, params: it.params }
       })}
-      size={'medium'}
+      size="medium"
       selected={ddItems.find((it) => it.mode === mode)?.id}
       on:selected={(e) => (mode = ddItems.find((it) => it.id === e.detail)?.mode ?? ddItems[0].mode)}
     />
   {/if}
   <Button label={calendar.string.Today} on:click={onToday} />
-  <Button icon={IconBack} kind={'ghost'} on:click={onBack} />
-  <Button icon={IconForward} kind={'ghost'} on:click={onForward} />
+  <Button icon={IconBack} kind="ghost" on:click={onBack} />
+  <Button icon={IconForward} kind="ghost" on:click={onForward} />
 </div>

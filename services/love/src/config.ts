@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -12,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+
+import path from 'path'
+import { normalizeTemplateUrl } from './template/url'
 
 interface Config {
   AccountsURL: string
@@ -31,6 +35,10 @@ interface Config {
   Secret: string
 
   RecordingPreset: string
+  /** This service's `/egress-template/` as egress reaches it; empty uses the built-in `grid` layout. */
+  RecordingTemplateUrl: string
+  /** Bundled template on disk; defaults to `template` next to the service bundle. */
+  RecordingTemplateDir: string
 
   BillingUrl: string
   BillingPollInterval: number
@@ -43,6 +51,9 @@ interface Config {
 
   // Polling configuration
   PollingIntervalMs: number
+  DepartureTimeoutSec: number
+  OwnerRejoinGraceSec: number
+  EgressRequestTimeoutSec: number
 }
 
 const envMap: { [key in keyof Config]: string } = {
@@ -62,6 +73,8 @@ const envMap: { [key in keyof Config]: string } = {
   ServiceID: 'SERVICE_ID',
 
   RecordingPreset: 'RECORDING_PRESET',
+  RecordingTemplateUrl: 'RECORDING_TEMPLATE_URL',
+  RecordingTemplateDir: 'RECORDING_TEMPLATE_DIR',
 
   BillingUrl: 'BILLING_URL',
   BillingPollInterval: 'BILLING_POLL_INTERVAL',
@@ -70,7 +83,10 @@ const envMap: { [key in keyof Config]: string } = {
   WebHookUrl: 'WEBHOOK_URL',
   UseEgressWebHook: 'USE_EGRESS_WEBHOOK',
 
-  PollingIntervalMs: 'POLLING_INTERVAL_MS'
+  PollingIntervalMs: 'POLLING_INTERVAL_MS',
+  DepartureTimeoutSec: 'DEPARTURE_TIMEOUT_SEC',
+  OwnerRejoinGraceSec: 'OWNER_REJOIN_GRACE_SEC',
+  EgressRequestTimeoutSec: 'EGRESS_REQUEST_TIMEOUT_SEC'
 }
 
 const parseNumber = (str: string | undefined): number | undefined => (str !== undefined ? Number(str) : undefined)
@@ -89,14 +105,20 @@ const config: Config = (() => {
     S3StorageConfig: process.env[envMap.S3StorageConfig],
     Secret: process.env[envMap.Secret],
     ServiceID: process.env[envMap.ServiceID] ?? 'love-service',
-    RecordingPreset: process.env[envMap.RecordingPreset] ?? '720p',
+    RecordingPreset: process.env[envMap.RecordingPreset] ?? '1080p',
+    RecordingTemplateUrl: normalizeTemplateUrl(process.env[envMap.RecordingTemplateUrl]),
+    RecordingTemplateDir: process.env[envMap.RecordingTemplateDir] ?? path.join(__dirname, 'template'),
     BillingUrl: process.env[envMap.BillingUrl] ?? '',
     BillingPollInterval: parseNumber(process.env[envMap.BillingPollInterval]) ?? 15,
     UseGlobalLiveKit: process.env[envMap.UseGlobalLiveKit] === 'true',
     Agents: (process.env[envMap.Agents] ?? '').split(','),
     WebHookUrl: process.env[envMap.WebHookUrl] ?? '',
     UseEgressWebHook: process.env[envMap.UseEgressWebHook] === 'true',
-    PollingIntervalMs: parseNumber(process.env[envMap.PollingIntervalMs]) ?? 30000 // Default: 30 seconds
+    PollingIntervalMs: parseNumber(process.env[envMap.PollingIntervalMs]) ?? 10000, // Default: 10 seconds
+    DepartureTimeoutSec: parseNumber(process.env[envMap.DepartureTimeoutSec]) ?? 20,
+    OwnerRejoinGraceSec: parseNumber(process.env[envMap.OwnerRejoinGraceSec]) ?? 15,
+    // A room-composite egress boots Chrome before it answers; the SDK default of 10s expires first.
+    EgressRequestTimeoutSec: parseNumber(process.env[envMap.EgressRequestTimeoutSec]) ?? 30
   }
 
   const optional = ['StorageConfig', 'S3StorageConfig', 'BillingUrl', 'PollingIntervalMs']

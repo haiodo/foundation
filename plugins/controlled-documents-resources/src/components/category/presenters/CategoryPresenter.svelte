@@ -13,9 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentCategory } from '@hcengineering/controlled-documents'
+  import type { DocumentCategory } from '@hcengineering/controlled-documents'
 
-  import { Ref, WithLookup } from '@hcengineering/core'
+  import type { Ref, WithLookup } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import { Icon, tooltip } from '@hcengineering/ui'
@@ -48,7 +48,7 @@
       use:tooltip={{ label: getEmbeddedLabel(category.title) }}
     >
       <div class="icon category-icon">
-        <Icon icon={documents.icon.Document} size={'small'} />
+        <Icon icon={documents.icon.Document} size="small" />
       </div>
       <span class="label fs-bold whitespace-nowrap">{category.code}</span>
     </div>

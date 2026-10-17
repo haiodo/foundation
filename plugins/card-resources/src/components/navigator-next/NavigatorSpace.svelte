@@ -15,8 +15,9 @@
 
 <script lang="ts">
   import { TreeNode } from '@hcengineering/view-resources'
-  import cardPlugin, { MasterTag, CardSpace, Card } from '@hcengineering/card'
-  import { Ref } from '@hcengineering/core'
+  import type { MasterTag, CardSpace, Card } from '@hcengineering/card'
+  import cardPlugin from '@hcengineering/card'
+  import type { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
 
   import NavigatorVariant from './NavigatorVariant.svelte'
@@ -41,7 +42,7 @@
   _id={space._id}
   icon={cardPlugin.icon.Space}
   title={space.name}
-  type={'nested'}
+  type="nested"
   on:dragstart={(evt) => {
     evt.preventDefault()
   }}

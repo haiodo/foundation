@@ -23,8 +23,9 @@
     type Ref
   } from '@hcengineering/core'
   import { translateCB } from '@hcengineering/platform'
-  import { createQuery, KeyedAttribute } from '@hcengineering/presentation'
-  import { TagElement, TagReference } from '@hcengineering/tags'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import { createQuery } from '@hcengineering/presentation'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
   import {
     Button,
     getEventPopupPositionElement,
@@ -90,8 +91,8 @@
       () => {},
       (result) => {
         if (result !== undefined) {
-          if (result.action === 'add') addRef(result.tag)
-          else if (result.action === 'remove') removeTag(items.filter((it) => it.tag === result.tag._id)[0]._id)
+          if (result.action === 'add') void addRef(result.tag)
+          else if (result.action === 'remove') void removeTag(items.filter((it) => it.tag === result.tag._id)[0]._id)
         }
       },
       {
@@ -117,9 +118,9 @@
         {#if !readonly}
           <Button
             icon={IconAdd}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: tags.string.AddTagTooltip, props: { word: keyLabel } }}
-            id={'add-tag'}
+            id="add-tag"
             on:click={addTag}
           />
         {/if}
@@ -156,7 +157,7 @@
                 {schema}
                 action={IconClose}
                 on:action={() => {
-                  removeTag(tag._id)
+                  void removeTag(tag._id)
                 }}
                 on:click={(evt) => {
                   if (schema !== '0') {

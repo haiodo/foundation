@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from './fixtures'
 import { fillSearch, generateId, PlatformSetting, PlatformURI } from './utils'
 import { ContractPage, ButtonAction } from './model/contacts/contract-page'
 
@@ -84,7 +84,8 @@ test.describe('contact tests', () => {
     await contractPage.clickCreateButton()
     await contractPage.waitForFormAntiCardDetached()
     await contractPage.kickEmployee(first, last)
-    // In non refactored code, the last assert just checks if the employee does exist, not if it has inactive status
+    // Unrefactored: the last assert only checks the employee exists, not that it's
+    // inactive.
     await contractPage.expectKickEmployeeShowsInactiveStatus(first, last)
   })
 
@@ -101,7 +102,6 @@ test.describe('contact tests', () => {
     await contractPage.checkIfPersonIsDeleted(first, last, 1)
     await contractPage.personRightClickOption(first, last, ButtonAction.NewApplication)
     await contractPage.addNewApplication('Test Application', 'CR Chen Rosamund')
-    await page.waitForTimeout(1000)
     await contractPage.clickOnEmployee(first, last)
     await contractPage.checkStateApplication('HR Interview')
   })

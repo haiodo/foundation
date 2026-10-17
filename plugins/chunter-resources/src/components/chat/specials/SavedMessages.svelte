@@ -13,27 +13,45 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment, SavedAttachments } from '@hcengineering/attachment'
+  import type { Attachment, SavedAttachments } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
   import { AttachmentPreview, savedAttachmentsStore } from '@hcengineering/attachment-resources'
   import { getName as getContactName } from '@hcengineering/contact'
   import { getPersonByPersonId } from '@hcengineering/contact-resources'
-  import { getDisplayTime, Ref, WithLookup } from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
-  import { Label, Scroller, Lazy } from '@hcengineering/ui'
-  import activity, { ActivityMessage, SavedMessage } from '@hcengineering/activity'
-  import { ActivityMessagePresenter, savedMessagesStore } from '@hcengineering/activity-resources'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import core, { getDisplayTime, SortingOrder } from '@hcengineering/core'
+  import { createQuery, getClient } from '@hcengineering/presentation'
+  import { BlankView, Label, Scroller, Lazy } from '@hcengineering/ui'
+  import type { ActivityMessage, SavedMessage } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
+  import { ActivityMessagePresenter } from '@hcengineering/activity-resources'
 
   import chunter from '../../../plugin'
   import Header from '../../Header.svelte'
   import { openMessageFromSpecial } from '../../../navigation'
-  import BlankView from '../../BlankView.svelte'
 
   const client = getClient()
+  const savedMessagesQuery = createQuery()
 
   let savedMessages: WithLookup<SavedMessage>[] = []
   let savedAttachments: WithLookup<SavedAttachments>[] = []
 
-  $: savedMessages = $savedMessagesStore
+  $: savedMessagesQuery.query(
+    activity.class.SavedMessage,
+    { space: core.space.Workspace },
+    (res) => {
+      savedMessages = res.filter(({ $lookup }) => $lookup?.attachedTo !== undefined)
+    },
+    {
+      lookup: {
+        attachedTo: [
+          activity.class.ActivityMessage,
+          { _id: { attachments: attachment.class.Attachment, reactions: activity.class.Reaction } }
+        ]
+      },
+      sort: { modifiedOn: SortingOrder.Descending }
+    }
+  )
   $: savedAttachments = $savedAttachmentsStore
 
   async function openAttachment (attach?: Attachment): Promise<void> {
@@ -63,9 +81,9 @@
   $: isEmpty = savedMessages.length === 0 && savedAttachments.length === 0
 </script>
 
-<Header icon={chunter.icon.Bookmarks} intlLabel={chunter.string.Saved} titleKind={'breadcrumbs'} withSearch={false} />
+<Header icon={chunter.icon.Bookmarks} intlLabel={chunter.string.Saved} titleKind="breadcrumbs" withSearch={false} />
 
-<Scroller padding={'.75rem .5rem'} bottomPadding={'.75rem'} noStretch={!isEmpty}>
+<Scroller padding=".75rem .5rem" bottomPadding=".75rem" noStretch={!isEmpty}>
   {#if !isEmpty}
     {#each savedMessages as message}
       {#if message.$lookup?.attachedTo}
@@ -75,6 +93,8 @@
           <Lazy>
             <ActivityMessagePresenter
               value={message.$lookup?.attachedTo}
+              timeFormat="full"
+              showChannel
               onClick={() => {
                 handleMessageClicked(message.$lookup?.attachedTo)
               }}

@@ -13,18 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Ref } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Issue, IssueTemplate, Milestone, Project, TrackerEvents } from '@hcengineering/tracker'
+  import type { Issue, IssueTemplate, Milestone, Project } from '@hcengineering/tracker'
+  import { TrackerEvents } from '@hcengineering/tracker'
   import { Analytics } from '@hcengineering/analytics'
-  import {
-    ButtonKind,
-    ButtonShape,
-    ButtonSize,
-    DatePresenter,
-    deviceOptionsStore as deviceInfo
-  } from '@hcengineering/ui'
+  import type { ButtonKind, ButtonShape, ButtonSize } from '@hcengineering/ui'
+  import { DatePresenter, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { createEventDispatcher, afterUpdate } from 'svelte'
   import { activeMilestone } from '../../issues'
   import tracker from '../../plugin'
@@ -42,6 +38,7 @@
   export let justify: 'left' | 'center' = 'left'
   export let width: string | undefined = '100%'
   export let maxWidth: string | undefined = undefined
+  export let maxLabelWidth: string | undefined = '5rem'
   export let onlyIcon: boolean = false
   export let isAction: boolean = false
 
@@ -105,7 +102,7 @@
         {popupPlaceholder}
         {onlyIcon}
         {enlargedText}
-        maxLabelWidth={'5rem'}
+        {maxLabelWidth}
         space={_space}
         short={compression}
         showTooltip={{ label: value.milestone ? tracker.string.MoveToMilestone : tracker.string.AddToMilestone }}
@@ -152,7 +149,7 @@
     {#if milestone && kind === 'list-header'}
       <div class="flex-row-center" class:minus-margin-space={kind === 'list-header'} class:text-sm={twoRows}>
         {#if milestone}
-          <DatePresenter value={milestone.targetDate} kind={'ghost'} />
+          <DatePresenter value={milestone.targetDate} kind="ghost" />
         {/if}
       </div>
     {/if}

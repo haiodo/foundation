@@ -13,11 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Contact } from '@hcengineering/contact'
+  import type { Contact } from '@hcengineering/contact'
   import type { Class, DocumentQuery, Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import { Button, ButtonKind, ButtonSize, Label, showPopup, TooltipAlignment } from '@hcengineering/ui'
+  import type { ButtonKind, ButtonSize, TooltipAlignment } from '@hcengineering/ui'
+  import { Button, Label, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { ContactPresenter } from '..'
   import contact from '../plugin'
@@ -89,7 +90,7 @@
         {#if contacts.length === 1}
           <ContactPresenter value={contacts[0]} disabled />
         {:else}
-          <CombineAvatars {_class} bind:items size={'inline'} hideLimit />
+          <CombineAvatars {_class} bind:items size="inline" hideLimit />
           <span class="overflow-label ml-1-5">
             <Label label={contact.string.NumberMembers} params={{ count: contacts.length }} />
           </span>

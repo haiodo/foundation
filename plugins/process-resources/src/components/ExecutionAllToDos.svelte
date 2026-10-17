@@ -15,7 +15,7 @@
 <script lang="ts">
   import contact from '@hcengineering/contact'
   import { createQuery } from '@hcengineering/presentation'
-  import { Execution, ProcessToDo } from '@hcengineering/process'
+  import type { Execution, ProcessToDo } from '@hcengineering/process'
   import time from '@hcengineering/time'
   import { Component } from '@hcengineering/ui'
   import plugin from '../plugin'
@@ -42,9 +42,9 @@
     <div class="flex-row-center flex-gap-2">
       <Component
         is={contact.component.EmployeePresenter}
+        disabled
         props={{
           value: todo.user,
-          disabled: true,
           avatarSize: 'card',
           shouldShowName: false,
           shouldShowPlaceholder: true

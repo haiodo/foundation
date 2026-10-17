@@ -21,16 +21,18 @@
   let loading = true
   let defaultStartWithTranscription = false
   let defaultStartWithRecording = false
+  let defaultStartPrivate = false
 
   const client = getClient()
   let existingOfficeSettings: OfficeSettings[] = []
   const query = createQuery()
 
-  $: query.query((setting.class as any).OfficeSettings, {}, (set) => {
-    existingOfficeSettings = set as unknown as OfficeSettings[]
+  $: query.query(setting.class.OfficeSettings, {}, (set) => {
+    existingOfficeSettings = set
     if (existingOfficeSettings !== undefined && existingOfficeSettings.length > 0) {
       defaultStartWithTranscription = existingOfficeSettings[0].defaultStartWithTranscription ?? false
       defaultStartWithRecording = existingOfficeSettings[0].defaultStartWithRecording ?? false
+      defaultStartPrivate = existingOfficeSettings[0].defaultStartPrivate ?? false
     }
     loading = false
   })
@@ -41,13 +43,14 @@
     const newSettings = {
       defaultStartWithTranscription: enabled,
       defaultStartWithRecording,
+      defaultStartPrivate,
       enabled: true
     }
     if (existingOfficeSettings.length === 0) {
-      await client.createDoc((setting.class as any).OfficeSettings, core.space.Workspace, newSettings)
+      await client.createDoc(setting.class.OfficeSettings, core.space.Workspace, newSettings)
     } else {
       await client.updateDoc(
-        (setting.class as any).OfficeSettings,
+        setting.class.OfficeSettings,
         core.space.Workspace,
         existingOfficeSettings[0]._id,
         newSettings
@@ -61,13 +64,35 @@
     const newSettings = {
       defaultStartWithTranscription,
       defaultStartWithRecording: enabled,
+      defaultStartPrivate,
       enabled: true
     }
     if (existingOfficeSettings.length === 0) {
-      await client.createDoc((setting.class as any).OfficeSettings, core.space.Workspace, newSettings)
+      await client.createDoc(setting.class.OfficeSettings, core.space.Workspace, newSettings)
     } else {
       await client.updateDoc(
-        (setting.class as any).OfficeSettings,
+        setting.class.OfficeSettings,
+        core.space.Workspace,
+        existingOfficeSettings[0]._id,
+        newSettings
+      )
+    }
+  }
+
+  async function toggleDefaultPrivate (e: CustomEvent<boolean>): Promise<void> {
+    const enabled = e.detail
+    defaultStartPrivate = enabled
+    const newSettings = {
+      defaultStartWithTranscription,
+      defaultStartWithRecording,
+      defaultStartPrivate: enabled,
+      enabled: true
+    }
+    if (existingOfficeSettings.length === 0) {
+      await client.createDoc(setting.class.OfficeSettings, core.space.Workspace, newSettings)
+    } else {
+      await client.updateDoc(
+        setting.class.OfficeSettings,
         core.space.Workspace,
         existingOfficeSettings[0]._id,
         newSettings
@@ -77,8 +102,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb label={settingsRes.string.OfficeSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb label={settingsRes.string.OfficeSettings} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__column content">
     {#if loading}
@@ -86,7 +111,7 @@
         <!-- Loading... -->
       </div>
     {:else}
-      <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
+      <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content flex-col flex-gap-4">
           <div class="title"><Label label={settingsRes.string.OfficeDefaultSettings} /></div>
 
@@ -107,6 +132,16 @@
                 on={defaultStartWithRecording}
                 on:change={(e) => {
                   void toggleDefaultRecording(e)
+                }}
+              />
+            </div>
+
+            <div class="flex-row-center flex-gap-4">
+              <Label label={settingsRes.string.DefaultStartPrivate} />
+              <Toggle
+                on={defaultStartPrivate}
+                on:change={(e) => {
+                  void toggleDefaultPrivate(e)
                 }}
               />
             </div>

@@ -13,22 +13,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    Breadcrumb,
-    Header,
-    IconAdd,
-    IconCheck,
-    Label,
-    Loading,
-    ModernButton,
-    Scroller,
-    showPopup
-  } from '@hcengineering/ui'
+  import { Breadcrumb, Header, IconAdd, IconCheck, Label, Loading, Scroller, showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import setting from '@hcengineering/setting'
   import MailboxEditorModal from './MailboxEditorModal.svelte'
   import { getAccountClient } from '../utils'
   import { onMount } from 'svelte'
-  import { MailboxInfo, MailboxOptions } from '@hcengineering/account-client'
+  import type { MailboxInfo, MailboxOptions } from '@hcengineering/account-client'
   import MailboxItem from './MailboxItem.svelte'
   import { Analytics } from '@hcengineering/analytics'
 
@@ -85,20 +76,14 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
+  <Header adaptive="disabled">
     <Breadcrumb icon={setting.icon.Mailbox} label={setting.string.Mailboxes} size="large" isCurrent />
     <svelte:fragment slot="actions">
       {#if mailboxOptions !== undefined && mailboxOptions.availableDomains.length > 0}
         {#if mailboxes.length >= mailboxOptions.maxMailboxCount}
-          <ModernButton
-            kind="secondary"
-            icon={IconCheck}
-            label={setting.string.MailboxLimitReached}
-            size="small"
-            disabled
-          />
+          <Button kind="secondary" icon={IconCheck} label={setting.string.MailboxLimitReached} size="small" disabled />
         {:else}
-          <ModernButton
+          <Button
             kind="primary"
             icon={IconAdd}
             label={setting.string.CreateMailbox}
@@ -114,7 +99,7 @@
     <div class="hulyComponent-content__column p-6">
       {#if boxesLoading || optionsLoading}
         <Loading />
-      {:else if mailboxOptions !== undefined && mailboxOptions.availableDomains.length === 0}
+      {:else if mailboxOptions?.availableDomains.length === 0}
         <div class="hulyComponent-content__empty">
           <Label label={setting.string.MailboxNoDomains} />
         </div>

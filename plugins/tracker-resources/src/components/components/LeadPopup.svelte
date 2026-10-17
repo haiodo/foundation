@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Employee } from '@hcengineering/contact'
+  import type { Employee } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
   import { Label } from '@hcengineering/ui'
   import tracker from '../../plugin'
@@ -23,7 +23,7 @@
 
 <div class="root">
   <div class="icon">
-    <Avatar person={lead} size={'medium'} name={lead.name} />
+    <Avatar person={lead} size="medium" name={lead.name} />
   </div>
   <div class="textContainer">
     <div class="title">

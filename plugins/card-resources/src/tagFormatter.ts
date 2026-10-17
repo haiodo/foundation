@@ -23,12 +23,8 @@ function isIntlString (value: unknown): value is IntlString {
 }
 
 /**
- * Whether the attribute corresponds to the tags column (CardTagsColored).
- *
- * Supports:
- * - key === 'tags' (explicit tags attribute)
- * - key === '$lookup.attachedTo' with displayProps.key === 'tags'
- * - key === '' with label ending in ':Tags' (e.g. system viewlets configured with CardTagsColored)
+ * Whether the attribute is the tags column (CardTagsColored): key 'tags',
+ * '$lookup.attachedTo' with displayProps.key 'tags', or '' with a ':Tags' label.
  */
 export function isTagsColumn (attr: AttributeModel): boolean {
   if (attr.key === 'tags' || (attr.key === '$lookup.attachedTo' && attr.displayProps?.key === 'tags')) {
@@ -52,7 +48,7 @@ export function getCardTagMixins (card: Card, hierarchy: Hierarchy): Array<Ref<C
   return hierarchy
     .getDescendants(parentClass)
     .filter((m) => hierarchy.getClass(m).kind === ClassifierKind.MIXIN && hierarchy.hasMixin(card, m)) as Array<
-  Ref<Class<Doc>>
+    Ref<Class<Doc>>
   >
 }
 
@@ -79,10 +75,8 @@ export async function formatCardTagsForMarkdown (
 }
 
 /**
- * Value formatter for Tag and for the card tags column.
- * - Card + tags column: return formatCardTagsForMarkdown.
- * - Card otherwise: return undefined (let formatCardValue handle it).
- * - Tag-derived doc: format by title / $lookup / _class label.
+ * Value formatter for Tag and the card tags column: cards + tags column use
+ * formatCardTagsForMarkdown, other cards return undefined, tag docs format by title.
  */
 export async function formatTagValue (
   attr: AttributeModel,
@@ -123,7 +117,7 @@ export async function formatTagValue (
         if (typeof lookupLabel === 'string' && isIntlString(lookupLabel)) {
           return await translate(lookupLabel, {}, language)
         }
-        return String(lookupLabel)
+        return JSON.stringify(lookupLabel)
       }
       if (typeof classValue === 'string') {
         const cl = hierarchy.getClass(classValue as Ref<Class<Doc>>)
@@ -150,7 +144,7 @@ export async function formatTagValue (
     if (typeof classLabel === 'string' && isIntlString(classLabel)) {
       return await translate(classLabel, {}, language)
     }
-    return String(classLabel)
+    return JSON.stringify(classLabel)
   }
   const classRef = rec._class
   if (typeof classRef === 'string') {

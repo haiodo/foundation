@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { Button, Grid, IconArrowRight, eventToHTMLElement, showPopup } from '@hcengineering/ui'
-  import { Component, Issue, Project } from '@hcengineering/tracker'
+  import type { Component, Issue, Project } from '@hcengineering/tracker'
 
-  import { IssueToUpdate } from '../../../utils'
+  import type { IssueToUpdate } from '../../../utils'
   import ComponentPresenter from '../../components/ComponentPresenter.svelte'
   import ComponentReplacementPopup from './ComponentReplacementPopup.svelte'
 
@@ -34,12 +34,12 @@
   <Grid rowGap={0.25} topGap>
     <div class="flex-between min-h-11">
       <ComponentPresenter value={current} disabled />
-      <IconArrowRight size={'small'} fill={'var(--theme-halfcontent-color)'} />
+      <IconArrowRight size="small" fill="var(--theme-halfcontent-color)" />
     </div>
     <div class="flex-row-center min-h-11">
       <Button
-        size={'large'}
-        width={'min-content'}
+        size="large"
+        width="min-content"
         on:click={(event) => {
           showPopup(
             ComponentReplacementPopup,

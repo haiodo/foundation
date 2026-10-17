@@ -288,7 +288,7 @@
 </script>
 
 <div class="toDos-container">
-  <Header type={'type-panel'} hideSeparator adaptive={'disabled'}>
+  <Header type="type-panel" hideSeparator adaptive="disabled">
     <div class="heading-bold-20 ml-4">
       {#if mode === 'date'}
         {getDateStr(currentDate)}

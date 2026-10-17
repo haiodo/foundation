@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import { Doc } from '@hcengineering/core'
+  import type { Doc } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Button, showPopup } from '@hcengineering/ui'
   import calendar from '../plugin'
@@ -57,8 +57,8 @@
 </script>
 
 <Button
-  size={'medium'}
-  kind={'ghost'}
+  size="medium"
+  kind="ghost"
   icon={calendar.icon.Reminder}
   showTooltip={{ label: isEvent ? calendar.string.RemindMeAt : calendar.string.Reminders }}
   on:click={(e) => click(e)}

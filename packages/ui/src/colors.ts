@@ -254,6 +254,32 @@ export function getPlatformColorDef (hash: number | number[], darkTheme: boolean
 }
 
 /**
+ * First usable palette color, in priority order.
+ * Skips null (getPlatformColorDef(null) is palette[0], red) and strings (emoji and blob refs share the field).
+ * @public
+ */
+export function resolvePaletteColor (
+  ...colors: Array<number | number[] | string | null | undefined>
+): number | number[] | undefined {
+  for (const color of colors) {
+    if (color != null && typeof color !== 'string') return color
+  }
+  return undefined
+}
+
+/**
+ * Palette definition for a stored color, undefined when the color is not a palette index.
+ * @public
+ */
+export function getPaletteColorDef (
+  color: number | number[] | string | null | undefined,
+  darkTheme: boolean
+): ColorDefinition | undefined {
+  const resolved = resolvePaletteColor(color)
+  return resolved !== undefined ? getPlatformColorDef(resolved, darkTheme) : undefined
+}
+
+/**
  * @public
  */
 export function getPlatformAvatarColorDef (hash: number, darkTheme: boolean): ColorDefinition {
@@ -425,7 +451,6 @@ export function defineAlpha (dark: boolean, color: string, percent = 100): strin
     g: g * p1 + bg.g * (1 - p1),
     b: b * p1 + bg.b * (1 - p1)
   })
-  // return rgb + addZero(Math.round((percent / 100) * 255).toString(16))
 }
 
 /**

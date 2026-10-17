@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
-  import { DocSyncInfo } from '@hcengineering/github'
+  import type { DocSyncInfo } from '@hcengineering/github'
 
   export let issue: DocSyncInfo
   function allowEdit (): void {
@@ -22,9 +22,9 @@
   canSave={true}
 >
   <div class="flex flex-row flex-grow">
-    <div class="flex-row" style={'width: 50%'} style:overflow={'auto'}>
+    <div class="flex-row" style="width: 50%" style:overflow="auto">
       Github Markdown value:
-      <div class="proseCodeBlock select-text flex-row" style={'text-wrap: wrap;'}>
+      <div class="proseCodeBlock select-text flex-row" style="text-wrap: wrap;">
         {#each (issue?.external.body ?? '').split('\n') as line, i}
           <div class="flex">
             <div class="line">
@@ -35,9 +35,9 @@
         {/each}
       </div>
     </div>
-    <div class="flex-row" style={'width: 50%'} style:overflow={'auto'}>
+    <div class="flex-row" style="width: 50%" style:overflow="auto">
       Platform markdown value:
-      <div class="proseCodeBlock select-text flex-col" style={'text-wrap: wrap;'}>
+      <div class="proseCodeBlock select-text flex-col" style="text-wrap: wrap;">
         {#each (issue?.markdown ?? '').split('\n') as line, i}
           <div class="flex">
             <div class="line">

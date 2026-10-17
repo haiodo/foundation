@@ -14,11 +14,13 @@
 -->
 <script lang="ts">
   import type { Person } from '@hcengineering/contact'
-  import core, { Account, generateId, Ref } from '@hcengineering/core'
-  import { OK, Status } from '@hcengineering/platform'
+  import type { Ref } from '@hcengineering/core'
+  import core, { Account, generateId } from '@hcengineering/core'
+  import type { Status } from '@hcengineering/platform'
+  import { OK } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import type { Opinion, Review } from '@hcengineering/recruit'
-  import { Project } from '@hcengineering/task'
+  import type { Project } from '@hcengineering/task'
   import { StyledTextArea } from '@hcengineering/text-editor-resources'
   import { EditBox, Status as StatusControl } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -83,7 +85,7 @@
   label={recruit.string.CreateOpinion}
   okAction={createOpinion}
   canSave={(doc.value ?? '').trim().length > 0}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => {
     dispatch('close')
   }}
@@ -96,5 +98,5 @@
     placeholder={recruit.string.OpinionValuePlaceholder}
     autoFocus
   />
-  <StyledTextArea placeholder={recruit.string.Description} bind:content={doc.description} kind={'emphasized'} />
+  <StyledTextArea placeholder={recruit.string.Description} bind:content={doc.description} kind="emphasized" />
 </Card>

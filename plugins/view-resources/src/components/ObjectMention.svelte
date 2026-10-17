@@ -13,12 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
   import { getResource, translateCB } from '@hcengineering/platform'
   import { createQuery, getClient, IconWithEmoji } from '@hcengineering/presentation'
-  import { AnyComponent, Icon, LabelAndProps, themeStore, tooltip } from '@hcengineering/ui'
+  import { highlightRuns } from '@hcengineering/text'
+  import type { AnyComponent, LabelAndProps } from '@hcengineering/ui'
+  import { Icon, themeStore, tooltip } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import activity, { ActivityMessage } from '@hcengineering/activity'
+  import type { ActivityMessage } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
 
   import { getReferenceLabel } from '@hcengineering/text-editor-resources/src/components/extension/reference'
   import { classIcon } from '../utils'
@@ -33,6 +36,7 @@
   export let disabled: boolean = false
   export let onClick: ((event: MouseEvent) => void) | undefined = undefined
   export let transparent: boolean = false
+  export let highlight: string | undefined = undefined
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
@@ -51,6 +55,7 @@
   let displayTitle = ''
 
   $: displayTitle = docTitle || title || docLabel
+  $: hit = highlight !== undefined && highlightRuns(displayTitle, highlight).some((r) => r.marked)
   $: docComponent = getPanelComponent(parentDoc ?? doc, _class)
 
   $: if (object == null && _class != null && _id != null) {
@@ -120,8 +125,9 @@
   async function updateDocLabel (doc?: Doc, _class?: Ref<Class<Doc>>): Promise<void> {
     const resultClass = doc?._class ?? _class
 
-    if (resultClass != null) {
-      translateCB(hierarchy.getClass(resultClass).label, {}, $themeStore.language, (res) => {
+    const label = resultClass != null ? hierarchy.getClass(resultClass).label : undefined
+    if (label !== undefined) {
+      translateCB(label, {}, $themeStore.language, (res) => {
         docLabel = res
       })
     } else {
@@ -153,7 +159,8 @@
 
 {#if displayTitle}
   <span
-    data-type={'reference'}
+    class:highlighted={hit}
+    data-type="reference"
     data-id={doc?._id}
     data-objectclass={doc?._class}
     data-label={displayTitle}
@@ -172,9 +179,16 @@
     >
       {#if icon}{#if icon === view.ids.IconWithEmoji}<IconWithEmoji
             icon={clazz?.color ?? 0}
-            size={'smaller'}
+            size="smaller"
             inline
-          />{:else}<Icon {icon} size="small" />{/if}{' '}{:else}@{/if}{displayTitle}
+          />{:else}<Icon {icon} size="small" />{/if}&#32;{:else}@{/if}{displayTitle}
     </DocNavLink>
   </span>
 {/if}
+
+<style lang="scss">
+  .highlighted :global(.antiMention) {
+    background-color: var(--tag-nuance-SunshineBackground);
+    color: var(--tag-accent-SunshineText);
+  }
+</style>

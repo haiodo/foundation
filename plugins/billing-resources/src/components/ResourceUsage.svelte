@@ -19,7 +19,7 @@
   import type { DatalakeStatsByType } from '@hcengineering/billing-client'
   import love from '@hcengineering/love'
   import view from '@hcengineering/view'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import StatsCard from './StatsCard.svelte'
   import drivePlugin from '@hcengineering/drive'
   import Category from './Category.svelte'
@@ -89,7 +89,7 @@
 {#await loadBillingData()}
   <Loading />
 {:then _}
-  <Scroller align={'center'} padding={'var(--spacing-2)'} bottomPadding={'var(--spacing-2)'}>
+  <Scroller align="center" padding="var(--spacing-2)" bottomPadding="var(--spacing-2)">
     <div class="hulyComponent-content gapV-4">
       <Category icon={drivePlugin.icon.DriveApplication} label={drivePlugin.string.Drive}>
         <div class="row">
@@ -100,7 +100,12 @@
           <StorageBreakdown
             byType={datalakeByType}
             totalSize={totalDatalakeSize}
-            limit={calculateLimits($subscriptionStore.currentTier).storageLimit}
+            limit={calculateLimits(
+              $subscriptionStore.currentPlan,
+              $subscriptionStore.currentPackage,
+              $subscriptionStore.currentSubscription,
+              $subscriptionStore.currentPackageSubscription
+            )?.storageLimit ?? 0}
           />
         {/if}
       </Category>

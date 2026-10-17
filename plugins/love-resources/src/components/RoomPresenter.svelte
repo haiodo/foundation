@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import love, { Room } from '@hcengineering/love'
-  import { WithLookup } from '@hcengineering/core'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { Room } from '@hcengineering/love'
+  import love from '@hcengineering/love'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { ObjectPresenterType } from '@hcengineering/view'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
   import { tooltip, Icon } from '@hcengineering/ui'
@@ -44,7 +45,7 @@
       <div class="flex-presenter" use:tooltip={{ label: getEmbeddedLabel(roomName) }}>
         {#if shouldShowAvatar}
           <div class="icon">
-            <Icon icon={love.icon.Love} size={'small'} />
+            <Icon icon={love.icon.Love} size="small" />
           </div>
         {/if}
         <div class="label nowrap flex flex-gap-2" class:no-underline={noUnderline || disabled} class:fs-bold={accent}>

@@ -14,7 +14,7 @@
 //
 
 import client, { clientId } from '@hcengineering/client'
-import { type Client, type LoadModelResponse, type Tx } from '@hcengineering/core'
+import { modelTxHashJson, type Client, type LoadModelResponse, type Tx } from '@hcengineering/core'
 import { addLocation, getMetadata, getResource, setMetadata } from '@hcengineering/platform'
 import crypto from 'node:crypto'
 import plugin from './plugin'
@@ -34,7 +34,7 @@ export async function createClient (
   // eslint-disable-next-line
   const WebSocket = require('ws')
 
-  setMetadata(client.metadata.UseBinaryProtocol, true)
+  setMetadata(client.metadata.UseBinaryProtocol, process.env.USE_BINARY_PROTOCOL !== 'false')
   setMetadata(client.metadata.UseProtocolCompression, true)
   setMetadata(client.metadata.ConnectionTimeout, connectTimeout)
 
@@ -53,7 +53,7 @@ export async function createClient (
     const hashes = model.map((it) => {
       const h = crypto.createHash('sha1')
       h.update(prev)
-      h.update(JSON.stringify(it))
+      h.update(modelTxHashJson(it))
       prev = h.digest('hex')
       return prev
     })

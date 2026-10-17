@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { AnyAttribute } from '@hcengineering/core'
+  import type { AnyAttribute } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import presentation, { Card, getAttributePresenterClass, getClient } from '@hcengineering/presentation'
-  import { Process, ProcessFunction } from '@hcengineering/process'
+  import type { Process, ProcessFunction } from '@hcengineering/process'
   import { Button, SelectPopup, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { getCriteriaEditor } from '../../utils'
@@ -94,7 +95,7 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <CriteriasEditor
     _class={presenterClass.attrClass}
     readonly={false}
@@ -106,7 +107,7 @@
   />
   {#if possibleAttrs.length > 0}
     <div class="flex-center mt-4">
-      <Button label={presentation.string.Add} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+      <Button label={presentation.string.Add} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
     </div>
   {/if}
 </Card>

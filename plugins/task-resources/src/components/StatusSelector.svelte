@@ -1,9 +1,12 @@
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import { Class, IdMap, Ref, Status } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Class, IdMap, Ref, Status } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import { DocPopup, getClient } from '@hcengineering/presentation'
-  import { Task, TaskType } from '@hcengineering/task'
+  import type { Task, TaskType } from '@hcengineering/task'
+  import task from '@hcengineering/task'
+  import time from '@hcengineering/time'
   import { getObjectId, ObjectPresenter, statusStore } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import { taskTypeStore } from '..'
@@ -26,8 +29,8 @@
     const docs = Array.isArray(value) ? value : [value]
 
     const ops = client.apply(undefined, 'set-status')
-    const changed = (d: Task) => d.status !== newStatus
-    for (const it of docs.filter(changed)) {
+    const changed = docs.filter((d) => d.status !== newStatus)
+    for (const it of changed) {
       await ops.update(it, { status: newStatus })
     }
     await ops.commit()
@@ -35,6 +38,12 @@
     progress = false
 
     dispatch('close', newStatus)
+
+    const category = $statusStore.byId.get(newStatus)?.category
+    if (category === task.statusCategory.Won || category === task.statusCategory.Lost) {
+      const suggest = await getResource(time.function.SuggestCloseToDos)
+      await suggest(changed.map((d) => d._id))
+    }
     const ids = await getAnalyticsIds(docs)
     Analytics.handleEvent('task.SetStatus', { status: newStatus, objects: ids })
   }

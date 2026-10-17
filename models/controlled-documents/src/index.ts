@@ -62,6 +62,7 @@ import {
   TDocumentSpaceTypeDescriptor,
   TDocumentTemplate,
   TDocumentTraining,
+  TDocumentAttachment,
   TExternalSpace,
   THierarchyDocument,
   TOrgSpace,
@@ -117,6 +118,7 @@ export function createModel (builder: Builder): void {
     THierarchyDocument,
     TDocumentTemplate,
     TDocumentTraining,
+    TDocumentAttachment,
     TDocumentCategory,
     TControlledDocument,
     TChangeControl,
@@ -446,6 +448,10 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(documents.class.DocumentMeta, core.class.Class, view.mixin.ObjectTitle, {
     titleProvider: documents.function.DocumentMetaTitleProvider
+  })
+
+  builder.mixin(documents.class.DocumentMeta, core.class.Class, view.mixin.ReferenceVersionsProvider, {
+    provider: documents.function.DocumentMetaReferenceVersionsProvider
   })
 
   builder.mixin(documents.class.DocumentMeta, core.class.Class, view.mixin.LinkProvider, {
@@ -975,27 +981,6 @@ export function createModel (builder: Builder): void {
     },
     documents.action.DeleteDocument
   )
-
-  // createAction(
-  //   builder,
-  //   {
-  //     action: documents.actionImpl.ArchiveDocument,
-  //     label: view.string.Archive,
-  //     icon: view.icon.Archive,
-  //     input: 'any',
-  //     category: view.category.General,
-  //     target: documents.class.Document,
-  //     visibilityTester: documents.function.CanArchiveDocument,
-  //     query: {
-  //       state: DocumentState.Effective
-  //     },
-  //     context: {
-  //       mode: ['context', 'browser'],
-  //       group: 'remove'
-  //     }
-  //   },
-  //   documents.action.ArchiveDocument
-  // )
 
   createAction(
     builder,

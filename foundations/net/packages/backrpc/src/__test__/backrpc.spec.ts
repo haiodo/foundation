@@ -2,6 +2,7 @@ import { TickManagerImpl, FakeTickManager } from '@hcengineering/network-core'
 import { BackRPCServer } from '../server'
 import { BackRPCClient } from '../client'
 import type { ClientId } from '../types'
+import * as zmq from 'zeromq'
 
 describe('backrpc', () => {
   it('test request/response', async () => {
@@ -646,7 +647,8 @@ describe('backrpc', () => {
     const response2 = await requestPromise
     expect(response2).toBe('response-request2')
 
-    // Verify the request was received at least twice (once before timeout, resent after re-registration)
+    // Verify the request was received at least twice: once before timeout, once resent after
+    // re-registration.
     const delayedRequests = requestsReceived.filter((r) => r.method === 'delayed')
     expect(delayedRequests.length).toBeGreaterThanOrEqual(1)
 
@@ -1486,6 +1488,20 @@ describe('backrpc', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     client.close()
+    await server.close()
+  })
+
+  it('binds a port that is released shortly after start', async () => {
+    const holder = new zmq.Router({ linger: 0 })
+    await holder.bind('tcp://127.0.0.1:0')
+    const port = parseInt((holder.lastEndpoint as string).split(':').pop() as string)
+
+    const server = new BackRPCServer({ requestHandler: async () => {} }, new FakeTickManager(), '127.0.0.1', port)
+    setTimeout(() => {
+      holder.close()
+    }, 100)
+
+    expect(await server.getPort()).toBe(port)
     await server.close()
   })
 })

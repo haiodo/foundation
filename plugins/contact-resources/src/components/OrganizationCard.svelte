@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import attachment from '@hcengineering/attachment'
-  import { Channel, Organization } from '@hcengineering/contact'
+  import type { Channel, Organization } from '@hcengineering/contact'
   import { createQuery } from '@hcengineering/presentation'
   import Avatar from './Avatar.svelte'
   import { Component, Label } from '@hcengineering/ui'
@@ -41,7 +41,7 @@
 <div class="antiContactCard">
   <div class="label uppercase"><Label label={contact.string.Organization} /></div>
   <div class="flex-center logo">
-    <Avatar person={organization} size={'large'} icon={contact.icon.Company} />
+    <Avatar person={organization} size="large" icon={contact.icon.Company} />
   </div>
   {#if organization}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -61,7 +61,7 @@
         <ChannelsEditor
           attachedTo={channels[0].attachedTo}
           attachedClass={channels[0].attachedToClass}
-          length={'short'}
+          length="short"
           editable={false}
         />
       {/if}

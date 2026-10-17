@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,22 +14,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { IdMap, Ref, Status, WithLookup } from '@hcengineering/core'
-  import { ProjectType, TaskType } from '@hcengineering/task'
+  import type { IdMap, Ref, Status, WithLookup } from '@hcengineering/core'
+  import { createQuery } from '@hcengineering/presentation'
+  import type { ProjectType, TaskType } from '@hcengineering/task'
   import { typeStore } from '@hcengineering/task-resources'
-  import { IssueStatus } from '@hcengineering/tracker'
-  import {
-    Button,
-    ButtonKind,
-    ButtonSize,
-    IconSize,
-    SelectPopup,
-    SelectPopupValueType,
-    TooltipAlignment,
-    eventToHTMLElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import type { IssueStatus } from '@hcengineering/tracker'
+  import type { ButtonKind, ButtonSize, IconSize, SelectPopupValueType, TooltipAlignment } from '@hcengineering/ui'
+  import { Button, SelectPopup, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
+  import type { Workflow } from '@hcengineering/workflow'
+  import workflow from '@hcengineering/workflow'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../plugin'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
@@ -37,6 +32,19 @@
   export let value: Ref<IssueStatus> | undefined
   export let type: Ref<ProjectType> | undefined
   export let taskType: Ref<TaskType> | undefined = undefined
+  export let workflowId: Ref<Workflow> | undefined = undefined
+
+  let loadedWorkflow: Workflow | undefined = undefined
+  const workflowQuery = createQuery()
+
+  $: if (workflowId != null) {
+    workflowQuery.query(workflow.class.Workflow, { _id: workflowId }, (res) => {
+      loadedWorkflow = res[0]
+    })
+  } else {
+    workflowQuery.unsubscribe()
+    loadedWorkflow = undefined
+  }
 
   let statuses: WithLookup<IssueStatus>[] | undefined = undefined
 
@@ -61,12 +69,13 @@
     dispatch('change', newStatus)
   }
 
-  $: statuses = getStatuses($statusStore.byId, $typeStore, type)
+  $: statuses = getStatuses($statusStore.byId, $typeStore, type, loadedWorkflow)
 
   function getStatuses (
     statuses: IdMap<Status>,
     types: IdMap<ProjectType>,
-    typeId: Ref<ProjectType> | undefined
+    typeId: Ref<ProjectType> | undefined,
+    wf: Workflow | undefined
   ): IssueStatus[] {
     if (typeId === undefined) return []
     const type = types.get(typeId)
@@ -75,25 +84,32 @@
     if (taskType !== undefined) {
       vals = vals.filter((it) => it.taskType === taskType)
     }
-    return vals
+    let res = vals
       .filter((it, idx, arr) => arr.findIndex((q) => q._id === it._id) === idx)
       .map((p) => statuses.get(p._id))
       .filter((p) => p !== undefined) as IssueStatus[]
+
+    if (wf?.initialStatuses != null && wf.initialStatuses.length > 0) {
+      res = res.filter((s) => wf.initialStatuses?.includes(s._id))
+    }
+
+    return res
   }
 
   function getSelectedStatus (
     statuses: WithLookup<IssueStatus>[] | undefined,
     val: Ref<IssueStatus> | undefined
   ): WithLookup<IssueStatus> | undefined {
-    if (val === undefined) {
-      const st = statuses?.[0]
-      if (st) {
-        value = st._id
-        return st
-      }
-    }
     const current = statuses?.find((status) => status._id === val)
-    return current
+    if (current != null) {
+      return current
+    }
+    const st = statuses?.[0]
+    if (st) {
+      value = st._id
+      return st
+    }
+    return undefined
   }
 
   let statusesInfo: SelectPopupValueType[]

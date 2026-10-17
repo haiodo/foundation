@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { CommonPage } from './common-page'
 import { LinkedChannelTypes } from './types'
+import { retry, retryIntervals } from '../retry'
 
 export class ChannelPage extends CommonPage {
   readonly page: Page
@@ -10,20 +11,29 @@ export class ChannelPage extends CommonPage {
     this.page = page
   }
 
-  readonly inputMessage = (): Locator => this.page.locator('div[class~="text-editor-view"]')
-  readonly buttonSendMessage = (): Locator => this.page.locator('g#Send')
+  // A switched channel or thread fades out over the next one for a moment, inert, its input and messages
+  // still in the DOM (FadeSwap.svelte): only the live ones count.
+  readonly inputMessage = (): Locator => this.page.locator('div[class~="text-editor-view"]:not([inert] *)')
+  // Ancestor button, not the icon: `disabled={!canSubmit}` sits on it (ReferenceInput.svelte),
+  // so only this locator supports toBeEnabled() and Playwright's own disabled-click check.
+  readonly buttonSendMessage = (): Locator => this.page.locator('button:has(g#Send):not([inert] *)')
   readonly textMessage = (messageText: string, strict = false): Locator =>
     strict
-      ? this.page.locator('.hulyComponent .activityMessage div[data-delivered]', { hasText: messageText })
-      : this.page.locator('.hulyComponent .activityMessage', { hasText: messageText })
+      ? this.page.locator('.hulyComponent .activityMessage div[data-delivered]:not([inert] *)', {
+          hasText: messageText
+        })
+      : this.page.locator('.hulyComponent .activityMessage:not([inert] *)', { hasText: messageText })
 
   readonly textMessageInSidebar = (messageText: string, strict = false): Locator =>
     strict
-      ? this.page.locator('#sidebar .activityMessage div[data-delivered]', { hasText: messageText })
-      : this.page.locator('#sidebar .activityMessage', { hasText: messageText })
+      ? this.page.locator('#sidebar .activityMessage div[data-delivered]:not([inert] *)', { hasText: messageText })
+      : this.page.locator('#sidebar .activityMessage:not([inert] *)', { hasText: messageText })
 
+  // The name, then the unread count or nothing: a plain substring also matched `links-x-target` for `links-x`.
   readonly channelName = (channel: string): Locator =>
-    this.page.locator('[data-testid="section-chunter:class:Channel"]').getByRole('button', { name: channel })
+    this.page
+      .locator('[data-testid="section-chunter:class:Channel"]')
+      .getByRole('button', { name: new RegExp(`(^|\\s)${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`, 'i') })
 
   readonly browserTab = (): Locator => this.page.getByRole('link', { name: 'Browser' }).getByRole('button')
   readonly channelsAndDmsTab = (): Locator =>
@@ -43,36 +53,41 @@ export class ChannelPage extends CommonPage {
   readonly chooseChannel = (channel: string): Locator =>
     this.page.locator('div.antiPanel-navigator').getByRole('button', { name: channel })
 
+  readonly openedChannelHeader = (channel: string): Locator =>
+    this.page.locator('.hulyHeader-container .hulyHeader-titleGroup').filter({ hasText: channel }).first()
+
   readonly closePopupWindow = (): Locator => this.page.locator('.notifyPopup button[data-id="btnNotifyClose"]')
   readonly openAddMemberToChannel = (userName: string): Locator => this.page.getByRole('button', { name: userName })
-  readonly addMemberToChannelTableButton = (userName: string): Locator =>
-    this.page.locator('.antiTable-body__row').getByText(userName)
+  readonly addMemberToChannelTableButton = (userName: string, channel: string): Locator =>
+    this.page.locator('.antiTable-body__row', { hasText: channel }).getByText(userName)
 
   readonly addMemberToChannelButton = (userName: string): Locator => this.page.getByText(userName)
-  readonly joinChannelButton = (): Locator => this.page.getByRole('button', { name: 'Join' })
-  readonly addEmojiButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id$="AddReactionAction"]').last()
+  // Scoped to the row: the table lists every public channel of the workspace, and each one this
+  // user is not a member of renders a Join of its own.
+  readonly joinChannelButton = (channel: string): Locator =>
+    this.channelTable().getByRole('row').filter({ hasText: channel }).getByRole('button', { name: 'Join' })
 
   readonly selectEmoji = (emoji: string): Locator => this.page.getByText(emoji)
-  readonly saveMessageButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id$="SaveForLaterAction"]').last()
 
-  readonly pinMessageButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id$="PinMessageAction"]').last()
+  // Action popup exists in DOM for every message and is only visible while that message is hovered,
+  // so it must be scoped to the message instead of picked globally.
+  readonly messageActionButton = (message: string, dataIdSelector: string): Locator =>
+    this.textMessage(message).last().locator(`.activityMessage-actionPopup > button[${dataIdSelector}]`)
 
-  readonly replyButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id="activity:action:Reply"]').last()
-
-  readonly openMoreButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id="btnMoreActions"]').last()
+  // Items of the menu behind the message's "..." button - the non-inline actions live only here.
+  // Exact text: hasText is a substring match, so 'Pin' would also catch 'Unpin'.
+  readonly messageMenuItem = (label: string): Locator =>
+    this.page.locator('.antiPopup button.ap-menuItem').filter({ hasText: new RegExp(`^\\s*${label}\\s*$`) })
 
   readonly messageSaveMarker = (): Locator => this.page.locator('.saveMarker')
-  readonly saveMessageTab = (): Locator => this.page.getByRole('button', { name: 'Saved' })
+  readonly saveMessageTab = (): Locator => this.page.getByRole('button', { name: /^Saved(\s|$)/ })
   readonly pinnedMessageButton = (): Locator => this.page.getByRole('button', { name: 'pinned' })
   readonly pinnedMessage = (message: string): Locator => this.page.locator('.antiPopup').getByText(message)
-  readonly closeReplyButton = (): Locator => this.page.locator('.hulyHeader-container > button.iconOnly')
+  readonly closeReplyButton = (): Locator => this.page.locator('.hulyHeader-container #btnHeaderClose')
   readonly openReplyMessage = (): Locator => this.page.getByText('1 reply Last reply less than')
-  readonly editMessageButton = (): Locator => this.page.getByRole('button', { name: 'Edit' })
+  // `exact`: the name match is a substring one, so any channel in the navigator whose faker name
+  // contains "edit" ("Ampeditd7bac...") is a second match and the click dies on strict mode.
+  readonly editMessageButton = (): Locator => this.page.getByRole('button', { name: 'Edit', exact: true })
   readonly copyLinkButton = (): Locator => this.page.getByRole('button', { name: 'Copy link' })
   readonly deleteMessageButton = (): Locator => this.page.getByRole('button', { name: 'Delete' })
   readonly updateButton = (): Locator => this.page.getByRole('button', { name: 'Update' })
@@ -88,7 +103,7 @@ export class ChannelPage extends CommonPage {
     this.page.locator('div.popup div.menu-item', { hasText: change })
 
   readonly userAdded = (user: string): Locator => this.page.locator('.members').getByText(user)
-  private readonly addMemberPreview = (): Locator => this.page.getByRole('button', { name: 'Add members' })
+  readonly addMemberPreview = (): Locator => this.page.getByRole('button', { name: 'Add members' })
   private readonly addButtonPreview = (): Locator => this.page.getByRole('button', { name: 'Add', exact: true })
 
   readonly inputSearchChannel = (): Locator => this.page.locator('.hulyHeader-container').getByPlaceholder('Search')
@@ -150,7 +165,7 @@ export class ChannelPage extends CommonPage {
     // Using longer intervals since the popup may need time to load data
     await expect(async () => {
       await expect(mentionLocator).toBeVisible({ timeout: 3000 })
-    }).toPass({ intervals: [100, 200, 500, 1000], timeout: timeoutMs })
+    }).toPass({ intervals: retryIntervals, timeout: timeoutMs })
     await mentionLocator.click()
   }
 
@@ -162,9 +177,9 @@ export class ChannelPage extends CommonPage {
     await this.channelName(channel).click()
   }
 
-  async changeChannelName (channel: string): Promise<void> {
+  async changeChannelName (channel: string, newName: string): Promise<void> {
     await this.channelNameOnDetail(channel).click()
-    await this.page.keyboard.type('New Channel Name')
+    await this.page.keyboard.type(newName)
     await this.changeChannelNameConfirm().click()
   }
 
@@ -174,10 +189,15 @@ export class ChannelPage extends CommonPage {
     changed: string,
     autoJoin: boolean = false
   ): Promise<void> {
-    await this.privateOrPublicChangeButton(change, autoJoin).click()
-    await expect(this.privateOrPublicPopupButton(YesNo)).toBeVisible({ timeout: 5000 })
-    await this.privateOrPublicPopupButton(YesNo).click()
-    await expect(this.privateOrPublicChangeButton(changed, autoJoin)).toBeVisible()
+    // The new value lands through a server round trip that can lose the race with the panel
+    // re-render, leaving the old one on the button. Picking the same value again is idempotent.
+    await retry(async () => {
+      if (await this.privateOrPublicChangeButton(changed, autoJoin).isVisible()) return
+      await this.privateOrPublicChangeButton(change, autoJoin).click({ timeout: 5000 })
+      await expect(this.privateOrPublicPopupButton(YesNo)).toBeVisible({ timeout: 5000 })
+      await this.privateOrPublicPopupButton(YesNo).click()
+      await expect(this.privateOrPublicChangeButton(changed, autoJoin)).toBeVisible({ timeout: 5000 })
+    })
   }
 
   async clickDeleteMessageButton (): Promise<void> {
@@ -193,10 +213,22 @@ export class ChannelPage extends CommonPage {
   }
 
   async addMemberToChannelPreview (user: string): Promise<void> {
-    await this.addMemberPreview().click()
-    await this.addMemberToChannelButton(user).click()
-    await this.addButtonPreview().click()
-    await expect(this.userAdded(user)).toBeVisible()
+    const popup = this.page.locator('.hulyModal-container')
+    const item = popup.getByText(user)
+    // A just-joined member can be missing from the popup's loaded list, or listed before their
+    // account is known (Add then adds nobody) - retry pick-add-verify from a reopened popup.
+    await expect(async () => {
+      if ((await this.userAdded(user).count()) > 0) return
+      if (await popup.isVisible()) {
+        await this.page.keyboard.press('Escape')
+        await expect(popup).toBeHidden({ timeout: 5000 })
+      }
+      await this.addMemberPreview().click()
+      await expect(item).toBeVisible({ timeout: 5000 })
+      await item.click()
+      await this.addButtonPreview().click()
+      await expect(this.userAdded(user)).toBeVisible({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 45000 })
   }
 
   async checkIfUserIsAdded (user: string, added: boolean): Promise<void> {
@@ -208,15 +240,26 @@ export class ChannelPage extends CommonPage {
   }
 
   async clickOpenMoreButton (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.openMoreButton().click()
+    await this.clickMessageAction(message, 'data-id="btnMoreActions"')
+  }
+
+  // The action popup lives only while the message is hovered, and a re-render drops it.
+  // last(): dozens of specs send 'Test message' here, and the newest is the one just sent.
+  private async clickMessageAction (message: string, dataIdSelector: string): Promise<void> {
+    const button = this.messageActionButton(message, dataIdSelector)
+    await retry(async () => {
+      await this.textMessage(message).last().hover()
+      await expect(button).toBeVisible({ timeout: 2000 })
+      await button.click({ timeout: 5000 })
+    })
   }
 
   async clickEditMessageButton (editedMessage: string): Promise<void> {
     await this.editMessageButton().click()
-    // Wait for the text editor to be focused/ready
+    // Best effort - the result is swallowed and typing works without focus landing here, so a
+    // long timeout only buys waiting.
     await expect(this.inputMessage().locator('div.tiptap'))
-      .toBeFocused({ timeout: 5000 })
+      .toBeFocused({ timeout: 1500 })
       .catch(() => {})
     await this.page.keyboard.type(editedMessage)
   }
@@ -229,54 +272,89 @@ export class ChannelPage extends CommonPage {
     await this.updateButton().click()
   }
 
-  async getClipboardCopyMessage (): Promise<void> {
-    await this.page.evaluate(async () => {
+  async getClipboardCopyMessage (): Promise<string> {
+    return await this.page.evaluate(async () => {
       return await navigator.clipboard.readText()
     })
   }
 
   async checkIfMessageIsCopied (message: string): Promise<void> {
-    expect(this.getClipboardCopyMessage()).toContain(message)
+    expect(await this.getClipboardCopyMessage()).toContain(message)
+  }
+
+  /** The chat is open when its header carries the name; the navigator entry can lag behind. */
+  async waitOpenedChannel (channel: string): Promise<void> {
+    try {
+      await expect(this.openedChannelHeader(channel)).toBeVisible({ timeout: 30000 })
+    } catch (e) {
+      // Cause unconfirmed: name what is open - wrong channel, none, or the right one rendered late.
+      const shown = await this.page.locator('.hulyHeader-container .hulyHeader-titleGroup').allTextContents()
+      throw new Error(`"${channel}" header never appeared; header now shows ${JSON.stringify(shown)}`)
+    }
   }
 
   async clickChooseChannel (channel: string): Promise<void> {
-    await expect(this.chooseChannel(channel)).toBeVisible()
-    await this.chooseChannel(channel).click()
+    // The navigator re-renders while a chat is being added, and the click then waits out the test
+    // on an element that has already been detached.
+    await retry(async () => {
+      await expect(this.chooseChannel(channel)).toBeVisible({ timeout: 5000 })
+      await this.chooseChannel(channel).click({ timeout: 5000 })
+    })
   }
 
   async addEmoji (textMessage: string, emoji: string): Promise<void> {
-    await this.textMessage(textMessage).hover()
-    await this.addEmojiButton().click()
+    await this.clickMessageAction(textMessage, 'data-id$="AddReactionAction"')
     await this.selectEmoji(emoji).click()
   }
 
   async saveMessage (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.saveMessageButton().click()
+    await this.clickMessageAction(message, 'data-id$="SaveForLaterAction"')
     await expect(this.messageSaveMarker()).toBeVisible()
   }
 
+  async removeMessageFromSaved (message: string): Promise<void> {
+    await this.clickMessageAction(message, 'data-id$="RemoveFromLaterAction"')
+  }
+
   async pinMessage (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.pinMessageButton().click()
+    await this.clickOpenMoreButton(message)
+    await this.messageMenuItem('Pin').click()
+    await expect(this.page.locator('.antiPopup')).toHaveCount(0)
     await this.pinnedMessageButton().click()
     await expect(this.pinnedMessage(message)).toBeVisible()
+    await this.pressEscape()
+  }
+
+  async unpinMessage (message: string): Promise<void> {
+    await this.clickOpenMoreButton(message)
+    await this.messageMenuItem('Unpin').click()
+    await expect(this.page.locator('.antiPopup')).toHaveCount(0)
+  }
+
+  async checkPinnedMessage (message: string, pinned: boolean): Promise<void> {
+    if (pinned) {
+      await expect(this.pinnedMessageButton()).toBeVisible()
+      await this.pinnedMessageButton().click()
+      await expect(this.pinnedMessage(message)).toBeVisible()
+      await this.pressEscape()
+    } else {
+      await expect(this.pinnedMessageButton()).toHaveCount(0)
+    }
   }
 
   async replyMessage (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.replyButton().click()
+    await this.clickMessageAction(message, 'data-id="activity:action:Reply"')
   }
 
   async sendReply (messageReply: string): Promise<void> {
     // First click on the sidebar input to ensure it's focused
-    await this.page.locator('#sidebar div.text-editor-view').click()
+    await this.page.locator('#sidebar div.text-editor-view:not([inert] *)').click()
     await this.page.keyboard.type(messageReply)
     await this.page.keyboard.press('Enter')
     // Wait for the message to appear in sidebar with retry
     await expect(async () => {
       await expect(this.textMessageInSidebar(messageReply, true)).toBeVisible({ timeout: 5000 })
-    }).toPass({ intervals: [100, 200, 500], timeout: 15000 })
+    }).toPass({ intervals: retryIntervals, timeout: 15000 })
   }
 
   async closeAndOpenReplyMessage (): Promise<void> {
@@ -293,16 +371,16 @@ export class ChannelPage extends CommonPage {
     await this.closePopupWindow().click()
   }
 
-  async clickOnUser (user: string): Promise<void> {
-    await this.addMemberToChannelTableButton(user).click()
+  async clickOnUser (user: string, channel: string): Promise<void> {
+    await this.addMemberToChannelTableButton(user, channel).click()
   }
 
   async addMemberToChannel (user: string): Promise<void> {
     await this.openAddMemberToChannel(user).click()
   }
 
-  async clickJoinChannelButton (): Promise<void> {
-    await this.joinChannelButton().click()
+  async clickJoinChannelButton (channel: string): Promise<void> {
+    await this.joinChannelButton(channel).click()
   }
 
   async getChannelsGroupLocatorByType (channelType: LinkedChannelTypes, channelName: string): Promise<Locator> {
@@ -327,7 +405,13 @@ export class ChannelPage extends CommonPage {
   async checkIfChannelTableExist (channel: string, publicChannel: boolean): Promise<void> {
     if (publicChannel) {
       await expect(this.channelTable()).toBeVisible()
-      await expect(this.channelTable()).toContainText(channel)
+      // Cells render lazily as rows scroll into view (`Table.svelte` rowLimit), sorted by modifiedOn: other
+      // workers' channels push this one below the rendered rows, so scroll until it renders.
+      await expect(async () => {
+        if ((await this.channelTable().textContent())?.includes(channel) === true) return
+        await this.channelTable().locator('tbody tr').last().scrollIntoViewIfNeeded()
+        throw new Error(`channel ${channel} is not rendered in the table`)
+      }).toPass({ intervals: retryIntervals, timeout: 15000 })
     } else {
       await expect(this.channelTable()).not.toContainText(channel)
     }
@@ -368,9 +452,23 @@ export class ChannelPage extends CommonPage {
 
   async makeActionWithChannelInMenu (channelName: string, action: string): Promise<void> {
     await this.openNavigator()
+    const item = this.channelContainers().filter({ hasText: channelName })
+    // A click that misses the "..." button lands on the row and opens the channel, and that location
+    // change closes the menu just opened. Retry until the menu shows the action; picking it toggles, so not in here.
+    await retry(async () => {
+      if (await this.popupSpanLabel(action).isVisible()) return
+      await item.hover()
+      await item.locator('.hulyNavItem-actions button.action').last().click({ timeout: 5000 })
+      await expect(this.popupSpanLabel(action)).toBeVisible({ timeout: 3000 })
+    })
+    await this.selectFromDropdown(this.page, action)
+  }
+
+  async openChannelSubmenuInMenu (channelName: string, action: string): Promise<void> {
+    await this.openNavigator()
     await this.channelContainers().filter({ hasText: channelName }).hover()
     await this.channelContainers().filter({ hasText: channelName }).locator('.hulyNavItem-actions').click()
-    await this.selectFromDropdown(this.page, action)
+    await this.openSubmenu(action)
   }
 
   async checkChannelStarred (shouldExist: boolean, channelName: string): Promise<void> {

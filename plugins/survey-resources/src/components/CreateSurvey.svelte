@@ -15,9 +15,10 @@
 //
 -->
 <script lang="ts">
-  import { Data, generateId } from '@hcengineering/core'
+  import type { Data } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
-  import { Survey } from '@hcengineering/survey'
+  import type { Survey } from '@hcengineering/survey'
   import { createFocusManager, EditBox, FocusHandler } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import survey from '../plugin'
@@ -59,7 +60,7 @@
 >
   <div class="flex-row-center">
     <div class="flex-grow flex-col">
-      <EditBox placeholder={survey.string.Name} bind:value={name} kind={'large-style'} autoFocus focusIndex={1} />
+      <EditBox placeholder={survey.string.Name} bind:value={name} kind="large-style" autoFocus focusIndex={1} />
     </div>
   </div>
 </Card>

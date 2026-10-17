@@ -14,31 +14,29 @@
 //
 
 // Mock electron app before importing config
-const mockApp = {
-  getPath: jest.fn((name: string) => {
-    if (name === 'userData') {
-      return '/mock/userData'
-    }
-    return `/mock/${name}`
-  }),
-  getName: jest.fn(() => 'TestApp')
-}
+import { readPackedConfig, PackedConfig } from '../../main/config'
+import * as fs from 'fs'
 
 jest.mock('electron', () => ({
-  app: mockApp
+  app: {
+    getPath: jest.fn((name: string) => {
+      if (name === 'userData') {
+        return '/mock/userData'
+      }
+      return `/mock/${name}`
+    }),
+    getName: jest.fn(() => 'TestApp')
+  }
 }))
 
-// Mock fs module
-const mockFs = {
+jest.mock('fs', () => ({
   existsSync: jest.fn(),
   readFileSync: jest.fn(),
   writeFileSync: jest.fn(),
   mkdirSync: jest.fn()
-}
+}))
 
-jest.mock('fs', () => mockFs)
-
-import { readPackedConfig, PackedConfig } from '../../main/config'
+const mockFs = fs as jest.Mocked<typeof fs>
 
 describe('config', () => {
   let originalResourcesPath: string | undefined
@@ -87,14 +85,14 @@ describe('config', () => {
           updatesChannelKey: 'test'
         }
 
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return false
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/resources/config/config.json') {
             return JSON.stringify(bundledConfig)
           }
@@ -109,7 +107,7 @@ describe('config', () => {
       })
 
       test('does not create userData directory if it does not exist', () => {
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return false
           if (filePath === '/mock/userData/config.json') return false
           if (filePath === '/mock/resources/config/config.json') return true
@@ -145,14 +143,14 @@ describe('config', () => {
           _version: '1.0.0'
         }
 
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return true
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           readCallCount++
           if (filePath === '/mock/userData/config.json') {
             if (readCallCount === 1) {
@@ -205,14 +203,14 @@ describe('config', () => {
           server: 'https://bundled.server.com'
         }
 
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return true
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData/config.json') {
             return JSON.stringify(userDataConfig)
           }
@@ -237,13 +235,13 @@ describe('config', () => {
           updatesChannelKey: 'userdata'
         }
 
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData/config.json') {
             return JSON.stringify(userDataConfig)
           }
@@ -261,14 +259,14 @@ describe('config', () => {
           server: 'https://bundled.server.com'
         }
 
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return false
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/resources/config/config.json') {
             return JSON.stringify(bundledConfig)
           }
@@ -299,14 +297,14 @@ describe('config', () => {
           server: 'https://bundled.server.com'
         }
 
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return true
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData/config.json') {
             // First read fails (corrupted) - this happens in migrateConfigIfNeeded
             // Second read also fails - this happens in readPackedConfig
@@ -327,7 +325,7 @@ describe('config', () => {
       })
 
       test('handles missing bundled config gracefully', () => {
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return false
           if (filePath === '/mock/resources/config/config.json') return false
@@ -345,7 +343,7 @@ describe('config', () => {
       })
 
       test('handles file system errors during migration', () => {
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return false
           if (filePath === '/mock/resources/config/config.json') return true
@@ -380,14 +378,14 @@ describe('config', () => {
         }
 
         let readCallCount = 0
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return true
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           readCallCount++
           if (filePath === '/mock/userData/config.json') {
             if (readCallCount === 1) {
@@ -431,14 +429,14 @@ describe('config', () => {
         }
 
         let readCallCount = 0
-        mockFs.existsSync.mockImplementation((filePath: string) => {
+        mockFs.existsSync.mockImplementation((filePath: any) => {
           if (filePath === '/mock/userData') return true
           if (filePath === '/mock/userData/config.json') return true
           if (filePath === '/mock/resources/config/config.json') return true
           return false
         })
 
-        mockFs.readFileSync.mockImplementation((filePath: string) => {
+        mockFs.readFileSync.mockImplementation((filePath: any) => {
           readCallCount++
           if (filePath === '/mock/userData/config.json') {
             if (readCallCount === 1) {

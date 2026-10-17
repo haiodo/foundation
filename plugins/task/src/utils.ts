@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,25 +15,28 @@
 //
 
 import core, {
+  type AnyAttribute,
   Class,
   ClassifierKind,
   Data,
   Doc,
-  DocumentQuery,
+  generateId,
   Hierarchy,
   IdMap,
-  Ref,
-  Status,
-  TxOperations,
-  type AnyAttribute,
+  notEmpty,
   type Rank,
-  type RefTo
+  Ref,
+  type RefTo,
+  Status,
+  type StatusCategory,
+  TxOperations
 } from '@hcengineering/core'
-import { PlatformError, getEmbeddedLabel, unknownStatus } from '@hcengineering/platform'
-import task, { Project, ProjectStatus, ProjectType, Task, TaskType } from '.'
+import { getEmbeddedLabel, getResource, PlatformError, unknownStatus } from '@hcengineering/platform'
 import { makeRank } from '@hcengineering/rank'
+import task, { Project, ProjectStatus, ProjectType, Task, TaskType, TaskTypeDescriptor } from '.'
 
 export { genRanks, makeRank } from '@hcengineering/rank'
+export * from './transfer'
 
 /**
  * @deprecated Prefer {@link makeRank}
@@ -52,12 +56,17 @@ export function getProjectTypeStates (
   statuses: IdMap<Status>
 ): Status[] {
   if (projectType === undefined) return []
-  return (
-    (types
-      .get(projectType)
-      ?.statuses?.map((p) => statuses.get(p._id))
-      ?.filter((p) => p !== undefined) as Status[]) ?? []
-  )
+  const seen = new Set<Ref<Status>>()
+  const res: Status[] = []
+  for (const p of types.get(projectType)?.statuses ?? []) {
+    if (seen.has(p._id)) continue
+    const status = statuses.get(p._id)
+    if (status !== undefined) {
+      seen.add(p._id)
+      res.push(status)
+    }
+  }
+  return res
 }
 
 /**
@@ -87,15 +96,122 @@ export function getTaskTypeStates (
 
 /**
  * @public
+ * Status categories in the order of the "process states" settings screen.
+ * A function, not a constant: `task` is not initialised yet when this module is first evaluated.
  */
-export function getStatusIndex (type: ProjectType, taskTypes: IdMap<TaskType>, status: Ref<Status>): number {
-  return (
-    type.tasks
-      .map((it) => taskTypes.get(it))
-      .flatMap((it) => it?.statuses.indexOf(status))
-      .filter((it) => (it ?? 0) >= 0)
-      .reduce((p, c) => (p ?? 0) + (c ?? 0), 0) ?? -1
-  )
+export function getStatusCategoryOrder (): Array<Ref<StatusCategory>> {
+  return [
+    task.statusCategory.UnStarted,
+    task.statusCategory.ToDo,
+    task.statusCategory.Active,
+    task.statusCategory.Won,
+    task.statusCategory.Lost
+  ]
+}
+
+/**
+ * @public
+ * Task types sorted the way the project type settings screen lists them (by name).
+ * `ProjectType.tasks` keeps creation order, which the user never sees.
+ */
+export function sortTaskTypesByName (taskTypes: TaskType[]): TaskType[] {
+  return [...taskTypes].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * @public
+ * Task types of a project type in the order the settings screen lists them.
+ */
+export function getOrderedTaskTypes (type: ProjectType | undefined, taskTypes: IdMap<TaskType>): TaskType[] {
+  const res = (type?.tasks ?? []).map((it) => taskTypes.get(it)).filter(notEmpty)
+  return sortTaskTypesByName(res)
+}
+
+/**
+ * @public
+ * Merges the status sequences of the task types into one rank per status that keeps every task type's own
+ * order: a status shared by several task types goes after everything that precedes it in any of them. Ties,
+ * and conflicting orders, resolve by task type order, then by position in that task type.
+ */
+export function mergeStatusOrder (orderedTaskTypes: TaskType[]): Map<Ref<Status>, number> {
+  const keys = new Map<Ref<Status>, [number, number]>()
+  const successors = new Map<Ref<Status>, Set<Ref<Status>>>()
+  const indegree = new Map<Ref<Status>, number>()
+
+  orderedTaskTypes.forEach((taskType, taskTypeIndex) => {
+    const statuses = (taskType.statuses ?? []).filter((it, idx, arr) => arr.indexOf(it) === idx)
+    statuses.forEach((status, statusIndex) => {
+      if (!keys.has(status)) {
+        keys.set(status, [taskTypeIndex, statusIndex])
+        successors.set(status, new Set())
+        indegree.set(status, 0)
+      }
+      if (statusIndex > 0) {
+        const next = successors.get(statuses[statusIndex - 1]) as Set<Ref<Status>>
+        if (!next.has(status)) {
+          next.add(status)
+          indegree.set(status, (indegree.get(status) ?? 0) + 1)
+        }
+      }
+    })
+  })
+
+  const compareKeys = (a: Ref<Status>, b: Ref<Status>): number => {
+    const [aType, aIndex] = keys.get(a) as [number, number]
+    const [bType, bIndex] = keys.get(b) as [number, number]
+    return aType !== bType ? aType - bType : aIndex - bIndex
+  }
+
+  const remaining = new Set(keys.keys())
+  const rank = new Map<Ref<Status>, number>()
+  while (remaining.size > 0) {
+    // The smallest status nothing remaining precedes. Only a cycle (task types disagreeing on the order)
+    // leaves no such status: then the smallest one at all, so task type order wins.
+    let pick: Ref<Status> | undefined
+    for (const status of remaining) {
+      if (indegree.get(status) === 0 && (pick === undefined || compareKeys(status, pick) < 0)) pick = status
+    }
+    if (pick === undefined) {
+      for (const status of remaining) {
+        if (pick === undefined || compareKeys(status, pick) < 0) pick = status
+      }
+    }
+    const picked = pick as Ref<Status>
+    remaining.delete(picked)
+    rank.set(picked, rank.size)
+    for (const next of successors.get(picked) ?? []) {
+      if (remaining.has(next)) indegree.set(next, (indegree.get(next) ?? 1) - 1)
+    }
+  }
+  return rank
+}
+
+/**
+ * @public
+ * Comparator for status refs used by grouped views: by category (`categoryOrder`), then by the merged order
+ * of the task types (`mergeStatusOrder`), then by name. Unknown categories and statuses outside
+ * `orderedTaskTypes` go after the known ones.
+ */
+export function statusOrderComparator (
+  categoryOrder: ReadonlyArray<Ref<StatusCategory>>,
+  orderedTaskTypes: TaskType[],
+  statuses: IdMap<Status>
+): (a: Ref<Status>, b: Ref<Status>) => number {
+  const rank = mergeStatusOrder(orderedTaskTypes)
+  const unknownRank = rank.size
+  const categoryIndex = (status: Status | undefined): number => {
+    const idx = status?.category != null ? categoryOrder.indexOf(status.category) : -1
+    return idx >= 0 ? idx : categoryOrder.length
+  }
+  return (a, b) => {
+    const aVal = statuses.get(a)
+    const bVal = statuses.get(b)
+    const byCategory = categoryIndex(aVal) - categoryIndex(bVal)
+    if (byCategory !== 0) return byCategory
+    const byRank = (rank.get(a) ?? unknownRank) - (rank.get(b) ?? unknownRank)
+    if (byRank !== 0) return byRank
+    return (aVal?.name ?? '').localeCompare(bVal?.name ?? '')
+  }
 }
 
 /**
@@ -104,18 +220,18 @@ export function getStatusIndex (type: ProjectType, taskTypes: IdMap<TaskType>, s
 export async function createState<T extends Status> (
   client: TxOperations,
   _class: Ref<Class<T>>,
-  data: Data<T>
+  data: Data<T>,
+  _id?: Ref<T>
 ): Promise<Ref<T>> {
-  const query: DocumentQuery<Status> = { name: data.name, ofAttribute: data.ofAttribute }
-  if (data.category !== undefined) {
-    query.category = data.category
+  if (_id !== undefined) {
+    const byId = await client.findOne<Status>(_class, { _id })
+    if (byId !== undefined) {
+      return byId._id as Ref<T>
+    }
+    return await client.createDoc(_class, core.space.Model, data, _id)
   }
-  const exists = await client.findOne(_class, query)
-  if (exists !== undefined) {
-    return exists._id as Ref<T>
-  }
-  const res = await client.createDoc(_class, core.space.Model, data)
-  return res
+
+  return await client.createDoc(_class, core.space.Model, data)
 }
 
 /**
@@ -250,6 +366,93 @@ export async function createProjectType (
 }
 
 /**
+ * Adds a new task type of the descriptor with its default statuses, as the "+" in project type settings does.
+ * @public
+ */
+export async function createDefaultTaskType (
+  client: TxOperations,
+  projectType: ProjectType,
+  descriptorId: Ref<TaskTypeDescriptor>,
+  name: string
+): Promise<Ref<TaskType> | undefined> {
+  const descriptor = client.getModel().findAllSync(task.class.TaskTypeDescriptor, { _id: descriptorId })[0]
+  if (descriptor === undefined) return undefined
+
+  const h = client.getHierarchy()
+  const ofClass = descriptor.baseClass
+  const statusAttr = findStatusAttr(h, ofClass)
+  const statusClass = (statusAttr.type as RefTo<Status>).to
+
+  const statusCategories =
+    descriptor.statusCategoriesFunc !== undefined
+      ? (await getResource(descriptor.statusCategoriesFunc))(projectType)
+      : [task.statusCategory.UnStarted, task.statusCategory.Active, task.statusCategory.Won, task.statusCategory.Lost]
+  let statuses =
+    descriptor.defaultStatusesFunc !== undefined ? (await getResource(descriptor.defaultStatusesFunc))(projectType) : []
+  if (statuses.length === 0) {
+    const categories = await client.findAll(core.class.StatusCategory, { _id: { $in: statusCategories } })
+    statuses = []
+    for (const category of statusCategories) {
+      const std = categories.find((it) => it._id === category)
+      if (std === undefined) continue
+      statuses.push(
+        await createState(client, statusClass, { name: std.defaultStatusName, ofAttribute: statusAttr._id, category })
+      )
+    }
+  }
+
+  const taskTypeId = generateId<TaskType>()
+  const ofClassClass = h.getClass(ofClass)
+  // Class for custom fields of the new task type
+  const targetClass = await client.createDoc(core.class.Class, core.space.Model, {
+    extends: ofClass,
+    kind: ClassifierKind.CLASS,
+    label: getEmbeddedLabel(name),
+    icon: ofClassClass.icon,
+    color: ofClassClass.color,
+    shortLabel: ofClassClass.shortLabel,
+    sortingKey: ofClassClass.sortingKey,
+    filteringKey: ofClassClass.filteringKey,
+    titleKey: ofClassClass.titleKey
+  })
+  await client.createMixin(targetClass, core.class.Class, core.space.Model, task.mixin.TaskTypeClass, {
+    taskType: taskTypeId,
+    projectType: projectType._id
+  })
+
+  await client.createDoc(
+    task.class.TaskType,
+    core.space.Model,
+    {
+      name,
+      descriptor: descriptorId,
+      parent: projectType._id,
+      ofClass,
+      targetClass,
+      statuses,
+      statusClass,
+      statusCategories,
+      icon: descriptor.icon,
+      isRootTaskType: true,
+      allowAnyParent: true,
+      allowedAsChildOf: []
+    },
+    taskTypeId
+  )
+
+  await client.update(projectType, {
+    tasks: [...projectType.tasks, taskTypeId],
+    statuses: [
+      ...projectType.statuses,
+      ...statuses
+        .filter((s) => !projectType.statuses.some((it) => it._id === s))
+        .map((s) => ({ _id: s, taskType: taskTypeId }))
+    ]
+  })
+  return taskTypeId
+}
+
+/**
  * @public
  */
 export async function updateProjectType (
@@ -303,7 +506,7 @@ async function createTaskTypes (
     if (skipExisting) {
       const existingOne = existingTaskTypes.find((tt) => tt.ofClass === data.ofClass)
       if (existingOne !== undefined) {
-        // We have similar one, let's check categories
+        // We have similar one, check categories
         continue
       }
     }
@@ -314,6 +517,9 @@ async function createTaskTypes (
       _statues.add(st)
     }
     const tdata = {
+      isRootTaskType: true,
+      allowAnyParent: true,
+      allowedAsChildOf: [],
       ...data,
       parent: _id,
       statuses
@@ -331,18 +537,23 @@ async function createTaskTypes (
       tdata.targetClass = targetClassId
 
       await client.createDoc(
-        core.class.Mixin,
+        core.class.Class,
         core.space.Model,
         {
           extends: data.ofClass,
-          kind: ClassifierKind.MIXIN,
+          kind: ClassifierKind.CLASS,
           label: ofClassClass.label,
-          icon: ofClassClass.icon
+          icon: ofClassClass.icon,
+          color: ofClassClass.color,
+          shortLabel: ofClassClass.shortLabel,
+          sortingKey: ofClassClass.sortingKey,
+          filteringKey: ofClassClass.filteringKey,
+          titleKey: ofClassClass.titleKey
         },
         targetClassId
       )
 
-      await client.createMixin(targetClassId, core.class.Mixin, core.space.Model, task.mixin.TaskTypeClass, {
+      await client.createMixin(targetClassId, core.class.Class, core.space.Model, task.mixin.TaskTypeClass, {
         taskType: taskId,
         projectType: _id
       })
@@ -352,4 +563,55 @@ async function createTaskTypes (
     _tasks.push(taskId)
   }
   return hasUpdates
+}
+
+/**
+ * Returns allowed subtask types for a given parent task type in a project type.
+ *
+ * @public
+ */
+export function getAllowedChildTaskTypes (
+  projectType: Ref<ProjectType>,
+  taskType: Ref<TaskType>,
+  taskTypes: TaskType[]
+): TaskType[] {
+  const scopedTypes = taskTypes.filter((t) => t.parent === projectType)
+
+  return scopedTypes.filter((tt) => {
+    return tt.allowAnyParent === true || (tt.allowedAsChildOf ?? []).includes(taskType)
+  })
+}
+
+/**
+ * Returns allowed parent task types for a given child task type in a project type.
+ *
+ * @public
+ */
+export function getAllowedParentTaskTypes (
+  projectType: Ref<ProjectType>,
+  taskType: Ref<TaskType>,
+  taskTypes: TaskType[]
+): TaskType[] {
+  const scopedTypes = taskTypes.filter((t) => t.parent === projectType)
+  const childTaskType = scopedTypes.find((t) => t._id === taskType)
+
+  if (childTaskType == null) {
+    return []
+  }
+
+  if (childTaskType.allowAnyParent === true) {
+    return scopedTypes
+  }
+
+  const allowedParents = childTaskType.allowedAsChildOf ?? []
+  return scopedTypes.filter((parentTT) => allowedParents.includes(parentTT._id))
+}
+
+/**
+ * Returns task types allowed to be created as root tasks in a project type.
+ *
+ * @public
+ */
+export function getRootTaskTypes (projectType: Ref<ProjectType>, taskTypes: TaskType[]): TaskType[] {
+  return taskTypes.filter((t) => t.parent === projectType && t.isRootTaskType !== false)
 }

@@ -13,15 +13,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getName, Person } from '@hcengineering/contact'
-  import { getEmbeddedLabel, IntlString } from '@hcengineering/platform'
+  import type { Person } from '@hcengineering/contact'
+  import { getName } from '@hcengineering/contact'
+  import type { IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import type { LabelAndProps, IconSize } from '@hcengineering/ui'
-  import { getPersonByPersonRefStore, getPersonTooltip, PersonLabelTooltip } from '..'
+  import type { PersonLabelTooltip } from '..'
+  import { getPersonByPersonRefStore, getPersonTooltip } from '..'
   import PersonContent from './PersonContent.svelte'
   import { getClient } from '@hcengineering/presentation'
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import ui from '@hcengineering/ui'
-  import { ObjectPresenterType } from '@hcengineering/view'
+  import type { ObjectPresenterType } from '@hcengineering/view'
 
   export let value: Ref<Person> | Person | null | undefined
   export let inline = false
@@ -37,7 +40,6 @@
   export let customTooltip: LabelAndProps | undefined = undefined
   export let avatarSize: IconSize = 'x-small'
   export let onEdit: ((event: MouseEvent) => void) | undefined = undefined
-  // export let element: HTMLElement | undefined = undefined
   export let colorInherit: boolean = false
   export let accent: boolean = false
   export let maxWidth = ''
@@ -47,6 +49,9 @@
   export let overflowLabel = true
   export let inlineBlock = false
   export let shrink: boolean = false
+  export let clickable = true
+  export let highlight: string | undefined = undefined
+  export let transparent: boolean = false
 
   const client = getClient()
 
@@ -89,10 +94,13 @@
     showTooltip={customTooltip ?? getTooltip(tooltipLabels, personValue)}
     value={personValue}
     {inline}
+    {highlight}
+    {transparent}
     {onEdit}
     {avatarSize}
     {defaultName}
     {disabled}
+    {clickable}
     {shouldShowAvatar}
     {shouldShowName}
     {shouldShowPlaceholder}

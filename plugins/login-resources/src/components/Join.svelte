@@ -16,7 +16,8 @@
 <script lang="ts">
   import platform, { getMetadata, setMetadata, OK, Severity, Status } from '@hcengineering/platform'
   import { Analytics } from '@hcengineering/analytics'
-  import { type LoginInfo, type WorkspaceLoginInfo } from '@hcengineering/account-client'
+  import type { LoginInfo, WorkspaceLoginInfo } from '@hcengineering/account-client'
+  import { readOnlyGuestAccountUuid } from '@hcengineering/core'
   import presentation from '@hcengineering/presentation'
   import { type Location, getCurrentLocation, navigate, setMetadataLocalStorage } from '@hcengineering/ui'
   import { logIn, workbenchId } from '@hcengineering/workbench'
@@ -46,11 +47,20 @@
   let workspaceName = ''
   let joiningWithCurrentAccount = false
   let invitationExpired = false
+  let noFreeSeats = false
 
   // Login method for existing account
   let loginMethod: LoginMethods = LoginMethods.Password
 
   let status = OK
+
+  function toJoinStatus (joinStatus: Status): Status {
+    if (joinStatus.code === platform.status.PlanLimitExceeded) {
+      noFreeSeats = true
+      return OK
+    }
+    return joinStatus !== OK ? joinStatus : new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+  }
 
   async function handleLoginSuccess (result: WorkspaceLoginInfo): Promise<void> {
     await logIn(result)
@@ -83,11 +93,11 @@
 
     try {
       const inviteId = location.query?.inviteId ?? ''
-      const joinResult = await joinByInvite(inviteId)
+      const [joinStatus, joinResult] = await joinByInvite(inviteId)
       if (joinResult != null) {
         await handleLoginSuccess(joinResult)
       } else {
-        status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        status = toJoinStatus(joinStatus)
       }
     } catch (err: any) {
       Analytics.handleError(err)
@@ -103,11 +113,11 @@
 
     try {
       const inviteId = location.query?.inviteId ?? ''
-      const joinResult = await joinByInvite(inviteId)
+      const [joinStatus, joinResult] = await joinByInvite(inviteId)
       if (joinResult != null) {
         await handleLoginSuccess(joinResult)
       } else {
-        status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        status = toJoinStatus(joinStatus)
         joiningWithCurrentAccount = false
       }
     } catch (err: any) {
@@ -130,6 +140,10 @@
         invitationExpired = true
         return
       }
+      if (info?.seatsAvailable === false) {
+        noFreeSeats = true
+        return
+      }
       if (info?.name != null) {
         workspaceName = info.name
       }
@@ -140,7 +154,8 @@
     try {
       // getAccount will use token from metadata or cookie
       const loginInfo = await getAccount(false)
-      if (loginInfo != null) {
+      // The shared anonymous account can't join: treat it as "not signed in"
+      if (loginInfo != null && loginInfo.account !== readOnlyGuestAccountUuid) {
         hasExistingAccount = true
         existingAccountName = loginInfo.name ?? ''
         // socialId format is "type:value", extract the value part (email)
@@ -184,7 +199,14 @@
   }
 </script>
 
-{#if invitationExpired}
+{#if noFreeSeats}
+  <div class="initial-container">
+    <div class="title mb-2">
+      <Label label={login.string.NoFreeSeats} />
+    </div>
+    <div class="description"><Label label={login.string.NoFreeSeatsDescription} /></div>
+  </div>
+{:else if invitationExpired}
   <div class="initial-container">
     <div class="title mb-2">
       <Label label={login.string.ExpiredLink} />
@@ -196,6 +218,10 @@
     <div class="title"><Label label={login.string.Join} /></div>
     {#if workspaceName !== ''}
       <div class="workspace-name">{workspaceName}</div>
+    {/if}
+
+    {#if status !== OK}
+      <div class="status mt-4"><StatusControl {status} /></div>
     {/if}
 
     <div class="actions">

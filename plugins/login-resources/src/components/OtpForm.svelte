@@ -14,16 +14,17 @@
 -->
 
 <script lang="ts">
-  import { deviceOptionsStore as deviceInfo, TimeLeft, IconBack } from '@hcengineering/ui'
+  import { deviceOptionsStore as deviceInfo, TimeLeft, IconBack, setMetadataLocalStorage } from '@hcengineering/ui'
   import FormButton from './internal/FormButton.svelte'
   import { OK, Severity, Status } from '@hcengineering/platform'
   import Label from './internal/Label.svelte'
   import LoginCodeInput from './internal/LoginCodeInput.svelte'
   import { createEventDispatcher, onDestroy } from 'svelte'
-  import { Timestamp } from '@hcengineering/core'
-  import { LoginInfo } from '@hcengineering/account-client'
+  import type { Timestamp } from '@hcengineering/core'
+  import type { LoginInfo } from '@hcengineering/account-client'
 
-  import { BottomAction, doLoginNavigate, doValidateOtp, OtpLoginSteps, loginOtp, signUpOtp } from '../index'
+  import type { BottomAction } from '../index'
+  import { doLoginNavigate, doValidateOtp, OtpLoginSteps, loginOtp, signUpOtp } from '../index'
   import login from '../plugin'
   import BottomActionComponent from './BottomAction.svelte'
   import StatusControl from './StatusControl.svelte'
@@ -72,6 +73,10 @@
     const otp = otpData.otp1 + otpData.otp2 + otpData.otp3 + otpData.otp4 + otpData.otp5 + otpData.otp6
     const [loginStatus, result] = await doValidateOtp(loginState === 'signup', email, otp, password)
     status = loginStatus
+
+    if (result != null) {
+      setMetadataLocalStorage(login.metadata.AuthEmail, null)
+    }
 
     if (onLogin !== undefined) {
       void onLogin(result, status)
@@ -242,7 +247,7 @@
 <form
   bind:this={formElement}
   class="container"
-  style:padding={$deviceInfo.docWidth <= 480 ? '.25rem 1.25rem' : '1rem 1.5rem'}
+  style:padding={$deviceInfo.docWidth <= 480 ? '1.25rem 1rem' : '1rem 1.5rem'}
 >
   <div class="header">
     <div class="title-row">
@@ -257,7 +262,7 @@
       >
         <IconBack size="small" />
       </FormButton>
-      <div class="title"><Label label={login.string.EnterCode} variant={'heading'} /></div>
+      <div class="title"><Label label={login.string.EnterCode} variant="heading" /></div>
     </div>
     <div class="description">
       <Label label={login.string.SentTo} />
@@ -272,7 +277,7 @@
       {#if index === 3}
         <div class="separator" />
       {/if}
-      <div class={'form-row'}>
+      <div class="form-row">
         <LoginCodeInput
           id={field.id}
           name={field.name}
@@ -337,7 +342,7 @@
     gap: 0.5rem;
   }
 
-  .header .title-row > .form-button {
+  .header .title-row > :global(.form-button) {
     position: absolute;
     left: 0;
     top: 50%;
@@ -373,7 +378,7 @@
   }
 
   .status {
-    height: 2.375rem;
+    min-height: 2.375rem;
   }
 
   .footer {
@@ -400,15 +405,40 @@
   /* Reduce spacing on narrow screens so action buttons fit without changing their size */
   @media (max-width: 600px) {
     .container .form {
-      gap: 0.5rem;
+      gap: 0.375rem;
       margin-top: 1rem;
     }
+    /* Six fixed 60px cells overflow a phone; let each row share the width. */
+    .container .form .form-row {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    /* LoginCodeInput's wrapper must stretch too, or 100% has no basis. */
+    .container .form .form-row > :global(.container) {
+      width: 100%;
+    }
+    .container .form .form-row :global(input) {
+      width: 100%;
+      height: 3.5rem;
+      font-size: 1.5rem;
+    }
     .separator {
-      width: 0.5rem;
+      width: 0.375rem;
     }
     .footer {
       gap: 0.125rem;
       min-height: 3.5rem;
+    }
+    /* The page scrolls as a whole; clipping here would hide content. */
+    .container {
+      overflow: visible;
+    }
+    .header .description {
+      flex-wrap: wrap;
+      font-size: 0.875rem;
+    }
+    .header .email {
+      word-break: break-all;
     }
   }
 

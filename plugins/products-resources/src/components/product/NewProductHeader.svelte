@@ -31,8 +31,8 @@
   <Button
     icon={IconAdd}
     label={products.string.CreateProduct}
-    kind={'primary'}
-    justify={'left'}
+    kind="primary"
+    justify="left"
     width="100%"
     on:click={newProduct}
   />

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Doc } from '@hcengineering/core'
+  import type { Doc } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Button, IconDownOutline, IconUpOutline, navigate } from '@hcengineering/ui'
   import { tick } from 'svelte'
@@ -37,8 +37,8 @@
   <Button
     focusIndex={10005}
     icon={IconDownOutline}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     on:click={async (evt) => {
       await next(evt, true)
     }}
@@ -46,8 +46,8 @@
   <Button
     focusIndex={10006}
     icon={IconUpOutline}
-    kind={'regular'}
-    size={'medium'}
+    kind="regular"
+    size="medium"
     on:click={async (evt) => {
       await next(evt, false)
     }}

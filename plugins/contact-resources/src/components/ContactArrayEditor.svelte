@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { Contact } from '@hcengineering/contact'
-  import { ArrOf, Doc, Ref, RefTo } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { ButtonKind } from '@hcengineering/ui'
+  import type { Contact } from '@hcengineering/contact'
+  import type { ArrOf, Doc, Ref, RefTo } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { ButtonKind } from '@hcengineering/ui'
   import ContactList from './ContactList.svelte'
 
   export let label: IntlString
@@ -29,8 +29,8 @@
   _class={_clazz}
   on:update={onUpdate}
   {kind}
-  size={'medium'}
-  justify={'left'}
+  size="medium"
+  justify="left"
   width={kind === 'list' ? undefined : '100%'}
   {readonly}
 />

@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -24,9 +25,9 @@
   import DatePopup from './DatePopup.svelte'
   import DPCalendar from './icons/DPCalendar.svelte'
   import DPCalendarOver from './icons/DPCalendarOver.svelte'
-  import { daysInMonth, getMonthName } from './internal/DateUtils'
+  import { daysInMonth, formatDate } from './internal/DateUtils'
 
-  export let value: number | null | undefined = null
+  export let value: number | string | Date | null | undefined = null
   export let mode: DateRangeMode = DateRangeMode.DATE
   export let editable: boolean = false
   export let iconModifier: 'overdue' | 'critical' | 'warning' | 'normal' = 'normal'
@@ -291,11 +292,30 @@
   }
 
   export const adaptValue = () => {
-    setCurrentDate(new Date(value ?? Date.now()))
+    let parsedDate: Date | null = null
+    if (typeof value === 'number' && !isNaN(value)) {
+      parsedDate = new Date(value)
+    } else if (typeof value === 'string' && value.trim() !== '') {
+      const ts = Date.parse(value)
+      if (!isNaN(ts)) {
+        parsedDate = new Date(ts)
+      } else {
+        const num = Number(value)
+        if (!isNaN(num)) {
+          parsedDate = new Date(num)
+        }
+      }
+    } else if (value instanceof Date) {
+      parsedDate = value
+    }
+
+    const baseDate = parsedDate != null && !isNaN(parsedDate.getTime()) ? parsedDate : new Date()
+    setCurrentDate(baseDate)
     currentDate?.setSeconds(0, 0)
-    if (value !== null && value !== undefined) {
+
+    if (value !== null && value !== undefined && value !== '' && parsedDate != null && !isNaN(parsedDate.getTime())) {
       dateToEdits()
-    } else if (value === null) {
+    } else {
       setEmptyEdits()
     }
   }
@@ -307,16 +327,12 @@
   <span class:fs-bold={accent}>
     {#if shouldShowAvatar}
       <div class="btn-icon {iconModifier}">
-        <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size={'full'} />
+        <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size="full" />
       </div>
     {/if}
     {#if value !== undefined && value !== null && value.toString() !== ''}
       {#if withDate}
-        {new Date(value).getDate()}
-        {getMonthName(new Date(value), 'short')}
-        {#if new Date(value).getFullYear() !== today.getFullYear()}
-          {new Date(value).getFullYear()}
-        {/if}
+        {formatDate(new Date(value), new Date(value).getFullYear() !== today.getFullYear())}
       {/if}
       {#if withTime}
         {#if withDate}
@@ -476,22 +492,18 @@
             unfocus(ev, closeBtn)
           }}
         >
-          <Icon icon={IconClose} size={'x-small'} />
+          <Icon icon={IconClose} size="x-small" />
         </div>
       {/if}
     {:else}
       {#if shouldShowAvatar}
         <div class="btn-icon {iconModifier}">
-          <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size={'full'} />
+          <Icon icon={iconModifier === 'overdue' && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size="full" />
         </div>
       {/if}
       {#if value !== undefined && value !== null && value.toString() !== ''}
         {#if withDate}
-          {new Date(value).getDate()}
-          {getMonthName(new Date(value), 'short')}
-          {#if new Date(value).getFullYear() !== today.getFullYear()}
-            {new Date(value).getFullYear()}
-          {/if}
+          {formatDate(new Date(value), new Date(value).getFullYear() !== today.getFullYear())}
         {/if}
         {#if withTime}
           {#if withDate}

@@ -13,16 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Organization } from '@hcengineering/contact'
-  import { Doc, DocumentQuery, Ref } from '@hcengineering/core'
-  import { Asset, IntlString } from '@hcengineering/platform'
-  import { Vacancy, VacancyList } from '@hcengineering/recruit'
-  import { AnySvelteComponent, Icon, tooltip } from '@hcengineering/ui'
+  import type { Organization } from '@hcengineering/contact'
+  import type { Doc, DocumentQuery, Ref } from '@hcengineering/core'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import type { Vacancy, VacancyList } from '@hcengineering/recruit'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { Icon, tooltip } from '@hcengineering/ui'
 
   export let value: VacancyList
   export let values:
-  | Map<Ref<Organization>, { count: number, modifiedOn: number, vacancies: Ref<Vacancy>[] }>
-  | undefined
+    | Map<Ref<Organization>, { count: number, modifiedOn: number, vacancies: Ref<Vacancy>[] }>
+    | undefined
   export let resultQuery: DocumentQuery<Doc>
 
   export let label: IntlString
@@ -42,7 +43,7 @@
     }}
   >
     <div class="icon">
-      <Icon {icon} size={'small'} />
+      <Icon {icon} size="small" />
     </div>
     &nbsp;
     {values?.get(value._id)?.count ?? 0}

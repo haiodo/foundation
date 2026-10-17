@@ -1,4 +1,4 @@
-FROM haiodo/front-base:v20260504
+FROM intabiafusion/front-base:v20260917
 WORKDIR /app
 
 COPY bundle/bundle.js ./

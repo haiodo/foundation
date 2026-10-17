@@ -54,6 +54,10 @@
     "RemovedAttachment": "Ek kaldırıldı",
     "ContentType": "İçerik türü",
     "OpenInWindow": "Pencerede aç",
-    "Embeddings": "Gömülü içerikler"
+    "Embeddings": "Gömülü içerikler",
+    "Transcribing": "Deşifre ediliyor...",
+    "TranscriptionFailed": "Deşifre başarısız",
+    "Play": "Oynat",
+    "Pause": "Duraklat"
   }
 }

@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import platform, { IntlString, PlatformError } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
+  import platform, { PlatformError } from '@hcengineering/platform'
   import ui, { Button, EditBox, IconClose, Label, IconError } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
-  import { type Integration } from '@hcengineering/account-client'
+  import type { Integration } from '@hcengineering/account-client'
   import { isValidPhoneNumber } from 'libphonenumber-js'
   import { Analytics } from '@hcengineering/analytics'
 
@@ -132,7 +133,6 @@
                   close(number)
                 }
               }
-              // secondary: { label: telegram.string.Disconnect }
             }
           }
 
@@ -248,7 +248,7 @@
         close()
       }}
     >
-      <IconClose size={'small'} />
+      <IconClose size="small" />
     </div>
   </div>
 
@@ -280,7 +280,7 @@
       <Label label={telegram.string.IntegrationConnected} params={{ phone: state.hint }} />
     {:else if state.mode === 'Error'}
       <div class="flex-row-top flex-gap-1 gap-3 pt-2">
-        <IconError size={'medium'} />
+        <IconError size="medium" />
         {#if state.errorLabel !== undefined}
           <Label label={state.errorLabel} />
         {:else}
@@ -293,7 +293,7 @@
       {#if state.buttons?.primary}
         <Button
           label={state.buttons.primary.label}
-          kind={'primary'}
+          kind="primary"
           loading={isLoading}
           disabled={state.buttons.primary.disabled}
           on:click={state.buttons.primary.handler}

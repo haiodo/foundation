@@ -13,11 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AnyAttribute, Doc, getObjectValue } from '@hcengineering/core'
+  import type { AnyAttribute, Doc } from '@hcengineering/core'
+  import { getObjectValue } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { getClient, updateAttribute } from '@hcengineering/presentation'
   import { CheckBox, Component, IconCircles, tooltip, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
-  import { AttributeModel } from '@hcengineering/view'
+  import type { AttributeModel } from '@hcengineering/view'
   import { createEventDispatcher, onMount } from 'svelte'
   import view from '../../plugin'
   import GrowPresenter from './GrowPresenter.svelte'
@@ -53,7 +54,7 @@
   const client = getClient()
 
   function onChange (value: any, doc: Doc, key: string, attribute: AnyAttribute) {
-    updateAttribute(client, doc, doc._class, { key, attr: attribute }, value)
+    void updateAttribute(client, doc, doc._class, { key, attr: attribute }, value)
   }
 
   function getOnChange (docObject: Doc, attribute: AttributeModel) {
@@ -84,7 +85,7 @@
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
   bind:this={elem}
-  class="listGrid antiList__row row flex-gap-2 flex-grow"
+  class="listGrid antiList__row row flex-gap-1 flex-grow"
   class:compactMode
   class:checking={checked}
   class:mListGridSelected={selected}
@@ -103,7 +104,7 @@
 >
   <div class="draggable-container">
     <div class="draggable-mark">
-      <IconCircles size={'small'} />
+      <IconCircles size="small" />
     </div>
   </div>
   <div class="flex-center relative mr-1" use:tooltip={{ label: view.string.Select, direction: 'bottom' }}>
@@ -111,7 +112,7 @@
       <div class="antiList-cells__checkCell">
         <CheckBox
           {checked}
-          size={'medium'}
+          size="medium"
           on:value={(event) => {
             dispatch('check', { docs: [docObject], value: event.detail })
           }}
@@ -187,7 +188,7 @@
   {/each}
   {#if compactMode && needCompact}
     <div class="panel-trigger" tabindex="-1">
-      <IconCircles size={'small'} />
+      <IconCircles size="small" />
     </div>
     <div class="hidden-panel" tabindex="-1">
       <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -197,9 +198,9 @@
           ev.currentTarget.blur()
         }}
       >
-        <IconCircles size={'small'} />
+        <IconCircles size="small" />
       </div>
-      <div class="scroll-box gap-2">
+      <div class="scroll-box gap-1">
         {#if mobile}
           {#each model.filter((p) => p.displayProps?.suffix === true) as attrModel}
             <ListPresenter

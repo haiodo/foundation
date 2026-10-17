@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -17,14 +18,12 @@
 import { Analytics } from '@hcengineering/analytics'
 import core, {
   AccountRole,
-  ClassifierKind,
   DocManager,
   Hierarchy,
   SortingOrder,
   TxProcessor,
   getCurrentAccount,
   getObjectValue,
-  type AggregateValue,
   type AnyAttribute,
   type ApplyOperations,
   type Association,
@@ -59,7 +58,7 @@ import core, {
   type WithLookup
 } from '@hcengineering/core'
 import { type Restrictions } from '@hcengineering/guest'
-import type { Asset, IntlString } from '@hcengineering/platform'
+import type { Asset, IntlString, Resource } from '@hcengineering/platform'
 import { getEmbeddedLabel, getMetadata, getResource, translate } from '@hcengineering/platform'
 import presentation, {
   createQuery,
@@ -68,10 +67,10 @@ import presentation, {
   getFiltredKeys,
   getRawLiveQuery,
   hasResource,
-  isAdminUser,
   type KeyedAttribute
 } from '@hcengineering/presentation'
 import { type CollaborationUser } from '@hcengineering/text-editor'
+import workbench, { type Widget, type WidgetTab } from '@hcengineering/workbench'
 import {
   ErrorPresenter,
   getColorNumberByText,
@@ -87,6 +86,7 @@ import {
 } from '@hcengineering/ui'
 import view, {
   AttributeCategoryOrder,
+  type AttributeApplierFn,
   type AttributeCategory,
   type AttributeModel,
   type AttributePresenter,
@@ -101,10 +101,13 @@ import view, {
 import { getAllSocialStringsByPersonRef, getCurrentEmployee } from '@hcengineering/contact'
 import { get, writable } from 'svelte/store'
 
+import { filterDocMixins } from './docMixins'
 import plugin from './plugin'
 import { noCategory } from './viewOptions'
+import { sortNamedCategories } from './categorySorting'
 
 export { getFiltredKeys, isCollectionAttr } from '@hcengineering/presentation'
+export { concatCategories } from './categoryUtils'
 
 /**
  * Define some properties to be used to show component until data is properly loaded.
@@ -163,7 +166,7 @@ export class AggregationManager<T extends Doc> implements IAggregationManager<T>
         (res) => {
           const first = this.docs === undefined
           this.docs = res
-          this.mgr = new DocManager<T>(res as T[])
+          this.mgr = new DocManager<T>(res)
           this.setStore(this.mgr)
           if (!first) {
             this.lqCallback()
@@ -277,6 +280,18 @@ export async function getObjectPreview (client: Client, _class: Ref<Class<Obj>>)
   return presenterMixin?.presenter
 }
 
+/**
+ * Resolve the component used to preview a Doc of `_class` in the right sidebar.
+ * SidebarObjectPreview override -> ObjectPanel -> EditDoc fallback.
+ * @public
+ */
+export function getSidebarObjectComponent (hierarchy: Hierarchy, _class: Ref<Class<Doc>>): AnyComponent {
+  const sidebar = hierarchy.classHierarchyMixin(_class, view.mixin.SidebarObjectPreview)
+  if (sidebar !== undefined) return sidebar.component
+  const panel = hierarchy.classHierarchyMixin(_class, view.mixin.ObjectPanel)
+  return panel?.component ?? view.component.EditDoc
+}
+
 export function getAttrTypePresenter (hierarchy: Hierarchy, type: Type<any>): AnyComponent | undefined {
   const actualMixinClass = view.mixin.AttributePresenter
 
@@ -301,6 +316,31 @@ export function getAttrTypePresenter (hierarchy: Hierarchy, type: Type<any>): An
   }
 }
 
+export function findAttributeApplier (
+  client: Client,
+  _class: Ref<Class<Doc>>,
+  key: string
+): Resource<AttributeApplierFn> | undefined {
+  const model = client.getModel()
+  const exact = model.findAllSync(view.class.AttrApplier, { objectClass: _class, key })[0]
+  if (exact != null) {
+    return exact.applier
+  }
+
+  const hierarchy = client.getHierarchy()
+  const appliers = model.findAllSync(view.class.AttrApplier, { key })
+  const ancestors = hierarchy.getAncestors(_class)
+
+  for (const ancestorClass of ancestors) {
+    const matched = appliers.find((it) => it.objectClass === ancestorClass)
+    if (matched != null) {
+      return matched.applier
+    }
+  }
+
+  return undefined
+}
+
 export function findAttributePresenter (
   client: Client,
   _class: Ref<Class<Obj>>,
@@ -319,9 +359,7 @@ export function findAttributePresenter (
     attribute: attribute._id,
     category
   })[0]
-  if (overridedPresenter === undefined) {
-    overridedPresenter = model.findAllSync(view.class.AttrPresenter, { attribute: attribute._id, category })[0]
-  }
+  overridedPresenter ??= model.findAllSync(view.class.AttrPresenter, { attribute: attribute._id, category })[0]
   if (overridedPresenter !== undefined) {
     return overridedPresenter.component
   }
@@ -517,9 +555,16 @@ export function buildConfigAssociation (config: Array<BuildModelKey | string>): 
 function buildaAssociation (stringKey: string, record: Record<string, any>): void {
   const parts = stringKey.split('$associations.').filter((it) => it.length > 0)
   let curr = record
-  for (let part of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    let part = parts[i]
     if (part.endsWith('.')) {
       part = part.slice(0, -1)
+    }
+    // If the part contains a dot, it has a sub-field suffix (e.g., 'assocId_b.name')
+    // Only take the association identifier part before the dot
+    const dotIndex = part.indexOf('.')
+    if (dotIndex !== -1) {
+      part = part.substring(0, dotIndex)
     }
     if (curr[part] === undefined) {
       curr[part] = {}
@@ -561,7 +606,7 @@ export function buildConfigLookup<T extends Doc> (
     }
   }
   if (existingLookup !== undefined) {
-    // Let's merg
+    // merg
     const _id: ReverseLookup = {
       ...((existingLookup as ReverseLookups)._id ?? {}),
       ...((res as ReverseLookups)._id ?? {})
@@ -627,7 +672,19 @@ async function getRelationPresenter (client: Client, key: BuildModelKey): Promis
   if (parts.length < 2) {
     throw new Error('invalid relation key ' + key.key)
   }
-  const fragments = parts[parts.length - 1].split('_')
+
+  // Find the last association segment
+  let lastAssocIndex = -1
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === '$associations' && i + 1 < parts.length) {
+      lastAssocIndex = i
+    }
+  }
+  if (lastAssocIndex === -1) {
+    throw new Error('invalid relation key ' + key.key)
+  }
+
+  const fragments = parts[lastAssocIndex + 1].split('_')
   const assocId = fragments[0] as Ref<Association>
   const assoc = client.getModel().findObject(assocId)
   if (assoc === undefined) {
@@ -637,6 +694,49 @@ async function getRelationPresenter (client: Client, key: BuildModelKey): Promis
   const name = fragments[1] === 'a' ? assoc.nameA : assoc.nameB
 
   const hierarchy = client.getHierarchy()
+
+  // Check if there are sub-field parts after the last association segment
+  const subFieldParts = parts.slice(lastAssocIndex + 2)
+  if (subFieldParts.length > 0) {
+    // Sub-field key: resolve attribute presenter for the specific field
+    const attrName = subFieldParts.join('.')
+    try {
+      const attribute = hierarchy.getAttribute(_class, attrName)
+      const { attrClass, category } = getAttributePresenterClass(hierarchy, attribute.type)
+      const presenterRef = findAttributePresenter(client, _class, attrName)
+      if (presenterRef !== undefined) {
+        const presenter = await getResource(presenterRef)
+        return {
+          key: key.key,
+          sortingKey: key.key,
+          _class: attrClass,
+          label: attribute.label,
+          presenter,
+          props: key.props,
+          displayProps: key.displayProps,
+          attribute,
+          collectionAttr: category === 'collection',
+          isLookup: true
+        }
+      }
+    } catch {}
+    // Fall through to object presenter if attribute presenter not found
+    const presenterMixin = hierarchy.classHierarchyMixin(_class, view.mixin.ObjectPresenter)
+    if (presenterMixin?.presenter !== undefined) {
+      const presenter = await getResource(presenterMixin.presenter)
+      return {
+        key: key.key,
+        sortingKey: '',
+        _class,
+        label: getEmbeddedLabel(name + ' › ' + subFieldParts.join('.')),
+        presenter,
+        props: key.props,
+        displayProps: key.displayProps,
+        collectionAttr: false,
+        isLookup: true
+      }
+    }
+  }
 
   const presenterMixin = hierarchy.classHierarchyMixin(_class, view.mixin.CollectionPresenter)
   if (presenterMixin?.presenter === undefined) {
@@ -687,7 +787,6 @@ export async function deleteObjects (client: TxOperations, objects: Doc[], skipC
     for (const d of objects) {
       byClass.set(d._class, [...(byClass.get(d._class) ?? []), d])
     }
-    const adminUser = isAdminUser()
     for (const [cl, docs] of byClass.entries()) {
       const realDocs = await client.findAll(cl, { _id: { $in: docs.map((it: Doc) => it._id) } })
       const notAllowed = realDocs.filter((p) => !socialStrings.has(p.createdBy as PersonId))
@@ -695,7 +794,7 @@ export async function deleteObjects (client: TxOperations, objects: Doc[], skipC
       if (notAllowed.length > 0) {
         console.error('You are not allowed to delete this object', notAllowed)
       }
-      if (currentAcc.role === AccountRole.Owner || adminUser) {
+      if (currentAcc.role === AccountRole.Owner) {
         realObjects.push(...realDocs)
       } else {
         realObjects.push(...realDocs.filter((p) => socialStrings.has(p.createdBy as PersonId)))
@@ -724,13 +823,13 @@ export async function deleteObjects (client: TxOperations, objects: Doc[], skipC
 
 export async function canDeleteAsCreator (client: TxOperations, object: Doc): Promise<boolean> {
   const currentAcc = getCurrentAccount()
-  if (currentAcc.role === AccountRole.Owner || isAdminUser()) return true
+  if (currentAcc.role === AccountRole.Owner) return true
   const socialStrings = new Set(await getAllSocialStringsByPersonRef(client, getCurrentEmployee()))
   return socialStrings.has(object.createdBy as PersonId)
 }
 
 export function getMixinStyle (id: Ref<Class<Doc>>, selected: boolean, black: boolean): string {
-  const color = getPlatformColorForText(id as string, black)
+  const color = getPlatformColorForText(id, black)
   return `
     color: ${selected ? '#fff' : 'var(--caption-color)'};
     background: ${color + (selected ? 'ff' : '33')};
@@ -1154,9 +1253,9 @@ export function getCategorySpaces (categories: CategoryType[]): Array<Ref<Space>
     categories
       .filter((it) => typeof it === 'object')
       .reduce<Set<Ref<Space>>>((arr, val) => {
-      val.values.forEach((it) => arr.add(it.space))
-      return arr
-    }, new Set())
+        val.values.forEach((it) => arr.add(it.space))
+        return arr
+      }, new Set())
   )
 }
 
@@ -1173,36 +1272,36 @@ export function getAttributeValue (attribute: AttributeModel, object: Doc, hiera
     )
   }
   if (attribute.key.startsWith(assoc)) {
+    // Check if this is a sub-field key (e.g., $associations.assocId_b.fieldName)
+    const subField = getAssociationSubField(attribute.key)
+    if (subField !== undefined) {
+      return getObjectValue(subField, object)
+    }
     return object
   }
   return getObjectValue(attribute.key, object)
 }
 
-export function concatCategories (arr1: CategoryType[], arr2: CategoryType[]): CategoryType[] {
-  const uniqueValues = new Set<string | number | undefined>()
-  const uniqueObjects = new Map<string | number, AggregateValue>()
-
-  for (const item of arr1) {
-    if (typeof item === 'object') {
-      const id = item.name
-      uniqueObjects.set(id as any, item)
-    } else {
-      uniqueValues.add(item)
+/**
+ * Extract the sub-field name from an association key.
+ * For `$associations.assocId_b.name` returns `name`.
+ * For `$associations.assocId_b` returns undefined.
+ * For `$associations.assocId_b.$associations.assocId2_a.name` returns `name`.
+ */
+function getAssociationSubField (key: string): string | undefined {
+  const parts = key.split('.')
+  // Find the last association segment
+  let lastAssocIndex = -1
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === '$associations' && i + 1 < parts.length) {
+      lastAssocIndex = i
     }
   }
-
-  for (const item of arr2) {
-    if (typeof item === 'object') {
-      const id = item.name
-      if (!uniqueObjects.has(id as any)) {
-        uniqueObjects.set(id as any, item)
-      }
-    } else {
-      uniqueValues.add(item)
-    }
-  }
-
-  return [...uniqueValues, ...uniqueObjects.values()]
+  if (lastAssocIndex === -1) return undefined
+  // Parts after the association id fragment
+  const subFieldParts = parts.slice(lastAssocIndex + 2)
+  if (subFieldParts.length === 0) return undefined
+  return subFieldParts.join('.')
 }
 
 /**
@@ -1216,20 +1315,22 @@ export async function sortCategories (
   viewletDescriptorId?: Ref<ViewletDescriptor>
 ): Promise<any[]> {
   const hierarchy = client.getHierarchy()
+
   const clazz = hierarchy.getClass(attrClass)
   const sortFunc = hierarchy.as(clazz, view.mixin.SortFuncs)
-  if (sortFunc?.func === undefined) {
-    return existingCategories
+  if (sortFunc?.func !== undefined) {
+    const f = await getResource(sortFunc.func)
+    return await f(client, existingCategories, space, viewletDescriptorId)
   }
-  const f = await getResource(sortFunc.func)
-  return await f(client, existingCategories, space, viewletDescriptorId)
+
+  return await sortNamedCategories(client, attrClass, existingCategories)
 }
 
 /**
  * @public
  */
 export function canResolveAttribute<T extends Doc> (
-  hierarchy: Hierarchy,
+  h: Hierarchy,
   _class: Ref<Class<T>>,
   key: string,
   lookup: Lookup<T> | undefined
@@ -1247,9 +1348,13 @@ export function canResolveAttribute<T extends Doc> (
   if (key.length === 0) return true
   const parts = key.split('.')
   if (parts.length === 1) {
-    return hierarchy.findAttribute(_class, key) !== undefined
-  } else if (hierarchy.isDerived(parts[0] as Ref<Class<Doc>>, _class)) {
-    return hierarchy.findAttribute(parts[0] as Ref<Class<Doc>>, parts[1]) !== undefined
+    return h.findAttribute(_class, key) !== undefined
+  } else {
+    const target = parts[0] as Ref<Class<Doc>>
+    const attr = parts[1]
+    if (h.isDerived(target, _class) || (h.isMixin(target) && h.isDerived(_class, h.getBaseClass(target)))) {
+      return h.findAttribute(target, attr) !== undefined
+    }
   }
   return false
 }
@@ -1260,6 +1365,7 @@ export function getKeyLabel<T extends Doc> (
   key: string,
   lookup: Lookup<T> | undefined
 ): IntlString {
+  const h = client.getHierarchy()
   if (key.startsWith('$relation')) {
     // Handle association: $relation.[associationId]
     const parts = key.split('.')
@@ -1277,16 +1383,36 @@ export function getKeyLabel<T extends Doc> (
     const lookupProperty = getLookupProperty(key)
     const lookupKey = { key: lookupProperty[0] }
     return getLookupLabel(client, lookupClass[1], lookupClass[0], lookupKey, lookupProperty[1])
+  } else if (key.startsWith('$associations')) {
+    const parts = key.split('.')
+    if (parts.length < 2) return key as IntlString
+
+    const fragments = parts[1].split('_')
+    const assocId = fragments[0] as Ref<Association>
+    const assoc = client.getModel().findObject(assocId)
+    if (assoc === undefined) return key as IntlString
+
+    const direction = fragments[1]
+    const targetClass = direction === 'a' ? assoc.classA : assoc.classB
+    const assocName = direction === 'a' ? assoc.nameA : assoc.nameB
+
+    if (parts.length > 2) {
+      return getKeyLabel(client, targetClass, parts.slice(2).join('.'), undefined)
+    }
+    return getEmbeddedLabel(assocName)
   } else if (key.length === 0) {
-    const clazz = client.getHierarchy().getClass(_class)
+    const clazz = h.getClass(_class)
     return clazz.label
   } else {
     const parts = key.split('.')
-    if (parts.length === 2 && client.getHierarchy().isDerived(parts[0] as Ref<Class<Doc>>, _class)) {
-      const attribute = client.getHierarchy().getAttribute(parts[0] as Ref<Class<Doc>>, parts[1])
-      return attribute.label
+    if (parts.length === 2) {
+      const target = parts[0] as Ref<Class<Doc>>
+      if (h.isDerived(target, _class) || (h.isMixin(target) && h.isDerived(_class, h.getBaseClass(target)))) {
+        const attribute = h.getAttribute(target, parts[1])
+        return attribute.label
+      }
     }
-    const attribute = client.getHierarchy().getAttribute(_class, key)
+    const attribute = h.getAttribute(_class, key)
     return attribute.label
   }
 }
@@ -1379,7 +1505,7 @@ export function getAdditionalHeader (client: TxOperations, _class: Ref<Class<Doc
   try {
     const hierarchy = client.getHierarchy()
     const presenterMixin = hierarchy.classHierarchyMixin(_class, view.mixin.ListHeaderExtra)
-    return presenterMixin?.presenters?.filter((it) => hasResource(it))
+    return presenterMixin?.presenters?.filter((it) => hasResource(it) === true)
   } catch (e: any) {
     if (((e?.message as string) ?? '').includes('class not found')) {
       return undefined
@@ -1457,6 +1583,33 @@ export async function openDoc (hierarchy: Hierarchy, object: Doc): Promise<void>
   navigate(loc)
 }
 
+/**
+ * Open `doc` in the right sidebar preview widget. The tab id is per document, so a preview tab is
+ * replaced by the next document while kept and pinned tabs survive.
+ * @public
+ */
+export async function openDocInSidebar (doc: Doc): Promise<void> {
+  const client = getClient()
+  const widget = client
+    .getModel()
+    .findAllSync(workbench.class.Widget, { _id: view.ids.PreviewWidget as Ref<Widget> })[0]
+  if (widget === undefined) return
+
+  const name = (await getDocTitle(client, doc._id, doc._class, doc)) ?? doc._class
+  const icon = classIcon(client, doc._class)
+
+  const tab: WidgetTab = {
+    id: `preview_${doc._id}`,
+    objectId: doc._id,
+    objectClass: doc._class,
+    name,
+    icon
+  }
+
+  const createWidgetTab = await getResource(workbench.function.CreateWidgetTab)
+  await createWidgetTab(widget, tab)
+}
+
 export async function openDocFromRef<T extends Doc = Doc> (_class: Ref<Class<T>>, _id: Ref<T>): Promise<boolean> {
   const client = getClient()
   const doc = await client.findOne<Doc>(_class, { _id })
@@ -1532,13 +1685,22 @@ export async function getDocTitle (
 
   const titleProvider = hierarchy.classHierarchyMixin(objectClass, view.mixin.ObjectTitle)
 
-  if (titleProvider === undefined) {
-    return
+  if (titleProvider !== undefined) {
+    const resource = await getResource(titleProvider.titleProvider)
+    const title = await resource(client, objectId, object)
+    if (title !== '') return title
   }
 
-  const resource = await getResource(titleProvider.titleProvider)
+  if (!hierarchy.hasClass(objectClass)) return
+  const titleKey = hierarchy
+    .getAncestors(objectClass)
+    .map((c) => hierarchy.findClass(c)?.titleKey)
+    .find((key) => key !== undefined)
+  if (titleKey == null) return
 
-  return await resource(client, objectId, object)
+  const doc = object ?? (await client.findOne(objectClass, { _id: objectId }, { projection: { [titleKey]: 1 } as any }))
+  const value = (doc as any)?.[titleKey]
+  if (typeof value === 'string' && value.trim() !== '') return value
 }
 
 export async function getDocIdentifier (
@@ -1698,27 +1860,12 @@ export function getDocMixins (
     return []
   }
 
-  const client = getClient()
-  const hierarchy = client.getHierarchy()
-
-  const descendants = hierarchy.getDescendants(core.class.Doc).map((p) => hierarchy.getClass(p))
-  const _class = objectClass ?? object._class
-
-  return descendants.filter(
-    (descendant) =>
-      descendant.kind === ClassifierKind.MIXIN &&
-      !ignoreMixins.has(descendant._id) &&
-      (hierarchy.hasMixin(object, descendant._id) ||
-        (showAllMixins &&
-          hierarchy.isDerived(_class, hierarchy.getBaseClass(descendant._id)) &&
-          (descendant.extends !== undefined && hierarchy.isMixin(descendant.extends)
-            ? hierarchy.hasMixin(object, descendant.extends)
-            : true)))
-  )
+  return filterDocMixins(getClient().getHierarchy(), object, showAllMixins, ignoreMixins, objectClass)
 }
 
-export function classIcon (client: Client, _class: Ref<Class<Obj>>): Asset | undefined {
-  return client.getHierarchy().getClass(_class).icon
+export function classIcon (client: Client, _class: Ref<Class<Obj>> | undefined): Asset | undefined {
+  if (_class == null) return undefined
+  return client.getHierarchy().findClass(_class)?.icon
 }
 
 export const restrictionStore = writable<Restrictions>({
@@ -1735,10 +1882,10 @@ export async function getDocAttrsInfo (
   allowedCollections: string[] = [],
   collectionArrays: string[] = []
 ): Promise<{
-    keys: KeyedAttribute[]
-    inplaceAttributes: string[]
-    editors: Array<{ key: KeyedAttribute, editor: AnyComponent, category: AttributeCategory }>
-  }> {
+  keys: KeyedAttribute[]
+  inplaceAttributes: string[]
+  editors: Array<{ key: KeyedAttribute, editor: AnyComponent, category: AttributeCategory }>
+}> {
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
@@ -1774,6 +1921,11 @@ export async function getDocAttrsInfo (
 }
 
 function getAttrEditor (key: KeyedAttribute, hierarchy: Hierarchy): AnyComponent | undefined {
+  // An editor named on the attribute itself wins over the one its type carries: the type-level
+  // mixin is shared by every attribute of that type, so it is the only way to give one field its
+  // own editor (e.g. a collaborative field that needs more than the standard editor).
+  if (key.attr.editor != null) return key.attr.editor
+
   const attrClass = getAttributePresenterClass(hierarchy, key.attr.type)
   const clazz = hierarchy.getClass(attrClass.attrClass)
   const mix = {

@@ -14,11 +14,12 @@
 -->
 
 <script lang="ts">
-  import { Card, CardSpace, FavoriteCard, MasterTag } from '@hcengineering/card'
-  import { Ref, SortingOrder, Timestamp } from '@hcengineering/core'
-  import { createNotificationContextsQuery, createQuery } from '@hcengineering/presentation'
-  import { Label, NotificationContext, NotificationType } from '@hcengineering/communication-types'
-  import ui, { ModernButton } from '@hcengineering/ui'
+  import type { Card, CardSpace, FavoriteCard, MasterTag } from '@hcengineering/card'
+  import type { Ref, Timestamp } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
+  import { createQuery } from '@hcengineering/presentation'
+  import ui from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
 
   import type { CardsNavigatorConfig } from '../../types'
   import NavigatorType from './NavigatorType.svelte'
@@ -28,16 +29,13 @@
   export let config: CardsNavigatorConfig
   export let applicationId: string
   export let favorites: FavoriteCard[]
-  export let labels: Label[] = []
   export let space: CardSpace | undefined = undefined
   export let selectedType: Ref<MasterTag> | undefined = undefined
   export let selectedCard: Ref<Card> | undefined = undefined
 
   const cardsQuery = createQuery()
-  const notificationContextsQuery = createNotificationContextsQuery()
 
   let cards: Card[] = []
-  let contextByCard = new Map<Ref<Card>, NotificationContext>()
   let isLoading: boolean = true
   let hasMore = false
 
@@ -45,8 +43,6 @@
   $: sort = config.specialSorting?.[type._id] ?? config.defaultSorting ?? 'alphabetical'
 
   let limit = config.limit
-
-  $: ids = (config.labelFilter?.length ?? 0) > 0 ? labels.map((it) => it.cardId) : undefined
 
   function parseLookbackDuration (input: string): Timestamp {
     if (input.length < 2) throw new Error('Invalid duration format')
@@ -71,57 +67,28 @@
     return value * multiplier
   }
 
-  $: cardIds = ids?.filter((it) => !favorites.some((fav) => fav.attachedTo === it))
-
-  $: if ((cardIds && cardIds.length > 0) || (config.labelFilter?.length ?? 0) === 0) {
-    cardsQuery.query<Card>(
-      type._id,
-      {
-        // TODO: Should be join instead of $in. But for now labels and cards in different api.
-        ...(cardIds === undefined ? {} : { _id: { $in: cardIds } }),
-        ...(space !== undefined ? { space: space._id } : {}),
-        ...(config.lookback !== undefined
-          ? { modifiedOn: { $gte: Date.now() - parseLookbackDuration(config.lookback) } }
-          : {})
-      },
-      (res) => {
-        const cardsResult = res
-        hasMore = res.length === limit + 1
-        if (hasMore) {
-          cardsResult.pop()
-        }
-        cards = cardsResult
-        isLoading = false
-      },
-      {
-        limit: limit + 1,
-        sort: sort === 'alphabetical' ? { title: SortingOrder.Ascending } : { modifiedOn: SortingOrder.Descending }
+  $: cardsQuery.query<Card>(
+    type._id,
+    {
+      ...(space !== undefined ? { space: space._id } : {}),
+      ...(config.lookback !== undefined
+        ? { modifiedOn: { $gte: Date.now() - parseLookbackDuration(config.lookback) } }
+        : {})
+    },
+    (res) => {
+      const cardsResult = res
+      hasMore = res.length === limit + 1
+      if (hasMore) {
+        cardsResult.pop()
       }
-    )
-  } else if ((!ids || ids.length === 0) && (config.labelFilter?.length ?? 0) > 0) {
-    isLoading = false
-  }
-
-  $: if (cards.length > 0) {
-    notificationContextsQuery.query(
-      {
-        cardId: cards.map((it) => it._id),
-        notifications: {
-          type: NotificationType.Message,
-          order: SortingOrder.Descending,
-          read: false,
-          limit: 1,
-          total: true
-        }
-      },
-      (res) => {
-        contextByCard = new Map(res.getResult().map((it) => [it.cardId, it]))
-      }
-    )
-  } else {
-    notificationContextsQuery.unsubscribe()
-    contextByCard = new Map()
-  }
+      cards = cardsResult
+      isLoading = false
+    },
+    {
+      limit: limit + 1,
+      sort: sort === 'alphabetical' ? { title: SortingOrder.Ascending } : { modifiedOn: SortingOrder.Descending }
+    }
+  )
 
   $: filteredCards = filterCards(cards, favorites)
   $: sortedCards = filteredCards
@@ -145,47 +112,26 @@
       on:selectCard
     >
       {#each sortedCards as card (card._id)}
-        {@const context = contextByCard.get(card._id)}
         {@const favorite = favorites.find((fav) => fav.attachedTo === card._id)}
-        <NavigatorCard
-          type={type._id}
-          {card}
-          {context}
-          {favorite}
-          {applicationId}
-          {selectedCard}
-          {config}
-          on:selectCard
-        />
+        <NavigatorCard type={type._id} {card} {favorite} {applicationId} {selectedCard} {config} on:selectCard />
       {/each}
 
       <svelte:fragment slot="visible" let:isOpen>
         {@const visibleItem = sortedCards.find(({ _id }) => _id === selectedCard)}
         {#if visibleItem !== undefined && !isOpen}
-          {@const context = contextByCard.get(visibleItem._id)}
           {@const favorite = favorites.find((fav) => fav.attachedTo === visibleItem._id)}
-          <NavigatorCard
-            card={visibleItem}
-            {context}
-            {favorite}
-            {applicationId}
-            {selectedCard}
-            {config}
-            on:selectCard
-          />
+          <NavigatorCard card={visibleItem} {favorite} {applicationId} {selectedCard} {config} on:selectCard />
         {/if}
       </svelte:fragment>
 
       {#if hasMore}
         <div class="show-more">
-          <ModernButton
+          <Button
             label={ui.string.ShowMore}
             kind="tertiary"
             inheritFont
             size="extra-small"
-            on:click={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
+            on:click={() => {
               limit += config.limit
             }}
           />

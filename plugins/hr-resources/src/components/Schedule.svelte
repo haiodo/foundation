@@ -16,14 +16,12 @@
   import { onDestroy } from 'svelte'
   import { CalendarMode } from '@hcengineering/calendar-resources'
   import calendar from '@hcengineering/calendar-resources/src/plugin'
-  import { DocumentQuery, Ref } from '@hcengineering/core'
-  import { Department, Staff } from '@hcengineering/hr'
+  import type { DocumentQuery, Ref } from '@hcengineering/core'
+  import type { Department, Staff } from '@hcengineering/hr'
   import { createQuery } from '@hcengineering/presentation'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import type { TabItem, DropdownIntlItem } from '@hcengineering/ui'
   import {
-    ModernButton,
-    ButtonIcon,
     IconBack,
     IconForward,
     SearchInput,
@@ -37,7 +35,9 @@
     tableToCSV,
     showPopup
   } from '@hcengineering/ui'
-  import view, { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
+  import type { Viewlet, ViewletPreference } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { ViewletSelector, ViewletSettingButton } from '@hcengineering/view-resources'
   import { getCurrentEmployee } from '@hcengineering/contact'
 
@@ -194,10 +194,10 @@
       }}
     />
     <Separator
-      name={'schedule'}
+      name="schedule"
       float={$deviceInfo.navigator.float}
       index={0}
-      color={'transparent'}
+      color="transparent"
       separatorSize={0}
       short
     />
@@ -205,16 +205,16 @@
 
   <div class="hulyComponent" bind:this={replacedPanel}>
     <Header
-      adaptive={'disabled'}
+      adaptive="disabled"
       hideBefore={mode === CalendarMode.Year}
       hideActions={!(mode === CalendarMode.Month && display === 'stats')}
     >
       <svelte:fragment slot="beforeTitle">
         {#if mode === CalendarMode.Month}
           <Switcher
-            name={'schedule-mode-view'}
+            name="schedule-mode-view"
             items={viewslist}
-            kind={'subtle'}
+            kind="subtle"
             selected={display}
             on:select={(result) => {
               if (result.detail !== undefined) display = result.detail.id
@@ -233,7 +233,7 @@
         {/if}
       </svelte:fragment>
 
-      <Breadcrumb icon={hr.icon.HR} label={hr.string.Schedule} size={'large'} isCurrent />
+      <Breadcrumb icon={hr.icon.HR} label={hr.string.Schedule} size="large" isCurrent />
 
       <svelte:fragment slot="search">
         <SearchInput
@@ -246,9 +246,9 @@
       </svelte:fragment>
       <svelte:fragment slot="actions">
         {#if mode === CalendarMode.Month && display === 'stats'}
-          <ModernButton
+          <Button
             label={hr.string.Export}
-            size={'small'}
+            size="small"
             on:click={(evt) => {
               exportTable(evt)
             }}
@@ -258,24 +258,24 @@
     </Header>
     <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
       <div class="flex-row-center flex-gap-2">
-        <ButtonIcon
+        <IconButton
           icon={IconBack}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => {
             inc(-1)
           }}
         />
-        <ModernButton
+        <Button
           label={calendar.string.Today}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => (currentDate = new Date())}
         />
-        <ButtonIcon
+        <IconButton
           icon={IconForward}
-          kind={'tertiary'}
-          size={'small'}
+          kind="tertiary"
+          size="small"
           on:click={() => {
             inc(1)
           }}
@@ -289,9 +289,9 @@
         </div>
       </div>
       <Switcher
-        name={'calendar-mode-view'}
+        name="calendar-mode-view"
         selected={mode === CalendarMode.Month ? 'ModeMonth' : 'ModeYear'}
-        kind={'subtle'}
+        kind="subtle"
         items={[
           { id: 'ModeMonth', labelIntl: calendar.string.ModeMonth },
           { id: 'ModeYear', labelIntl: calendar.string.ModeYear }

@@ -144,7 +144,10 @@ export class GithubWorker implements IntegrationManager {
     this.closing = true
     this.ctx.warn('Closing', { workspace: this.workspace })
     this.triggerSync()
-    await Promise.all([await this.syncPromise, new Promise<void>((resolve) => setTimeout(resolve, 5000))])
+    if (this.syncPromise !== undefined) {
+      await this.syncPromise
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 5000))
 
     this.ctx.warn('Closing Done', { workspace: this.workspace })
     await this.client.close()
@@ -200,19 +203,19 @@ export class GithubWorker implements IntegrationManager {
     return compatible
       ? markup
       : jsonToMarkup({
-        type: MarkupNodeType.doc,
-        content: [
-          {
-            type: MarkupNodeType.markdown,
-            content: [
-              {
-                type: MarkupNodeType.text,
-                text
-              }
-            ]
-          }
-        ]
-      })
+          type: MarkupNodeType.doc,
+          content: [
+            {
+              type: MarkupNodeType.markdown,
+              content: [
+                {
+                  type: MarkupNodeType.text,
+                  text
+                }
+              ]
+            }
+          ]
+        })
   }
 
   async getMarkup (
@@ -444,9 +447,7 @@ export class GithubWorker implements IntegrationManager {
 
     // We need to perform some periodic syncs, like sync users available, sync repo data.
     this.periodicTimer = setInterval(() => {
-      if (this.periodicSyncPromise === undefined) {
-        this.periodicSyncPromise = this.performPeriodicSync()
-      }
+      this.periodicSyncPromise ??= this.performPeriodicSync()
     }, this.periodicSyncInterval)
   }
 
@@ -560,7 +561,7 @@ export class GithubWorker implements IntegrationManager {
   }
 
   async syncUserData (ctx: MeasureContext): Promise<void> {
-    // Let's sync information about users and send some details
+    // Sync user info and send details.
     const accounts = await ctx.with('find-social-id', {}, () =>
       this._client.findAll(contact.class.SocialIdentity, {
         type: SocialIdType.GITHUB
@@ -576,7 +577,7 @@ export class GithubWorker implements IntegrationManager {
     )
     for (const account of accounts) {
       const userAuth = userAuths.find((it) => it.login === account.value)
-      const person = persons.find((it) => account?.attachedTo)
+      const person = persons.find((it) => account.attachedTo != null)
       if (account === undefined || userAuth === undefined || person === undefined) {
         continue
       }
@@ -640,6 +641,7 @@ export class GithubWorker implements IntegrationManager {
       ctx.info('get octokit', { account, recordId: record._id, workspace: this.workspace.uuid })
       if (!(await this.platform.checkRefreshToken(ctx, record))) {
         record.octokit = undefined
+        return undefined
       }
       if (record.octokit !== undefined) {
         return record.octokit
@@ -1046,7 +1048,7 @@ export class GithubWorker implements IntegrationManager {
     const ints = Array.from(this.integrations.values())
     const derivedClient = new TxOperations(this.client, core.account.System, true)
     for (const [repository, docs] of byRepository.entries()) {
-      const integration = ints.find((it) => repositories.find((q) => q._id === repository))
+      const integration = ints.find((it) => repositories.find((q) => q._id === repository) != null)
       if (integration?.octokit === undefined) {
         continue
       }
@@ -1412,7 +1414,7 @@ export class GithubWorker implements IntegrationManager {
 
     const parents = await this._client.findAll<DocSyncInfo>(github.class.DocSyncInfo, {
       space: project._id,
-      url: { $in: syncInfo.map((it) => it.parent?.toLowerCase()).filter((it) => it) as string[] }
+      url: { $in: syncInfo.map((it) => it.parent?.toLowerCase()).filter((it) => it != null && it !== '') as string[] }
     })
 
     // Attached parents, for new documents.
@@ -1430,8 +1432,8 @@ export class GithubWorker implements IntegrationManager {
     const docsMap = new Map<Ref<Doc>, Doc>(externalDocs.map((it) => [it._id as Ref<Doc>, it]))
     const orderedSyncInfo = [...syncInfo]
     orderedSyncInfo.sort((a, b) => {
-      const adoc = docsMap.get(a._id as Ref<Doc>)
-      const bdoc = docsMap.get(a._id as Ref<Doc>)
+      const adoc = docsMap.get(a._id)
+      const bdoc = docsMap.get(a._id)
       return (bdoc?.createdOn ?? 0) - (adoc?.createdOn ?? 0)
     })
 

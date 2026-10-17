@@ -1,0 +1,9 @@
+playwright-report
+test-results/*
+allure-report
+allure-results
+.auth
+screenshots
+playwright-report.json
+step-report.ndjson
+runs

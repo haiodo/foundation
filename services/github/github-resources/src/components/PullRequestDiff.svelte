@@ -6,7 +6,7 @@
   import { createQuery, getClient, getFileUrl } from '@hcengineering/presentation'
   import { Button, Chevron, Component, ExpandCollapse, Label } from '@hcengineering/ui'
   import diffview from '@hcengineering/diffview'
-  import { GithubPatch, GithubPullRequest, GithubPullRequestReview } from '@hcengineering/github'
+  import type { GithubPatch, GithubPullRequest, GithubPullRequestReview } from '@hcengineering/github'
 
   import github from '../plugin'
   import { getCurrentEmployee } from '@hcengineering/contact'
@@ -99,13 +99,7 @@
         }}
       >
         <svelte:fragment slot="content">
-          <Chevron
-            size={'small'}
-            expanded={!isCollapsed}
-            outline
-            fill={'var(--caption-color)'}
-            marginRight={'.375rem'}
-          />
+          <Chevron size="small" expanded={!isCollapsed} outline fill="var(--caption-color)" marginRight=".375rem" />
           <Label label={github.string.ChangedFiles} params={{ files: changedFilesCount }} />
         </svelte:fragment>
       </Button>

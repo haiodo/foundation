@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import tracker, { type Issue } from '@hcengineering/tracker'
 import { type Ref, type TxOperations } from '@hcengineering/core'
 import {
@@ -27,7 +27,8 @@ import {
 } from '../API/TrackerApi'
 import { KanbanBoardPage } from '../model/tracker/kanban-board-page'
 import { PlatformSetting, PlatformURI, generateId } from '../utils'
-import { ViewletSelectors } from './tracker.utils'
+import { retryIntervals } from '../retry'
+import { ViewletSelectors, setViewGroup } from './tracker.utils'
 
 async function openTrackerBoard (page: import('@playwright/test').Page, projectId: string): Promise<void> {
   const projectPath = encodeURIComponent(projectId)
@@ -47,7 +48,66 @@ async function openTrackerBoard (page: import('@playwright/test').Page, projectI
     .waitFor({ state: 'visible', timeout: 10000 })
 }
 
-test.use({ storageState: PlatformSetting })
+// The drop reaches the server in ~100ms, but the status was read *before* the drag and
+// retryIntervals falls back to a 3s tail - three drops cost 44s, 35s of it pure sleep.
+const dragIntervals = [100, 200, 300, 500]
+
+async function dragUntilField (
+  read: () => Promise<string | undefined>,
+  target: string,
+  drag: () => Promise<void>
+): Promise<void> {
+  const status = read
+  let lastError = 'none'
+  const poll = expect.poll(
+    async () => {
+      if ((await status()) === target) return target
+      let threw = false
+      try {
+        await drag()
+      } catch (err) {
+        // The drop can already have landed while findOne still reports the old status - the card
+        // is then gone from the DOM and the drag throws. Let the next read settle it.
+        threw = true
+        lastError = err instanceof Error ? err.message : String(err)
+        console.error('drag failed:', err)
+      }
+      // The drop shows optimistically; wait for the tx before redragging, else it starts from
+      // the new spot and costs scroll time. A failed drag sent nothing - wait the short end.
+      for (const wait of threw ? retryIntervals.slice(0, 3) : retryIntervals) {
+        if ((await status()) === target) return target
+        await new Promise((resolve) => setTimeout(resolve, wait))
+      }
+      return await status()
+    },
+    // Short of the 60s test timeout on purpose: at 60s the runner killed the test before the poll
+    // could report anything, so every one of these flakes arrived as a bare "Test timeout".
+    { timeout: 40000, intervals: dragIntervals }
+  )
+  try {
+    await poll.toBe(target)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(`${msg}\nlast drag error: ${lastError}`)
+  }
+}
+
+async function dragUntilStatus (
+  client: TxOperations,
+  cardId: Ref<Issue>,
+  target: string,
+  drag: () => Promise<void>
+): Promise<void> {
+  await dragUntilField(
+    async () => (await client.findOne(tracker.class.Issue, { _id: cardId }))?.status as string | undefined,
+    target,
+    drag
+  )
+}
+
+// Wide on purpose: with the statuses other specs add, the board needs ~2000px; at 1440 a drag
+// scrolls the board while the pointer is down - the source card unmounts and the drop is lost.
+test.use({ storageState: PlatformSetting, viewport: { width: 2200, height: 1000 } })
 
 test.describe('Kanban board', () => {
   let client: TxOperations
@@ -111,20 +171,11 @@ test.describe('Kanban board', () => {
     const inProgress = ctx.statuses.get('In Progress') as string
     await board.expectCardInColumn(cardId, backlog)
 
-    // Retry the drag if the drop event was lost (HTML5 drag in headless can be flaky
-    // under parallel load). Verify by polling the backend, not just the DOM, since
-    // panelDragOver shows the card in the target column optimistically.
-    await expect
-      .poll(
-        async () => {
-          const current = (await client.findOne(tracker.class.Issue, { _id: cardId }))?.status as string | undefined
-          if (current === ctx.statuses.get('In Progress')) return current
-          await board.dragCardToColumn(cardId, inProgress)
-          return current
-        },
-        { timeout: 30000, intervals: [2000] }
-      )
-      .toBe(ctx.statuses.get('In Progress'))
+    // Retry if the drop event was lost (HTML5 drag in headless can be flaky under load). Poll
+    // the backend, not the DOM - panelDragOver shows the card in the column optimistically.
+    await dragUntilStatus(client, cardId, inProgress, async () => {
+      await board.dragCardToColumn(cardId, inProgress)
+    })
     await board.expectCardInColumn(cardId, inProgress)
   })
 
@@ -167,6 +218,8 @@ test.describe('Kanban board', () => {
   })
 
   test('drag a card across multiple columns sequentially', async ({ page }) => {
+    // Three drags, each retrying until the backend confirms - past the default 60s under load.
+    test.slow()
     const cardId = await createIssue(client, ctx, {
       title: `${titlePrefix}seq-1`,
       status: 'Backlog'
@@ -182,17 +235,9 @@ test.describe('Kanban board', () => {
     await board.expectCardInColumn(cardId, backlog)
 
     for (const target of [todo, inProgress, done]) {
-      await expect
-        .poll(
-          async () => {
-            const current = (await client.findOne(tracker.class.Issue, { _id: cardId }))?.status as string | undefined
-            if (current === target) return current
-            await board.dragCardToColumn(cardId, target)
-            return current
-          },
-          { timeout: 30000, intervals: [2000] }
-        )
-        .toBe(target)
+      await dragUntilStatus(client, cardId, target, async () => {
+        await board.dragCardToColumn(cardId, target)
+      })
       await board.expectCardInColumn(cardId, target)
     }
   })
@@ -238,16 +283,8 @@ test.describe('Kanban board', () => {
   })
 
   test.describe('Swim lanes', () => {
-    test.afterEach(async ({ page }) => {
-      try {
-        await openTrackerBoard(page, ctx.project._id)
-        const board = new KanbanBoardPage(page)
-        await board.setSwimLane('None')
-      } catch {
-        // best effort
-      }
-    })
-
+    // No reset between tests: view options live in the page's localStorage, and every test gets a fresh
+    // context from the shared storage state, so a swim lane set here cannot reach the next test.
     test('appear when grouping by Priority', async ({ page }) => {
       await createIssue(client, ctx, { title: `${titlePrefix}sw-pri-1`, status: 'Backlog' })
       await createIssue(client, ctx, { title: `${titlePrefix}sw-pri-2`, status: 'Todo' })
@@ -298,17 +335,9 @@ test.describe('Kanban board', () => {
         .getAttribute('data-swimlane-id')
       expect(stableLaneId).not.toBeNull()
       if (stableLaneId === null) return
-      await expect
-        .poll(
-          async () => {
-            const current = (await client.findOne(tracker.class.Issue, { _id: stable }))?.status as string | undefined
-            if (current === ctx.statuses.get('Todo')) return current
-            await board.dragCardToSwimLaneCell(stable, stableLaneId, ctx.statuses.get('Todo') as string)
-            return current
-          },
-          { timeout: 30000, intervals: [2000] }
-        )
-        .toBe(ctx.statuses.get('Todo'))
+      await dragUntilStatus(client, stable, ctx.statuses.get('Todo') as string, async () => {
+        await board.dragCardToSwimLaneCell(stable, stableLaneId, ctx.statuses.get('Todo') as string)
+      })
 
       const afterOrder = await board.swimLanes()
       // Priority lanes that existed before must keep the same relative order.
@@ -344,18 +373,15 @@ test.describe('Kanban board', () => {
       await board.expectCardInSwimLaneCell(childA, parentA, todo)
       await board.expectCardInSwimLaneCell(childB, parentB, todo)
 
-      await expect
-        .poll(
-          async () => {
-            const issue = await client.findOne(tracker.class.Issue, { _id: childA })
-            const at = issue?.attachedTo as string | undefined
-            if (at === parentB) return at
-            await board.dragCardToSwimLaneCell(childA, parentB, todo)
-            return at
-          },
-          { timeout: 30000, intervals: [2000] }
-        )
-        .toBe(parentB)
+      // Same shape as the status drags: read after the drop, not before, and report the drag's own
+      // error - this poll used to return the pre-drag value and fail with a bare "Expected/Received".
+      await dragUntilField(
+        async () => (await client.findOne(tracker.class.Issue, { _id: childA }))?.attachedTo as string | undefined,
+        parentB,
+        async () => {
+          await board.dragCardToSwimLaneCell(childA, parentB, todo)
+        }
+      )
     })
 
     test('multiple children render in the same parent lane', async ({ page }) => {
@@ -443,10 +469,8 @@ test.describe('Kanban board', () => {
       await board.expectCardInSwimLaneCell(c2, noPriorityLaneId, backlog)
       await board.expectCardInSwimLaneCell(c3, noPriorityLaneId, backlog)
 
-      // Drop c3 onto c2 — manual rank update. Retry under flaky CDP drag.
-      // Verify c3's rank ended up strictly less than c2's rank (i.e. c3 sits
-      // before c2 in ascending order, the visual cue under the cursor).
-      // Backend rank is the source of truth; DOM ordering depends on Show more.
+      // Drop c3 onto c2 for a manual rank update, retrying under flaky CDP drag. Backend rank
+      // is the source of truth - check r3 < r2, not DOM order (which depends on Show more).
       await expect
         .poll(
           async () => {
@@ -464,7 +488,7 @@ test.describe('Kanban board', () => {
             if (r2 === undefined || r3 === undefined) return false
             return r3 < r2
           },
-          { timeout: 30000, intervals: [2000] }
+          { timeout: 30000, intervals: retryIntervals }
         )
         .toBe(true)
 
@@ -475,9 +499,8 @@ test.describe('Kanban board', () => {
     })
 
     test('Show more counter does not flicker for unrelated cells while dragging', async ({ page }) => {
-      // Create > 3 cards in one Urgent/Backlog cell so Show more is visible.
-      // Using Urgent (4) keeps the test isolated from accumulated NoPriority
-      // issues across previous runs.
+      // Create > 3 cards in one Urgent/Backlog cell so Show more is visible. Urgent (4) keeps
+      // the test isolated from accumulated NoPriority issues across previous runs.
       const ids: Array<Ref<Issue>> = []
       for (let i = 0; i < 5; i++) {
         ids.push(
@@ -573,10 +596,11 @@ test.describe('Kanban board', () => {
       await expect(page.locator('[data-id="kanban-swimlane"]').first()).toBeVisible()
       const ids = await board.swimLanes()
       expect(ids.length).toBeGreaterThan(0)
-      // Pick a lane that is actually rendered with a header.
-      const laneId = await page.locator('[data-id="kanban-swimlane"]').first().getAttribute('data-swimlane-id')
-      expect(laneId).not.toBeNull()
-      if (laneId === null) return
+      // Priority lanes are preseeded, always rendered; the unassigned lane exists only while
+      // some issue in this shared project lacks priority - a parallel test can drop it first.
+      const laneId = ids.find((id) => id !== '__swim_unassigned__')
+      expect(laneId).toBeDefined()
+      if (laneId === undefined) return
 
       // Toggle from whatever the persisted state is to its opposite, then back.
       const initial = await board.isSwimLaneCollapsed(laneId)
@@ -621,9 +645,11 @@ test.describe('Kanban board', () => {
       const board = new KanbanBoardPage(page)
       await board.setSwimLane('Priority')
 
-      const laneId = await page.locator('[data-id="kanban-swimlane"]').first().getAttribute('data-swimlane-id')
-      expect(laneId).not.toBeNull()
-      if (laneId === null) return
+      // Skip the unassigned lane - it disappears as soon as no issue of this shared project
+      // is left without a priority. Priority lanes are preseeded and stay.
+      const laneId = (await board.swimLanes()).find((id) => id !== '__swim_unassigned__')
+      expect(laneId).toBeDefined()
+      if (laneId === undefined) return
       const wasCollapsed = await board.isSwimLaneCollapsed(laneId)
       if (wasCollapsed) await board.toggleSwimLane(laneId)
       await board.expectSwimLaneCollapsed(laneId, false)
@@ -636,7 +662,11 @@ test.describe('Kanban board', () => {
       const projectPath = encodeURIComponent(ctx.project._id)
       await (await page.goto(`${PlatformURI}/workbench/sanity-ws/tracker/${projectPath}/issues`))?.finished()
       await page.locator(ViewletSelectors.Board).click()
-      await page.locator('[data-id="kanban-swimlane"]').first().waitFor({ state: 'visible', timeout: 10000 })
+      // Wait for the very lane under test: lanes render one by one, so waiting for "any lane"
+      // can return while this one is still missing.
+      await page
+        .locator(`[data-id="kanban-swimlane"][data-swimlane-id="${laneId}"]`)
+        .waitFor({ state: 'visible', timeout: 10000 })
       await board.expectSwimLaneCollapsed(laneId, true)
 
       // Cleanup so other tests are not affected.
@@ -644,11 +674,8 @@ test.describe('Kanban board', () => {
     })
 
     test('drop into unavailable category does not change status', async ({ page }) => {
-      // getAvailableCategories returns only states valid for the issue's project.
-      // For the Default project's task type, all states are valid — to simulate
-      // an unavailable target we drag-and-drop through to the same status (no-op
-      // path) and verify nothing changes. Realistically this checks the guard
-      // path: dropping back into the same column must not bump modifiedOn.
+      // getAvailableCategories returns only valid states for the project; Default's task type
+      // allows all, so simulate one via a same-status drop (no-op): no modifiedOn bump.
       const cardId = await createIssue(client, ctx, {
         title: `${titlePrefix}same-col`,
         status: 'Backlog',
@@ -683,9 +710,8 @@ test.describe('Kanban board', () => {
     })
 
     test('toggle None -> Priority -> None -> Priority shows cards each time', async ({ page }) => {
-      // Regression: groupByDocs memo (hashed by ids+lengths) used to skip a refresh
-      // when projection added the swim-lane field — cards rendered as if the swim
-      // field were undefined and every lane appeared empty after the second switch.
+      // Regression: groupByDocs memo (hashed by ids+lengths) skipped a refresh when projection
+      // added the swim-lane field, so every lane appeared empty after the second switch.
       const cardId = await createIssue(client, ctx, {
         title: `${titlePrefix}toggle-priority`,
         status: 'Backlog',
@@ -718,9 +744,8 @@ test.describe('Kanban board', () => {
     })
 
     test('component swim lane merges same-label components from different projects', async ({ page }) => {
-      // Regression for FUSIO-378: components with identical label living in
-      // different projects used to render as separate lanes. They should be
-      // grouped into one lane keyed by the (case-folded) label.
+      // Regression for FUSIO-378: same-label components in different projects used to render
+      // as separate lanes - they should group into one, keyed by the case-folded label.
       const secondProject = await findProjectByName(client, 'Second Project')
       test.skip(secondProject === undefined, 'Second Project not seeded — skipping')
       if (secondProject === undefined) return
@@ -764,44 +789,31 @@ test.describe('Kanban board', () => {
   })
 
   test('drag preview follows cursor in non-manual ordering', async ({ page }) => {
-    // Regression: cardDragOver had a `dontUpdateRank` guard that prevented the
-    // visual preview from following the cursor when ordering was not Manual.
-    // Users could not see which column they were targeting.
+    // Regression: cardDragOver's `dontUpdateRank` guard stopped the preview from following the
+    // cursor outside Manual ordering, so users couldn't see which column they targeted.
     const c1 = await createIssue(client, ctx, { title: `${titlePrefix}preview-1`, status: 'Backlog' })
     const c2 = await createIssue(client, ctx, { title: `${titlePrefix}preview-2`, status: 'Todo' })
 
     await openTrackerBoard(page, ctx.project._id)
 
+    const board = new KanbanBoardPage(page)
     // Switch ordering to Modified date so dontUpdateRank=true.
-    await page.locator('button[data-id="btn-viewOptions"]').click()
+    await board.openViewOptions()
     const orderingRow = page.locator('.antiCard-menu__item', { hasText: 'Ordering' })
     await orderingRow.waitFor({ state: 'visible', timeout: 5000 })
     await orderingRow.locator('button').click()
     await page.locator('.menu-item').filter({ hasText: 'Modified date' }).first().click()
     await page.keyboard.press('Escape')
 
-    const board = new KanbanBoardPage(page)
     const todo = ctx.statuses.get('Todo') as string
     await board.revealCard(c1)
     await board.revealCard(c2)
 
     // Drag c1 onto c2: status should change to Todo (state-only update — rank stays).
-    await expect
-      .poll(
-        async () => {
-          const current = (await client.findOne(tracker.class.Issue, { _id: c1 }))?.status as string | undefined
-          if (current === todo) return current
-          await board.revealCard(c1)
-          try {
-            await board.dragCardToCard(c1, c2)
-          } catch {
-            // ignore single failures
-          }
-          return current
-        },
-        { timeout: 30000, intervals: [2000] }
-      )
-      .toBe(todo)
+    await dragUntilStatus(client, c1, todo, async () => {
+      await board.revealCard(c1)
+      await board.dragCardToCard(c1, c2)
+    })
   })
 
   test('legacy drop on self does not bump modifiedOn', async ({ page }) => {
@@ -852,5 +864,24 @@ test.describe('Kanban board', () => {
     // Card retains data-card-id during drag.
     await expect(card).toBeVisible()
     await page.mouse.up()
+  })
+
+  test('switching grouping does not query with the old categories', async ({ page }) => {
+    // FUSIO-1552: old categories under the new key sent {space: 0} or {_id: {values: []}} and
+    // Postgres failed with "operator does not exist", shown in the status bar.
+    const component = await createComponent(client, ctx.project._id, `grouping-${generateId(4)}`)
+    await createIssue(client, ctx, { title: `${titlePrefix}grouping`, status: 'Backlog', priority: 2, component })
+
+    await openTrackerBoard(page, ctx.project._id)
+    const errors = page.locator('.antiStatusBar .ERROR')
+    for (const viewlet of [ViewletSelectors.Board, ViewletSelectors.Table]) {
+      await page.click(viewlet)
+      for (const group of ['Priority', 'Project', 'Component', 'Parent issue', 'Priority', 'Parent issue']) {
+        await setViewGroup(page, group)
+        // The failed query lands after the switch; the status bar keeps the error until reload.
+        await page.waitForTimeout(500)
+        await expect(errors, `${viewlet} -> ${group}`).toHaveCount(0)
+      }
+    }
   })
 })

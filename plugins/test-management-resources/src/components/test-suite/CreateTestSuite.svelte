@@ -13,11 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Data, Ref } from '@hcengineering/core'
+  import type { Data, Ref } from '@hcengineering/core'
   import { IntlString } from '@hcengineering/platform'
   import { Card, SpaceSelector, getClient } from '@hcengineering/presentation'
   import { StyledTextArea } from '@hcengineering/text-editor-resources'
-  import { TestSuite, TestProject } from '@hcengineering/test-management'
+  import type { TestSuite, TestProject } from '@hcengineering/test-management'
   import { EditBox } from '@hcengineering/ui'
   import { ObjectBox } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -30,7 +30,7 @@
   const client = getClient()
 
   const object: Data<TestSuite> = {
-    name: '' as IntlString,
+    name: '',
     description: '',
     parent: parentId
   }
@@ -51,7 +51,7 @@
   okAction={onSave}
   canSave={object.name !== ''}
   okLabel={testManagement.string.CreateTestSuite}
-  gap={'gapV-4'}
+  gap="gapV-4"
   on:close={() => dispatch('close')}
   on:changeContent
 >
@@ -60,8 +60,8 @@
       _class={testManagement.class.TestProject}
       label={testManagement.string.TestProject}
       bind:space={_space}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       component={ProjectPresenter}
       defaultIcon={testManagement.icon.Home}
     />
@@ -72,27 +72,22 @@
         space: _space
       }}
       on:change={handleTestSuiteChange}
-      kind={'regular'}
-      size={'small'}
+      kind="regular"
+      size="small"
       label={testManagement.string.NoTestSuite}
       icon={testManagement.icon.TestSuite}
-      searchField={'title'}
+      searchField="title"
       allowDeselect={true}
       showNavigate={false}
       docProps={{ disabled: true, noUnderline: true }}
       focusIndex={20000}
     />
   </svelte:fragment>
-  <EditBox
-    bind:value={object.name}
-    placeholder={testManagement.string.NamePlaceholder}
-    kind={'large-style'}
-    autoFocus
-  />
+  <EditBox bind:value={object.name} placeholder={testManagement.string.NamePlaceholder} kind="large-style" autoFocus />
   <StyledTextArea
     bind:content={object.description}
     placeholder={testManagement.string.DescriptionPlaceholder}
-    kind={'emphasized'}
+    kind="emphasized"
     showButtons={false}
   />
 </Card>

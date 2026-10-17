@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AttachedDoc, Doc, Ref, Class } from '@hcengineering/core'
+  import type { AttachedDoc, Doc, Ref, Class } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { isAttachedDoc } from '../utils'
   import DocsNavigator from './DocsNavigator.svelte'
@@ -52,7 +52,7 @@
       const _id = getParentId(currentDoc)
       const _class = getParentClass(currentDoc)
       if (_id == null || _class == null) {
-        continue
+        break
       }
       const parent: Doc | undefined = await client.findOne(_class, { _id })
 
@@ -72,7 +72,7 @@
   $: parentId = getParentId(element)
   $: parentClass = getParentClass(element)
   $: showParents = withParent(element)
-  $: getParents(parentId, parentClass, showParents).then((res) => {
+  $: void getParents(parentId, parentClass, showParents).then((res) => {
     parents = res
   })
 </script>

@@ -13,9 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentQuery, FindResult, Ref, SortingOrder } from '@hcengineering/core'
+  import type { DocumentQuery, FindResult, Ref } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
   import presentation, { getClient } from '@hcengineering/presentation'
-  import { Project, Milestone, MilestoneStatus } from '@hcengineering/tracker'
+  import type { Project, Milestone } from '@hcengineering/tracker'
+  import { MilestoneStatus } from '@hcengineering/tracker'
   import ui, {
     IconCheck,
     Icon,
@@ -27,7 +29,8 @@
     IconSearch
   } from '@hcengineering/ui'
   import { FILTER_DEBOUNCE_MS, sortFilterValues } from '@hcengineering/view-resources'
-  import view, { Filter } from '@hcengineering/view'
+  import type { Filter } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../plugin'
   import { milestoneStatusAssets } from '../../types'
@@ -115,15 +118,15 @@
     return res
   }
 
-  $: getValues(search)
+  $: void getValues(search)
 </script>
 
 <div class="selectPopup" use:resizeObserver={() => dispatch('changeContent')}>
   <div class="header">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
-      width={'100%'}
+      size="large"
+      width="100%"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       placeholder={presentation.string.Search}
@@ -145,7 +148,7 @@
           </div>
           <div class="check pointer-events-none">
             {#if isSelected(undefined, selectedValues)}
-              <Icon icon={IconCheck} size={'small'} />
+              <Icon icon={IconCheck} size="small" />
             {/if}
           </div>
         </button>
@@ -156,7 +159,7 @@
             <div class="menu-separator" />
             <div class="menu-group__header">
               <div class="flex-row-center gap-2">
-                <Icon icon={status.icon} size={'small'} />
+                <Icon icon={status.icon} size="small" />
                 <span class="overflow-label"><Label label={status.label} /></span>
               </div>
             </div>
@@ -172,7 +175,7 @@
                 </div>
                 <div class="check pointer-events-none">
                   {#if isSelected(doc._id, selectedValues)}
-                    <Icon icon={IconCheck} size={'small'} />
+                    <Icon icon={IconCheck} size="small" />
                   {/if}
                 </div>
               </button>

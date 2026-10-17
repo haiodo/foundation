@@ -16,34 +16,39 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import attachment, { Attachment } from '@hcengineering/attachment'
-  import core, { Doc, Ref, WithLookup, generateId, type Blob } from '@hcengineering/core'
-  import { Document, DocumentEvents, Teamspace } from '@hcengineering/document'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
+  import type { Doc, Ref, WithLookup } from '@hcengineering/core'
+  import core, { generateId, type Blob } from '@hcengineering/core'
+  import type { Document, Teamspace } from '@hcengineering/document'
+  import { DocumentEvents } from '@hcengineering/document'
   import notification from '@hcengineering/notification'
   import { Panel } from '@hcengineering/panel'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import {
     ComponentExtensions,
     IconWithEmoji,
+    MessageBox,
     copyTextToClipboard,
     createQuery,
     getClient
   } from '@hcengineering/presentation'
   import tags from '@hcengineering/tags'
-  import { Heading } from '@hcengineering/text-editor'
+  import type { MarkupNode } from '@hcengineering/text'
+  import type { Heading } from '@hcengineering/text-editor'
   import { TableOfContents } from '@hcengineering/text-editor-resources'
   import TeamspacePresenter from './teamspace/TeamspacePresenter.svelte'
 
+  import type { ButtonItem } from '@hcengineering/ui'
   import {
     Button,
-    ButtonItem,
     Component,
     FocusHandler,
     IconMoreH,
     Label,
     TimeSince,
     createFocusManager,
-    getPlatformColorDef,
+    getPaletteColorDef,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
@@ -54,7 +59,8 @@
     ParentsNavigator,
     RelationsEditor,
     restrictionStore,
-    showMenu
+    showMenu,
+    openDocInSidebar
   } from '@hcengineering/view-resources'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
 
@@ -70,6 +76,9 @@
   export let _id: Ref<Document>
   export let readonly: boolean = false
   export let embedded: boolean = false
+  // Sidebar preview renders embedded but still needs its own close button.
+  export let allowClose: boolean = !embedded
+  export let isSidebar: boolean = false
 
   $: locked = doc?.lockedBy != null
   $: readonly = $restrictionStore.readonly || locked
@@ -97,7 +106,7 @@
 
   let loadedDocumentContent = false
 
-  const notificationClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const notificationClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   $: read(_id)
   function read (_id: Ref<Doc>): void {
@@ -149,8 +158,12 @@
 
   $: _id !== undefined &&
     query.query(document.class.Document, { _id }, async (result) => {
+      const prev = doc
       ;[doc] = result
-      title = doc?.title ?? ''
+      // reset only when title itself changed on server, otherwise unrelated updates clobber unsaved input
+      if (prev?._id !== doc?._id || prev?.title !== doc?.title) {
+        title = doc?.title ?? ''
+      }
     })
 
   $: canSave = title.trim().length > 0
@@ -207,13 +220,22 @@
     dispatch('open', { ignoreKeys: ['comments', 'name'] })
   })
 
-  const aside: ButtonItem[] = [
+  $: aside = [
     {
       id: 'references',
       icon: document.icon.References,
       showTooltip: { label: document.string.Backlinks, direction: 'bottom' }
-    }
-  ]
+    },
+    ...(readonly
+      ? []
+      : [
+          {
+            id: 'history',
+            icon: document.icon.History,
+            showTooltip: { label: document.string.History, direction: 'bottom' as const }
+          }
+        ])
+  ] satisfies ButtonItem[]
   let selectedAside: string | boolean = false
 
   $: actions = [
@@ -238,6 +260,33 @@
   let editor: DocumentEditor
   let content: HTMLElement
 
+  function getCurrentContent (): MarkupNode | undefined {
+    if (!loadedDocumentContent) return undefined
+    let result: MarkupNode | undefined
+    editor?.commands()?.command(({ editor }) => {
+      result = editor.getJSON() as MarkupNode
+      return true
+    })
+    return result
+  }
+
+  function restoreVersion (node: MarkupNode): void {
+    showPopup(
+      MessageBox,
+      {
+        label: document.string.RestoreVersion,
+        message: document.string.RestoreVersionConfirm,
+        dangerous: true
+      },
+      undefined,
+      (result?: boolean) => {
+        if (result !== true) return
+        // replace the editor state, collaboration propagates it to everyone
+        editor?.commands()?.command(({ commands }) => commands.setContent(node as any))
+      }
+    )
+  }
+
   const manager = createFocusManager()
 
   onMount(() => {
@@ -255,13 +304,15 @@
   }
 </script>
 
-<FocusHandler {manager} />
+{#if !embedded && !isSidebar}
+  <FocusHandler {manager} />
+{/if}
 
 {#if doc !== undefined}
   <Panel
     withoutActivity={!loadedDocumentContent}
     object={doc}
-    allowClose={!embedded}
+    {allowClose}
     isAside={true}
     customAside={aside}
     bind:selectedAside
@@ -272,7 +323,7 @@
     {sideContentSpace}
     printHeader={false}
     {embedded}
-    adaptive={'default'}
+    adaptive="default"
     bind:content
     bind:innerWidth
     floatAside={false}
@@ -291,8 +342,8 @@
             icon={document.icon.Lock}
             iconProps={{ size: 'x-small' }}
             label={document.string.Locked}
-            kind={'link-bordered'}
-            size={'small'}
+            kind="link-bordered"
+            size="small"
             noFocus
             on:click={async () => {
               if (doc !== undefined) {
@@ -311,12 +362,26 @@
           props={{ size: 'medium', kind: 'ghost', _id: doc._id, _class: doc._class, value: doc, readonly }}
         />
       {/if}
+      {#if !embedded && doc}
+        <Button
+          icon={view.icon.DetailsFilled}
+          iconProps={{ size: 'medium' }}
+          kind="icon"
+          dataId="btnOpenInSidebar"
+          showTooltip={{ label: view.string.OpenInSidebar, direction: 'bottom' }}
+          on:click={() => {
+            if (doc !== undefined) {
+              void openDocInSidebar(doc)
+            }
+          }}
+        />
+      {/if}
       {#if !$restrictionStore.disableActions}
         <Button
           id="btn-doc-title-open-more"
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           showTooltip={{ label: view.string.MoreActions, direction: 'bottom' }}
           on:click={showContextMenu}
         />
@@ -324,7 +389,7 @@
           <Button
             icon={action.icon}
             iconProps={{ size: 'medium' }}
-            kind={'ghost'}
+            kind="ghost"
             showTooltip={{ label: action.label, direction: 'bottom' }}
             on:click={action.action}
           />
@@ -336,18 +401,15 @@
       <div class="title flex-row-center">
         <div class="icon">
           <Button
-            size={'x-large'}
-            kind={'ghost'}
+            size="x-large"
+            kind="ghost"
             noFocus
             icon={doc.icon === view.ids.IconWithEmoji ? IconWithEmoji : (doc.icon ?? document.icon.Document)}
             iconProps={doc.icon === view.ids.IconWithEmoji
               ? { icon: doc.color, size: 'large' }
               : {
                   size: 'large',
-                  fill:
-                    doc.color !== undefined && typeof doc.color !== 'string'
-                      ? getPlatformColorDef(doc.color, $themeStore.dark).icon
-                      : 'currentColor'
+                  fill: getPaletteColorDef(doc.color, $themeStore.dark)?.icon ?? 'currentColor'
                 }}
             disabled={readonly}
             showTooltip={{ label: document.string.Icon, direction: 'bottom' }}
@@ -390,7 +452,7 @@
             object={doc}
             {readonly}
             boundary={content}
-            overflow={'none'}
+            overflow="none"
             editorAttributes={{ style: 'padding: 0 2em 2em; margin: 0 -2em; min-height: 30vh' }}
             requestSideSpace={updateSizeContentSpace}
             attachFile={async (file) => {
@@ -414,7 +476,14 @@
       {#if selectedAside === 'references'}
         <References doc={doc._id} />
       {:else if selectedAside === 'history'}
-        <History value={doc} {readonly} />
+        <History
+          value={doc}
+          {readonly}
+          {getCurrentContent}
+          on:restore={(evt) => {
+            restoreVersion(evt.detail)
+          }}
+        />
       {/if}
     </svelte:fragment>
 

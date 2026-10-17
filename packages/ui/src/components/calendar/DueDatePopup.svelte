@@ -33,7 +33,7 @@
       class:mIconContainerWarning={iconModifier === 'warning'}
       class:mIconContainerCritical={iconModifier === 'critical' || iconModifier === 'overdue'}
     >
-      <Icon icon={isOverdue && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size={'small'} />
+      <Icon icon={isOverdue && !shouldIgnoreOverdue ? DPCalendarOver : DPCalendar} size="small" />
     </div>
     <div class="messageContainer">
       <div class="title">

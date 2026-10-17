@@ -15,7 +15,7 @@
 
 import activity from '@hcengineering/activity'
 import calendarPlugin, { type Visibility } from '@hcengineering/calendar'
-import contactPlugin, { type Employee } from '@hcengineering/contact'
+import contactPlugin, { type Employee, type Person } from '@hcengineering/contact'
 import {
   DOMAIN_MODEL,
   DateRangeMode,
@@ -49,7 +49,7 @@ import core, { defineCollaborators, TAttachedDoc, TClass, TDoc, TType } from '@h
 import document from '@hcengineering/model-document'
 import tracker from '@hcengineering/model-tracker'
 import view, { createAction } from '@hcengineering/model-view'
-import workbench from '@hcengineering/model-workbench'
+import workbench, { WidgetType } from '@hcengineering/model-workbench'
 import notification, { type NotificationGroup, type TxNotificationType } from '@hcengineering/notification'
 import recruit from '@hcengineering/recruit'
 import tags from '@hcengineering/tags'
@@ -87,6 +87,7 @@ export class TItemPresenter extends TClass implements ItemPresenter {
 @Model(time.class.WorkSlot, calendarPlugin.class.Event)
 @UX(time.string.WorkSlot)
 export class TWorkSlot extends TEvent implements WorkSlot {
+  declare space: Ref<Space>
   declare attachedTo: Ref<ToDo>
   declare attachedToClass: Ref<Class<ToDo>>
 }
@@ -98,41 +99,47 @@ export class TTypeToDoPriority extends TType {}
 @UX(time.string.ToDo, time.icon.Planned)
 export class TToDo extends TAttachedDoc implements ToDo {
   @Prop(TypeDate(DateRangeMode.DATE), task.string.DueDate)
-    dueDate?: number | null | undefined
+  dueDate?: number | null | undefined
 
   @Prop(TypeToDoPriority(), time.string.Priority)
   @Index(IndexKind.Indexed)
-    priority!: ToDoPriority
+  priority!: ToDoPriority
 
   visibility!: Visibility
 
-  @Prop(TypeRef(core.class.Space), core.string.Space)
-    attachedSpace?: Ref<Space> | undefined
+  // Always a tracker project in practice - typing it so keeps the filter from
+  // offering every space in the workspace.
+  @Prop(TypeRef(task.class.Project), core.string.Space)
+  attachedSpace?: Ref<Space> | undefined
 
   @Prop(TypeString(), calendarPlugin.string.Title)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeMarkup(), calendarPlugin.string.Description)
   @Index(IndexKind.FullText)
-    description!: Markup
+  description!: Markup
 
   doneOn!: Timestamp | null
 
   @Prop(TypeRef(contactPlugin.mixin.Employee), contactPlugin.string.Employee)
   @Index(IndexKind.Indexed)
-    user!: Ref<Employee>
+  user!: Ref<Employee>
+
+  @Prop(TypeRef(contactPlugin.class.Person), time.string.ReassignedTo)
+  @Hidden()
+  reassignedTo?: Ref<Person> | null
 
   @Prop(Collection(time.class.WorkSlot, time.string.WorkSlot), time.string.WorkSlot)
-    workslots!: number
+  workslots!: number
 
   @Prop(Collection(tags.class.TagReference, tags.string.TagLabel), tags.string.Tags)
-    labels?: number | undefined
+  labels?: number | undefined
 
   @Prop(TypeRank(), core.string.Rank)
   @Index(IndexKind.Indexed)
   @Hidden()
-    rank!: Rank
+  rank!: Rank
 }
 
 @Model(time.class.ProjectToDo, time.class.ToDo)
@@ -204,19 +211,24 @@ export function createModel (builder: Builder): void {
     time.app.Me
   )
 
-  // builder.createDoc(
-  //   workbench.class.Application,
-  //   core.space.Model,
-  //   {
-  //     label: time.string.Team,
-  //     icon: time.icon.Team,
-  //     accessLevel: AccountRole.User,
-  //     alias: 'team',
-  //     hidden: true,
-  //     component: time.component.Team
-  //   },
-  //   time.app.Team
-  // )
+  // Opened from a Team calendar cell: shows that person's day in the sidebar.
+  builder.createDoc(
+    workbench.class.Widget,
+    core.space.Model,
+    {
+      label: time.string.Team,
+      type: WidgetType.Flexible,
+      icon: time.icon.Team,
+      component: time.component.PersonDayWidget
+    },
+    time.ids.PersonDayWidget
+  )
+
+  // Team views filter by project and person, nothing else is meaningful there.
+  builder.mixin(time.class.ToDo, core.class.Class, view.mixin.ClassFilters, {
+    filters: ['attachedSpace', 'user'],
+    strict: true
+  })
 
   builder.mixin(time.class.ToDo, core.class.Class, view.mixin.IgnoreActions, {
     actions: [view.action.Open, tracker.action.NewRelatedIssue, view.action.Delete]
@@ -372,6 +384,7 @@ export function createModel (builder: Builder): void {
       objectClass: time.class.ProjectToDo,
       isMention: true,
       defaultEnabled: false,
+      attachToParent: true,
       templates: {
         text: time.emailTemplate.ToDoCreatedText,
         html: time.emailTemplate.ToDoCreatedHtml,
@@ -381,10 +394,46 @@ export function createModel (builder: Builder): void {
     time.ids.ToDoCreated
   )
 
+  builder.createDoc<TxNotificationType>(
+    notification.class.TxNotificationType,
+    core.space.Model,
+    {
+      hidden: false,
+      generated: false,
+      notifyAuthor: false,
+      label: time.string.ToDoReassigned,
+      group: time.ids.TimeNotificationGroup as Ref<NotificationGroup>,
+      txClasses: [core.class.TxUpdateDoc],
+      objectClass: time.class.ProjectToDo,
+      field: 'reassignedTo',
+      isMention: true,
+      defaultEnabled: false,
+      attachToParent: true
+    },
+    time.ids.ToDoReassigned
+  )
+
+  builder.createDoc<TxNotificationType>(
+    notification.class.TxNotificationType,
+    core.space.Model,
+    {
+      hidden: false,
+      generated: false,
+      notifyAuthor: false,
+      label: time.string.IssueClosedCloseToDo,
+      group: time.ids.TimeNotificationGroup as Ref<NotificationGroup>,
+      txClasses: [core.class.TxUpdateDoc],
+      objectClass: tracker.class.Issue,
+      field: 'status',
+      defaultEnabled: false
+    },
+    time.ids.IssueClosedToDo
+  )
+
   builder.createDoc(notification.class.NotificationProviderDefaults, core.space.Model, {
     provider: notification.providers.InboxNotificationProvider,
     ignoredTypes: [],
-    enabledTypes: [time.ids.ToDoCreated]
+    enabledTypes: [time.ids.ToDoCreated, time.ids.ToDoReassigned, time.ids.IssueClosedToDo]
   })
 
   defineCollaborators(builder, time.class.ToDo, { fields: ['user'] })

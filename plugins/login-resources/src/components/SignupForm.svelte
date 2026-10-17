@@ -15,7 +15,7 @@
 -->
 <script lang="ts">
   import { type IntlString, OK, Severity, Status } from '@hcengineering/platform'
-  import { type LoginInfo } from '@hcengineering/account-client'
+  import type { LoginInfo } from '@hcengineering/account-client'
   import { logIn } from '@hcengineering/workbench'
   import { signupStore } from '@hcengineering/analytics-providers'
 
@@ -27,8 +27,9 @@
   import { OtpLoginSteps, signUp, signUpOtp } from '../index'
   import type { Field } from '../types'
   import OtpForm from './OtpForm.svelte'
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import ConsentCheckboxes from './ConsentCheckboxes.svelte'
+  import { fetchMetadataLocalStorage, setMetadataLocalStorage } from '@hcengineering/ui'
 
   export let signUpDisabled = false
   export let localLoginHidden = false
@@ -49,7 +50,8 @@
     fields = [
       { id: 'given-name', name: 'first', i18n: login.string.FirstName },
       { id: 'family-name', name: 'last', i18n: login.string.LastName },
-      { id: 'email', name: 'username', i18n: login.string.Email }
+      { id: 'email', name: 'username', i18n: login.string.Email, inputmode: 'email' },
+      { id: 'phone-number', name: 'phone', i18n: login.string.PhoneNumber, optional: true, inputmode: 'tel' }
     ]
 
     if (withPassword) {
@@ -73,9 +75,10 @@
   const object = {
     first: '',
     last: '',
-    username: '',
+    username: fetchMetadataLocalStorage(login.metadata.AuthEmail) ?? '',
     password: '',
-    password2: ''
+    password2: '',
+    phone: ''
   }
 
   let status: Status<any> = OK
@@ -96,7 +99,7 @@
       if (useOTP) {
         status = new Status(Severity.INFO, login.status.ConnectingToServer, {})
 
-        const [otpStatus, result] = await signUpOtp(object.username, object.first, object.last)
+        const [otpStatus, result] = await signUpOtp(object.username, object.first, object.last, object.phone)
         status = otpStatus
 
         if (result?.sent === true && otpStatus === OK) {
@@ -107,6 +110,10 @@
         const [loginStatus, result] = await signUp(object.username, object.password, object.first, object.last)
 
         status = loginStatus
+
+        if (result != null) {
+          setMetadataLocalStorage(login.metadata.AuthEmail, null)
+        }
 
         if (onSignUp !== undefined) {
           void onSignUp(result, status)
@@ -135,11 +142,15 @@
   }
 
   $: proceedDisabled = !agreedPersonalData || !agreedRules
+
+  onDestroy(() => {
+    setMetadataLocalStorage(login.metadata.AuthEmail, object.username ?? '')
+  })
 </script>
 
 {#if step === OtpLoginSteps.Email}
   <Form bind:this={form} {caption} {subtitle} {status} {fields} {object} {action} {proceedDisabled} withProviders>
-    <div slot="after-fields" class="form-row">
+    <div slot="after-fields" class="form-row" let:submitAttempted>
       {#if useOTP}
         <label class="check-label">
           <input
@@ -153,7 +164,7 @@
           <Label label={login.string.SetPasswordNow} />
         </label>
       {/if}
-      <ConsentCheckboxes bind:agreedPersonalData bind:agreedRules />
+      <ConsentCheckboxes bind:agreedPersonalData bind:agreedRules highlight={submitAttempted} />
     </div>
   </Form>
 {/if}
@@ -231,5 +242,19 @@
     border: solid var(--login-button-text-color, var(--primary-button-color, #ffffff));
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
+  }
+
+  @media (max-width: 600px) {
+    .check-label {
+      align-items: flex-start;
+      font-size: 0.875rem;
+      line-height: 1.35;
+    }
+
+    /* Larger hit area on touch screens without changing the visual box size. */
+    .check-label input[type='checkbox'] {
+      margin: 0.15rem 0;
+      outline-offset: 0.5rem;
+    }
   }
 </style>

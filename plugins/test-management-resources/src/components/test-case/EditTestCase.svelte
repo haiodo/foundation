@@ -17,8 +17,8 @@
 
   import { AttachmentStyleBoxCollabEditor } from '@hcengineering/attachment-resources'
   import { ActionContext, createQuery, getClient } from '@hcengineering/presentation'
-  import { type Class, type Ref } from '@hcengineering/core'
-  import { TestCase } from '@hcengineering/test-management'
+  import type { Class, Ref } from '@hcengineering/core'
+  import type { TestCase } from '@hcengineering/test-management'
   import { Panel } from '@hcengineering/panel'
   import { EditBox, Breadcrumb } from '@hcengineering/ui'
   import { DocAttributeBar } from '@hcengineering/view-resources'
@@ -69,12 +69,12 @@
     isHeader={false}
     isAside={false}
     isSub={false}
-    adaptive={'disabled'}
+    adaptive="disabled"
     on:open
     on:close={() => dispatch('close')}
   >
     <svelte:fragment slot="title">
-      <Breadcrumb icon={testManagement.icon.TestCase} title={object.name} size={'large'} isCurrent />
+      <Breadcrumb icon={testManagement.icon.TestCase} title={object.name} size="large" isCurrent />
     </svelte:fragment>
 
     <EditBox

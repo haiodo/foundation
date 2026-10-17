@@ -15,7 +15,8 @@
 
 <script lang="ts">
   import presentation, { getClient } from '@hcengineering/presentation'
-  import { ContextId, parseContext, Process, SelectedExecutionContext, UserResult } from '@hcengineering/process'
+  import type { ContextId, Process, UserResult } from '@hcengineering/process'
+  import { parseContext, SelectedExecutionContext } from '@hcengineering/process'
   import { Button, eventToHTMLElement, SelectPopup, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import ContextCriteria from '../criterias/ContextCriteria.svelte'
@@ -99,6 +100,6 @@
 {/each}
 {#if !readonly && availableResults.length > 0}
   <div class="flex-center mt-4">
-    <Button label={presentation.string.Add} width={'100%'} kind={'link-bordered'} size={'large'} on:click={onAdd} />
+    <Button label={presentation.string.Add} width="100%" kind="link-bordered" size="large" on:click={onAdd} />
   </div>
 {/if}

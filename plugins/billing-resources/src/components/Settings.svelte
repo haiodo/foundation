@@ -14,12 +14,11 @@
 -->
 <script lang="ts">
   import { type Asset, type IntlString, getMetadata } from '@hcengineering/platform'
+  import type { AnySvelteComponent, Location } from '@hcengineering/ui'
   import {
-    AnySvelteComponent,
     Breadcrumb,
     Component,
     Header,
-    Location,
     NavItem,
     Scroller,
     Separator,
@@ -90,8 +89,8 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={plugin.icon.Billing} label={plugin.string.Billing} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={plugin.icon.Billing} label={plugin.string.Billing} size="large" isCurrent />
   </Header>
   <div class="hulyComponent-content__container columns">
     <div class="hulyComponent-content__column navigation py-2">
@@ -114,7 +113,7 @@
       </Scroller>
     </div>
 
-    <Separator name="billingSettings" index={0} color={'var(--theme-divider-color)'} />
+    <Separator name="billingSettings" index={0} color="var(--theme-divider-color)" />
 
     {#if currentGroup != null}
       <div class="hulyComponent-content__column content">

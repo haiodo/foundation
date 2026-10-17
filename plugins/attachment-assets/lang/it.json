@@ -54,6 +54,10 @@
     "RemovedAttachment": "Allegato rimosso",
     "ContentType": "Tipo di contenuto",
     "OpenInWindow": "Apri in una nuova finestra",
-    "Embeddings": "Incorporamenti"
+    "Embeddings": "Incorporamenti",
+    "Transcribing": "Trascrizione...",
+    "TranscriptionFailed": "Trascrizione non riuscita",
+    "Play": "Riproduci",
+    "Pause": "Pausa"
   }
 }

@@ -13,12 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref, WithLookup, type Status } from '@hcengineering/core'
+  import type { Doc, Ref, WithLookup } from '@hcengineering/core'
+  import type { Status } from '@hcengineering/core'
   import task from '@hcengineering/task'
-  import { Project, type Issue } from '@hcengineering/tracker'
-  import { Button, ButtonKind, ButtonSize, ProgressCircle } from '@hcengineering/ui'
+  import type { Project } from '@hcengineering/tracker'
+  import type { Issue } from '@hcengineering/tracker'
+  import type { ButtonKind, ButtonSize } from '@hcengineering/ui'
+  import { Button, ProgressCircle } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
-  import { listIssueStatusOrder, relatedIssues, type IssueRef } from '../../../utils'
+  import { ensureRelatedIssuesLoaded, listIssueStatusOrder, relatedIssues, type IssueRef } from '../../../utils'
   import RelatedIssuePopup from './RelatedIssuePopup.svelte'
 
   export let object: WithLookup<Doc> | undefined
@@ -30,6 +33,8 @@
   export let justify: 'left' | 'center' = 'left'
   export let width: string | undefined = 'min-contet'
   export let compactMode: boolean = false
+
+  ensureRelatedIssuesLoaded()
 
   $: _object = object ?? value
 
@@ -79,7 +84,7 @@
           <div class="flex-row-center content-color text-sm pointer-events-none">
             {#if !compactMode}
               <div class="mr-1-5">
-                <ProgressCircle bind:value={countComplete} bind:max={subIssues.length} size={'small'} primary />
+                <ProgressCircle bind:value={countComplete} bind:max={subIssues.length} size="small" primary />
               </div>
             {/if}
             {countComplete}/{subIssues.length}

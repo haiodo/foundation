@@ -13,8 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
-  import { Room as TypeRoom } from '@hcengineering/love'
+  import type { Ref } from '@hcengineering/core'
+  import type { Room as TypeRoom } from '@hcengineering/love'
   import { Scroller } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
 
@@ -51,8 +51,8 @@
   <Scroller
     bind:divScroll
     noStretch
-    padding={'.5rem'}
-    containerName={'videoPopupСontainer'}
+    padding=".5rem"
+    containerName="videoPopupСontainer"
     onResize={dispatchFit}
     stickedScrollBars
   >

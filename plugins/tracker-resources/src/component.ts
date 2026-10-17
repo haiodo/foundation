@@ -53,7 +53,6 @@ export function groupByComponentCategories (categories: any[]): AggregateValue[]
 
   const usedSpaces = new Set<Ref<Space>>()
   const componentsList: Array<WithLookup<Component>> = []
-  // console.log('mgr docs', mgr.getDocs())
   for (const v of categories) {
     const component = mgr.getIdMap().get(v)
     if (component !== undefined) {
@@ -140,7 +139,7 @@ export function groupComponentValuesWithEmpty (
       resQuery._id = st
     }
     componentsList = matchQuery<Doc>(componentsList, resQuery, _class, hierarchy) as unknown as Array<
-    WithLookup<Component>
+      WithLookup<Component>
     >
   }
   return componentsList.map((it) => it._id)

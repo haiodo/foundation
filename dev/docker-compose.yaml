@@ -1,11 +1,10 @@
 services:
   stream:
-    image: 'haiodo/stream'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/stream:${DOCKER_TAG:-latest}"
     pull_policy: never
-    extra_hosts:
-      - 'huly.local:host-gateway'
     environment:
-      - STREAM_ENDPOINT_URL=datalake://huly.local:4030
+      - STREAM_ENDPOINT_URL=datalake://datalake:4030
+      - STREAM_BASE_URL=http://localhost:8087/_stream
       - STREAM_INSECURE=true
       - STREAM_SERVER_SECRET=secret
       - STREAM_MAX_PARALLEL_SCALING_COUNT=6
@@ -14,41 +13,45 @@ services:
       - AWS_SECRET_ACCESS_KEY=minioadmin
       - STREAM_REGION=
       - STREAM_QUEUE_CONFIG=${QUEUE_CONFIG}
+    restart: unless-stopped
+  nginx:
+    image: nginx:alpine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - front
     ports:
-      - 1080:1080
+      - 8087:8087
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
   media:
-    image: 'haiodo/media'
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/media:${DOCKER_TAG:-latest}"
     environment:
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - SECRET=secret
       - REGION=
       - QUEUE_CONFIG=${QUEUE_CONFIG}
     restart: unless-stopped
   preview:
-    image: 'haiodo/preview'
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/preview:${DOCKER_TAG:-latest}"
     environment:
       - SECRET=secret
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - CACHE_PATH=/data/cache
-    ports:
-      - 4040:4040
     restart: unless-stopped
   postgres:
     image: postgres:18.1
-    command: ['postgres', '-p', '5432']
+    init: true
+    command: ["postgres", "-p", "5432"]
     shm_size: 128mb
+    ports:
+      - 5432:5432
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -p 5432']
+      test: ["CMD-SHELL", "pg_isready -U postgres -p 5432"]
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-      - 5432:5432
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -56,42 +59,17 @@ services:
     volumes:
       - dbpg:/var/lib/postgresql
     restart: unless-stopped
-  pgbouncer:
-    image: edoburu/pgbouncer:latest
-    depends_on:
-      - postgres
-    volumes:
-      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-      - pgbouncer_logs:/var/log/pgbouncer
-    ports:
-      - 6432:6432
-    environment:
-      - PGBOUNCER_LISTEN_PORT=6432
-      - PGBOUNCER_BACKENDS=postgres=postgres:5432/postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=postgres
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 6432 || ps aux | grep -q pgbouncer']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
   redpanda:
     image: redpandadata/redpanda:v25.2.11
-    extra_hosts:
-      - 'huly.local:host-gateway'
     command:
       - redpanda
       - start
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --advertise-kafka-addr
+        internal://redpanda:9092,external://localhost:19092
       - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
-      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --advertise-pandaproxy-addr
+        internal://redpanda:8082,external://localhost:18082
       - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
       - --rpc-addr redpanda:33145
       - --advertise-rpc-addr redpanda:33145
@@ -99,15 +77,12 @@ services:
       - --smp 1
       - --default-log-level=info
       - --memory 256M
+    ports:
+      - 19092:19092
     volumes:
       - redpanda:/var/lib/redpanda/data
-    ports:
-      - 18081:18081
-      - 18082:18082
-      - 19092:19092
-      - 19644:9644
     healthcheck:
-      test: ['CMD', 'rpk', 'cluster', 'info']
+      test: ["CMD", "rpk", "cluster", "info"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -129,34 +104,27 @@ services:
         schemaRegistry:
           enabled: true
           urls: ["http://redpanda:8081"]
-    ports:
-      - 8000:8080
     depends_on:
       redpanda:
         condition: service_healthy
   minio:
-    image: 'minio/minio'
+    image: "pgsty/silo:RELEASE.2026-09-16T00-00-00Z"
     command: server /data --address ":9000" --console-address ":9001"
-    extra_hosts:
-      - 'huly.local:host-gateway'
     expose:
       - 9000
       - 9001
-    ports:
-      - 9000:9000
-      - 9001:9001
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - files:/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       retries: 10
     restart: unless-stopped
   elastic-plugins:
-    image: intabiafusion/elastic-plugins:8.19.1-slim
+    image: "${DOCKER_NAMESPACE:-intabiafusion}/elastic-plugins:8.19.1-slim"
     command:
       - sh
       - -c
@@ -165,21 +133,20 @@ services:
     volumes:
       - elastic-plugins:/mnt/plugins
   elastic:
-    image: 'elasticsearch:8.19.1'
+    image: "elasticsearch:8.19.1"
     command: >
-      /bin/sh -c "./bin/elasticsearch-plugin list | grep -q analysis-icu || ./bin/elasticsearch-plugin install --batch analysis-icu; exec /usr/local/bin/docker-entrypoint.sh eswrapper -Ediscovery.type=single-node -Expack.security.enabled=false -Expack.security.http.ssl.enabled=false"
+      /bin/sh -c "./bin/elasticsearch-plugin list | grep -q analysis-icu ||
+      ./bin/elasticsearch-plugin install --batch analysis-icu; exec
+      /usr/local/bin/docker-entrypoint.sh eswrapper -Ediscovery.type=single-node
+      -Expack.security.enabled=false -Expack.security.http.ssl.enabled=false"
     expose:
       - 9200
-    extra_hosts:
-      - 'huly.local:host-gateway'
     volumes:
       - elastic:/usr/share/elasticsearch/data
       - elastic-plugins:/usr/share/elasticsearch/plugins
     depends_on:
       elastic-plugins:
         condition: service_completed_successfully
-    ports:
-      - 9200:9200
     environment:
       - ELASTICSEARCH_PORT_NUMBER=9200
       - BITNAMI_DEBUG=true
@@ -203,70 +170,104 @@ services:
     restart: unless-stopped
 
   account:
-    image: haiodo/account
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/account:${DOCKER_TAG:-latest}"
     links:
       - stats
-    ports:
-      - 3000:3000
     volumes:
       - ./branding.json:/var/cfg/branding.json
       - ./region-config.yaml:/var/cfg/region-config.yaml
     environment:
       - ACCOUNT_PORT=3000
       - IGNORE_EMAIL_SIGNUP=false # Set to true if you want to disable email/otp confirmations
+      # Dev/testing only: fixed admin-operation OTP code (email delivery is off in dev). NEVER set in prod.
+      - ADMIN_OTP_DEV_CODE=000000
+      # Dev/testing only: signUp with a password and no email code. NEVER set in prod.
+      - ALLOW_SKIP_OTP_PASSWORD_SIGNUP=true
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - SERVER_SECRET=secret
       - ADMIN_EMAILS=admin,${PLATFORM_ADMIN_EMAILS}
-      - STATS_URL=http://huly.local:4900
+      - BILLING_EMAILS=billing
+      - STATS_URL=http://stats:4900
       - WORKSPACE_LIMIT_PER_USER=10000
+      # Free fallback limits (must match the free:true plan in plan-config.yaml). Applied to every
+      # tier subscription on read and decides free-vs-readonly on unpaid status. storagePerUserGB scales disk.
+      - FREE_PLAN_LIMITS={"usersLimit":5,"storagePerUserGB":2,"tokenLimit":100000,"trafficLimitGB":0,"meetingMinutesLimit":0}
       - DB_URL=${DB_URL_PG}
       - REGION_CONFIG=/var/cfg/region-config.yaml
       - MAIL_URL=
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - FRONT_URL=http://huly.local:8087
+      - FRONT_URL=http://localhost:8087
       - LAST_NAME_FIRST=true
       # - WS_LIVENESS_DAYS=1
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://localhost:8087/_account
       - BRANDING_PATH=/var/cfg/branding.json
       # - DISABLE_SIGNUP=true
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      - DELETION_GRACE_DAYS=21
+      - DELETION_READONLY_DAYS=7
       - MAILBOX_DOMAINS=huly.dev.local
       - MAILBOX_MAX_COUNT_PER_ACCOUNT=2
+    # Debug: uncomment to enable remote debugging
+    # ports:
+    #   - 9230:9230
+    # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9230
     restart: unless-stopped
   stats:
-    image: haiodo/stats
-    extra_hosts:
-      - 'huly.local:host-gateway'
-    ports:
-      - 4900:4900
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/stats:${DOCKER_TAG:-latest}"
     environment:
       - PORT=4900
       - SERVER_SECRET=secret
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # Debug: uncomment to enable remote debugging
+      # ports:
+      #   - 9235:9235
+      # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9235
     restart: unless-stopped
-  # payment:
-  #   image: haiodo/payment
-  #   extra_hosts:
-  #     - 'huly.local:host-gateway'
-  #   ports:
-  #     - 3040:3040
-  #   environment:
-  #     - SECRET=secret
-  #     - PORT=3040
-  #     - ACCOUNTS_URL=http://huly.local:3000
-  #     - FRONT_URL=http://huly.local:8087
-  #     - USE_SANDBOX=true
-  #     - POLAR_ACCESS_TOKEN=${POLAR_ACCESS_TOKEN}
-  #     - POLAR_WEBHOOK_SECRET=${POLAR_WEBHOOK_SECRET}
-  #     - POLAR_SUBSCRIPTION_PLANS=${POLAR_SUBSCRIPTION_PLANS}
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-  #   restart: unless-stopped
-  workspace:
-    image: haiodo/workspace
+  payment:
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/payment:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      account:
+        condition: service_started
+    volumes:
+      - ./plan-config.yaml:/var/cfg/plan-config.yaml
+    environment:
+      - SECRET=secret
+      - PORT=4040
+      - ACCOUNTS_URL=http://account:3000
+      - FRONT_URL=http://localhost:8087
+      - USE_SANDBOX=true
+      - PLAN_CONFIG=/var/cfg/plan-config.yaml
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      # TBank provider (needs real terminal credentials; use mock below for local dev)
+      # - PROVIDER=tbank
+      # - TBANK_SUBSCRIPTIONS_URL=http://tbank-subscriptions:4042
+      # Mock provider: activates plans instantly without a real payment gateway.
+      - PROVIDER=mock
+      - ALLOW_MOCK_PROVIDER=true
+      # Polar configuration (uncomment if using Polar)
+      # - POLAR_ACCESS_TOKEN=${POLAR_ACCESS_TOKEN}
+      # - POLAR_WEBHOOK_SECRET=${POLAR_WEBHOOK_SECRET}
+      # - POLAR_SUBSCRIPTION_PLANS=${POLAR_SUBSCRIPTION_PLANS}
+      # Stripe configuration (uncomment if using Stripe)
+      # - STRIPE_API_KEY=${STRIPE_API_KEY}
+      # - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      # - STRIPE_SUBSCRIPTION_PLANS=${STRIPE_SUBSCRIPTION_PLANS}
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # Nightly trial-expiry sweep. Leave TRIAL_EXPIRY_INTERVAL_MINUTES unset to use the schedule;
+      # set it in .env to sweep every N minutes instead (testing only).
+      - TRIAL_EXPIRY_HOUR_UTC=${TRIAL_EXPIRY_HOUR_UTC:-21}
+      - TRIAL_EXPIRY_INTERVAL_MINUTES=${TRIAL_EXPIRY_INTERVAL_MINUTES:-}
+      # Days before trialEnd the "trial is ending" reminder goes out; 0 disables it.
+      - UPCOMING_NOTICE_DAYS=${UPCOMING_NOTICE_DAYS:-5}
+      - MAIL_FROM=platform@intabia.ru
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-platform@intabia.ru}
+      - SUPPORT_URL=${SUPPORT_URL:-https://t.me/intabia}
+    restart: unless-stopped
+  workspace:
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/workspace:${DOCKER_TAG:-latest}"
     links:
       - postgres
       - minio
@@ -282,112 +283,101 @@ services:
       - SERVER_SECRET=secret
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - DB_URL=${DB_URL_PG}
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - ACCOUNTS_DB_URL=${DB_URL_PG}
       - BRANDING_PATH=/var/cfg/branding.json
       - BACKUP_STORAGE=${BACKUP_STORAGE_CONFIG}
       - BACKUP_BUCKET=${BACKUP_BUCKET_NAME}
       - MAIL_URL=
       # - INIT_WORKSPACE=staging-dev
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # Debug: uncomment to enable remote debugging
+      # ports:
+      #   - 9231:9231
+      # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9231
     restart: unless-stopped
   collaborator0:
-    image: haiodo/collaborator
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/collaborator:${DOCKER_TAG:-latest}"
     links:
       - minio
       - transactor
       - stats
-    ports:
-      - 3078:3078
     environment:
       - COLLABORATOR_PORT=3078
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-    restart: unless-stopped
-  collaborator1:
-    image: haiodo/collaborator
-    extra_hosts:
-      - 'huly.local:host-gateway'
-    links:
-      - minio
-      - transactor
-      - stats
-    ports:
-      - 3077:3077
-    environment:
-      - COLLABORATOR_PORT=3077
-      - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
-      - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      - STATS_URL=http://stats:4900
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # Debug: uncomment to enable remote debugging
+      # ports:
+      #   - 9233:9233
+      # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9233
     restart: unless-stopped
   front:
-    image: haiodo/front
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/front:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
     links:
       - stats
-    ports:
-      - 8087:8080
-      - 8088:8080
     environment:
       - SERVER_PORT=8080
       - SERVER_SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
-      - STATS_URL=http://huly.local:4900
-      - FILES_URL=http://huly.local:4030/blob/:workspace/:blobId/:filename
+      - ACCOUNTS_URL=http://localhost:8087/_account
+      - ACCOUNTS_URL_INTERNAL=http://account:3000
+      - STATS_URL=http://stats:4900
+      - STATS_API=http://localhost:8087/_stats
+      - FILES_URL=http://localhost:8087/_datalake/blob/:workspace/:blobId/:filename
       - UPLOAD_URL=/files
-      - PREVIEW_URL=http://huly.local:4040
-      - GMAIL_URL=http://huly.local:8093
-      - CALENDAR_URL=http://huly.local:8095
-      - TELEGRAM_URL=http://huly.local:8086
-      - REKONI_URL=http://huly.local:4004
+      - PREVIEW_URL=http://localhost:8087/_preview
+      - GMAIL_URL=http://host.docker.internal:8093
+      - CALENDAR_URL=http://host.docker.internal:8095
+      - TELEGRAM_URL=http://host.docker.internal:8086
+      - REKONI_URL=http://localhost:8087/_rekoni
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - GITHUB_URL=http://huly.local:3500
-      - PRINT_URL=http://huly.local:4005
-      - SIGN_URL=http://huly.local:4006
-      #      - ANALYTICS_COLLECTOR_URL=http://huly.local:4017
-      - DESKTOP_UPDATES_URL=localhost
+      - GITHUB_URL=http://host.docker.internal:3500
+      - PRINT_URL=http://localhost:8087/_print
+      - SIGN_URL=http://localhost:8087/_sign
+      #      - ANALYTICS_COLLECTOR_URL=http://localhost:4017
+      - DESKTOP_UPDATES_URL=http://localhost
       - DESKTOP_UPDATES_CHANNEL=dev
       - DESKTOP_UPDATES_CHANNELS=dev;tracex:dev-tracex
-      - BRANDING_URL=http://huly.local:8087/branding.json
-      - STREAM_URL=http://huly.local:1080/recording
-      - PAYMENT_URL=http://huly.local:3040
-      - BILLING_URL=http://huly.local:4041
-      - COMMUNICATION_API_ENABLED=false
-      - BACKUP_URL=http://huly.local:4039/api/backup,
+      - BRANDING_URL=http://localhost:8087/branding.json
+      - STREAM_URL=http://localhost:8087/_stream/recording
+      - PAYMENT_URL=http://localhost:8087/_payment
+      - BILLING_URL=http://localhost:8087/_billing
+      # - BACKUP_URL=http://localhost:8087/_backup/api/backup
+      - WEBHOOK_SERVICE_URL=http://localhost:8087/_webhook
       - EXCLUDED_APPLICATIONS_FOR_ANONYMOUS=["chunter", "notification"]
       # - DISABLE_SIGNUP=true
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-      - DATALAKE_URL=http://huly.local:4030
-      # - HULYLAKE_URL=http://huly.local:8096
-      - AI_URL=http://huly.local:4010
-      # - LANDING_URL=http://huly.local:9078/landing/
-      - LOVE_ENDPOINT=http://huly.local:8096
-      - LIVEKIT_WS=ws://huly.local:7880
-      - EXPORT_URL=http://huly.local:4009
-      - LINK_PREVIEW_URL=http://huly.local:4042
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      - DATALAKE_URL=http://localhost:8087/_datalake
+      # - HULYLAKE_URL=http://love:8096
+      - AI_URL=http://localhost:8087/_ai
+      # - LANDING_URL=http://localhost:9078/landing/
+      - LOVE_ENDPOINT=http://localhost:8087/_love
+      - LIVEKIT_WS=ws://host.docker.internal:7880
+      - EXPORT_URL=http://localhost:8087/_export
+      - LINK_PREVIEW_URL=http://localhost:8087/_link-preview
       - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
-      - USAGE_URL=http://huly.local:8080/terms
+      - USAGE_URL=http://localhost:8080/terms
+      - COPYRIGHT=
       - SUPPORT_URL=https://t.me/intabia
-      - LICENSE_URL=https://huly.local:8080/legal/license
-      - USERAGREEMENT_URL=https://huly.local:8080/legal/user-agreement
-      - CONFIDENTIAL_URL=https://huly.local:8080/legal/confidential
+      - LICENSE_URL=https://localhost:8080/legal/license
+      - USERAGREEMENT_URL=https://localhost:8080/legal/user-agreement
+      - CONFIDENTIAL_URL=https://localhost:8080/legal/confidential
       - SUPPORT_EMAIL=platform@intabia.ru
-      - PERSONAL_DATA_URL=https://huly.local:8080/legal/agreement
+      - PERSONAL_DATA_URL=https://localhost:8080/legal/agreement
+      - RULES_URL=https://localhost:8080/legal/rules
+    # Debug: uncomment to enable remote debugging
+    # ports:
+    #   - 9234:9234
+    # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9234
     restart: unless-stopped
   transactor:
-    image: haiodo/transactor
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/transactor:${DOCKER_TAG:-latest}"
     links:
       - postgres
       - minio
@@ -396,55 +386,51 @@ services:
     depends_on:
       redpanda:
         condition: service_started
-    ports:
-      - 3332:3332
-      - 9229:9229
+    # Debug: uncomment to enable remote debugging
+    # ports:
+    #   - 9229:9229
+    # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9229
     volumes:
       - ./branding.json:/var/cfg/branding.json
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - SERVER_PORT=3332
       - REGION=
       - SERVER_SECRET=secret
       - ENABLE_COMPRESSION=true
-      - FULLTEXT_URL=http://huly.local:4702
-      - STATS_URL=http://huly.local:4900
+      - FULLTEXT_URL=http://fulltext:4702
+      - STATS_URL=http://stats:4900
       - DB_URL=${DB_URL_PG}
       - METRICS_CONSOLE=false
       - METRICS_FILE=metrics.txt
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - FRONT_URL=http://huly.local:8087
-#      - MAIL_URL=http://huly.local:8097
-#      - MAIL_AUTH_TOKEN=naephea1Rai7eeth1noh
-      - ACCOUNTS_URL=http://huly.local:3000
+      - FRONT_URL=http://localhost:8087
+      #      - MAIL_URL=http://mail_server:8097
+      #      - MAIL_AUTH_TOKEN=naephea1Rai7eeth1noh
+      - ACCOUNTS_URL=http://account:3000
       - LAST_NAME_FIRST=true
       - BRANDING_PATH=/var/cfg/branding.json
-      - AI_BOT_URL=http://huly.local:4010
-      - COMMUNICATION_TIME_LOGGING_ENABLED=true
+      - AI_BOT_URL=http://aibot:4010
       - RATE_LIMIT_MAX=25000 # 250 requests per 30 seconds
       - RATE_LIMIT_WINDOW=3000
-      - FILES_URL=http://huly.local:4030/blob/:workspace/:blobId/:filename
-      - COMMUNICATION_API_ENABLED=false
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-      - HYLYLAKE_URL=http://huly.local:8096
-      - AI_BOT_URL=http://huly.local:4010
+      - FILES_URL=http://localhost:8087/_datalake/blob/:workspace/:blobId/:filename
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      - HYLYLAKE_URL=http://love:8096
+      - AI_BOT_URL=http://aibot:4010
       - WEB_PUSH_URL=http://notification:3335
     restart: unless-stopped
   rekoni:
-    image: haiodo/rekoni-service
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/rekoni-service:${DOCKER_TAG:-latest}"
     restart: unless-stopped
-    ports:
-      - 4004:4004
     environment:
-      - STATS_URL=http://huly.local:4901
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      - STATS_URL=http://stats:4901
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # Debug: uncomment to enable remote debugging
+      # ports:
+      #   - 9239:9239
+      # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9239
   fulltext:
-    image: haiodo/fulltext
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/fulltext:${DOCKER_TAG:-latest}"
     depends_on:
       elastic:
         condition: service_healthy
@@ -453,44 +439,40 @@ services:
       - elastic
       - postgres
       - rekoni
-    ports:
-      - 4702:4702
     environment:
       - PORT=4702
       - REGION=
       - SERVER_SECRET=secret
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - DB_URL=${DB_URL_PG}
-      - FULLTEXT_DB_URL=http://huly.local:9200
+      - FULLTEXT_DB_URL=http://elastic:9200
       - ELASTIC_INDEX_NAME=local_storage_index # Same index for simplicity
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - STATS_URL=http://huly.local:4900
-      - REKONI_URL=http://huly.local:4004
-      - ACCOUNTS_URL=http://huly.local:3000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-      # - HULYLAKE_URL=http://huly.local:8096
+      - STATS_URL=http://stats:4900
+      - REKONI_URL=http://rekoni:4004
+      - ACCOUNTS_URL=http://account:3000
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # - HULYLAKE_URL=http://love:8096
+      # Debug: uncomment to enable remote debugging
+      # ports:
+      #   - 9232:9232
+      # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9232
   print:
-    image: haiodo/print
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/print:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - 'host.docker.internal:host-gateway'
     restart: unless-stopped
-    ports:
-      - 4005:4005
     environment:
       - SECRET=secret
       - REGION=
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - STATS_URL=http://huly.local:4900
-      - ACCOUNTS_URL=http://huly.local:3000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      - STATS_URL=http://stats:4900
+      - ACCOUNTS_URL=http://account:3000
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
   sign:
-    image: haiodo/sign
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/sign:${DOCKER_TAG:-latest}"
     restart: unless-stopped
-    ports:
-      - 4006:4006
     volumes:
       - ../services/sign/pod-sign/debug/certificate.p12:/var/cfg/certificate.p12
       - ../services/sign/pod-sign/debug/branding.json:/var/cfg/branding.json
@@ -500,64 +482,80 @@ services:
       - REGION=
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - CERTIFICATE_PATH=/var/cfg/certificate.p12
       - SERVICE_ID=sign-service
       - BRANDING_PATH=/var/cfg/branding.json
-      - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      - STATS_URL=http://stats:4900
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
   love:
-    image: haiodo/love
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/love:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8096:8096"
     environment:
       - PORT=8096
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - DB_URL=${DB_URL_PG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - S3_STORAGE_CONFIG=s3|http://minio:9000?accessKey=minioadmin&secretKey=minioadmin&rootBucket=love-recordings
-      - LIVEKIT_HOST=ws://huly.local:7880
+      - LIVEKIT_HOST=ws://host.docker.internal:7880
       - LIVEKIT_API_KEY=devkey
       - LIVEKIT_API_SECRET=secret
       - LIVEKIT_WEBHOOK_API_KEY=whkey
       - LIVEKIT_WEBHOOK_API_SECRET=whsecret
       - LIVEKIT_PROJECT=dev-project
-      - BILLING_URL=http://huly.local:4041
+      # Recording template served by love itself; egress reaches it over the compose network.
+      - RECORDING_TEMPLATE_URL=http://love:8096/egress-template/
+      - BILLING_URL=http://billing:4041
       - BILLING_POLL_INTERVAL=15
       - AGENTS=transcribe-dev
-      - WEBHOOK_URL=http://127.0.0.1:8097/webhook
+      - WEBHOOK_URL=http://localhost:8087/_love/webhook
       - POLLING_ENABLED=true
       - POLLING_INTERVAL_MS=30000
       - PENDING_JOIN_TIMEOUT_MS=60000
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
-    ports:
-      - 8096:8096
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
+    # Debug: uncomment to enable remote debugging
+    # ports:
+    #   - 9237:9237
+    # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9237
     restart: unless-stopped
 
   aibot:
-    image: haiodo/ai-bot
-    ports:
-      - 4010:4010
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/ai-bot:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    volumes:
+      # Model registry (levels -> models). See pod-ai-bot/config.example.yaml.
+      - ./config-aibot.yaml:/var/cfg/config.yaml
     environment:
       # Account and Server Configuration
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - SERVER_SECRET=secret
       - SERVICE_ID=ai-bot-service
       - API_TOKEN=api-secret
-      - MODE=queue
+      # Multi-level model registry (overrides the single-provider env synthesis below).
+      - CONFIG_PATH=/var/cfg/config.yaml
+      # All-in-one role: event-router + llm-router + stt-worker (+ stt-ingest).
+      # Split into MODE=event-router / llm-router / stt-worker for prod topology.
+      - MODE=all
+      # Full LLM payload logging (messages, tool defs, function calls, completions).
+      - LLM_DEBUG=true
+      # Sampling temperature for meeting summaries (facts, not prose - keep the spread low).
+      - SUMMARY_TEMPERATURE=${SUMMARY_TEMPERATURE:-0.1}
 
       # Bot Identity Configuration
       - FIRST_NAME=Julia
       - LAST_NAME=AI
       - PASSWORD=password
       - AVATAR_PATH=./avatar.png
-      - AVATAR_CONTENT_TYPE=.png
+      - AVATAR_CONTENT_TYPE=image/png
 
       # Port Configuration
       - PORT=4010
@@ -566,23 +564,23 @@ services:
       # - LLM_PROVIDER=openai
       # - OPENAI_API_KEY=token
       # - OPENAI_MODEL=gpt-4o-mini
-      # - OPENAI_BASE_URL=http://huly.local:1234/v1/
+      # - OPENAI_BASE_URL=http://host.docker.internal:1234/v1/
       # - OPENAI_SUMMARY_MODEL=openai/gpt-oss-20b
       # - OPENAI_TRANSLATE_MODEL=openai/gpt-oss-20b
 
       # GigaChat Configuration (only if using GigaChat)
       - LLM_PROVIDER=server # gigachat
-      # - GIGACHAT_CREDENTIALS=${GIGACHAT_AUTH_KEY}
+      # Auth key for the gigachat provider in config-aibot.yaml (${GIGACHAT_AUTH_KEY}
+      # placeholder is expanded from this env by the pod).
+      - GIGACHAT_AUTH_KEY=${GIGACHAT_AUTH_KEY}
+      - GIGACHAT_CLIENT_ID=${GIGACHAT_CLIENT_ID}
       # - GIGACHAT_SCOPE=GIGACHAT_API_PERS
       # - GIGACHAT_MODEL=GigaChat-2
       # - GIGACHAT_BASE_URL=https://gigachat.devices.sberbank.ru/api/v1/
       # - GIGACHAT_TIMEOUT=600
 
-      # STT Configuration
-      - STT_PROVIDER=server #openai
-      # - STT_URL=http://huly.local:9007
-      # - STT_API_KEY=key
-      # - STT_MODEL=
+      # ASR: provider/model come from the yaml `asr:` block. STT_PROVIDER is an opt-out
+      # switch only ('none' disables). Unset here = ASR enabled via the registry.
 
       # Deepgram Configuration (only if using Deepgram)
       # - DEEPGRAM_API_KEY=your-deepgram-api-key
@@ -595,35 +593,50 @@ services:
       - VAD_SPEECH_RATIO_THRESHOLD=0.1
 
       # Service Integration Configuration
-      - LOVE_ENDPOINT=http://huly.local:8096
-      - BILLING_URL=http://huly.local:4041
+      - LOVE_ENDPOINT=http://love:8096
+      - BILLING_URL=http://billing:4041
       - DATALAB_API_KEY=
+      # Dev only: append in/out/reasoning tokens + tok/s to every reply.
+      - LLM_SHOW_USAGE=false
 
       # Content and History Limits
-      - MAX_CONTENT_TOKENS=12800
+      - MAX_CONTENT_TOKENS=100000
       - MAX_HISTORY_RECORDS=500
 
       # Additional environment variables
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - CHUNK_STORAGE_CONFIG=${CHUNK_STORAGE_CONFIG}
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
+    # Debug: uncomment to enable remote debugging
+    # ports:
+    #   - 9236:9236
+    # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9236
   aibot_client_llm:
-    image: haiodo/ai-bot
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/ai-bot:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    volumes:
+      # Client model registry: level -> model on the local OpenAI-compatible endpoint.
+      # low -> gpt-oss-20b, middle -> GigaChat3.1-10B (both via host :8000/v1).
+      - ./config-aibot-client.yaml:/var/cfg/config.yaml
     environment:
       - API_TOKEN=api-secret
       - MODE=client
-      - SERVER_URL=ws://huly.local:4010
-      # LLM Configuration
-      - LLM_PROVIDER=openai
-      - OPENAI_API_KEY=token
-      # - OPENAI_MODEL=gpt-4o-mini
-      - OPENAI_BASE_URL=http://huly.local:1234/v1/
-      - OPENAI_SUMMARY_MODEL=qwen/qwen3.5-9b
-      - OPENAI_TRANSLATE_MODEL=qwen/qwen3.5-9b
+      # Logical worker id, echoed in results so the router attributes per-client usage.
+      - CLIENT_ID=client-llm-local
+      - SERVER_URL=ws://aibot:4010
+      # Model registry (endpoint/models/levels live here, not in env).
+      - CONFIG_PATH=/var/cfg/config.yaml
+      # Local endpoint override: forwarded from the host shell into the container so the
+      # config-aibot-client.yaml ${CLISR_HOST}/${CLISR_MODEL} placeholders resolve.
+      - CLISR_HOST=${CLISR_HOST:-}
+      - CLISR_MODEL=${CLISR_MODEL:-}
+      # Full LLM payload logging (messages, tool defs, tool calls, completions).
+      - LLM_DEBUG=true
+      # Sampling temperature for meeting summaries (facts, not prose - keep the spread low).
+      - SUMMARY_TEMPERATURE=${SUMMARY_TEMPERATURE:-0.1}
 
       # GigaChat Configuration (only if using GigaChat)
       # - LLM_PROVIDER=gigachat
@@ -634,35 +647,32 @@ services:
       # - GIGACHAT_TIMEOUT=600
 
       # Content and History Limits
-      - MAX_CONTENT_TOKENS=12800
+      - MAX_CONTENT_TOKENS=100000
       - MAX_HISTORY_RECORDS=500
 
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
 
-      - STT_PROVIDER=
+      # LLM-only worker: opt out of ASR even though the shared registry yaml has an `asr:` block.
+      - STT_PROVIDER=none
   aibot_client_stt:
-    image: haiodo/ai-bot
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/ai-bot:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    volumes:
+      # Same client registry as aibot_client_llm; the `asr:` block drives transcription.
+      - ./config-aibot-client.yaml:/var/cfg/config.yaml
     environment:
       - API_TOKEN=api-secret
       - MODE=client
-      - SERVER_URL=ws://huly.local:4010
+      # Logical worker id, echoed in results so the router attributes per-client usage.
+      - CLIENT_ID=client-stt-local
+      - SERVER_URL=ws://aibot:4010
+      # ASR registry (endpoint/models/levels live in the yaml `asr:` block, not in env).
+      - CONFIG_PATH=/var/cfg/config.yaml
 
+      # LLM opt-out: this worker only serves ASR (from the yaml `asr:` block).
       - LLM_PROVIDER=none
-
-      # STT Configuration
-      - STT_PROVIDER=openai
-      - STT_URL=http://huly.local:9007
-      - STT_API_KEY=key
-      - STT_MODEL=
-
-      # Deepgram Configuration (only if using Deepgram)
-      # - DEEPGRAM_API_KEY=your-deepgram-api-key
-      # - DEEPGRAM_PROJECT_ID=your-project-id
-      # - DEEPGRAM_TAG=tag
-      # - DEEPGRAM_POLL_INTERVAL_MINUTES=60
 
       # VAD Configuration
       - VAD_RMS_THRESHOLD=0.02
@@ -671,50 +681,40 @@ services:
       - DATALAB_API_KEY=
 
       # Content and History Limits
-      - MAX_CONTENT_TOKENS=12800
+      - MAX_CONTENT_TOKENS=100000
       - MAX_HISTORY_RECORDS=500
 
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
   analytics:
-    image: haiodo/analytics-collector
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/analytics-collector:${DOCKER_TAG:-latest}"
     restart: unless-stopped
-    ports:
-      - 4017:4017
     environment:
       - SECRET=secret
       - PORT=4017
       - SERVICE_ID=analytics-collector-service
-      - ACCOUNTS_URL=http://huly.local:3000
-      - STATS_URL=http://huly.local:4900
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      - ACCOUNTS_URL=http://account:3000
+      - STATS_URL=http://stats:4900
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
       # - POSTHOG_HOST=${POSTHOG_HOST}
       # - POSTHOG_API_KEY=${POSTHOG_API_KEY}
       # - MAX_PAYLOAD_SIZE=10mb
   export:
-    image: haiodo/export
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/export:${DOCKER_TAG:-latest}"
     links:
       - minio
       - stats
-    ports:
-      - 4009:4009
     environment:
       - PORT=4009
       - SECRET=secret
       - SERVICE_ID=export-service
       - DB_URL=${DB_URL_PG}
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - ACCOUNTS_URL=http://huly.local:3000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      - ACCOUNTS_URL=http://account:3000
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
     restart: unless-stopped
   datalake:
-    image: haiodo/datalake
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/datalake:${DOCKER_TAG:-latest}"
     depends_on:
       minio:
         condition: service_healthy
@@ -725,24 +725,26 @@ services:
         condition: service_started
       account:
         condition: service_started
-    ports:
-      - 4030:4030
     environment:
       - PORT=4030
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
-      - STATS_URL=http://huly.local:4900
+      - ACCOUNTS_URL=http://account:3000
+      - STATS_URL=http://stats:4900
       - DB_URL=${DB_URL_PG}
       - BUCKETS=blobs,eu|http://minio:9000?accessKey=minioadmin&secretKey=minioadmin
       - REGION=
       - QUEUE_CONFIG=${QUEUE_CONFIG}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      # Debug: uncomment to enable remote debugging
+      # ports:
+      #   - 9240:9240
+      # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9240
     restart: unless-stopped
   # hulylake:
-  #   image: haiodo/hulylake
+  #   image: intabiafusion/hulylake
   #   pull_policy: never
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'host.docker.internal:host-gateway'
   #   depends_on:
   #     minio:
   #       condition: service_healthy
@@ -759,12 +761,12 @@ services:
   #     - AWS_SECRET_ACCESS_KEY=minioadmin
   #   restart: unless-stopped
   # hulykvs:
-  #   image: haiodo/hulykvs
+  #   image: intabiafusion/hulykvs
   #   depends_on:
   #     postgres:
   #       condition: service_started
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'host.docker.internal:host-gateway'
   #   ports:
   #     - 8094:8094
   #   environment:
@@ -772,25 +774,23 @@ services:
   #     - HULY_TOKEN_SECRET=secret
   #   restart: unless-stopped
   # hulygun:
-  #   image: haiodo/hulygun
+  #   image: intabiafusion/hulygun
   #   depends_on:
   #     redpanda:
   #       condition: service_healthy
   #     account:
   #       condition: service_started
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'host.docker.internal:host-gateway'
   #   environment:
   #     - HULY_LOG=debug
-  #     - HULY_KAFKA_BOOTSTRAP=kafka:9092
+  #     - HULY_KAFKA_BOOTSTRAP=redpanda:9092
   #     - HULY_TOKEN_SECRET=secret
-  #     - HULY_ACCOUNT_SERVICE=http://huly.local:3000
+  #     - HULY_ACCOUNT_SERVICE=http://account:3000
   #   restart: unless-stopped
 
   process-service:
-    image: haiodo/process
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/process:${DOCKER_TAG:-latest}"
     depends_on:
       redpanda:
         condition: service_started
@@ -798,14 +798,12 @@ services:
         condition: service_started
     environment:
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
     restart: unless-stopped
   time-machine:
-    image: haiodo/worker
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/worker:${DOCKER_TAG:-latest}"
     depends_on:
       redpanda:
         condition: service_started
@@ -818,28 +816,36 @@ services:
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
     restart: unless-stopped
-  #  translate:
-  #    image: haiodo/translate
-  #    extra_hosts:
-  #      - 'huly.local:host-gateway'
-  #    depends_on:
-  #      redpanda:
-  #        condition: service_started
-  #      account:
-  #        condition: service_started
-  #    environment:
-  #      - SECRET=secret
-  #      - ACCOUNTS_URL=http://huly.local:3000
-  #      - HULYLAKE_URL=http://huly.local:8096
-  #      - QUEUE_CONFIG=${QUEUE_CONFIG}
-  #      - QUEUE_REGION=
-  #      - OPENAI_API_KEY=
-  #      - BILLING_URL=http://huly.local:4041
-  #    restart: unless-stopped
+  webhook:
+    image: "intabiafusion/webhook:${DOCKER_TAG:-latest}"
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+    environment:
+      - PORT=4043
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      # Dev only: lets outgoing deliveries reach the mock inside this network. Cluster-internal names
+      # stay blocked regardless; never set either of these in production.
+      - ALLOW_INSECURE_WEBHOOK_HTTP=true
+      - DEV_ALLOWED_WEBHOOK_HOSTS=webhook-mock,host.docker.internal
+      # Base of the document links carried by outgoing events; the browser's own front, not a pod name.
+      - FRONT_URL=http://localhost:8087
+    restart: unless-stopped
+  webhook-mock:
+    image: "intabiafusion/webhook-mock:${DOCKER_TAG:-latest}"
+    environment:
+      - PORT=4044
+      - WEBHOOK_URL=http://webhook:4043
+    restart: unless-stopped
   # backup:
-  #   image: haiodo/backup
+  #   image: intabiafusion/backup
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'host.docker.internal:host-gateway'
   #   depends_on:
   #     minio:
   #       condition: service_healthy
@@ -851,46 +857,44 @@ services:
   #       condition: service_started
   #   environment:
   #     - SECRET=secret
-  #     - ACCOUNTS_URL=http://huly.local:3000
+  #     - ACCOUNTS_URL=http://account:3000
   #     - ACCOUNTS_DB_URL=${DB_URL_PG}
-  #     - STATS_URL=http://huly.local:4900
+  #     - STATS_URL=http://stats:4900
   #     - DB_URL=${DB_URL_PG}
   #     - REGION=
   #     - BUCKET_NAME=backups
   #     - INTERVAL=60
   #     - STORAGE=minio|minio?accessKey=minioadmin&secretKey=minioadmin
   #     - WORKSPACE_STORAGE=${STORAGE_CONFIG}
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
+  #     # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
   #     - QUEUE_CONFIG=${QUEUE_CONFIG}
   #     - TEMPORAL_ADDRESS=localhost:7233
   #   restart: unless-stopped
-#  backup-api:
-#    image: haiodo/backup-api
-#    extra_hosts:
-#      - 'huly.local:host-gateway'
-#    depends_on:
-#      minio:
-#        condition: service_healthy
-#      stats:
-#        condition: service_started
-#      account:
-#        condition: service_started
-#    ports:
-#      - 4039:4039
-#    environment:
-#      - PORT=4039
-#      - SECRET=secret
-#      - ACCOUNTS_URL=http://huly.local:3000
-#      - STATS_URL=http://huly.local:4900
-#      - BUCKET_NAME=backups
-#      - STORAGE=minio|minio?accessKey=minioadmin&secretKey=minioadmin
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-#    restart: unless-stopped
+  #  backup-api:
+  #    image: intabiafusion/backup-api
+  #    extra_hosts:
+  #      - 'host.docker.internal:host-gateway'
+  #    depends_on:
+  #      minio:
+  #        condition: service_healthy
+  #      stats:
+  #        condition: service_started
+  #      account:
+  #        condition: service_started
+  #    ports:
+  #      - 4039:4039
+  #    environment:
+  #      - PORT=4039
+  #      - SECRET=secret
+  #      - ACCOUNTS_URL=http://account:3000
+  #      - STATS_URL=http://stats:4900
+  #      - BUCKET_NAME=backups
+  #      - STORAGE=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+  #      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+  #    restart: unless-stopped
 
   rating:
-    image: haiodo/rating
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/rating:${DOCKER_TAG:-latest}"
     links:
       - postgres
       - minio
@@ -903,44 +907,53 @@ services:
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - REGION=
       - SERVER_SECRET=secret
-      - STATS_URL=http://huly.local:4900
+      - STATS_URL=http://stats:4900
       - DB_URL=${DB_URL_PG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - ACCOUNTS_URL=http://huly.local:3000
-      - COMMUNICATION_TIME_LOGGING_ENABLED=true
-      - COMMUNICATION_API_ENABLED=false
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://huly.local:4318
-      - HYLYLAKE_URL=http://huly.local:8096
+      - ACCOUNTS_URL=http://account:3000
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      - HYLYLAKE_URL=http://love:8096
     restart: unless-stopped
+
+  db-migrator:
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/db-migrator:${DOCKER_TAG:-latest}"
+    pull_policy: never
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB_URL=${DB_URL_PG}
+    restart: "no"
+
   love-agent:
-    image: haiodo/love-agent
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/love-agent:${DOCKER_TAG:-latest}"
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
     depends_on:
       - love
       - aibot
     environment:
       - SERVER_SECRET=secret
       - AGENT_NAME=transcribe-dev
-      - PLATFORM_URL=http://huly.local:4010
-      - LIVEKIT_URL=ws://huly.local:7880
+      - PLATFORM_URL=http://aibot:4010
+      - LIVEKIT_URL=ws://host.docker.internal:7880
       - LIVEKIT_API_KEY=devkey
       - LIVEKIT_API_SECRET=secret
       - STT_PROVIDER=stream
     restart: unless-stopped
 
   # love-agent-prod:
-  #   image: haiodo/love-agent
+  #   image: intabiafusion/love-agent
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'host.docker.internal:host-gateway'
   #   depends_on:
   #     - love
   #     - aibot
   #   environment:
   #     - SERVER_SECRET=secret
   #     - AGENT_NAME=transcribe-prod
-  #     - PLATFORM_URL=http://huly.local:4010
-  #     - LIVEKIT_URL=ws://huly.local:7880
+  #     - PLATFORM_URL=http://aibot:4010
+  #     - LIVEKIT_URL=ws://host.docker.internal:7880
   #     - LIVEKIT_API_KEY=devkey
   #     - LIVEKIT_API_SECRET=secret
   #     - STT_PROVIDER=stream
@@ -949,9 +962,9 @@ services:
   livekit-egress:
     image: livekit/egress
     extra_hosts:
-      - 'huly.local:host-gateway'
+      - "host.docker.internal:host-gateway"
     volumes:
-      - './livekit-egress-config.yaml:/out/config.yaml:ro'
+      - "./livekit-egress-config.yaml:/out/config.yaml:ro"
     environment:
       - EGRESS_CONFIG_FILE=/out/config.yaml
     depends_on:
@@ -959,9 +972,7 @@ services:
       - minio
     restart: unless-stopped
   billing:
-    image: haiodo/billing
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/billing:${DOCKER_TAG:-latest}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -970,30 +981,33 @@ services:
         condition: service_started
       datalake:
         condition: service_started
-    ports:
-      - 4041:4041
+      redpanda:
+        condition: service_started
     environment:
       - PORT=4041
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - DB_URL=${DB_URL_PG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
-      - USAGE_UPDATE_INTERVAL=30
+      - USAGE_UPDATE_INTERVAL=600
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      # Destructive usage-rewrite endpoints (reset / set-used): dev stand only.
+      - ALLOW_TEST_ENDPOINTS=true
+    # Debug: uncomment to enable remote debugging
+    # ports:
+    #   - 9238:9238
+    # Add to environment: NODE_OPTIONS=--inspect=0.0.0.0:9238
     restart: unless-stopped
 
   mail_server:
-    image: haiodo/mail
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/mail:${DOCKER_TAG:-latest}"
     depends_on:
       - mailpit
-    ports:
-      - 8097:8097
     environment:
       - MODE=server
       - PORT=8097
-      - SOURCE=hello@localhost
-      - REPLY_TO=hello@localhost
+      - SOURCE=platform@intabia.ru
+      - REPLY_TO=platform@intabia.ru
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - REGION=
       - API_KEY=naephea1Rai7eeth1noh
@@ -1003,10 +1017,11 @@ services:
       - SMTP_PORT=1025
       - SMTP_TLS_MODE=ignore
       - SMTP_ALLOW_SELF_SIGNED=true
+      - ACCOUNTS_URL=http://account:3000
+      - SECRET=secret
+      - APP_NAME=Platform
   mail_client:
-    image: haiodo/mail
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/mail:${DOCKER_TAG:-latest}"
     depends_on:
       - mail_server
       - mailpit
@@ -1023,8 +1038,6 @@ services:
       - SMTP_ALLOW_SELF_SIGNED=true
   mailpit:
     image: axllent/mailpit
-    extra_hosts:
-      - 'huly.local:host-gateway'
     restart: unless-stopped
     volumes:
       - mailpit:/data
@@ -1037,29 +1050,23 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
   # desktop-dist:
-  #   image: haiodo/desktop-distro
+  #   image: intabiafusion/desktop-distro
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'host.docker.internal:host-gateway'
   #   ports:
   #     - 4409:4409
   #   environment:
   #     - PORT=4409
   #   restart: unless-stopped
   link-preview:
-    image: 'haiodo/link-preview'
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/link-preview:${DOCKER_TAG:-latest}"
     container_name: link-preview
     environment:
       - SECRET=secret
       - PORT=4042
-    ports:
-      - 4042:4042
     restart: unless-stopped
   activity:
-    image: haiodo/activity
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/activity:${DOCKER_TAG:-latest}"
     depends_on:
       redpanda:
         condition: service_started
@@ -1073,7 +1080,7 @@ services:
       - ./branding.json:/var/cfg/branding.json
     environment:
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
       - DB_URL=${DB_URL_PG}
@@ -1082,11 +1089,11 @@ services:
       - BRANDING_PATH=/var/cfg/branding.json
     restart: unless-stopped
   # crm:
-  #   image: haiodo/crm
+  #   image: intabiafusion/crm
   #   ports:
   #     - '3001:3001'
   #   extra_hosts:
-  #     - 'huly.local:host-gateway'
+  #     - 'localhost:host-gateway'
   #   depends_on:
   #     redpanda:
   #       condition: service_started
@@ -1095,7 +1102,7 @@ services:
   #   environment:
   #     - QUEUE_CONFIG=${QUEUE_CONFIG}
   #     - QUEUE_REGION=
-  #     - STATS_URL=http://huly.local:4900
+  #     - STATS_URL=http://localhost:4900
   #     - SERVICE_ID=crm
   #     - SECRET=secret
   #     - ENABLE_CONSOLE=true
@@ -1105,10 +1112,49 @@ services:
   #     - AMO_CRM_TOKEN=
   #     - AMO_CRM_RESPONSIBLE_USER_ID=
   #   restart: unless-stopped
+  tbank-subscriptions:
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/tbank-subscriptions:${DOCKER_TAG:-latest}"
+    depends_on:
+      account:
+        condition: service_started
+      payment:
+        condition: service_started
+    pull_policy: never
+    environment:
+      - SECRET=secret
+      - PORT=4042
+      # Required: tbank-subscriptions publishes subscription events to the Subscription queue
+      # (pod-payment is the single consumer that bakes limits and writes to account).
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      - ACCOUNTS_URL=http://account:3000
+      - FRONT_URL=http://localhost:8087
+      # TBANK_MOCK is set by the docker:up:tbank overlay (docker-compose.tbank-mock.yaml).
+      # Sandbox terminal credentials — set in your shell or a local (untracked) env file
+      - TBANK_TERMINAL_KEY=${TBANK_TERMINAL_KEY:-test}
+      - TBANK_PASSWORD=${TBANK_PASSWORD:-test}
+      - TBANK_URL=https://securepay.tinkoff.ru
+      # Fiscal receipt (54-ФЗ) tax params — match the terminal's cash desk settings
+      - TBANK_TAXATION=${TBANK_TAXATION:-usn_income}
+      - TBANK_VAT_TAX=${TBANK_VAT_TAX:-none}
+      - SCHEDULER_INTERVAL_MINUTES=${TBANK_SCHEDULER_INTERVAL_MINUTES:-60}
+      # Set to true to skip webhook token verification (for local dev with curl)
+      - TBANK_SKIP_WEBHOOK_VERIFICATION=true
+      # Email notifications: published to the platform notification queue, consumed by pod-mail
+      # (-> mailpit on local). MAIL_FROM is optional; pod-mail falls back to its own SOURCE.
+      - MAIL_FROM=platform@intabia.ru
+      - BILLING_EMAILS=${BILLING_EMAILS:-}
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-platform@intabia.ru}
+      - SUPPORT_URL=${SUPPORT_URL:-https://t.me/intabia}
+      # pod-payment URL — source of the shared plan-config (charge amounts) and localized plan labels for emails
+      - PAYMENT_URL=http://payment:4040
+      - GRACE_PERIOD_DAYS=${TBANK_GRACE_PERIOD_DAYS:-7}
+      # Days before a charge / expiry date the reminder email is sent
+      - UPCOMING_NOTICE_DAYS=${TBANK_UPCOMING_NOTICE_DAYS:-5}
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+    restart: unless-stopped
   notifications:
-    image: haiodo/notifications
-    extra_hosts:
-      - 'huly.local:host-gateway'
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/notifications:${DOCKER_TAG:-latest}"
     depends_on:
       redpanda:
         condition: service_started
@@ -1120,26 +1166,34 @@ services:
       - ./branding.json:/var/cfg/branding.json
     environment:
       - SECRET=secret
-      - ACCOUNTS_URL=http://huly.local:3000
+      - ACCOUNTS_URL=http://account:3000
       - DB_URL=${DB_URL_PG}
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
-      - FRONT_URL=http://huly.local:8087
-      - STATS_URL=http://huly.local:4900
+      - FRONT_URL=http://localhost:8087
+      - STATS_URL=http://stats:4900
       - BRANDING_PATH=/var/cfg/branding.json
   notification:
-    image: haiodo/notification
+    image: "${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DOCKER_NAMESPACE:-intabiafusion}/notification:${DOCKER_TAG:-latest}"
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
     environment:
-      - PORT=3335
       - SOURCE=mail@example.com
       - ACCESS_KEY=none
       - SECRET_KEY=none
       - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
       - PUSH_PRIVATE_KEY=${PUSH_PRIVATE_KEY}
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
     restart: unless-stopped
   # landing:
-  #   image: haiodo/platform-landing:0.7
+  #   image: intabiafusion/platform-landing:0.7
   #   restart: unless-stopped
   #   ports:
   #     - 9078:80
@@ -1151,5 +1205,4 @@ volumes:
   elastic-plugins:
   redpanda:
   telemetry:
-  pgbouncer_logs:
   mailpit:

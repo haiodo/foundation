@@ -17,15 +17,19 @@
   /* eslint-disable @typescript-eslint/no-unused-vars */
   import attachment from '@hcengineering/attachment'
   import { AttachmentRefInput } from '@hcengineering/attachment-resources'
-  import contact, { Channel, Contact, Person, getName as getContactName } from '@hcengineering/contact'
+  import type { Channel, Contact } from '@hcengineering/contact'
+  import contact, { getName as getContactName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import core, { Ref, SortingOrder, generateId, getCurrentAccount } from '@hcengineering/core'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import type { Ref } from '@hcengineering/core'
+  import core, { SortingOrder, generateId, getCurrentAccount } from '@hcengineering/core'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getEmbeddedLabel, getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import setting, { Integration } from '@hcengineering/setting'
+  import type { Integration } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
   import type { NewTelegramMessage, SharedTelegramMessage, TelegramMessage } from '@hcengineering/telegram'
-  import templates, { TemplateDataProvider } from '@hcengineering/templates'
+  import type { TemplateDataProvider } from '@hcengineering/templates'
+  import templates from '@hcengineering/templates'
   import { jsonToHTML, markupToJSON } from '@hcengineering/text'
   import {
     Button,
@@ -41,7 +45,6 @@
   import { createEventDispatcher, onDestroy } from 'svelte'
   import telegram from '../plugin'
   import Connect from './Connect.svelte'
-  import Messages from './Messages.svelte'
   import Reconnect from './Reconnect.svelte'
   import TelegramIcon from './icons/Telegram.svelte'
 
@@ -54,11 +57,11 @@
   const dispatch = createEventDispatcher()
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   let templateProvider: TemplateDataProvider | undefined
 
-  getResource(templates.function.GetTemplateDataProvider).then((p) => {
+  void getResource(templates.function.GetTemplateDataProvider).then((p) => {
     templateProvider = p()
   })
 
@@ -89,7 +92,7 @@
       (res) => {
         messages = res.reverse()
         if (channel !== undefined) {
-          inboxClient.forceReadDoc(channel)
+          void inboxClient.forceReadDoc(channel)
         }
       },
       {
@@ -140,21 +143,6 @@
   async function share (): Promise<void> {
     // TODO: FIXME
     throw new Error('Not implemented')
-    // const selectedMessages = messages.filter((m) => selected.has(m._id as unknown as Ref<SharedTelegramMessage>))
-    // await client.addCollection(
-    //   telegram.class.SharedMessages,
-    //   object.space,
-    //   object._id,
-    //   object._class,
-    //   'sharedTelegramMessages',
-    //   {
-    //     messages: convertMessages(selectedMessages, $personAccountByIdStore)
-    //   }
-    // )
-    // if (channel !== undefined) {
-    //   await inboxClient.forceReadDoc(channel._id, channel._class)
-    // }
-    // clear()
   }
 
   function clear (): void {
@@ -162,16 +150,6 @@
     selected.clear()
     selected = selected
   }
-
-  // function convertMessages (messages: TelegramMessage[], accounts: IdMap<PersonAccount>): SharedTelegramMessage[] {
-  //   return messages.map((m) => {
-  //     return {
-  //       ...m,
-  //       _id: m._id as unknown as Ref<SharedTelegramMessage>,
-  //       sender: getName(m, accounts)
-  //     }
-  //   })
-  // }
 
   async function onConnectClose (res: any): Promise<void> {
     if (res?.value) {
@@ -228,7 +206,7 @@
   >
     <svelte:fragment slot="title">
       <div class="antiTitle icon-wrapper ml-2">
-        <div class="wrapped-icon"><Icon icon={TelegramIcon} size={'small'} /></div>
+        <div class="wrapped-icon"><Icon icon={TelegramIcon} size="small" /></div>
         <div class="title-wrapper mr-2">
           <div class="wrapped-title flex-row-center">Telegram</div>
         </div>
@@ -237,7 +215,7 @@
             class="ml-2"
             use:tooltip={{ label: getEmbeddedLabel(getContactName(client.getHierarchy(), participant)) }}
           >
-            <Avatar size={'small'} person={participant} name={participant.name} />
+            <Avatar size="small" person={participant} name={participant.name} />
           </div>
         {/each}
       </div>
@@ -246,7 +224,7 @@
       {#if integration === undefined}
         <Button
           label={telegram.string.Connect}
-          kind={'primary'}
+          kind="primary"
           on:click={(e) => {
             showPopup(Connect, {}, eventToHTMLElement(e), onConnectClose)
           }}
@@ -254,7 +232,7 @@
       {:else if integration.disabled}
         <Button
           label={setting.string.Reconnect}
-          kind={'primary'}
+          kind="primary"
           on:click={(e) => {
             showPopup(Reconnect, {}, eventToHTMLElement(e), onReconnect)
           }}
@@ -262,8 +240,8 @@
       {/if}
       <Button
         icon={IconShare}
-        kind={'ghost'}
-        size={'medium'}
+        kind="ghost"
+        size="medium"
         showTooltip={{ label: telegram.string.Share }}
         on:click={async () => {
           selectable = !selectable
@@ -284,13 +262,13 @@
           <span>{selected.size} <Label label={telegram.string.MessagesSelected} /></span>
           <div class="flex">
             <div>
-              <Button label={telegram.string.Cancel} size={'medium'} on:click={clear} />
+              <Button label={telegram.string.Cancel} size="medium" on:click={clear} />
             </div>
             <div class="ml-3">
               <Button
                 label={telegram.string.PublishSelected}
-                size={'medium'}
-                kind={'primary'}
+                size="medium"
+                kind="primary"
                 disabled={!selected.size}
                 on:click={share}
               />

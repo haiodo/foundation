@@ -17,8 +17,8 @@
   import { getAccount } from '@hcengineering/login-resources'
   import { getMetadata, setMetadata } from '@hcengineering/platform'
   import presentation from '@hcengineering/presentation'
+  import type { Location } from '@hcengineering/ui'
   import {
-    Location,
     Popup,
     Scroller,
     deviceOptionsStore as deviceInfo,
@@ -44,7 +44,8 @@
   import loginBackWebp from '../../img/login_back.webp'
   import loginBack2xWebp from '../../img/login_back_2x.webp'
 
-  import { Pages, pages } from '..'
+  import type { Pages } from '..'
+  import { pages } from '..'
 
   export let page: Pages = 'onboard'
 
@@ -104,7 +105,7 @@
     <div
       style:position="fixed"
       style:left={$deviceInfo.docWidth <= 480 ? '.75rem' : '1.75rem'}
-      style:top={'3rem'}
+      style:top="3rem"
       style:z-index={10001}
       class="flex-row-center"
     >
@@ -112,7 +113,7 @@
     </div>
 
     <div class="panel-base" class:panel={$deviceInfo.docWidth > 768} class:white={!$themeStore.dark}>
-      <Scroller padding={'1rem 0'}>
+      <Scroller padding="1rem 0">
         <div class="form-content">
           {#if page === 'onboard'}
             <OnboardForm />

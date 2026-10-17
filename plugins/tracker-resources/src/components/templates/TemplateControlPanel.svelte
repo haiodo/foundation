@@ -13,10 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { generateId, Ref, WithLookup } from '@hcengineering/core'
-  import { AttributeBarEditor, createQuery, getClient, KeyedAttribute } from '@hcengineering/presentation'
-  import tags, { TagElement, TagReference } from '@hcengineering/tags'
-  import task, { Project } from '@hcengineering/task'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import { AttributeBarEditor, createQuery, getClient } from '@hcengineering/presentation'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
+  import tags from '@hcengineering/tags'
+  import type { Project } from '@hcengineering/task'
+  import task from '@hcengineering/task'
   import { TaskKindSelector } from '@hcengineering/task-resources'
   import type { IssueTemplate } from '@hcengineering/tracker'
   import { Component, Label } from '@hcengineering/ui'
@@ -79,10 +83,10 @@
     projectType={currentProject?.type}
     value={issue.kind}
     baseClass={tracker.class.Issue}
-    justify={'left'}
-    width={'100%'}
-    size={'medium'}
-    kind={'link'}
+    justify="left"
+    width="100%"
+    size="medium"
+    kind="link"
     showAlways
     on:change={async (evt) => {
       if (evt.detail !== undefined) {
@@ -93,12 +97,12 @@
   <span class="labelOnPanel">
     <Label label={tracker.string.Priority} />
   </span>
-  <PriorityEditor value={issue} size={'medium'} justify={'left'} width={'100%'} shouldShowLabel />
+  <PriorityEditor value={issue} size="medium" justify="left" width="100%" shouldShowLabel />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Assignee} />
   </span>
-  <AssigneeEditor object={issue} size={'medium'} width="100%" />
+  <AssigneeEditor object={issue} size="medium" width="100%" />
 
   <span class="labelTop">
     <Label label={tracker.string.Labels} />
@@ -127,19 +131,19 @@
   <span class="labelOnPanel">
     <Label label={tracker.string.Component} />
   </span>
-  <ComponentEditor value={issue} size={'medium'} />
+  <ComponentEditor value={issue} size="medium" />
 
   {#if issue.milestone}
     <span class="labelOnPanel">
       <Label label={tracker.string.Milestone} />
     </span>
-    <MilestoneEditor value={issue} size={'medium'} />
+    <MilestoneEditor value={issue} size="medium" />
   {/if}
 
   {#if keys.length > 0}
     <div class="divider" />
     {#each keys as key (typeof key === 'string' ? key : key.key)}
-      <AttributeBarEditor {key} _class={issue._class} object={issue} size={'medium'} showHeader={true} />
+      <AttributeBarEditor {key} _class={issue._class} object={issue} size="medium" showHeader={true} />
     {/each}
   {/if}
 </div>

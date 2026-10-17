@@ -13,14 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, Status, StatusCategory, toIdMap } from '@hcengineering/core'
-  import { Asset } from '@hcengineering/platform'
+  import type { IdMap, Ref, Status, StatusCategory } from '@hcengineering/core'
+  import core, { toIdMap } from '@hcengineering/core'
+  import type { Asset } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
   import { settingsStore } from '@hcengineering/setting-resources'
-  import { ProjectStatus, ProjectType, TaskType } from '@hcengineering/task'
+  import type { ProjectStatus, ProjectType, TaskType } from '@hcengineering/task'
   import { IconMoreV2, IconOpenedArrow, Label } from '@hcengineering/ui'
   import { ObjectPresenter, statusStore } from '@hcengineering/view-resources'
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onDestroy } from 'svelte'
   import task from '../../plugin'
 
   export let taskType: TaskType
@@ -72,7 +73,7 @@
     // Remove state from old position
     states.splice(selected, 1)
 
-    // Adjust target index if moving forward
+    // Adjust target index on forward move.
     const targetIndex = i > selected ? i - 1 : i
 
     // Insert state at new position
@@ -144,11 +145,13 @@
     }
     return index
   }
-  settingsStore.subscribe((value) => {
-    if ((value.id === undefined && opened !== undefined) || (value.id !== undefined && value.id !== opened)) {
-      opened = undefined
-    }
-  })
+  onDestroy(
+    settingsStore.subscribe((value) => {
+      if ((value.id === undefined && opened !== undefined) || (value.id !== undefined && value.id !== opened)) {
+        opened = undefined
+      }
+    })
+  )
   const handleSelect = (_status: Status): void => {
     if (opened === undefined || opened !== _status._id) {
       opened = _status._id
@@ -230,7 +233,7 @@
           }}
         >
           <button class="hulyTableAttr-content__row-dragMenu" on:click|stopPropagation={() => {}}>
-            <IconMoreV2 size={'small'} />
+            <IconMoreV2 size="small" />
           </button>
           <ObjectPresenter
             _class={state._class}
@@ -239,7 +242,7 @@
             props={{ projectType: type._id, taskType: taskType._id, kind: 'table-attrs', size: 'medium' }}
           />
           <div class="hulyTableAttr-content__row-arrow">
-            <IconOpenedArrow size={'small'} />
+            <IconOpenedArrow size="small" />
           </div>
         </button>
       {/each}

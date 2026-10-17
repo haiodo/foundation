@@ -13,13 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, getMetadata, IntlString, translate } from '@hcengineering/platform'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getMetadata, translate } from '@hcengineering/platform'
   import presentation, { getClient } from '@hcengineering/presentation'
   import setting, { settingId } from '@hcengineering/setting'
   import support from '@hcengineering/support'
   import { getCurrentEmployeeName } from '@hcengineering/contact-resources'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
   import {
-    AnySvelteComponent,
     Icon,
     IconArrowLeft,
     Label,
@@ -33,7 +34,8 @@
     topSP
   } from '@hcengineering/ui'
   import { themeStore } from '@hcengineering/theme'
-  import view, { Action, ActionCategory } from '@hcengineering/view'
+  import type { Action, ActionCategory } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { WorkbenchEvents } from '@hcengineering/workbench'
   import { Analytics } from '@hcengineering/analytics'
 
@@ -102,7 +104,7 @@
 
     actions.sort((a, b) => a.category.localeCompare(b.category))
   }
-  getActions()
+  void getActions()
 
   interface HelpCard {
     icon: Asset | AnySvelteComponent
@@ -154,7 +156,7 @@
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="mr-4 cursor-pointer" on:click={() => (shortcuts = !shortcuts)}>
-        <Icon icon={IconArrowLeft} size={'medium'} fill={'var(--content-color)'} />
+        <Icon icon={IconArrowLeft} size="medium" fill="var(--content-color)" />
       </div>
     {/if}
     <span class="fs-title overflow-label">
@@ -167,7 +169,7 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="container" on:click={card.onClick}>
-          <Icon icon={card.icon} size={'small'} fill={'var(--content-color)'} />
+          <Icon icon={card.icon} size="small" fill="var(--content-color)" />
           <div class="content">
             <div class="fs-title">
               <Label label={card.title} />
@@ -175,7 +177,7 @@
             <div class="text-sm content-dark-color"><Label label={card.description} /></div>
           </div>
           <div class="rightIcon">
-            <Icon icon={RightArrowIcon} size={'small'} />
+            <Icon icon={RightArrowIcon} size="small" />
           </div>
         </div>
       </div>
@@ -183,8 +185,8 @@
     <div class="flex-grow" />
   {:else}
     <!-- Keyboard shortcuts -->
-    <Scroller padding={'0 .5rem'} fade={topSP} noStretch checkForHeaders>
-      <ListView count={actions.length} noScroll addClass={'rounded'} bind:selection>
+    <Scroller padding="0 .5rem" fade={topSP} noStretch checkForHeaders>
+      <ListView count={actions.length} noScroll addClass="rounded" bind:selection>
         <svelte:fragment slot="category" let:item>
           {@const action = actions[item]}
           {#if item === 0 || (item > 0 && actions[item - 1].category !== action.category)}
@@ -202,7 +204,7 @@
           {@const action = actions[item]}
           <div class="flex-row-center flex-between flex-grow ml-2 p-3 text-base clear-mins">
             <div class="mr-4 {selection === item ? 'caption-color' : 'dark-color'}">
-              <Icon icon={action.icon ?? IconArrowLeft} size={'small'} />
+              <Icon icon={action.icon ?? IconArrowLeft} size="small" />
             </div>
             <div class="flex-grow {selection === item ? 'caption-color' : 'content-color'}">
               <Label label={action.label} />

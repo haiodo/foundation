@@ -13,9 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset, Metadata } from '@hcengineering/platform'
+  import type { Asset, Metadata } from '@hcengineering/platform'
   import {
-    ButtonIcon,
     fromCodePoint,
     Scroller,
     getPlatformColor,
@@ -24,6 +23,7 @@
     Label,
     Component
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import emojiPlugin from '@hcengineering/emoji'
   import { createEventDispatcher } from 'svelte'
   import { iconsLibrary } from '../icons'
@@ -52,14 +52,15 @@
         {#if icons.length > 0}
           <div class="pallete">
             {#each icons as obj}
-              <ButtonIcon
+              <IconButton
                 icon={obj}
-                iconSize={'medium'}
+                iconSize="medium"
                 iconProps={showColor
                   ? { fill: obj === _icon ? 'currentColor' : getPlatformColor(_color ?? 0, $themeStore.dark) }
                   : undefined}
-                size={'medium'}
+                size="medium"
                 kind={obj === _icon ? 'primary' : 'tertiary'}
+                tooltip={{ label: view.string.Icon }}
                 on:click={() => {
                   _icon = obj
                   dispatch(!showColor ? 'close' : 'update', { icon: _icon, color: _color })
@@ -74,7 +75,7 @@
         <div class="subheader"><Label label={view.string.ChooseAColor} /></div>
         <ColorsPopup
           selected={getPlatformColorDef(_color, $themeStore.dark).name}
-          columns={'auto'}
+          columns="auto"
           embedded
           on:close={(evt) => {
             _color = evt.detail

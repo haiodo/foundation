@@ -25,7 +25,7 @@
   import task from '@hcengineering/task'
   import { AssigneePresenter, StateRefPresenter } from '@hcengineering/task-resources'
   import { ActionIcon, Component, DueDatePresenter, IconMoreH } from '@hcengineering/ui'
-  import { BuildModelKey } from '@hcengineering/view'
+  import type { BuildModelKey } from '@hcengineering/view'
   import { enabledConfig, openDoc, showMenu, statusStore } from '@hcengineering/view-resources'
   import tracker from '@hcengineering/tracker'
 
@@ -40,7 +40,7 @@
   const assigneeAttribute = client.getHierarchy().getAttribute(lead.class.Lead, 'assignee')
 
   function showLead () {
-    openDoc(client.getHierarchy(), object)
+    void openDoc(client.getHierarchy(), object)
   }
 
   $: status = $statusStore.byId.get(object.status)
@@ -62,34 +62,34 @@
           showMenu(evt, { object })
         }}
         icon={IconMoreH}
-        size={'small'}
+        size="small"
       />
     </div>
   </div>
   <div class="flex-between mb-2">
     {#if enabledConfig(config, 'attachedTo') && object.$lookup?.attachedTo}
-      <ContactPresenter value={object.$lookup.attachedTo} avatarSize={'small'} />
+      <ContactPresenter value={object.$lookup.attachedTo} avatarSize="small" />
     {/if}
   </div>
   <div class="card-labels mb-2">
     {#if groupByKey !== 'status' && enabledConfig(config, 'status')}
       <StateRefPresenter
-        size={'small'}
-        kind={'link-bordered'}
+        size="small"
+        kind="link-bordered"
         space={object.space}
         shrink={1}
         value={object.status}
         onChange={(status) => {
-          client.update(object, { status })
+          void client.update(object, { status })
         }}
       />
     {/if}
     <Component showLoading={false} is={tracker.component.RelatedIssueSelector} props={{ object, size: 'small' }} />
     {#if enabledConfig(config, 'dueDate')}
       <DueDatePresenter
-        size={'small'}
-        kind={'link-bordered'}
-        width={'fit-content'}
+        size="small"
+        kind="link-bordered"
+        width="fit-content"
         value={object.dueDate}
         shouldRender={object.dueDate !== null && object.dueDate !== undefined}
         shouldIgnoreOverdue={isDone}

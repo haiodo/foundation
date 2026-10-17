@@ -38,22 +38,22 @@ import { TDoc } from './core'
 export class TDomainStatusPlaceholder extends TDoc {}
 
 @Model(core.class.Status, core.class.Doc, DOMAIN_MODEL)
-@UX(core.string.Status, undefined, undefined, undefined, 'name')
+@UX(core.string.Status, core.icon.Status, undefined, undefined, 'name')
 export class TStatus extends TDoc implements Status {
   // We attach to attribute, so we could distinguish between
   ofAttribute!: Ref<Attribute<Status>>
 
   @Prop(TypeRef(core.class.StatusCategory), core.string.StatusCategory)
-    category?: Ref<StatusCategory>
+  category?: Ref<StatusCategory>
 
   @Prop(TypeString(), core.string.Name)
-    name!: string
+  name!: string
 
   // @Prop(TypeNumber(), core.string.Color)
   color!: number
 
   @Prop(TypeString(), core.string.Description)
-    description!: string
+  description!: string
 
   rank!: Rank
 }

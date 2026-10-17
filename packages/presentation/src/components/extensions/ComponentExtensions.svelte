@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Component, ComponentExtensionId } from '@hcengineering/ui'
+  import type { ComponentExtensionId } from '@hcengineering/ui'
+  import { Component } from '@hcengineering/ui'
   import plugin from '../../plugin'
-  import { ComponentPointExtension } from '../../types'
+  import type { ComponentPointExtension } from '../../types'
   import { getClient } from '../../utils'
   import { getCurrentAccount, hasAccountRole } from '@hcengineering/core'
 
@@ -13,8 +14,8 @@
 
   void getClient()
     .findAll<ComponentPointExtension>(plugin.class.ComponentPointExtension, {
-    extension
-  })
+      extension
+    })
     .then((res) => {
       extensions = res.filter((it) => it.accessLevel === undefined || hasAccountRole(currentAccount, it.accessLevel))
     })

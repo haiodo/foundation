@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { Employee, Person } from '@hcengineering/contact'
-  import { Ref, WithLookup } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { Employee, Person } from '@hcengineering/contact'
+  import type { Ref, WithLookup } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import ui, { IconSize } from '@hcengineering/ui'
-  import { employeeByIdStore, PersonLabelTooltip } from '..'
+  import type { IconSize } from '@hcengineering/ui'
+  import ui from '@hcengineering/ui'
+  import type { PersonLabelTooltip } from '..'
+  import { employeeByIdStore } from '..'
   import PersonPresenter from '../components/PersonPresenter.svelte'
   import contact from '../plugin'
   import { getPreviewPopup } from './person/utils'
@@ -22,10 +24,11 @@
   export let colorInherit: boolean = false
   export let accent: boolean = false
   export let defaultName: IntlString | undefined = ui.string.NotSelected
-  // export let element: HTMLElement | undefined = undefined
   export let noUnderline: boolean = false
   export let compact: boolean = false
   export let showStatus: boolean = false
+  export let highlight: string | undefined = undefined
+  export let transparent: boolean = false
 
   const client = getClient()
   const h = client.getHierarchy()
@@ -46,6 +49,8 @@
   {shouldShowPlaceholder}
   {disabled}
   {inline}
+  {highlight}
+  {transparent}
   {colorInherit}
   {accent}
   {defaultName}

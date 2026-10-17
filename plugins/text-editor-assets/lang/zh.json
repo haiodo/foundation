@@ -1,4 +1,7 @@
 {
+  "status": {
+    "ImagePasteNotSupported": "此处无法粘贴图片。请从复制的内容中移除图片后重试。"
+  },
   "string": {
     "TableOfContents": "目录",
     "Suggested": "推荐",
@@ -39,7 +42,6 @@
     "FullDescription": "完整描述",
     "NoFullDescription": "没有详细描述",
     "EnableDiffMode": "差异模式",
-
     "AddColumnBefore": "在前面添加",
     "AddColumnAfter": "在后面添加",
     "DeleteColumn": "删除",
@@ -48,7 +50,6 @@
     "DeleteRow": "删除",
     "DeleteTable": "删除",
     "Duplicate": "重复",
-
     "CategoryRow": "行",
     "CategoryColumn": "列",
     "Table": "表格",
@@ -73,6 +74,7 @@
     "UnableToLoadEmbeddedContent": "由于权限设置或不支持的内容，无法加载链接预览",
     "CannotConnectToCollaborationService": "无法连接到协作者",
     "SourceURL": "源URL",
-    "SelectedDocuments": "选定的文档 ({count, plural, =1 {1 项} other {# 项}})"
+    "SelectedDocuments": "选定的文档 ({count, plural, =1 {1 项} other {# 项}})",
+    "LatestVersion": "最新"
   }
 }

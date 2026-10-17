@@ -13,19 +13,15 @@
 // limitations under the License.
 //
 
-import activity, { type ActivityMessage } from '@hcengineering/activity'
+import { type ActivityMessage } from '@hcengineering/activity'
 import { type Channel, type ChatMessage } from '@hcengineering/chunter'
 import { type Resources } from '@hcengineering/platform'
 import { MessageBox, getClient } from '@hcengineering/presentation'
 import { getLocation, navigate, showPopup } from '@hcengineering/ui'
 import { get, writable } from 'svelte/store'
-import { type DocNotifyContext, type NotificationAppearancePreference } from '@hcengineering/notification'
-import {
-  getNotificationsCount,
-  InboxNotificationsClientImpl,
-  isActivityNotification,
-  isMentionNotification
-} from '@hcengineering/notification-resources'
+import { type NotificationAppearancePreference } from '@hcengineering/notification'
+import { parseChunterSpaceLinkId } from './linkId'
+import { NotificationClientImpl } from '@hcengineering/notification-resources'
 
 import chunter from './plugin'
 
@@ -48,6 +44,9 @@ import SavedMessages from './components/chat/specials/SavedMessages.svelte'
 import DirectIcon from './components/DirectIcon.svelte'
 import DmHeader from './components/DmHeader.svelte'
 import DmPresenter from './components/DmPresenter.svelte'
+import { canReportMessage, canReportPerson, reportMessage, reportPerson } from './report'
+import ContentReportPresenter from './components/ContentReportPresenter.svelte'
+import ReportReasonPopup from './components/ReportReasonPopup.svelte'
 import EditChannel from './components/EditChannel.svelte'
 import ChatMessageNotificationLabel from './components/notification/ChatMessageNotificationLabel.svelte'
 import JoinChannelNotificationPresenter from './components/notification/JoinChannelNotificationPresenter.svelte'
@@ -61,10 +60,12 @@ import ThreadViewPanel from './components/threads/ThreadViewPanel.svelte'
 import ChatWidget from './components/ChatWidget.svelte'
 import ChatWidgetTab from './components/ChatWidgetTab.svelte'
 import WorkbenchTabExtension from './components/WorkbenchTabExtension.svelte'
+import AIChatButton from './components/AIChatButton.svelte'
 import DirectMessageButton from './components/DirectMessageButton.svelte'
 import EmployeePresenter from './components/ChunterEmployeePresenter.svelte'
 import InlineCommentThread from './components/inline-comment/InlineCommentThread.svelte'
 import ChannelsAndDMs from './components/chat/specials/ChannelsAndDMs.svelte'
+import ForwardMessageDialog from './components/ForwardMessageDialog.svelte'
 
 import {
   chunterSpaceLinkFragmentProvider,
@@ -85,19 +86,28 @@ import {
   canReplyToThread,
   getDmName,
   getTitle,
-  getUnreadThreadsCount,
+  getUnreadThreadsCountStore,
   translateMessage,
   showOriginalMessage,
   canTranslateMessage,
   startConversationAction,
   summarizeMessages,
   canSummarizeMessages,
-  DirectLabelProvider
+  DirectLabelProvider,
+  forwardMessage,
+  replyToMessage,
+  openDirectForPerson,
+  getChunterSpaceLinkId,
+  queryChannels,
+  CommentsApplier
 } from './utils'
 import DeleteMessageConfirmationPopup from './components/DeleteMessageConfirmationPopup.svelte'
 
+export { summarizingStore, startSummarizing, stopSummarizing } from './stores'
+
 export { default as ChannelEmbeddedContent } from './components/ChannelEmbeddedContent.svelte'
 export { default as ChatMessageInput } from './components/chat-message/ChatMessageInput.svelte'
+export { default as ChatMessageInputLite } from './components/chat-message/ChatMessageInputLite.svelte'
 export { default as ChatMessagePopup } from './components/chat-message/ChatMessagePopup.svelte'
 export { default as ChatMessagesPresenter } from './components/chat-message/ChatMessagesPresenter.svelte'
 export { default as Header } from './components/Header.svelte'
@@ -137,10 +147,6 @@ async function UnarchiveChannel (channel: Channel): Promise<void> {
 
 export const userSearch = writable('')
 
-export async function chunterBrowserVisible (): Promise<boolean> {
-  return false
-}
-
 export function chatMessagesFilter (message: ActivityMessage): boolean {
   return message._class === chunter.class.ChatMessage
 }
@@ -173,6 +179,8 @@ export default async (): Promise<Resources> => ({
     ChunterBrowser,
     DmHeader,
     DmPresenter,
+    ContentReportPresenter,
+    ReportReasonPopup,
     EditChannel,
     ThreadView,
     SavedMessages,
@@ -191,19 +199,21 @@ export default async (): Promise<Resources> => ({
     JoinChannelNotificationPresenter,
     ChatWidget,
     ChatWidgetTab,
+    AIChatButton,
     WorkbenchTabExtension,
     DirectMessageButton,
     EmployeePresenter,
     InlineCommentThread,
-    ChannelsAndDMs
+    ChannelsAndDMs,
+    ForwardMessageDialog
   },
   activity: {
     ChannelCreatedMessage,
     MembersChangedMessage
   },
   function: {
+    CommentsApplier,
     GetDmName: getDmName,
-    ChunterBrowserVisible: chunterBrowserVisible,
     GetFragment: getTitle,
     GetLink: getMessageLink,
     DirectTitleProvider,
@@ -211,46 +221,36 @@ export default async (): Promise<Resources> => ({
     ChannelTitleProvider,
     CanDeleteMessage: canDeleteMessage,
     CanCopyMessageLink: canCopyMessageLink,
+    CanReportMessage: canReportMessage,
+    CanReportPerson: canReportPerson,
     GetChunterSpaceLinkFragment: chunterSpaceLinkFragmentProvider,
-    GetUnreadThreadsCount: getUnreadThreadsCount,
+    GetChunterSpaceLinkId: getChunterSpaceLinkId,
+    ParseChunterSpaceLinkId: parseChunterSpaceLinkId,
+    GetUnreadThreadsCountStore: getUnreadThreadsCountStore,
     GetThreadLink: getThreadLink,
     ReplyToThread: replyToThread,
     CanReplyToThread: canReplyToThread,
     GetMessageLink: getMessageLocation,
     CloseChatWidgetTab: closeChatWidgetTab,
     OpenChannelInSidebar: openChannelInSidebar,
+    OpenDirectForPerson: openDirectForPerson,
     CanTranslateMessage: canTranslateMessage,
     CanSummarizeMessages: canSummarizeMessages,
     OpenThreadInSidebar: openThreadInSidebar,
     LocationDataResolver: locationDataResolver,
     ShowNotifyMarkerFn: async (
-      contexts: DocNotifyContext[],
+      unreadCount: number,
       preference?: NotificationAppearancePreference
     ): Promise<boolean> => {
       if (preference?.showChatBadge === false) return false
+      if (unreadCount === 0) return false
 
-      const hasUpdates = contexts.some((context) => (context.lastUpdate ?? 0) > (context.lastView ?? 0))
-      if (!hasUpdates) return false
-
-      const notificationClient = InboxNotificationsClientImpl.getClient()
-      const client = getClient()
-      const hierarchy = client.getHierarchy()
-
-      for (const context of contexts) {
-        if ((context.lastUpdate ?? 0) <= (context.lastView ?? 0)) continue
-
-        const notifications = get(notificationClient.inboxNotificationsByContext).get(context._id) ?? []
-        const activityNotifications = notifications.filter(isActivityNotification)
-        const mentionNotifications = notifications
-          .filter(isMentionNotification)
-          .filter((it) => hierarchy.isDerived(it.mentionedInClass, activity.class.ActivityMessage))
-        const unreadCount = getNotificationsCount(context, [...activityNotifications, ...mentionNotifications])
-        if (unreadCount > 0) {
-          return true
-        }
-      }
-      return false
+      const unread = get(NotificationClientImpl.getClient().unreadByDoc).values()
+      return Array.from(unread).some((it) => (it.notifiedMessagesCount ?? 0) > 0)
     }
+  },
+  completion: {
+    ChannelQuery: queryChannels
   },
   actionImpl: {
     ArchiveChannel,
@@ -260,6 +260,10 @@ export default async (): Promise<Resources> => ({
     TranslateMessage: translateMessage,
     SummarizeMessages: summarizeMessages,
     ShowOriginalMessage: showOriginalMessage,
-    StartConversation: startConversationAction
+    StartConversation: startConversationAction,
+    ReplyToMessage: replyToMessage,
+    ForwardMessage: forwardMessage,
+    ReportMessage: reportMessage,
+    ReportPerson: reportPerson
   }
 })

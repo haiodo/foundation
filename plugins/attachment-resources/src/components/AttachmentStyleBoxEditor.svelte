@@ -13,12 +13,15 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Class, Doc, Ref, updateAttribute } from '@hcengineering/core'
+  import type { Class, Doc, Ref } from '@hcengineering/core'
+  import { updateAttribute } from '@hcengineering/core'
 
-  import { IntlString } from '@hcengineering/platform'
-  import { createQuery, getAttribute, getClient, KeyedAttribute } from '@hcengineering/presentation'
+  import type { IntlString } from '@hcengineering/platform'
+  import type { KeyedAttribute } from '@hcengineering/presentation'
+  import { createQuery, getAttribute, getClient } from '@hcengineering/presentation'
   import { createEventDispatcher, onDestroy } from 'svelte'
   import AttachmentStyledBox from './AttachmentStyledBox.svelte'
+  import { SaveVersion } from '../utils'
   import { EditorKitOptions } from '@hcengineering/text-editor-resources'
 
   export let object: Doc
@@ -35,6 +38,8 @@
   let prevObjectClass: Ref<Class<Doc>>
 
   let haveUnsavedChanges = false
+  // The save resolves before its tx reaches the queries: a doc older than it is a pre-save copy.
+  let version = new SaveVersion()
 
   /*
     There is no onMount when go from one issue to another one via mention
@@ -44,6 +49,7 @@
   */
   $: if (object && (object._id !== prevObjectId || object._class !== prevObjectClass)) {
     description = getAttribute(client, object, key)
+    version = new SaveVersion()
     prevObjectId = object._id
     prevObjectClass = object._class
   }
@@ -55,8 +61,10 @@
   $: object &&
     queryClient.query(object._class, { _id: object._id }, async (result: Doc[]) => {
       if (result.length > 0) {
-        if (!haveUnsavedChanges) {
-          const doc = result[0]
+        const doc = result[0]
+        const afterSave = version.isAfterSave(doc.modifiedOn)
+        version.seen(doc.modifiedOn)
+        if (!haveUnsavedChanges && afterSave) {
           description = getAttribute(client, doc, key)
         }
       }
@@ -76,6 +84,7 @@
 
     const old = getAttribute(client, object, key)
     if (description !== old) {
+      version.saving(object.modifiedOn)
       await updateAttribute(client, object, object._class, key, description)
       haveUnsavedChanges = false
       dispatch('saved', true)
@@ -130,7 +139,7 @@
     showButtons
     on:blur={() => save(object, description)}
     on:changeContent={triggerSave}
-    maxHeight={'card'}
+    maxHeight="card"
     focusable
     bind:content={description}
     {placeholder}

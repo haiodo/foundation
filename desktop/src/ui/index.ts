@@ -16,7 +16,6 @@
 import { loginId } from '@hcengineering/login'
 import { loveId } from '@hcengineering/love'
 import { timeId } from '@hcengineering/time'
-
 import { getEmbeddedLabel, getMetadata, getResource, translate } from '@hcengineering/platform'
 import presentation, { MessageBox, setDownloadProgress, getClient } from '@hcengineering/presentation'
 import setting, { settingId } from '@hcengineering/setting'
@@ -33,21 +32,29 @@ import {
 } from '@hcengineering/ui'
 import { handleDownloadItem } from '@hcengineering/desktop-downloads'
 import notification, { notificationId } from '@hcengineering/notification'
-import { inboxId } from '@hcengineering/inbox'
 import workbench, { workbenchId, logOut } from '@hcengineering/workbench'
-import view, { Action, encodeObjectURI } from '@hcengineering/view'
+import view, { Action } from '@hcengineering/view'
 import { resolveLocation } from '@hcengineering/notification-resources'
 import { themeStore, ThemeVariant } from '@hcengineering/theme'
 import type { Application } from '@hcengineering/workbench'
 import { isAllowedToRole } from '@hcengineering/workbench-resources'
-import card from '@hcengineering/card'
-import communication from '@hcengineering/communication'
-
 import { isOwnerOrMaintainer, getCurrentAccount, Ref } from '@hcengineering/core'
+
 import { configurePlatform } from './platform'
 import { setupTitleBarMenu } from './titleBarMenu'
 import { defineScreenShare, defineGetDisplayMedia } from './screenShare'
-import { CommandLogout, CommandSelectWorkspace, CommandOpenSettings, CommandOpenInbox, CommandOpenPlanner, CommandOpenOffice, CommandOpenApplication, LaunchApplication, NotificationParams, CommandCloseTab } from './types'
+import {
+  CommandLogout,
+  CommandSelectWorkspace,
+  CommandOpenSettings,
+  CommandOpenInbox,
+  CommandOpenPlanner,
+  CommandOpenOffice,
+  CommandOpenApplication,
+  LaunchApplication,
+  NotificationParams,
+  CommandCloseTab
+} from './types'
 import { ipcMainExposed } from './typesUtils'
 import { IpcMessage } from './ipcMessages'
 
@@ -85,11 +92,14 @@ window.addEventListener('DOMContentLoaded', () => {
         })
 
         if (menuBar.lastUsedThemeIsUnknown()) {
-          void ipcMain.isOsUsingDarkTheme().then((isDarkTheme) => {
-            menuBar.setTheme(isDarkTheme ? ThemeVariant.Dark : ThemeVariant.Light)
-          }).catch(() => {
-            menuBar.setTheme(ThemeVariant.Light) // fallback
-          })
+          void ipcMain
+            .isOsUsingDarkTheme()
+            .then((isDarkTheme) => {
+              menuBar.setTheme(isDarkTheme ? ThemeVariant.Dark : ThemeVariant.Light)
+            })
+            .catch(() => {
+              menuBar.setTheme(ThemeVariant.Light) // fallback
+            })
         }
       })
     }
@@ -202,45 +212,28 @@ window.addEventListener('DOMContentLoaded', () => {
     return `${workbenchId}/${worksapce}/${app}`
   }
 
-  ipcMain.handleNotificationNavigation((notificationParams: NotificationParams) => {
+  ipcMain.handleNotificationNavigation((params: NotificationParams) => {
     const currentLocation = getCurrentResolvedLocation()
     const workspace = currentLocation.path[1]
-    // Support for new inbox with cardId (card-based)
-    if (notificationParams.cardId != null) {
-      const objectUri = encodeObjectURI(notificationParams.cardId, card.class.Card)
-      navigateToUrl(`${workbenchId}/${workspace}/${inboxId}/${objectUri}`)
-      return
+    const app = params.application
+
+    const loc = {
+      path: params.onClickLocation.path,
+      fragment: params.onClickLocation.fragment,
+      query: params.onClickLocation.query
     }
 
-    const isCommunicationEnabled = getMetadata(communication.metadata.Enabled) ?? false
-    const app = isCommunicationEnabled ? inboxId : notificationParams.application
-
-    // Support for old inbox with objectId + objectClass (legacy)
-    if (notificationParams.objectId != null && notificationParams.objectClass != null) {
-      const encodedObjectURI = encodeObjectURI(notificationParams.objectId, notificationParams.objectClass)
-      const notificationLocation = {
-        path: notificationParams.threadId != null
-          ? [workbenchId, workspace, app, encodedObjectURI, notificationParams.threadId]
-          : [workbenchId, workspace, app, encodedObjectURI],
-        fragment: undefined,
-        query: notificationParams.messageId != null
-          ? { message: notificationParams.messageId }
-          : undefined
-      }
-
-      void resolveLocation(notificationLocation).then((resolvedLocation) => {
+    void resolveLocation(loc)
+      .then((resolvedLocation) => {
         if (resolvedLocation?.loc != null) {
           navigate(resolvedLocation.loc)
         } else {
-          navigateToUrl(`${workbenchId}/${workspace}/${app}/${encodedObjectURI}`)
+          navigateToUrl(getBasicNotificationPath(workspace, app))
         }
-      }).catch(() => {
+      })
+      .catch(() => {
         navigateToUrl(getBasicNotificationPath(workspace, app))
       })
-    } else {
-      // Fallback to basic notification navigation
-      navigateToUrl(getBasicNotificationPath(workspace, app))
-    }
   })
 
   ipcMain.handleUpdateDownloadProgress((progress) => {
@@ -265,16 +258,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const token = getMetadata(presentation.metadata.Token)
     const endpoint = getMetadata(presentation.metadata.Endpoint)
     const workspaceUuid = getMetadata(presentation.metadata.WorkspaceUuid)
-    // const workspaceDataId = getMetadata(presentation.metadata.WorkspaceDataId)
-    // const workspaceUrl = getMetadata(presentation.metadata.WorkspaceUrl)
-    // const wsIds = {
-    //   uuid: workspaceUuid,
-    //   dataId: workspaceDataId,
-    //   url: workspaceUrl
-    // }
     if (isOwnerOrMaintainer()) {
       if (token != null && endpoint != null && workspaceUuid != null) {
-        // ipcMain.startBackup(token, endpoint, wsIds)
         closePopup()
         closePanel()
         const loc = getCurrentResolvedLocation()
@@ -294,9 +279,12 @@ window.addEventListener('DOMContentLoaded', () => {
   })
 
   ipcMain.on('backup', (evt: any, ...args: any) => {
-    pushRootBarProgressComponent('backup',
+    pushRootBarProgressComponent(
+      'backup',
       getEmbeddedLabel('Backup'),
-      () => { return args[0] },
+      () => {
+        return args[0]
+      },
       () => {
         ipcMain.cancelBackup()
       },

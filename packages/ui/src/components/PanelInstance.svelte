@@ -18,7 +18,8 @@
   import { afterUpdate, onMount } from 'svelte'
 
   import { deviceOptionsStore as deviceInfo, resizeObserver } from '..'
-  import { closePanel, PanelProps, panelstore } from '../panelup'
+  import type { PanelProps } from '../panelup'
+  import { closePanel, panelstore } from '../panelup'
   import { fitPopupElement, popupstore } from '../popups'
   import type { AnySvelteComponent, DeviceOptions, PopupOptions } from '../types'
   import Spinner from './Spinner.svelte'
@@ -93,7 +94,7 @@
                 top: 'var(--status-bar-height)',
                 bottom: '4.25rem',
                 left: '0',
-                right: '3.5rem',
+                right: '0',
                 width: '',
                 height: 'calc(100dvh - var(--status-bar-height) - var(--app-panel-width))',
                 maxWidth: '100%',

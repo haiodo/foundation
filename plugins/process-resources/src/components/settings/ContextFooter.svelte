@@ -14,12 +14,12 @@
 -->
 
 <script lang="ts">
-  import { Doc } from '@hcengineering/core'
-  import { Process, Step } from '@hcengineering/process'
+  import type { Doc } from '@hcengineering/core'
+  import type { Process, Step } from '@hcengineering/process'
   import { Label, Scroller } from '@hcengineering/ui'
   import processPlugin from '../../plugin'
   import ProcessContextPresenter from '../contextEditors/ProcessContextPresenter.svelte'
-  import { ProcessContextView } from '../../types'
+  import type { ProcessContextView } from '../../types'
 
   export let process: Process
   export let step: Step<Doc>
@@ -30,13 +30,13 @@
   $: resultContext =
     step.results != null
       ? step.results.map((r) => {
-        const exists = process.context[r._id]
-        if (exists != null) return exists
-        return {
-          name: r.name,
-          _class: r.type._class
-        }
-      })
+          const exists = process.context[r._id]
+          if (exists != null) return exists
+          return {
+            name: r.name,
+            _class: r.type._class
+          }
+        })
       : []
 </script>
 

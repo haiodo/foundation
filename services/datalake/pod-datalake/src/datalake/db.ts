@@ -57,6 +57,7 @@ export interface ListBlobOptions {
   cursor?: string
   limit?: number
   derived?: boolean
+  prefix?: string
 }
 
 export interface ListBlobResult {
@@ -79,12 +80,17 @@ export interface StatsResult {
 export interface WorkspaceStatsResult {
   count: number
   size: number
+  // Subset of the above produced by transcoding (blob.parent IS NOT NULL), not uploaded by a user.
+  derivedCount: number
+  derivedSize: number
 }
 
 export interface WorkspaceStatsByTypeResult {
   type: string
   count: number
   size: number
+  derivedCount: number
+  derivedSize: number
 }
 
 export async function createDb (ctx: MeasureContext, connectionString: string): Promise<BlobDB> {
@@ -125,6 +131,7 @@ export interface BlobDB {
   setMeta: (ctx: MeasureContext, blobId: BlobId, meta: BlobMeta) => Promise<void>
   setParent: (ctx: MeasureContext, blob: BlobId, parent: BlobId | null) => Promise<void>
   deleteBlobList: (ctx: MeasureContext, list: BlobIds) => Promise<void>
+  deleteWorkspaceBlobs: (ctx: MeasureContext, workspace: string) => Promise<void>
   getStats: (ctx: MeasureContext) => Promise<StatsResult>
   getWorkspaceStats: (ctx: MeasureContext, workspace: string) => Promise<WorkspaceStatsResult>
   getWorkspaceStatsByType: (ctx: MeasureContext, workspace: string) => Promise<WorkspaceStatsByTypeResult[]>
@@ -221,19 +228,30 @@ export class PostgresDB implements BlobDB {
 
   async listBlobs (ctx: MeasureContext, workspace: string, options: ListBlobOptions): Promise<ListBlobResult> {
     let { cursor, limit, derived } = options
-    cursor = cursor ?? ''
+    const { prefix } = options
     limit = Math.min(limit ?? 100, 1000)
+    // seek just past the prefix (the comparison below is exclusive, and a blob named exactly
+    // like the prefix is not a match anyway). No upper bound: the db collation is not
+    // byte-ordered, so a computed one would drop matching rows.
+    cursor = cursor ?? prefix ?? ''
+
+    const params: Array<string | number> = [workspace, cursor, limit]
+    let prefixClause = ''
+    if (prefix !== undefined && prefix !== '') {
+      params.push(prefix.replace(/([%_\\])/g, '\\$1') + '%')
+      prefixClause = `AND b.name LIKE $${params.length}`
+    }
 
     const rows = await this.execute<BlobWithDataRecord[]>(
       `
       SELECT b.workspace, b.name, b.hash, b.location, b.parent, b.deleted_at, d.filename, d.size, d.type
       FROM blob.blob AS b
       JOIN blob.data AS d ON b.hash = d.hash AND b.location = d.location
-      WHERE b.workspace = $1 AND b.name > $2 AND b.deleted_at IS NULL ${derived !== true ? 'AND b.parent IS NULL' : ''}
+      WHERE b.workspace = $1 AND b.name > $2 AND b.deleted_at IS NULL ${prefixClause} ${derived !== true ? 'AND b.parent IS NULL' : ''}
       ORDER BY b.workspace, b.name
       LIMIT $3
     `,
-      [workspace, cursor, limit]
+      params
     )
 
     return {
@@ -278,9 +296,10 @@ export class PostgresDB implements BlobDB {
   async createBlobData (ctx: MeasureContext, data: BlobWithDataRecord): Promise<void> {
     const { workspace, name, hash, location, parent, filename, size, type } = data
 
-    // First upsert into data table
-    await this.execute(
-      `
+    await this.sql.begin(async (tx) => {
+      await tx.unsafe(
+        injectVars(
+          `
       INSERT INTO blob.data (hash, location, filename, size, type)
       VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (hash, location) DO UPDATE SET
@@ -288,12 +307,13 @@ export class PostgresDB implements BlobDB {
         size = EXCLUDED.size,
         type = EXCLUDED.type
     `,
-      [hash, location, filename, size, type]
-    )
+          [hash, location, filename, size, type]
+        )
+      )
 
-    // Then upsert into blob table
-    await this.execute(
-      `
+      await tx.unsafe(
+        injectVars(
+          `
       INSERT INTO blob.blob (workspace, name, hash, location, parent, deleted_at)
       VALUES ($1, $2, $3, $4, $5, NULL)
       ON CONFLICT (workspace, name) DO UPDATE SET
@@ -302,8 +322,10 @@ export class PostgresDB implements BlobDB {
         parent = EXCLUDED.parent,
         deleted_at = EXCLUDED.deleted_at
     `,
-      [workspace, name, hash, location, parent]
-    )
+          [workspace, name, hash, location, parent]
+        )
+      )
+    })
   }
 
   async deleteBlob (ctx: MeasureContext, blob: BlobId): Promise<void> {
@@ -342,6 +364,19 @@ export class PostgresDB implements BlobDB {
       WHERE workspace = $1 AND name = ANY($2) AND deleted_at IS NULL
     `,
       [workspace, [...blobs]]
+    )
+  }
+
+  async deleteWorkspaceBlobs (ctx: MeasureContext, workspace: string): Promise<void> {
+    // The workspace is gone: every blob of it is marked at once, so a later sweep can drop the
+    // files themselves. Repeating it is harmless - an already marked row is skipped.
+    await this.execute(
+      `
+      UPDATE blob.blob
+      SET deleted_at = now()
+      WHERE workspace = $1 AND deleted_at IS NULL
+    `,
+      [workspace]
     )
   }
 
@@ -420,7 +455,11 @@ export class PostgresDB implements BlobDB {
   async getWorkspaceStats (ctx: MeasureContext, workspace: string): Promise<WorkspaceStatsResult> {
     const rows = await this.execute(
       `
-      SELECT count(1) as count, sum(d.size) as size
+      SELECT
+        count(1) as count,
+        sum(d.size) as size,
+        count(1) FILTER (WHERE b.parent IS NOT NULL) as derived_count,
+        sum(d.size) FILTER (WHERE b.parent IS NOT NULL) as derived_size
       FROM blob.blob b
       JOIN blob.data AS d ON b.hash = d.hash AND b.location = d.location
       WHERE workspace = $1 and deleted_at IS NULL
@@ -432,7 +471,9 @@ export class PostgresDB implements BlobDB {
 
     return {
       count: parseInt(stats.count ?? 0),
-      size: parseInt(stats.size ?? 0)
+      size: parseInt(stats.size ?? 0),
+      derivedCount: parseInt(stats.derived_count ?? 0),
+      derivedSize: parseInt(stats.derived_size ?? 0)
     }
   }
 
@@ -461,7 +502,9 @@ export class PostgresDB implements BlobDB {
           ELSE 'other'
         END AS type,
         count(1) AS count,
-        sum(d.size) AS size
+        sum(d.size) AS size,
+        count(1) FILTER (WHERE b.parent IS NOT NULL) AS derived_count,
+        sum(d.size) FILTER (WHERE b.parent IS NOT NULL) AS derived_size
       FROM blob.blob b
       JOIN blob.data AS d ON b.hash = d.hash AND b.location = d.location
       WHERE workspace = $1 AND deleted_at IS NULL
@@ -473,7 +516,9 @@ export class PostgresDB implements BlobDB {
     return rows.map((row: Row) => ({
       type: row.type as string,
       count: parseInt(row.count ?? 0),
-      size: parseInt(row.size ?? 0)
+      size: parseInt(row.size ?? 0),
+      derivedCount: parseInt(row.derived_count ?? 0),
+      derivedSize: parseInt(row.derived_size ?? 0)
     }))
   }
 }
@@ -514,6 +559,10 @@ export class RetryDB implements BlobDB {
 
   async deleteBlob (ctx: MeasureContext, blob: BlobId): Promise<void> {
     await retry(() => this.db.deleteBlob(ctx, blob), this.options)
+  }
+
+  async deleteWorkspaceBlobs (ctx: MeasureContext, workspace: string): Promise<void> {
+    await retry(() => this.db.deleteWorkspaceBlobs(ctx, workspace), this.options)
   }
 
   async getMeta (ctx: MeasureContext, blobId: BlobId): Promise<BlobMeta | null> {
@@ -585,6 +634,12 @@ export class LoggedDB implements BlobDB {
   async deleteBlob (ctx: MeasureContext, blob: BlobId): Promise<void> {
     const params = { workspace: blob.workspace }
     await ctx.with('db.deleteBlob', {}, () => this.db.deleteBlob(this.ctx, blob), params)
+  }
+
+  async deleteWorkspaceBlobs (ctx: MeasureContext, workspace: string): Promise<void> {
+    await ctx.with('db.deleteWorkspaceBlobs', {}, () => this.db.deleteWorkspaceBlobs(this.ctx, workspace), {
+      workspace
+    })
   }
 
   async getMeta (ctx: MeasureContext, blobId: BlobId): Promise<BlobMeta | null> {

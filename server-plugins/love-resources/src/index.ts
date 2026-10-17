@@ -13,16 +13,16 @@
 // limitations under the License.
 //
 
+import calendar, { Event } from '@hcengineering/calendar'
 import contact, { Employee, formatName, Person, PersonSpace } from '@hcengineering/contact'
 import core, {
+  AccountUuid,
   Class,
   combineAttributes,
   concatLink,
-  Data,
   Doc,
   DocumentUpdate,
   generateId,
-  readOnlyGuestAccountUuid,
   Ref,
   Space,
   Tx,
@@ -37,24 +37,28 @@ import love, {
   loveId,
   MeetingMinutes,
   MeetingStatus,
+  type Office,
   ParticipantInfo,
   Room,
-  RoomAccess,
   RoomInfo,
   UserMeetingInvite
 } from '@hcengineering/love'
 import { getMetadata } from '@hcengineering/platform'
-import serverCore, { TriggerControl } from '@hcengineering/server-core'
+import serverCore, { QueueTopic, TriggerControl } from '@hcengineering/server-core'
 import view from '@hcengineering/view'
 import { workbenchId } from '@hcengineering/workbench'
-import { getSocialStrings } from '@hcengineering/server-contact'
-import notification, { CommonInboxNotification } from '@hcengineering/notification'
+import { getAccountBySocialId } from '@hcengineering/server-contact'
+import notification, {
+  CALL_RING_MS,
+  isNativePushEndpoint,
+  type QueueCallCancelMessage
+} from '@hcengineering/notification'
 
-import { getInviteAllowedProviders } from './utils'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
 export async function OnEmployee (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
+  const assigned = new Set<Ref<Office>>()
   for (const tx of txes) {
     let employeeId: Ref<Person> | undefined
     let employee: Employee | undefined
@@ -64,18 +68,28 @@ export async function OnEmployee (txes: Tx[], control: TriggerControl): Promise<
       const createTx = tx as TxCreateDoc<Employee>
       if (createTx.objectClass === contact.mixin.Employee) {
         employee = TxProcessor.createDoc2Doc(createTx)
-        employeeId = createTx.objectId as Ref<Person>
+        employeeId = createTx.objectId
+        if (!employee.active) continue
       }
     } else if (tx._class === core.class.TxMixin) {
       // Handle TxMixin (Employee added as mixin to Person) - used by AI bot
       const mixinTx = tx as TxMixin<Person, Employee>
       if (mixinTx.mixin === contact.mixin.Employee) {
         employeeId = mixinTx.objectId
-        // Check if employee is being activated
+        if (mixinTx.attributes.active === false) {
+          const rooms = await control.findAll(control.ctx, love.class.Office, { person: employeeId })
+          for (const room of rooms) {
+            result.push(control.txFactory.createTxUpdateDoc(room._class, room.space, room._id, { person: null }))
+          }
+          continue
+        }
         if (mixinTx.attributes.active !== true) {
           continue
         }
-        employee = mixinTx.attributes as Employee
+        // A mixin tx carries only the changed fields: the activation comes from the tx, the role from the stored employee
+        employee = (
+          await control.findAll(control.ctx, contact.mixin.Employee, { _id: employeeId as Ref<Employee> }, { limit: 1 })
+        )[0]
       }
     }
 
@@ -83,50 +97,28 @@ export async function OnEmployee (txes: Tx[], control: TriggerControl): Promise<
       continue
     }
 
-    // Skip if employee is not active or is a guest
-    if (!employee.active) {
-      continue
-    }
     if (employee.role === 'GUEST') {
       continue
     }
 
-    control.ctx.info('[OnEmployee] Processing employee', {
-      employeeId,
-      active: employee.active,
-      role: employee.role,
-      txClass: tx._class
-    })
-
     // Check if employee already has an office
     const existingRooms = await control.findAll(control.ctx, love.class.Office, { person: employeeId })
-    control.ctx.info('[OnEmployee] Employee office check', {
-      employeeId,
-      existingOfficeCount: existingRooms.length
-    })
 
     if (existingRooms.length > 0) {
-      control.ctx.info('[OnEmployee] Employee already has office, skipping', {
-        employeeId,
-        officeId: existingRooms[0]._id
-      })
       continue
     }
 
     // Find a free office and assign it
-    const freeRoom = (await control.findAll(control.ctx, love.class.Office, { person: null }))[0]
+    const freeRoom = (await control.findAll(control.ctx, love.class.Office, { person: null })).find(
+      (it) => !assigned.has(it._id)
+    )
     if (freeRoom !== undefined) {
-      control.ctx.info('[OnEmployee] Assigning employee to office', {
-        employeeId,
-        officeId: freeRoom._id
-      })
+      assigned.add(freeRoom._id)
       result.push(
         control.txFactory.createTxUpdateDoc(freeRoom._class, freeRoom.space, freeRoom._id, {
           person: employeeId
         })
       )
-    } else {
-      control.ctx.info('[OnEmployee] No free office available', { employeeId })
     }
   }
   return result
@@ -152,18 +144,20 @@ async function roomJoinHandler (info: ParticipantInfo, control: TriggerControl):
   let targetRoom = info.room
   if (info.meeting !== undefined) {
     const meeting = (await control.findAll(control.ctx, love.class.MeetingMinutes, { _id: info.meeting }))[0]
-    if (meeting?.attachedTo !== undefined) {
-      targetRoom = meeting.attachedTo as Ref<Room>
+    if (meeting?.roomId !== undefined) {
+      targetRoom = meeting.roomId
     }
   }
 
   const roomInfo = roomInfos.find((ri) => ri.room === targetRoom)
-  if (roomInfo !== undefined && !roomInfo.persons.includes(info.person)) {
-    res.push(
-      control.txFactory.createTxUpdateDoc(love.class.RoomInfo, core.space.Workspace, roomInfo._id, {
-        $push: { persons: info.person }
-      })
-    )
+  if (roomInfo !== undefined) {
+    if (!roomInfo.persons.includes(info.person)) {
+      res.push(
+        control.txFactory.createTxUpdateDoc(love.class.RoomInfo, core.space.Workspace, roomInfo._id, {
+          $push: { persons: info.person }
+        })
+      )
+    }
   } else {
     const room = (await control.findAll(control.ctx, love.class.Room, { _id: targetRoom }))[0]
     if (room === undefined) return []
@@ -178,7 +172,7 @@ async function roomJoinHandler (info: ParticipantInfo, control: TriggerControl):
   if (info.account != null) {
     const meetingMinutes = (
       await control.findAll(control.ctx, love.class.MeetingMinutes, {
-        attachedTo: info.room,
+        roomId: info.room,
         status: MeetingStatus.Active
       })
     )[0]
@@ -202,30 +196,19 @@ async function roomJoinHandler (info: ParticipantInfo, control: TriggerControl):
   return res
 }
 
-async function setDefaultRoomAccess (info: ParticipantInfo, control: TriggerControl): Promise<Tx[]> {
+async function dropRoomInfoOnLeave (info: ParticipantInfo, control: TriggerControl): Promise<Tx[]> {
   const res: Tx[] = []
   const roomInfos = await control.queryFind(control.ctx, love.class.RoomInfo, {})
   const oldRoomInfo = roomInfos.find((ri) => ri.persons.includes(info.person))
-  if (oldRoomInfo !== undefined) {
-    if (oldRoomInfo.persons.length === 1 && oldRoomInfo.persons[0] === info.person) {
-      res.push(control.txFactory.createTxRemoveDoc(oldRoomInfo._class, oldRoomInfo.space, oldRoomInfo._id))
-
-      const resetAccessTx = control.txFactory.createTxUpdateDoc(
-        oldRoomInfo.isOffice ? love.class.Office : love.class.Room,
-        core.space.Workspace,
-        oldRoomInfo.room,
-        {
-          access: oldRoomInfo.isOffice ? RoomAccess.Knock : RoomAccess.Open
-        }
-      )
-      res.push(resetAccessTx)
-    } else {
-      res.push(
-        control.txFactory.createTxUpdateDoc(love.class.RoomInfo, core.space.Workspace, oldRoomInfo._id, {
-          $pull: { persons: info.person }
-        })
-      )
-    }
+  if (oldRoomInfo === undefined) return res
+  if (oldRoomInfo.persons.length === 1 && oldRoomInfo.persons[0] === info.person) {
+    res.push(control.txFactory.createTxRemoveDoc(oldRoomInfo._class, oldRoomInfo.space, oldRoomInfo._id))
+  } else {
+    res.push(
+      control.txFactory.createTxUpdateDoc(love.class.RoomInfo, core.space.Workspace, oldRoomInfo._id, {
+        $pull: { persons: info.person }
+      })
+    )
   }
   return res
 }
@@ -243,12 +226,13 @@ export async function OnParticipantInfo (txes: Tx[], control: TriggerControl): P
       if (removedInfo === undefined) {
         continue
       }
-      result.push(...(await setDefaultRoomAccess(removedInfo, control)))
+      result.push(...(await dropRoomInfoOnLeave(removedInfo, control)))
       continue
     }
     if (actualTx._class === core.class.TxUpdateDoc) {
       const newRoom = (actualTx as TxUpdateDoc<ParticipantInfo>).operations.room
-      if (newRoom === undefined) {
+      const newMeeting = (actualTx as TxUpdateDoc<ParticipantInfo>).operations.meeting
+      if (newRoom === undefined && newMeeting === undefined) {
         continue
       }
       const info = (
@@ -257,14 +241,14 @@ export async function OnParticipantInfo (txes: Tx[], control: TriggerControl): P
       if (info === undefined) {
         continue
       }
-      result.push(...(await setDefaultRoomAccess(info, control)))
+      result.push(...(await dropRoomInfoOnLeave(info, control)))
       result.push(...(await roomJoinHandler(info, control)))
     }
   }
   return result
 }
 
-const meetingMinutesUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const meetingMinutesUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const meetingMinutes = doc as MeetingMinutes
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
 
@@ -313,237 +297,572 @@ async function getPersonSpace (control: TriggerControl, person: Ref<Person>): Pr
   return (await control.findAll(control.ctx, contact.class.PersonSpace, { person }, { limit: 1 }))[0]
 }
 
+async function findActivePrivateMeetingByRoom (
+  control: TriggerControl,
+  roomId: Ref<Room>
+): Promise<MeetingMinutes | undefined> {
+  const meetings = await control.findAll(
+    control.ctx,
+    love.class.MeetingMinutes,
+    { roomId, status: { $in: [MeetingStatus.Active, MeetingStatus.Pending] }, private: true },
+    { limit: 1 }
+  )
+  return meetings[0]
+}
+
+async function findResponsesForRequest (
+  control: TriggerControl,
+  request: UserMeetingInvite
+): Promise<UserMeetingInvite[]> {
+  if (request.room !== undefined) {
+    return await control.findAll(control.ctx, love.class.UserMeetingInvite, {
+      kind: 'invite-response',
+      from: request.from,
+      room: request.room
+    })
+  }
+  return await control.findAll(control.ctx, love.class.UserMeetingInvite, {
+    kind: 'invite-response',
+    from: request.from,
+    to: request.to,
+    meeting: request.meeting
+  })
+}
+
+async function findRequestForResponse (
+  control: TriggerControl,
+  response: UserMeetingInvite
+): Promise<UserMeetingInvite | undefined> {
+  if (response.room !== undefined) {
+    const list = await control.findAll(
+      control.ctx,
+      love.class.UserMeetingInvite,
+      { kind: 'invite-request', from: response.from, room: response.room },
+      { limit: 1 }
+    )
+    return list[0]
+  }
+  const list = await control.findAll(
+    control.ctx,
+    love.class.UserMeetingInvite,
+    {
+      kind: 'invite-request',
+      from: response.from,
+      to: response.to,
+      meeting: response.meeting
+    },
+    { limit: 1 }
+  )
+  return list[0]
+}
+
+async function loadInvite (control: TriggerControl, id: Ref<UserMeetingInvite>): Promise<UserMeetingInvite | undefined> {
+  const found = (await control.findAll(control.ctx, love.class.UserMeetingInvite, { _id: id }, { limit: 1 }))[0]
+  if (found !== undefined) return found
+  return control.removedMap.get(id) as UserMeetingInvite | undefined
+}
+
+async function findPersonByAccount (control: TriggerControl, account: AccountUuid): Promise<Person | undefined> {
+  const persons = await control.findAll<Person>(
+    control.ctx,
+    contact.class.Person,
+    { personUuid: account },
+    { limit: 1 }
+  )
+  return persons[0]
+}
+
 /**
- * Unified trigger for UserMeetingInvite
- * Handles all events: creation, updates from sender (expiresAt, cancellation), updates from recipient (accept/decline)
+ * The client dedups pending invite-requests via `notMatch`, but a request that
+ * dies by TTL leaves its response behind, so a re-knock would stack a second
+ * chip on the recipient. One pending response per (from, to, room/meeting).
+ */
+async function createInviteResponseTx (
+  control: TriggerControl,
+  recipientSpace: Ref<Space>,
+  data: {
+    from: Ref<Person>
+    to: Ref<Person>
+    meeting?: Ref<MeetingMinutes>
+    room?: Ref<Room>
+  }
+): Promise<TxCreateDoc<UserMeetingInvite> | undefined> {
+  const existing = await control.findAll(
+    control.ctx,
+    love.class.UserMeetingInvite,
+    {
+      kind: 'invite-response',
+      from: data.from,
+      to: data.to,
+      status: 'pending',
+      ...(data.room !== undefined ? { room: data.room } : { meeting: data.meeting })
+    },
+    { limit: 1 }
+  )
+  if (existing.length > 0) return undefined
+
+  return control.txFactory.createTxCreateDoc(
+    love.class.UserMeetingInvite,
+    recipientSpace,
+    {
+      kind: 'invite-response',
+      from: data.from,
+      to: data.to,
+      meeting: data.meeting,
+      room: data.room,
+      status: 'pending'
+    },
+    generateId<UserMeetingInvite>()
+  )
+}
+
+async function createInviteNotificationTxs (
+  control: TriggerControl,
+  recipientPerson: Ref<Person>,
+  recipientSpace: PersonSpace,
+  sender: Person | undefined,
+  source: UserMeetingInvite,
+  response: TxCreateDoc<UserMeetingInvite>,
+  modifiedOn: number
+): Promise<Tx[]> {
+  const result: Tx[] = []
+  const employee = (
+    await control.findAll(
+      control.ctx,
+      contact.mixin.Employee,
+      { _id: recipientPerson as Ref<Employee>, active: true },
+      { limit: 1 }
+    )
+  )[0]
+  if (employee?.personUuid == null) return result
+  const account = employee.personUuid
+
+  let notificationObjectId: Ref<Doc>
+  let notificationObjectClass: Ref<Class<Doc>>
+
+  if (source.meeting !== undefined) {
+    const meeting = (
+      await control.findAll(control.ctx, love.class.MeetingMinutes, { _id: source.meeting }, { limit: 1 })
+    )[0]
+    notificationObjectId = meeting?._id ?? source._id
+    notificationObjectClass = meeting?._class ?? source._class
+  } else {
+    notificationObjectId = source.from
+    notificationObjectClass = contact.class.Person
+  }
+
+  const senderName = sender !== undefined ? formatName(sender.name, control.branding?.lastNameFirst) : 'System'
+  // Б flow (knock-to-private-room) — `source.room !== undefined`. The
+  // recipient is the meeting owner being asked to admit a stranger, so use
+  // the JoinRequest copy ("{name} wants to join the meeting"). Scenario A
+  // keeps the InvitingYou wording ("{name} is asking you to join").
+  const isKnock = source.room !== undefined
+  const messageLabel = isKnock ? love.string.JoinRequestBody : love.string.InvitingYou
+  const titleLabel = isKnock ? love.string.JoinRequestTitle : love.string.MeetingRequest
+  result.push(
+    control.txFactory.createTxCreateDoc(
+      notification.class.CreateNotificationAction,
+      recipientSpace._id,
+      {
+        attachedTo: notificationObjectId,
+        attachedToClass: notificationObjectClass,
+        account,
+        type: love.ids.InviteNotification,
+        notification: {
+          messageIntl: messageLabel,
+          icon: love.icon.Invite
+        },
+        intl: {
+          titleIntl: titleLabel,
+          bodyIntl: messageLabel,
+          intlParams: { name: senderName }
+        },
+        call: {
+          inviteId: response.objectId,
+          meetingId: response.attributes.meeting,
+          roomId: response.attributes.room,
+          callerName: senderName,
+          callerPerson: source.from,
+          expiresAt: modifiedOn + CALL_RING_MS
+        }
+      },
+      undefined,
+      modifiedOn
+    )
+  )
+  return result
+}
+
+/**
+ * Unified trigger for UserMeetingInvite.
+ *
+ * Three flows (see docs/knock.md):
+ *   A1/A2 — caller invites a user: trigger fans the invite-request out to a
+ *           single invite-response in recipient's PersonSpace + notification.
+ *   Б     — caller knocks a private room: trigger looks up the meeting in that
+ *           room, fans out one invite-response per owner (fallback: members).
+ *   Heartbeat — sender's no-op TxUpdateDoc on invite-request resets TTL on
+ *           every linked invite-response.
+ *   Accept/Decline — recipient's TxUpdateDoc invite-response syncs status to
+ *           the invite-request (and meeting on Б accept, plus $push members).
+ *   Cancel  — sender's TxRemoveDoc invite-request removes every linked
+ *           invite-response.
  */
 export async function OnUserMeetingInvite (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
+  // Responses gone by cancel, accept or decline: their call stops ringing on the phones.
+  const ended: UserMeetingInvite[] = []
 
   for (const tx of txes) {
-    // Handle creation of invite-request
     if (tx._class === core.class.TxCreateDoc) {
       const createTx = tx as TxCreateDoc<UserMeetingInvite>
       if (createTx.objectClass !== love.class.UserMeetingInvite) continue
 
       const invite = TxProcessor.createDoc2Doc(createTx)
-
-      // Only process invite-request kind
       if (invite.kind !== 'invite-request') continue
       if (invite.status !== 'pending') continue
+      // Self-invite is only legal for the Б flow (sender places `to = from`
+      // because the real recipient is the owner of the locked room).
+      if (invite.from === invite.to && invite.room === undefined) continue
 
-      // Skip self-invites
-      if (invite.from === invite.to) continue
+      const sender = (await control.findAll(control.ctx, contact.class.Person, { _id: invite.from }, { limit: 1 }))[0]
 
-      // Find recipient's personal space (PersonSpace)
-      const recipientSpace = await getPersonSpace(control, invite.to)
-      if (recipientSpace === undefined) continue
-
-      // Create invite-response in recipient's space
-      const responseId = generateId<UserMeetingInvite>()
-      result.push(
-        control.txFactory.createTxCreateDoc(
-          love.class.UserMeetingInvite,
-          recipientSpace._id,
-          {
-            kind: 'invite-response',
+      if (invite.room !== undefined) {
+        // === Scenario B: knock fan-out to all owners ===
+        const meeting = await findActivePrivateMeetingByRoom(control, invite.room)
+        if (meeting === undefined) continue
+        const targets = ((meeting.owners?.length ?? 0) > 0 ? meeting.owners : meeting.members) ?? []
+        const seen = new Set<Ref<Person>>()
+        for (const ownerAccount of targets) {
+          const ownerPerson = await findPersonByAccount(control, ownerAccount)
+          if (ownerPerson === undefined) continue
+          if (ownerPerson._id === invite.from) continue
+          if (seen.has(ownerPerson._id)) continue
+          seen.add(ownerPerson._id)
+          const ownerSpace = await getPersonSpace(control, ownerPerson._id)
+          if (ownerSpace === undefined) continue
+          const responseTx = await createInviteResponseTx(control, ownerSpace._id, {
             from: invite.from,
-            to: invite.to,
-            meeting: invite.meeting,
-            expiresAt: invite.expiresAt,
-            status: 'pending'
-          },
-          responseId
-        )
-      )
-
-      // Create notification for recipient
-      const employee = (
-        await control.findAll(
-          control.ctx,
-          contact.mixin.Employee,
-          { _id: invite.to as Ref<Employee>, active: true },
-          { limit: 1 }
-        )
-      )[0]
-      if (employee?.personUuid != null) {
-        const account = employee.personUuid
-        const socialIds = await getSocialStrings(control, employee._id)
-        const receiverInfo = {
-          account,
-          socialIds,
-          space: recipientSpace._id,
-          employee: employee._id,
-          role: employee.role
-        } as const
-
-        const sender: Person | undefined = (
-          await control.findAll(control.ctx, contact.class.Person, { _id: invite.from })
-        )[0]
-        const allowedProviders = await getInviteAllowedProviders(control, receiverInfo.socialIds)
-
-        // Get meeting info if available
-        let notificationObjectId: Ref<Doc>
-        let notificationObjectClass: Ref<Class<Doc>>
-        let notificationObjectSpace: Ref<Space>
-
-        if (invite.meeting !== undefined) {
-          const meeting = await control
-            .findAll(control.ctx, love.class.MeetingMinutes, { _id: invite.meeting }, { limit: 1 })
-            .then((r) => r[0])
-          // Attach to MeetingMinutes if exists
-          notificationObjectId = meeting?._id ?? invite._id
-          notificationObjectClass = meeting?._class ?? invite._class
-          notificationObjectSpace = meeting?.space ?? invite.space
-        } else {
-          // No meeting - attach to sender's Person
-          notificationObjectId = invite.from
-          notificationObjectClass = contact.class.Person
-          notificationObjectSpace = contact.space.Contacts
-        }
-
-        const currentContext = (
-          await control.findAll(control.ctx, notification.class.DocNotifyContext, {
-            objectId: notificationObjectId,
-            user: receiverInfo.account
+            to: ownerPerson._id,
+            room: invite.room,
+            meeting: meeting._id
           })
-        )[0]
-        let contextId = currentContext?._id
-
-        if (contextId === undefined) {
-          const createContextTx = control.txFactory.createTxCreateDoc(
-            notification.class.DocNotifyContext,
-            receiverInfo.space,
-            {
-              objectId: notificationObjectId,
-              objectClass: notificationObjectClass,
-              objectSpace: notificationObjectSpace,
-              user: receiverInfo.account,
-              lastNotify: tx.modifiedOn
-            }
-          )
-          contextId = createContextTx.objectId
-          result.push(createContextTx)
-        } else if (currentContext != null) {
+          if (responseTx === undefined) continue
+          result.push(responseTx)
           result.push(
-            control.txFactory.createTxUpdateDoc(currentContext._class, currentContext.space, currentContext._id, {
-              lastNotify: tx.modifiedOn
-            })
+            ...(await createInviteNotificationTxs(
+              control,
+              ownerPerson._id,
+              ownerSpace,
+              sender,
+              invite,
+              responseTx,
+              tx.modifiedOn
+            ))
           )
         }
-
-        const senderName = formatName(sender?.name, control.branding?.lastNameFirst) ?? 'System'
-        const data: Data<CommonInboxNotification> = {
-          docNotifyContext: contextId,
-          user: receiverInfo.account,
-          message: love.string.InvitingYou,
-          props: {
-            name: senderName,
-            senderName
-          },
-          header: love.string.MeetingRequest,
-          headerIcon: love.icon.Invite,
-          objectId: notificationObjectId,
-          objectClass: notificationObjectClass,
-          isViewed: receiverInfo.role === 'GUEST' && receiverInfo.account === readOnlyGuestAccountUuid,
-          archived: false,
-          allowedProviders: Object.fromEntries(
-            allowedProviders.map((provider) => [provider, [love.ids.InviteNotification]])
-          )
-        }
-
-        result.push(
-          control.txFactory.createTxCreateDoc(notification.class.CommonInboxNotification, receiverInfo.space, {
-            ...data
-          })
-        )
+        continue
       }
-    }
 
-    // Handle updates
-    if (tx._class === core.class.TxUpdateDoc || tx._class === core.class.TxRemoveDoc) {
-      const cudTx = tx as TxCUD<UserMeetingInvite>
-      if (cudTx.objectClass !== love.class.UserMeetingInvite) continue
-
-      // Get the document being updated
-      const sourceDoc =
-        (
-          await control.findAll(control.ctx, love.class.UserMeetingInvite, { _id: cudTx.objectId }, { limit: 1 })
-        ).shift() ?? (control.removedMap.get(cudTx.objectId) as UserMeetingInvite | undefined)
-
-      if (sourceDoc === undefined) continue
-
-      if (sourceDoc.kind === 'invite-request') {
-        // Update from sender - sync to recipient's invite-response
-        // Find all invite-responses for this pair
-        const inviteResponses = await control.findAll(control.ctx, love.class.UserMeetingInvite, {
-          kind: 'invite-response',
-          from: sourceDoc.from,
-          to: sourceDoc.to
-        })
-
-        if (inviteResponses.length === 0) continue
-
-        const now = Date.now()
-        // Process all found invite-responses
-        for (const response of inviteResponses) {
-          // Handle cancellation - sync only if status changed
-          if (tx._class === core.class.TxRemoveDoc || response.expiresAt < now) {
-            // We need to remove other side
-            result.push(control.txFactory.createTxRemoveDoc(love.class.UserMeetingInvite, response.space, response._id))
-            continue
-          }
-          const updateTx = tx as TxUpdateDoc<UserMeetingInvite>
-
-          // Handle expiresAt update - only if response is still pending and expiresAt changed
-          if (updateTx.operations.expiresAt !== undefined && response.expiresAt !== updateTx.operations.expiresAt) {
+      // === Scenario A: invite to user ===
+      // If the sender references an existing meeting that's private, silently
+      // drop the request unless the sender is one of its owners. This mirrors
+      // SpaceSecurityMiddleware: only owners can grow members of a private
+      // space, so anyone else trying to drag a new person in must use knock.
+      if (invite.meeting !== undefined) {
+        const target = (
+          await control.findAll<MeetingMinutes>(
+            control.ctx,
+            love.class.MeetingMinutes,
+            { _id: invite.meeting },
+            { limit: 1 }
+          )
+        )[0]
+        if (target?.private) {
+          const senderAccount = sender?.personUuid as AccountUuid | undefined
+          const owners = target.owners ?? []
+          const isOwner = senderAccount !== undefined && owners.includes(senderAccount)
+          if (!isOwner) continue
+          // Grow members up-front so the recipient can see the private meeting
+          // space immediately. The owner-caller is allowed to do this (mirrors
+          // SpaceSecurityMiddleware), and without it the recipient's accept
+          // races a membership write that never happens and the join times out
+          // with "MeetingMinutes not found".
+          const recipient = await control.findAll<Person>(
+            control.ctx,
+            contact.class.Person,
+            { _id: invite.to },
+            { limit: 1 }
+          )
+          const recipientAccount = recipient[0]?.personUuid as AccountUuid | undefined
+          if (recipientAccount !== undefined && !target.members.includes(recipientAccount)) {
             result.push(
-              control.txFactory.createTxUpdateDoc(love.class.UserMeetingInvite, response.space, response._id, {
-                expiresAt: updateTx.operations.expiresAt
+              control.txFactory.createTxUpdateDoc(love.class.MeetingMinutes, target.space, target._id, {
+                $push: { members: recipientAccount }
               })
             )
           }
         }
-      } else if (sourceDoc.kind === 'invite-response' && tx._class === core.class.TxUpdateDoc) {
-        // Find invite-request for this pair
-        const inviteRequests = await control.findAll(control.ctx, love.class.UserMeetingInvite, {
-          kind: 'invite-request',
-          from: sourceDoc.from,
-          to: sourceDoc.to
-        })
+      }
 
-        const updateTx = tx as TxUpdateDoc<UserMeetingInvite>
-        // Update from recipient (accept/decline) - sync to sender's invite-request
-        const newStatus = updateTx.operations.status
-        const newMeeting = updateTx.operations.meeting
+      const recipientSpace = await getPersonSpace(control, invite.to)
+      if (recipientSpace === undefined) continue
+      const responseTx = await createInviteResponseTx(control, recipientSpace._id, {
+        from: invite.from,
+        to: invite.to,
+        meeting: invite.meeting
+      })
+      if (responseTx === undefined) continue
+      result.push(responseTx)
+      result.push(
+        ...(await createInviteNotificationTxs(
+          control,
+          invite.to,
+          recipientSpace,
+          sender,
+          invite,
+          responseTx,
+          tx.modifiedOn
+        ))
+      )
+      continue
+    }
 
-        // If nothing changed, skip
-        if (newStatus === undefined && newMeeting === undefined) continue
+    if (tx._class === core.class.TxRemoveDoc) {
+      const removeTx = tx as TxCUD<UserMeetingInvite>
+      if (removeTx.objectClass !== love.class.UserMeetingInvite) continue
+      const sourceDoc = control.removedMap.get(removeTx.objectId) as UserMeetingInvite | undefined
+      if (sourceDoc === undefined) continue
+      if (sourceDoc.kind === 'invite-request') {
+        // Cancel by sender — drop all linked invite-responses.
+        const responses = await findResponsesForRequest(control, sourceDoc)
+        for (const r of responses) {
+          result.push(control.txFactory.createTxRemoveDoc(love.class.UserMeetingInvite, r.space, r._id))
+        }
+        ended.push(...responses)
+      }
+      continue
+    }
 
-        if (newStatus === 'declined' || (newStatus === 'accepted' && newMeeting !== undefined)) {
-          // If we declined or accepted and meeting is set, we can remove the invite-response as it's no longer needed
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const updateTx = tx as TxUpdateDoc<UserMeetingInvite>
+    if (updateTx.objectClass !== love.class.UserMeetingInvite) continue
+    const sourceDoc = await loadInvite(control, updateTx.objectId)
+    if (sourceDoc === undefined) continue
+
+    if (sourceDoc.kind === 'invite-request') {
+      // Heartbeat or other no-op update from sender — proxy a TTL touch to
+      // every linked invite-response so they live as long as the request.
+      const responses = await findResponsesForRequest(control, sourceDoc)
+      for (const r of responses) {
+        result.push(
+          control.txFactory.createTxUpdateDoc<UserMeetingInvite>(love.class.UserMeetingInvite, r.space, r._id, {
+            status: r.status
+          })
+        )
+      }
+      continue
+    }
+
+    // sourceDoc.kind === 'invite-response'
+    const newStatus = updateTx.operations.status
+    if (newStatus !== 'accepted' && newStatus !== 'declined') continue
+    const newSid = updateTx.operations.acceptedSessionId
+
+    if (sourceDoc.room !== undefined) {
+      // === Scenario B: owner accepted or declined the knock ===
+      const meeting =
+        sourceDoc.meeting !== undefined
+          ? (await control.findAll(control.ctx, love.class.MeetingMinutes, { _id: sourceDoc.meeting }, { limit: 1 }))[0]
+          : undefined
+      if (meeting === undefined) continue
+      const actorAccount = await getAccountBySocialId(control, updateTx.modifiedBy)
+      const owners = meeting.owners ?? []
+      const authorized =
+        actorAccount !== null &&
+        (owners.length > 0 ? owners.includes(actorAccount) : meeting.members.includes(actorAccount))
+      if (!authorized) continue
+
+      const request = await findRequestForResponse(control, sourceDoc)
+
+      if (newStatus === 'accepted') {
+        const knockerPerson = (
+          await control.findAll(control.ctx, contact.class.Person, { _id: sourceDoc.from }, { limit: 1 })
+        )[0]
+        const knockerAccount = knockerPerson?.personUuid as AccountUuid | undefined
+        if (knockerAccount !== undefined && !meeting.members.includes(knockerAccount)) {
           result.push(
-            control.txFactory.createTxRemoveDoc(love.class.UserMeetingInvite, updateTx.objectSpace, updateTx.objectId)
+            control.txFactory.createTxUpdateDoc(love.class.MeetingMinutes, meeting.space, meeting._id, {
+              $push: { members: knockerAccount }
+            })
           )
         }
-
-        for (const request of inviteRequests) {
-          const upd: DocumentUpdate<UserMeetingInvite> = {}
-          // Sync status if changed
-          if (newStatus !== undefined && request.status !== newStatus) {
-            upd.status = newStatus
-          }
-          // Sync meeting reference if provided (recipient created/joined a meeting)
-          if (newMeeting !== undefined && request.meeting !== newMeeting) {
-            upd.meeting = newMeeting
-          }
-          if (Object.keys(upd).length > 0) {
+        // Drop every sibling invite-response for this knock — the room is open.
+        const siblings = await findResponsesForRequest(control, sourceDoc)
+        for (const s of siblings) {
+          result.push(control.txFactory.createTxRemoveDoc(love.class.UserMeetingInvite, s.space, s._id))
+        }
+        ended.push(...siblings)
+        if (request !== undefined) {
+          const upd: DocumentUpdate<UserMeetingInvite> = { status: 'accepted', meeting: meeting._id }
+          if (newSid !== undefined) upd.acceptedSessionId = newSid
+          result.push(
+            control.txFactory.createTxUpdateDoc(love.class.UserMeetingInvite, request.space, request._id, upd)
+          )
+        }
+      } else {
+        // decline by THIS owner — remove only this response.
+        result.push(
+          control.txFactory.createTxRemoveDoc(love.class.UserMeetingInvite, updateTx.objectSpace, updateTx.objectId)
+        )
+        ended.push(sourceDoc)
+        // If no responses remain, sync request.status = declined for the knocker.
+        if (request !== undefined) {
+          const remaining = (await findResponsesForRequest(control, sourceDoc)).filter((r) => r._id !== sourceDoc._id)
+          if (remaining.length === 0) {
             result.push(
-              control.txFactory.createTxUpdateDoc(love.class.UserMeetingInvite, request.space, request._id, upd)
+              control.txFactory.createTxUpdateDoc(love.class.UserMeetingInvite, request.space, request._id, {
+                status: 'declined'
+              })
             )
           }
         }
       }
+      continue
+    }
+
+    // === Scenario A: invite-response accept/decline ===
+    // Per docs/knock.md: trigger removes the invite-response right away and
+    // syncs status (+acceptedSessionId) onto the invite-request. Recipient
+    // waits via a separate live-query on MeetingMinutes (members ⊇ [me, from]
+    // in the caller's office) and auto-joins when the caller's A2 client
+    // creates the meeting.
+    result.push(
+      control.txFactory.createTxRemoveDoc(love.class.UserMeetingInvite, updateTx.objectSpace, updateTx.objectId)
+    )
+    ended.push(sourceDoc)
+    const requestA = await findRequestForResponse(control, sourceDoc)
+    if (requestA !== undefined) {
+      const upd: DocumentUpdate<UserMeetingInvite> = { status: newStatus }
+      if (newSid !== undefined) upd.acceptedSessionId = newSid
+      result.push(control.txFactory.createTxUpdateDoc(love.class.UserMeetingInvite, requestA.space, requestA._id, upd))
+    }
+  }
+
+  await queueCallCancels(control, ended)
+  return result
+}
+
+/**
+ * Straight to the push queue, not through services/notifications: nothing there knows the call.
+ * So a cancel can overtake its own call push; the app checks the invite once awake.
+ * A response that dies by TTL sends nothing, the push's `expiresAt` stops the ringing then.
+ */
+async function queueCallCancels (control: TriggerControl, responses: UserMeetingInvite[]): Promise<void> {
+  if (control.queue === undefined || responses.length === 0) return
+  try {
+    const persons = await control.findAll(control.ctx, contact.class.Person, {
+      _id: { $in: responses.map((it) => it.to) }
+    })
+    const accounts = new Map(persons.map((it) => [it._id, it.personUuid as AccountUuid | undefined]))
+    const subscriptions = (
+      await control.findAll(control.ctx, notification.class.PushSubscription, {
+        user: { $in: [...accounts.values()].filter((it) => it !== undefined) }
+      })
+    ).filter((it) => isNativePushEndpoint(it.endpoint))
+    const messages: QueueCallCancelMessage[] = []
+    for (const response of responses) {
+      const account = accounts.get(response.to)
+      const pushSubscriptions = subscriptions.filter((it) => it.user === account)
+      if (account === undefined || pushSubscriptions.length === 0) continue
+      messages.push({
+        kind: 'call-cancel',
+        id: `call-cancel:${response._id}`,
+        account,
+        objectId: response._id,
+        objectClass: response._class,
+        objectSpace: response.space,
+        pushSubscriptions
+      })
+    }
+    if (messages.length === 0) return
+    const producer = control.queue.getProducer<QueueCallCancelMessage>(control.ctx, QueueTopic.UserNotifications)
+    await producer.send(control.ctx, control.workspace.uuid, messages)
+  } catch (err) {
+    control.ctx.error('Could not queue call cancel', { err })
+  }
+}
+
+/**
+ * Trigger to update MeetingMinutes when Event is updated
+ * - Updates meetingScheduledDate when Event date changes
+ * - Updates members when Event participants change
+ */
+export async function OnEventUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  const result: Tx[] = []
+
+  for (const tx of txes) {
+    if (tx._class !== core.class.TxUpdateDoc) continue
+
+    const cudTx = tx as TxCUD<Event>
+    if (cudTx.objectClass !== calendar.class.Event) continue
+
+    // Get the event
+    const event = (await control.findAll(control.ctx, calendar.class.Event, { _id: cudTx.objectId }, { limit: 1 }))[0]
+    if (event === undefined) continue
+
+    // Check if event has MeetingEventLink mixin
+    const hasMeetingMixin = control.hierarchy.hasMixin(event, love.mixin.MeetingEventLink)
+    if (!hasMeetingMixin) continue
+
+    const meetingLink = control.hierarchy.as(event, love.mixin.MeetingEventLink)
+    if (meetingLink.meetingId === undefined) continue
+
+    // Get the meeting
+    const meeting = await control.findAll(
+      control.ctx,
+      love.class.MeetingMinutes,
+      { _id: meetingLink.meetingId },
+      { limit: 1 }
+    )
+    if (meeting.length === 0) continue
+    const meetingDoc = meeting[0]
+
+    // Only update if meeting is in Scheduled status
+    if (meetingDoc.status !== MeetingStatus.Scheduled) continue
+
+    const updateTx = tx as TxUpdateDoc<Event>
+    const ops = updateTx.operations
+    const meetingUpdate: DocumentUpdate<MeetingMinutes> = {}
+
+    // Update meetingScheduledDate if Event date changed
+    if (ops.date !== undefined) {
+      meetingUpdate.meetingScheduledDate = ops.date
+    }
+
+    // Update members if Event participants changed
+    if (ops.participants !== undefined) {
+      const newMembers: AccountUuid[] = []
+
+      for (const participantRef of ops.participants) {
+        const person = (
+          await control.findAll(control.ctx, contact.class.Person, { _id: participantRef }, { limit: 1 })
+        )[0]
+        if (person?.personUuid !== undefined && !meetingDoc.members.includes(person.personUuid as AccountUuid)) {
+          newMembers.push(person.personUuid as AccountUuid)
+        }
+      }
+
+      if (newMembers.length > 0) {
+        meetingUpdate.$push = { members: { $each: newMembers, $position: 0 } }
+      }
+    }
+
+    // Apply update if there are changes
+    if (Object.keys(meetingUpdate).length > 0) {
+      result.push(
+        control.txFactory.createTxUpdateDoc(love.class.MeetingMinutes, meetingDoc.space, meetingDoc._id, meetingUpdate)
+      )
     }
   }
 
@@ -560,6 +879,7 @@ export default async () => ({
     OnUserStatus,
     OnParticipantInfo,
     OnRoomInfo,
-    OnUserMeetingInvite
+    OnUserMeetingInvite,
+    OnEventUpdate
   }
 })

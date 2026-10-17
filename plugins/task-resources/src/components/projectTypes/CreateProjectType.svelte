@@ -14,9 +14,11 @@
 -->
 
 <script lang="ts">
-  import { SpaceTypeDescriptor, generateId } from '@hcengineering/core'
+  import type { Ref, SpaceTypeDescriptor } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { ProjectTypeDescriptor, createProjectType } from '@hcengineering/task'
+  import type { ProjectType, ProjectTypeDescriptor } from '@hcengineering/task'
+  import { createDefaultTaskType, createProjectType } from '@hcengineering/task'
   import { ToggleWithLabel } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import task from '../../plugin'
@@ -25,18 +27,18 @@
 
   export let descriptor: SpaceTypeDescriptor
   export let name: string = ''
-  export const handleTypeCreated: () => Promise<void> = createType
+  export const handleTypeCreated: () => Promise<Ref<ProjectType> | undefined> = createType
 
   let classic: boolean = true
   $: projDescriptor = descriptor as ProjectTypeDescriptor
 
   const dispatch = createEventDispatcher()
 
-  async function createType (): Promise<void> {
+  async function createType (): Promise<Ref<ProjectType> | undefined> {
     if (projDescriptor === undefined) {
       return
     }
-    await createProjectType(
+    const typeId = await createProjectType(
       client,
       {
         name,
@@ -49,7 +51,17 @@
       [],
       generateId()
     )
+    await addDefaultTaskType(typeId)
     dispatch('close')
+    return typeId
+  }
+
+  async function addDefaultTaskType (typeId: Ref<ProjectType>): Promise<void> {
+    const defaultTaskType = projDescriptor.defaultTaskType
+    if (defaultTaskType === undefined) return
+    const projectType = await client.findOne(task.class.ProjectType, { _id: typeId })
+    if (projectType === undefined) return
+    await createDefaultTaskType(client, projectType, defaultTaskType.descriptor, defaultTaskType.name)
   }
 </script>
 

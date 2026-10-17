@@ -15,12 +15,13 @@
 -->
 <script lang="ts">
   import { AttachmentStyleBoxCollabEditor } from '@hcengineering/attachment-resources'
-  import { Data, Doc, type MarkupBlobRef, Mixin, Ref } from '@hcengineering/core'
+  import type { Data, Doc, Mixin, Ref } from '@hcengineering/core'
+  import type { MarkupBlobRef } from '@hcengineering/core'
   import notification from '@hcengineering/notification'
   import { Panel } from '@hcengineering/panel'
   import { getResource } from '@hcengineering/platform'
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import { Vacancy } from '@hcengineering/recruit'
+  import type { Vacancy } from '@hcengineering/recruit'
   import survey from '@hcengineering/survey'
   import tracker from '@hcengineering/tracker'
   import { Button, Component, EditBox, IconMixin, IconMoreH, Label } from '@hcengineering/ui'
@@ -43,7 +44,7 @@
   let showAllMixins = false
 
   const dispatch = createEventDispatcher()
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   onDestroy(async () => {
     void inboxClient.then((client) => client.readDoc(_id))
@@ -52,7 +53,6 @@
   const client = getClient()
 
   const query = createQuery()
-  // const clazz = client.getHierarchy().getClass(recruit.class.Vacancy)
 
   function updateObject (_id: Ref<Vacancy>): void {
     if (lastId !== _id) {
@@ -141,7 +141,7 @@
     <EditBox
       bind:value={rawName}
       placeholder={recruit.string.VacancyPlaceholder}
-      kind={'large-style'}
+      kind="large-style"
       focusable
       autoFocus={!embedded}
       disabled={readonly}
@@ -158,7 +158,8 @@
         <Button
           icon={IconMoreH}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
+          dataId="btnMoreActions"
           on:click={(e) => {
             showMenu(e, { object, excludedActions: [view.action.Open] })
           }}
@@ -166,7 +167,7 @@
       {/if}
       <Button
         icon={IconMixin}
-        kind={'icon'}
+        kind="icon"
         iconProps={{ size: 'medium' }}
         selected={showAllMixins}
         on:click={() => {

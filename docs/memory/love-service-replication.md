@@ -1,0 +1,18 @@
+# love service: реплицируется
+
+Область: [office-meetings.md](../features/office-meetings.md).
+
+`services/love` может работать в нескольких репликах за балансировщиком. Отсюда правила:
+
+- **Никакого process-local планирования.** Webhook от LiveKit приходит на произвольную реплику, следующий webhook по той же комнате - на другую. `setTimeout` + `Map` в памяти процесса (отложенное закрытие, отмена по `room_finished`) ломается: отменять некому, а при рестарте реплики таймер теряется совсем.
+- **Общее состояние - это LiveKit.** `listRooms` / `listParticipants` видят все реплики одинаково. Решение, выведенное из свежего чтения LiveKit, любая реплика примет одно и то же, а параллельный `deleteRoom` идемпотентен.
+- **Метки времени - в metadata комнаты LiveKit.** `updateMetadata` (`utils.ts`) читает блоб и мержит, потому что `updateRoomMetadata` заменяет его целиком. Так у всех реплик одни часы.
+- **Периодические решения живут в `polling.ts`.** Цикл крутится в каждой реплике и уже читает LiveKit по всем комнатам. Реплика, поднявшаяся позже, закроет комнату позже - fail-open.
+
+- **Любое завершение митинга приходит дважды.** `room_finished` webhook и polling (`cleanupStaleRoomStates`) оба зовут `finishMeeting`, а при N репликах - N+1 раз. Поэтому `finishMeeting` не трогает уже `Finished` митинг (`workspaceClient.ts`).
+- **Инвайт-knock несёт только комнату**, поэтому "чья это заявка" решается по полю, а не по чтению перед удалением: `cleanupInvitesForMeeting` (`workspaceClient.ts`) удаляет invite, если он уже привязан к этому митингу (`it.meeting === meeting`), или не привязан ни к какому и создан до конца именно этого финиша (`(it.createdOn ?? it.modifiedOn) <= endedAt`, `endedAt` - `meetingEnd` этого вызова, а не `now` - финишей несколько). Митинг, стартовавший в той же комнате между ними, успевает проставить knock-у свой `meeting` раньше, чем до него доходит очередь на удаление.
+- **Ни один обработчик очереди не должен бросать на housekeeping.** Consumer повторяет упавшее сообщение в `while (true)`, партиция общая для всей группы, то есть для всех реплик. Одно "вечно падающее" сообщение затыкает обработку вебхуков целиком (разбор - [sanity-flaky-tests.md](sanity-flaky-tests.md)). `updateMetadata` поэтому не бросает.
+  - FUSIO-1422: webhook удалённого воркспейса (`WorkspaceClient.create` -> `WorkspaceNotFound` из account `selectWorkspace`) ретраился вечно; застревал и `updateMetadata {transcription:true}` из `POST /transcription` (та же `LoveQueue`), love-agent не получал `RoomMetadataChanged` - UI показывал "транскрибируется", текста не было.
+- **Взаимное исключение - в транзакторе, не в Map.** `TxApplyIf` со `scope` + `notMatch` (`ApplyTxMiddleware`) - проверка и запись атомарны для всех реплик. Так резервируется запись.
+
+Так сделан D7 (F5 владельца офиса не должен завершать митинг): webhook ставит `ownerLeftAt`, `closeRoomIfOwnerGone` в polling закрывает комнату, если штамп пережил grace, и снимает его, если владелец вернулся. Первый вариант с `setTimeout` в webhook отвалился именно на репликах.

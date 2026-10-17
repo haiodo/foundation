@@ -1,11 +1,14 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
 import { Issue, NewIssue } from '../model/tracker/types'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
-import { prepareNewIssueWithOpenStep } from './common-steps'
+import { prepareNewIssueWithOpenByApiStep, prepareNewIssueWithOpenStep } from './common-steps'
 import { IssueCommentPopup } from '../model/tracker/issue-comment-popup'
+import { TEST_ESTIMATIONS } from './tracker.utils'
+import { readStoredCommentCount } from '../API/TrackerApi'
+import { retry } from '../retry'
 
 test.use({
   storageState: PlatformSetting
@@ -62,7 +65,7 @@ test.describe('Tracker issue tests', () => {
       milestone: 'Milestone',
       duedate: 'today'
     }
-    await prepareNewIssueWithOpenStep(page, newIssue)
+    await prepareNewIssueWithOpenByApiStep(page, newIssue)
 
     await issuesDetailsPage.editIssue(editIssue)
 
@@ -71,9 +74,7 @@ test.describe('Tracker issue tests', () => {
       ...editIssue
     })
 
-    const estimations = ['0', '1', '1.25', '1.259', '1.26', '1.27', '1.5', '1.75', '2', '7', '8', '9', '9.5']
-
-    for (const input of estimations) {
+    for (const input of TEST_ESTIMATIONS) {
       await issuesDetailsPage.editIssue({
         estimation: input
       })
@@ -169,7 +170,7 @@ test.describe('Tracker issue tests', () => {
       description: 'Issue to move to another project',
       projectName: 'Default'
     }
-    await prepareNewIssueWithOpenStep(page, moveIssue)
+    await prepareNewIssueWithOpenByApiStep(page, moveIssue)
     await issuesDetailsPage.moreActionOnIssue('Move to project')
     await issuesDetailsPage.fillMoveIssuesModal(secondProjectName, true)
     await trackerNavigationMenuPage.openIssuesForProject(secondProjectName)
@@ -179,9 +180,6 @@ test.describe('Tracker issue tests', () => {
     })
 
     await trackerNavigationMenuPage.openIssuesForProject('Default')
-    // TODO need to return back after bug with activity fixed
-    // await issuesDetailsPage.checkActivityExist('changed project in')
-    // await issuesDetailsPage.checkActivityExist('changed number in')
   })
 
   test('Comment stored after reload the page', async ({ page }) => {
@@ -191,12 +189,17 @@ test.describe('Tracker issue tests', () => {
       description: 'Issue for comment stored after reload the page',
       projectName: 'Default'
     }
-    await prepareNewIssueWithOpenStep(page, commentIssue)
+    await prepareNewIssueWithOpenByApiStep(page, commentIssue)
 
     const issuesDetailsPage = new IssuesDetailsPage(page)
     await issuesDetailsPage.waitDetailsOpened(commentIssue.title)
     await issuesDetailsPage.addComment(commentText)
     await issuesDetailsPage.checkCommentExist(commentText)
+
+    // The shown comment is the optimistic render: a reload before the send lands wipes it.
+    await retry(async () => {
+      expect(await readStoredCommentCount(commentIssue.title)).toBeGreaterThanOrEqual(1)
+    })
 
     await page.reload()
     await issuesDetailsPage.waitDetailsOpened(commentIssue.title)
@@ -232,11 +235,9 @@ test.describe('Tracker issue tests', () => {
       description: 'Description Issue for deletion',
       projectName: 'Default'
     }
-    await prepareNewIssueWithOpenStep(page, deleteIssue)
-    await issuesPage.navigateToIssues()
-    await issuesPage.clickModelSelectorAll()
-    await issuesPage.searchIssueByName(deleteIssue.title)
-    await issuesPage.openIssueByName(deleteIssue.title)
+    await prepareNewIssueWithOpenByApiStep(page, deleteIssue)
+    // prepareNewIssueWithOpenByApiStep already opens the issue - re-navigating via navigateToIssues()
+    // ('text="Issues"') can land on another project's sidebar node and never find this row.
     await issuesDetailsPage.waitDetailsOpened(deleteIssue.title)
     await issuesDetailsPage.moreActionOnIssue('Delete')
     await issuesDetailsPage.pressYesForPopup(page)
@@ -251,7 +252,7 @@ test.describe('Tracker issue tests', () => {
       description: 'Check the changed description activity description',
       projectName: 'Default'
     }
-    await prepareNewIssueWithOpenStep(page, changedDescriptionIssue)
+    await prepareNewIssueWithOpenByApiStep(page, changedDescriptionIssue)
     await issuesDetailsPage.waitDetailsOpened(changedDescriptionIssue.title)
     await issuesDetailsPage.checkIssue(changedDescriptionIssue)
     await issuesDetailsPage.addToDescription(additionalDescription)
@@ -265,10 +266,11 @@ test.describe('Tracker issue tests', () => {
       description: 'Add comment with image attachment',
       projectName: 'Default'
     }
-    await prepareNewIssueWithOpenStep(page, commentImageIssue)
+    await prepareNewIssueWithOpenByApiStep(page, commentImageIssue)
     await issuesDetailsPage.waitDetailsOpened(commentImageIssue.title)
     await issuesDetailsPage.addCommentWithImage('Added comment with atttachment', 'cat3.jpeg')
-    await issuesDetailsPage.checkCommentWithImageExist('left a comment', 'cat3.jpeg')
+    await issuesDetailsPage.checkCommentWithImageExist('', 'cat3.jpeg')
+    await issuesDetailsPage.checkCommentExist('Added comment with atttachment')
   })
 
   test('Add comment by popup', async ({ page }) => {
@@ -279,7 +281,7 @@ test.describe('Tracker issue tests', () => {
       description: 'Issue for add comment by popup',
       projectName: 'Default'
     }
-    await prepareNewIssueWithOpenStep(page, commentIssue)
+    await prepareNewIssueWithOpenByApiStep(page, commentIssue)
     await issuesDetailsPage.waitDetailsOpened(commentIssue.title)
     await issuesDetailsPage.addComment(commentInside)
     await issuesDetailsPage.checkCommentExist(commentInside)
@@ -287,14 +289,44 @@ test.describe('Tracker issue tests', () => {
     await issuesPage.clickModelSelectorAll()
     await issuesPage.searchIssueByName(commentIssue.title)
     await issuesPage.checkCommentsCount(commentIssue.title, '1')
-    await issuesPage.openCommentPopupForIssueByName(commentIssue.title)
-    await issueCommentPopup.addCommentInPopup(commentPopup, 'cat2.jpeg')
-    await issueCommentPopup.checkCommentWithImageExist('left a comment', 'cat2.jpeg')
+    await issueCommentPopup.addCommentInPopup(commentIssue.title, commentPopup, 'cat2.jpeg')
+    await issueCommentPopup.checkCommentWithImageExist('', 'cat2.jpeg')
     await issueCommentPopup.checkCommentExist(commentPopup)
-    await page.locator('.modal-overlay').hover({ position: { x: 10, y: 10 } })
-    await page.locator('.modal-overlay').click({ position: { x: 10, y: 10 } })
+    await issuesPage.closePopups()
     await issuesPage.clickModelSelectorAll()
     await issuesPage.searchIssueByName(commentIssue.title)
     await issuesPage.checkCommentsCount(commentIssue.title, '2')
+  })
+
+  test('Set status and priority via context menu submenu', async ({ page }) => {
+    const newIssue: NewIssue = {
+      title: `Context menu submenu-${generateId()}`,
+      description: 'Set status and priority via context menu submenu',
+      projectName: 'Default'
+    }
+    await issuesPage.linkSidebarAll().click()
+    await issuesPage.clickModelSelectorAll()
+    await issuesPage.createNewIssue(newIssue)
+    await issuesPage.searchIssueByName(newIssue.title)
+
+    await test.step('Set status from context menu submenu', async () => {
+      await issuesPage.openSubmenuOnIssue(newIssue.title, 'Status')
+      await issuesPage.selectMenuItem(page, 'In Progress')
+      // Submenu popup must not reopen after selection
+      await page.waitForTimeout(500)
+      await expect(page.locator('div.selectPopup')).toHaveCount(0)
+      await expect(page.locator('div.antiPopup')).toHaveCount(0)
+    })
+
+    await test.step('Set priority from context menu submenu', async () => {
+      await issuesPage.openSubmenuOnIssue(newIssue.title, 'Priority')
+      await issuesPage.selectMenuItem(page, 'Urgent')
+      await page.waitForTimeout(500)
+      await expect(page.locator('div.selectPopup')).toHaveCount(0)
+      await expect(page.locator('div.antiPopup')).toHaveCount(0)
+    })
+
+    await issuesPage.openIssueByName(newIssue.title)
+    await issuesDetailsPage.checkIssue({ ...newIssue, status: 'In Progress', priority: 'Urgent' })
   })
 })

@@ -27,7 +27,7 @@ import core, {
   type WithLookup
 } from '@hcengineering/core'
 import { getResource } from '@hcengineering/platform'
-import { addRefreshListener, getClient } from '@hcengineering/presentation'
+import { addRefreshListener, getClient, isDisabled } from '@hcengineering/presentation'
 import { getEventPositionElement, showPopup } from '@hcengineering/ui'
 import {
   type Action,
@@ -80,13 +80,20 @@ export async function getActions (
     allActions.set(mode, actions)
   }
 
-  const filteredActions = await filterAvailableActions(actions, client, doc, derived)
+  let filteredActions = await filterAvailableActions(actions, client, doc, derived)
+  filteredActions = filteredActions.filter((a) => !isDisabled(a.feature))
 
   const categories: Partial<Record<ActionGroup | 'top', number>> = { top: 1, tools: 50, other: 100, remove: 200 }
   filteredActions.sort((a, b) => {
     const aTarget = categories[a.context.group ?? 'top'] ?? 0
     const bTarget = categories[b.context.group ?? 'top'] ?? 0
-    return aTarget - bTarget
+    if (aTarget !== bTarget) {
+      return aTarget - bTarget
+    }
+    // sort by order inside group
+    const aOrder = a.context.order ?? 99999
+    const bOrder = b.context.order ?? 99999
+    return aOrder - bOrder
   })
   return filteredActions
 }
@@ -315,4 +322,14 @@ export function showMenu (ev: MouseEvent, props: any, onClose?: (result: any) =>
   ev.preventDefault()
   if (disableActions) return
   showPopup(Menu, props, getEventPositionElement(ev), onClose)
+}
+
+export const actionGroupOrder: Record<ActionGroup, number> = {
+  create: 1,
+  edit: 2,
+  copy: 3,
+  associate: 4,
+  tools: 5,
+  other: 6,
+  remove: 7
 }

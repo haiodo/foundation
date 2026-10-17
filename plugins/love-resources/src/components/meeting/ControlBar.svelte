@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Room } from '@hcengineering/love'
-  import { IconMaximize, ModernButton, Popup, showPopup, TooltipInstance } from '@hcengineering/ui'
+  import type { Room } from '@hcengineering/love'
+  import { IconMaximize, Popup, showPopup, TooltipInstance } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
 
   import love from '../../plugin'
   import { myInfo, myOffice } from '../../stores'
@@ -24,7 +25,6 @@
   import { lkSessionConnected } from '../../liveKitClient'
   import MeetingOptionsButton from './controls/MeetingOptionsButton.svelte'
   import SendReactionButton from './controls/SendReactionButton.svelte'
-  import RoomAccessButton from './controls/RoomAccessButton.svelte'
   import LeaveRoomButton from './controls/LeaveRoomButton.svelte'
   import RecordingButton from './controls/RecordingButton.svelte'
   import TranscriptionButton from './controls/TranscriptionButton.svelte'
@@ -51,16 +51,15 @@
   }
 </script>
 
-<div class="control-bar">
+<div class="control-bar" data-id="control-bar" data-connected={$lkSessionConnected ? 'true' : 'false'}>
   <ControlBarContainer>
     <svelte:fragment slot="left">
       {#if room._id !== love.ids.Reception && $lkSessionConnected}
-        <!-- <RoomAccessButton {room} /> -->
         <InviteEmployeeButton
-          kind={'secondary'}
-          type={'type-button-icon'}
-          size={'large'}
-          iconSize={'medium'}
+          kind="secondary"
+          type="type-button-icon"
+          size="large"
+          iconSize="medium"
           withBackground={false}
         />
       {/if}
@@ -76,20 +75,19 @@
         <ShareScreenButton />
         <RecordingButton />
         <TranscriptionButton />
-        <!-- {:else}
-        <RoomAccessButton {room} /> -->
       {/if}
     </svelte:fragment>
     <svelte:fragment slot="right">
       {#if $lkSessionConnected && onFullScreen}
-        <ModernButton
+        <IconButton
+          iconSize="medium"
           icon={$isFullScreen ? love.icon.ExitFullScreen : love.icon.FullScreen}
           tooltip={{
             label: $isFullScreen ? love.string.ExitingFullscreenMode : love.string.FullscreenMode,
             direction: 'top'
           }}
-          kind={'secondary'}
-          size={'large'}
+          kind="secondary"
+          size="large"
           on:click={() => {
             $isFullScreen = !$isFullScreen
           }}
@@ -97,15 +95,15 @@
       {/if}
 
       {#if $lkSessionConnected && canMaximize}
-        <ModernButton
+        <IconButton
           icon={IconMaximize}
           tooltip={{
             label: love.string.FullscreenMode,
             direction: 'top'
           }}
-          kind={'secondary'}
+          kind="secondary"
           iconSize="medium"
-          size={'large'}
+          size="large"
           on:click={maximize}
         />
       {/if}

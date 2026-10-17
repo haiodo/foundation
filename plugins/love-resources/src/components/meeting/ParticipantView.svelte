@@ -13,25 +13,24 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { formatName, Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import { formatName } from '@hcengineering/contact'
   import { Avatar, getPersonByPersonRefStore } from '@hcengineering/contact-resources'
-  import { Ref } from '@hcengineering/core'
-  import { Loading } from '@hcengineering/ui'
+  import type { Ref } from '@hcengineering/core'
+  import { Label, Loading } from '@hcengineering/ui'
+  import love from '../../plugin'
+  import { speakingWhileMuted } from '../../stores'
   import MicDisabled from '../icons/MicDisabled.svelte'
   import { onDestroy, onMount } from 'svelte'
+  import type { ChatMessage, LocalParticipant, Participant, RemoteParticipant, TrackPublication } from 'livekit-client'
   import {
-    ChatMessage,
     ConnectionQuality,
-    LocalParticipant,
     type LocalTrackPublication,
-    Participant,
     ParticipantEvent,
-    RemoteParticipant,
     type RemoteTrack,
     type RemoteTrackPublication,
     RoomEvent,
-    Track,
-    TrackPublication
+    Track
   } from 'livekit-client'
   import BadConnection from '../icons/BadConnection.svelte'
   import { lk } from '../../utils'
@@ -173,11 +172,7 @@
     if (p === undefined) return
 
     for (const publication of p.trackPublications.values()) {
-      if (
-        publication.track !== undefined &&
-        publication.track.kind === Track.Kind.Video &&
-        publication.track.source !== Track.Source.ScreenShare
-      ) {
+      if (publication.track?.kind === Track.Kind.Video && publication.track?.source !== Track.Source.ScreenShare) {
         attachTrack(publication.track)
         break
       }
@@ -216,12 +211,18 @@
 <div id={_id} class="parent" class:speach={isSpeaking}>
   <div bind:this={parent} class="cover" class:active={!videoMuted} class:mirror={mirror && !videoMuted} />
   <div class="ava">
-    <Avatar size={'full'} name={userName} person={user} showStatus={false} />
+    <Avatar size="full" name={userName} person={user} showStatus={false} />
   </div>
+  {#if mirror && microphoneMuted && $speakingWhileMuted}
+    <div class="speaking-muted-badge">
+      <MicDisabled fill="#fff" size="small" />
+      <span><Label label={love.string.SpeakingWhileMuted} /></span>
+    </div>
+  {/if}
   <div class="label" class:withIcon={microphoneMuted || isBadConnection || participant === undefined}>
-    {#if participant === undefined}<Loading size={'small'} shrink />{/if}
-    {#if isBadConnection}<BadConnection fill={'var(--bg-negative-default)'} size={'small'} />{/if}
-    {#if microphoneMuted}<MicDisabled fill={'var(--bg-negative-default)'} size={'small'} />{/if}
+    {#if participant === undefined}<Loading size="small" shrink />{/if}
+    {#if isBadConnection}<BadConnection fill="var(--bg-negative-default)" size="small" />{/if}
+    {#if microphoneMuted}<MicDisabled fill="var(--bg-negative-default)" size="small" />{/if}
     <span class="overflow-label">{formatName(userName)}</span>
   </div>
   {#each reactions as reaction (reaction.id)}
@@ -278,11 +279,30 @@
   .parent {
     position: relative;
     flex-shrink: 0;
-    height: max-content;
+    width: 100%;
+    aspect-ratio: 16 / 9;
     min-height: 0;
     max-height: 100%;
     background-color: black;
     border-radius: 0.75rem;
+
+    .speaking-muted-badge {
+      position: absolute;
+      top: 0.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      background-color: var(--bg-negative-default, #d64340);
+      color: #fff;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      animation: speaking-muted-blink 1s ease-in-out infinite;
+    }
 
     .label {
       overflow: hidden;
@@ -321,6 +341,16 @@
     }
     &.speach::after {
       border: 2px solid var(--border-talk-indication-primary);
+    }
+  }
+
+  @keyframes speaking-muted-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
     }
   }
 </style>

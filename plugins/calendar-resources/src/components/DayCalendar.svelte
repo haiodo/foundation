@@ -13,12 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Event, ReccuringInstance } from '@hcengineering/calendar'
-  import { DocumentUpdate, Ref, Timestamp } from '@hcengineering/core'
+  import type { Event, ReccuringInstance } from '@hcengineering/calendar'
+  import type { DocumentUpdate, Ref, Timestamp } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
+  import type { CalendarItem } from '@hcengineering/ui'
   import ui, {
     ActionIcon,
-    CalendarItem,
     IconDownOutline,
     IconUpOutline,
     Label,
@@ -33,7 +33,8 @@
     getWeekStart,
     isWeekend,
     resizeObserver,
-    ticker
+    ticker,
+    languageStore
   } from '@hcengineering/ui'
   import { showMenu } from '@hcengineering/view-resources'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
@@ -45,12 +46,15 @@
     CalendarElementRect,
     CalendarGrid
   } from '..'
+  import { layoutColumns } from '../layout'
   import calendar from '../plugin'
   import { isReadOnly, updateReccuringInstance } from '../utils'
   import EventElement from './EventElement.svelte'
   import TimeDuration from './TimeDuration.svelte'
 
   export let events: Event[]
+  // Read-only backdrop, e.g. colleagues' busy time: laid out per day, never in the event columns.
+  export let backgroundEvents: Event[] = []
   export let selectedDate: Date = new Date()
   export let currentDate: Date = selectedDate
   export let displayedDaysCount = 7
@@ -161,6 +165,91 @@
     ? getWeekStart(currentDate, $deviceInfo.firstDayOfWeek)
     : new Date(new Date(currentDate).setHours(0, 0, 0, 0))
   $: calendarEvents = toCalendar(events, weekStart, displayedDaysCount, startHour, displayedHours + startHour)
+  // A colleague's busy time is cut against my own events: the clashing parts become thin
+  // stripes drawn over my card, the free parts stay wide and carry the name as usual.
+  const backdropStripe: number = 14
+  const backdropInset: number = 4
+
+  interface BackdropSegment {
+    id: string
+    day: number
+    date: Timestamp
+    dueDate: Timestamp
+    title: string
+    narrow: boolean
+    lane: number
+    cols: number
+    index: number
+  }
+
+  const clipToDay = (events: Event[], day: number): Array<{ event: Event, date: Timestamp, dueDate: Timestamp }> => {
+    const targetDay = new Date(weekStart)
+    targetDay.setDate(targetDay.getDate() + day)
+    const dayStart = new Date(targetDay).setHours(startHour, 0, 0, 0)
+    const dayEnd = new Date(targetDay).setHours(displayedHours + startHour, 0, 0, 0)
+    return events
+      .filter((it) => !it.allDay && it.date < dayEnd && it.dueDate > dayStart)
+      .map((event) => ({
+        event,
+        date: Math.max(event.date, dayStart),
+        dueDate: Math.min(event.dueDate, dayEnd)
+      }))
+  }
+
+  const mkSegment = (
+    event: Event,
+    day: number,
+    date: Timestamp,
+    dueDate: Timestamp,
+    narrow: boolean,
+    lane: number
+  ): BackdropSegment => ({
+    id: `${event._id}-${day}-${date}-${narrow ? 'n' : 'w'}`,
+    day,
+    date,
+    dueDate,
+    title: event.title,
+    narrow,
+    lane,
+    cols: 1,
+    index: 0
+  })
+
+  const buildSegments = (mine: Event[], backdrop: Event[], days: number, persons: string[]): BackdropSegment[] => {
+    const result: BackdropSegment[] = []
+    for (let day = 0; day < days; day++) {
+      const busy = clipToDay(mine, day)
+        .map((it) => ({ date: it.date, dueDate: it.dueDate }))
+        .sort((a, b) => a.date - b.date)
+      const wide: BackdropSegment[] = []
+      clipToDay(backdrop, day).forEach(({ event, date, dueDate }) => {
+        const lane = persons.indexOf(event.participants?.[0] ?? '')
+        // No person, no lane of its own - it would silently share one with the first colleague.
+        if (lane < 0) return
+        let cursor = date
+        for (const slot of busy) {
+          if (slot.dueDate <= cursor || slot.date >= dueDate) continue
+          if (slot.date > cursor) wide.push(mkSegment(event, day, cursor, slot.date, false, lane))
+          result.push(mkSegment(event, day, Math.max(cursor, slot.date), Math.min(dueDate, slot.dueDate), true, lane))
+          cursor = Math.min(dueDate, slot.dueDate)
+        }
+        if (cursor < dueDate) wide.push(mkSegment(event, day, cursor, dueDate, false, lane))
+      })
+      // Wide segments never clash with my events, only with each other - share the column.
+      wide.sort((a, b) => a.date - b.date)
+      layoutColumns(wide)
+      result.push(...wide)
+    }
+    return result
+  }
+
+  $: backdropPersons = Array.from(new Set(backgroundEvents.map((it) => it.participants?.[0] ?? ''))).sort()
+  $: backgroundItems = buildSegments(
+    events.filter((it) => !it.allDay),
+    backgroundEvents,
+    displayedDaysCount,
+    backdropPersons
+  )
 
   let timer: any
   let container: HTMLElement
@@ -444,6 +533,41 @@
       (cols - index - 1) * rem(0.125)
     return result
   }
+  const getBackdropRect = (item: BackdropSegment): CalendarElementRect => {
+    const result = { ...nullCalendarElement }
+    const checkDate = new Date(weekStart.getTime() + MILLISECONDS_IN_DAY * item.day)
+    const startDay = checkDate.setHours(startHour, 0, 0, 0)
+    const endDay = checkDate.setHours(displayedHours - 1, 59, 59, 999)
+    const startTime = item.date <= startDay ? { hours: startHour, mins: 0 } : convertToTime(item.date)
+    const endTime = item.dueDate > endDay ? { hours: displayedHours - startHour, mins: 0 } : convertToTime(item.dueDate)
+    result.top =
+      (showHeader ? rem(heightHeader) : 0) +
+      styleAD +
+      cellHeight * startTime.hours +
+      (startTime.mins / 60) * cellHeight +
+      getGridOffset(startTime.mins)
+    result.bottom =
+      (showFooter ? rem(2) + 1 : 0) +
+      cellHeight * (displayedHours - startHour - endTime.hours - 1) +
+      ((60 - endTime.mins) / 60) * cellHeight +
+      getGridOffset(endTime.mins, true)
+    const tail = (displayedDaysCount - item.day - 1) * colWidth
+    if (item.narrow) {
+      // One lane per person, inset from the right edge so my card's border stays visible.
+      const fromRight = rem(0.125) + backdropInset + backdropStripe * (backdropPersons.length - 1 - item.lane)
+      result.width = backdropStripe
+      result.right = tail + fromRight
+      result.left = rem(3.5) + (item.day + 1) * colWidth - fromRight - backdropStripe
+    } else {
+      const elWidth = (colWidth - rem(0.25) - (item.cols - 1) * rem(0.125)) / item.cols
+      result.width = elWidth
+      result.left =
+        rem(3.5) + item.day * colWidth + item.index * elWidth + item.index * rem(0.125) + rem(0.125) + cellBorder
+      result.right =
+        tail + rem(0.125) + (item.cols - item.index - 1) * elWidth + (item.cols - item.index - 1) * rem(0.125)
+    }
+    return result
+  }
   const getADRect = (id: string, day?: number, fixRow?: boolean): CalendarElementRect => {
     const result = { ...nullCalendarElement }
     const index = adRows.findIndex((ev) => ev.id === id)
@@ -635,7 +759,7 @@
   let dragId: Ref<Event> | null = null
   let resizeId: Ref<Event> | null = null
   let directionResize: 'top' | 'bottom' | null
-  let oldMins: number = 0
+  let oldResizeTime: number = 0
   let oldTime: number = -1
   let originDate: Timestamp = 0
   let originDueDate: Timestamp = 0
@@ -674,6 +798,7 @@
     closeTooltip()
     resizeId = event._id
     directionResize = direction
+    oldResizeTime = 0
     originDate = event.date
     originDueDate = event.dueDate
     containerRect = scroller.getBoundingClientRect()
@@ -688,9 +813,11 @@
     const exactly = getExactly(e)
     const minutes = getMinutes(exactly)
     const mins: number = getStickyMinutes(minutes, exactly, day, hour + startHour, resizeId)
-    if (oldMins === mins) return
-    oldMins = mins
     const newDate = new Date(day).setHours(hour + startHour, mins, 0, 0)
+    // Compare the whole moment, not the minutes: moving between hours at the same minute mark
+    // (x:00 -> y:00) used to look unchanged and the resize did nothing.
+    if (oldResizeTime === newDate) return
+    oldResizeTime = newDate
     const index = events.findIndex((ev) => ev._id === resizeId)
     if (index === -1) return
     if (directionResize === 'top') {
@@ -834,6 +961,8 @@
     dispatch('dragOut')
     e.preventDefault()
   }
+
+  $: lang = $languageStore
 </script>
 
 <Scroller
@@ -868,10 +997,14 @@
           {#if tday}
             <div class="flex-col">
               <span class="today"><Label label={calendar.string.Today} /></span>
-              <span class="weekday">{getWeekDayName(day, weekFormat)}</span>
+              {#key lang}
+                <span class="weekday">{getWeekDayName(day, weekFormat)}</span>
+              {/key}
             </div>
           {:else}
-            <span class="weekday">{getWeekDayName(day, weekFormat)}</span>
+            {#key lang}
+              <span class="weekday">{getWeekDayName(day, weekFormat)}</span>
+            {/key}
           {/if}
           {#if tEvents !== 0}
             <div class="header-time">
@@ -889,7 +1022,7 @@
       {#if showArrowAD}
         <ActionIcon
           icon={shownAD ? IconUpOutline : IconDownOutline}
-          size={'small'}
+          size="small"
           action={() => {
             shownAD = !shownAD
           }}
@@ -982,8 +1115,8 @@
                 style:height={`${heightAD}rem`}
                 style:left={`${rect.left}px`}
                 style:width={`${rect.width}px`}
-                style:padding={'0 .5rem 0 1.25rem'}
-                style:--mask-image={'none'}
+                style:padding="0 .5rem 0 1.25rem"
+                style:--mask-image="none"
                 tabindex={500 + addon + day}
                 on:click={() => (shownAD = true)}
               >
@@ -1005,7 +1138,7 @@
       {:else if hourOfDay < displayedHours - startHour}
         <div
           class="time-cell"
-          style:grid-column={'time-col 1 / col-start 1'}
+          style:grid-column="time-col 1 / col-start 1"
           style:grid-row={`row-start ${hourOfDay * 2} / row-start ${hourOfDay * 2 + 2}`}
         >
           {getTimeFormat(hourOfDay + startHour)}
@@ -1042,7 +1175,7 @@
         {#if showFooter}
           <div
             class="time-cell"
-            style:grid-column={'time-col 1 / col-start 1'}
+            style:grid-column="time-col 1 / col-start 1"
             style:grid-row={`row-start ${hourOfDay * 2 + 2} / row-start ${hourOfDay * 2 + 4}`}
           >
             {getTimeFormat(displayedHours - startHour)}
@@ -1073,7 +1206,7 @@
             style:bottom={`${rect.bottom}px`}
             style:left={`${rect.left}px`}
             style:right={`${rect.right}px`}
-            style:--mask-image={'none'}
+            style:--mask-image="none"
             draggable={!ev.allDay && !resizeId}
             tabindex={1000 + i}
             on:dragstart={(e) => {
@@ -1114,6 +1247,19 @@
             />
           </div>
         {/if}
+      {/each}
+      {#each backgroundItems as item (item.id)}
+        {@const rect = getBackdropRect(item)}
+        <div
+          class="background-element"
+          class:narrow={item.narrow}
+          style:top={`${rect.top}px`}
+          style:bottom={`${rect.bottom}px`}
+          style:left={`${rect.left}px`}
+          style:right={`${rect.right}px`}
+        >
+          <span class="overflow-label">{item.title}</span>
+        </div>
       {/each}
     {/key}
     {#key currentDate}
@@ -1220,6 +1366,34 @@
   }
   .clear-cell {
     background-color: $timeline-bg-color;
+  }
+  .background-element {
+    position: absolute;
+    display: flex;
+    align-items: flex-start;
+    padding: 0.125rem 0.375rem;
+    border: 1px solid rgba(127, 127, 127, 0.3);
+    border-radius: 0.25rem;
+    // Theme-agnostic grey: the backdrop has to read against both light and dark grids.
+    background-color: rgba(127, 127, 127, 0.18);
+    color: var(--theme-dark-color);
+    font-size: 0.6875rem;
+    overflow: hidden;
+    // Purely decorative: clicks must reach the grid cell (create event) and the card below.
+    pointer-events: none;
+
+    // Outline only, with the name running down the stripe - there is no room for it flat.
+    &.narrow {
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem 0;
+      border-radius: 0.125rem;
+      border-color: rgba(127, 127, 127, 0.6);
+      background-color: transparent;
+      line-height: 1;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
   }
   .calendar-element {
     position: absolute;

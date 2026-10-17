@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import { getMetadata } from '@hcengineering/platform'
-  import { MarkupMark, MarkupMarkType } from '@hcengineering/text'
+  import type { MarkupMark } from '@hcengineering/text'
+  import { MarkupMarkType } from '@hcengineering/text'
   import uiPlugin, { navigate, parseLocation } from '@hcengineering/ui'
 
   import presentation from '../../plugin'
@@ -69,6 +70,8 @@
     <s><slot /></s>
   {:else if mark.type === MarkupMarkType.underline}
     <u><slot /></u>
+  {:else if mark.type === MarkupMarkType.highlight}
+    <mark><slot /></mark>
   {:else}
     unknown mark: "{mark.type}"
     <slot />

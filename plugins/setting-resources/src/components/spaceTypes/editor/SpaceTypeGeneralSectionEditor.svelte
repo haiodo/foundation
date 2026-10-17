@@ -15,19 +15,12 @@
 <script lang="ts">
   import contact from '@hcengineering/contact'
   import { AccountArrayEditor } from '@hcengineering/contact-resources'
-  import core, { AccountUuid, reduceCalls, type SpaceType, type SpaceTypeDescriptor } from '@hcengineering/core'
+  import type { AccountUuid } from '@hcengineering/core'
+  import core, { reduceCalls, type SpaceType, type SpaceTypeDescriptor } from '@hcengineering/core'
   import { createQuery, getClient, MessageBox } from '@hcengineering/presentation'
-  import {
-    ButtonIcon,
-    IconDelete,
-    IconSquareExpand,
-    Label,
-    ModernButton,
-    ModernEditbox,
-    showPopup,
-    TextArea,
-    Toggle
-  } from '@hcengineering/ui'
+  import { IconDelete, IconSquareExpand, Label, ModernEditbox, showPopup, TextArea, Toggle } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
+  import viewRes from '@hcengineering/view-resources/src/plugin'
   import { deleteObjects } from '@hcengineering/view-resources'
 
   import settingRes from '../../../plugin'
@@ -89,10 +82,10 @@
     }
     const ops = client.apply(undefined, 'change-members')
     for (const pushMem of push) {
-      ops.update(type, { $push: { members: pushMem } })
+      void ops.update(type, { $push: { members: pushMem } })
     }
     for (const pullMem of pull) {
-      ops.update(type, { $pull: { members: pullMem } })
+      void ops.update(type, { $pull: { members: pullMem } })
     }
     await ops.commit()
   })
@@ -121,7 +114,13 @@
   <div class="hulyComponent-content__column-group">
     <div class="hulyComponent-content__header">
       <div class="flex gap-1">
-        <ButtonIcon icon={dIcon} size={'large'} kind={'secondary'} dataId={'btnSelectIcon'} />
+        <IconButton
+          icon={dIcon}
+          size="large"
+          kind="secondary"
+          data-id="btnSelectIcon"
+          tooltip={{ label: viewRes.string.ChooseIcon }}
+        />
         <ModernEditbox
           kind="ghost"
           size="large"
@@ -129,12 +128,12 @@
           value={type?.name ?? ''}
           {disabled}
           on:blur={(evt) => {
-            attributeUpdated('name', evt.detail)
+            void attributeUpdated('name', evt.detail)
           }}
         />
       </div>
       <div class="flex-row">
-        <ModernButton
+        <Button
           icon={IconSquareExpand}
           label={settingRes.string.CountSpaces}
           labelParams={{ count: spacesCount }}
@@ -144,7 +143,16 @@
           hasMenu
         />
         {#if canDelete}
-          <ButtonIcon icon={IconDelete} size="small" kind="secondary" {disabled} on:click={handleDelete} />
+          <IconButton
+            icon={IconDelete}
+            size="small"
+            kind="secondary"
+            {disabled}
+            tooltip={disabled
+              ? { label: settingRes.string.OwnerOrMaintainerRequired }
+              : { label: settingRes.string.DeleteSpaceType }}
+            on:click={handleDelete}
+          />
         {/if}
       </div>
     </div>
@@ -157,7 +165,7 @@
       {disabled}
       bind:value={shortDescription}
       on:change={() => {
-        attributeUpdated('shortDescription', shortDescription)
+        void attributeUpdated('shortDescription', shortDescription)
       }}
     />
     <div class="flex-between">
@@ -172,7 +180,7 @@
         <Toggle
           on={type?.autoJoin ?? false}
           on:change={(evt) => {
-            attributeUpdated('autoJoin', evt.detail)
+            void attributeUpdated('autoJoin', evt.detail)
           }}
           {disabled}
         />

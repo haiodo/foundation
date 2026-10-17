@@ -14,10 +14,11 @@
 -->
 <script lang="ts">
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
-  import { generateId, Ref, Doc } from '@hcengineering/core'
+  import type { Ref, Doc } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import ui from '../plugin'
   import { closePopup, showPopup } from '../popups'
-  import { Action } from '../types'
+  import type { Action } from '../types'
   import Icon from './Icon.svelte'
   import Label from './Label.svelte'
   import MouseSpeedTracker from './MouseSpeedTracker.svelte'
@@ -90,11 +91,11 @@
         { ...action.props, popupCategory: nextCategory },
         { getBoundingClientRect: () => target.getBoundingClientRect(), kind: 'submenu' },
         (evt) => {
-          void action.action(evt, evt)
+          if (evt !== undefined) void action.onSubmenuResult?.(evt)
           dispatch('close')
         },
         (evt) => {
-          void action.action(evt, evt)
+          if (evt !== undefined) void action.onSubmenuResult?.(evt)
         },
         { category, overlay: false }
       )
@@ -151,11 +152,11 @@
               }}
               on:click|preventDefault|stopPropagation={(evt) => {
                 if (!action.inline) dispatch('close')
-                action.action(ctx, evt)
+                void action.action(ctx, evt)
               }}
             >
               {#if action.icon}<div class="icon mr-2">
-                  <Icon icon={action.icon} iconProps={action.iconProps ?? {}} size={'small'} />
+                  <Icon icon={action.icon} iconProps={action.iconProps ?? {}} size="small" />
                 </div>{/if}
               <span class="overflow-label pr-4 flex-grow"
                 ><Label label={action.label} params={action.labelParams ?? {}} /></span
@@ -176,7 +177,7 @@
             }}
           >
             {#if action.icon}
-              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size={'small'} /></div>
+              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size="small" /></div>
             {/if}
             <span class="overflow-label pr-4 flex-grow"
               ><Label label={action.label} params={action.labelParams ?? {}} /></span
@@ -196,7 +197,7 @@
             }}
             on:click={(evt) => {
               if (!action.inline) dispatch('close')
-              action.action(ctx, evt)
+              void action.action(ctx, evt)
             }}
             on:contextmenu={(evt) => {
               if (action.component) {
@@ -206,7 +207,7 @@
             }}
           >
             {#if action.icon}
-              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size={'small'} /></div>
+              <div class="icon mr-2"><Icon icon={action.icon} iconProps={action.iconProps ?? {}} size="small" /></div>
             {/if}
             <span class="overflow-label pr-4 flex-grow"
               ><Label label={action.label} params={action.labelParams ?? {}} /></span

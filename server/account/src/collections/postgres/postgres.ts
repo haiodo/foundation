@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,6 +14,7 @@
 // limitations under the License.
 //
 import { type Sql, type TransactionSql } from 'postgres'
+
 import {
   type Data,
   type Version,
@@ -21,7 +23,9 @@ import {
   type AccountRole,
   type WorkspaceUuid,
   type AccountUuid,
-  type PersonUuid
+  type PersonUuid,
+  type PersonId,
+  type SocialIdType
 } from '@hcengineering/core'
 
 import { getMigrations } from './migrations'
@@ -47,12 +51,35 @@ import type {
   Integration,
   IntegrationSecret,
   AccountAggregatedInfo,
+  AccountsFilter,
+  AccountsSortKey,
+  AdminAction,
+  AdminActionsQuery,
+  AdminActionsResult,
   UserProfile,
   Subscription,
+  PaymentIntent,
+  PaymentOperation,
+  PaymentOperationStats,
+  PaymentOperationFilter,
+  PaymentMonthlyStats,
+  WorkspacePurchase,
+  WorkspacePurchaseStatus,
   DBFlavor,
   WorkspacePermission,
-  ShortLink
+  AccountWorkspaceBadgeStatus,
+  ShortLink,
+  WorkspacesPagedQuery,
+  WorkspacesPagedResult,
+  WorkspacesSummary,
+  RegistrationStats,
+  WorkspaceActivityPoint,
+  WorkspaceMemberDetails,
+  AccountActivityStats
 } from '../../types'
+
+// postgres 3.4.8 narrowed TransactionSql: it no longer satisfies Sql, so query helpers take both
+type SqlClient = Sql | TransactionSql
 
 function toSnakeCase (str: string): string {
   // Preserve leading underscore
@@ -111,7 +138,7 @@ export interface PostgresDbCollectionOptions<T extends Record<string, any>, K ex
   ns?: string
   fieldTypes?: Record<string, string>
   timestampFields?: Array<keyof T>
-  withRetryClient?: <R>(callback: (client: Sql) => Promise<R>) => Promise<R>
+  withRetryClient?: <R>(callback: (client: TransactionSql) => Promise<R>) => Promise<R>
 }
 
 export class PostgresDbCollection<T extends Record<string, any>, K extends keyof T | undefined = undefined>
@@ -251,7 +278,8 @@ implements DbCollection<T> {
     return `ORDER BY ${sortChunks.join(', ')}`
   }
 
-  protected convertToObj (row: unknown): T {
+  // Public so raw unsafe() queries can reuse the same timestamp/field mapping the collection does.
+  convertToObj (row: unknown): T {
     const res = convertKeysToCamelCase(row)
     for (const field of this.timestampFields) {
       res[field] = convertTimestamp(res[field])
@@ -268,7 +296,7 @@ implements DbCollection<T> {
     return res as T
   }
 
-  async unsafe (sql: string, values: any[], client?: Sql): Promise<any[]> {
+  async unsafe (sql: string, values: any[], client?: SqlClient): Promise<any[]> {
     if (client !== undefined) {
       return await client.unsafe(sql, values)
     } else if (this.options.withRetryClient !== undefined) {
@@ -278,7 +306,7 @@ implements DbCollection<T> {
     }
   }
 
-  async exists (query: Query<T>, client?: Sql): Promise<boolean> {
+  async exists (query: Query<T>, client?: SqlClient): Promise<boolean> {
     const [whereClause, whereValues] = this.buildWhereClause(query)
     const sql = `SELECT EXISTS (SELECT 1 FROM ${this.getTableName()} ${whereClause})`
 
@@ -287,7 +315,7 @@ implements DbCollection<T> {
     return result[0]?.exists === true
   }
 
-  async find (query: Query<T>, sort?: Sort<T>, limit?: number, client?: Sql): Promise<T[]> {
+  async find (query: Query<T>, sort?: Sort<T>, limit?: number, client?: SqlClient): Promise<T[]> {
     const sqlChunks: string[] = [this.buildSelectClause()]
     const [whereClause, whereValues] = this.buildWhereClause(query)
 
@@ -309,11 +337,11 @@ implements DbCollection<T> {
     return result.map((row) => this.convertToObj(row))
   }
 
-  async findOne (query: Query<T>, client?: Sql): Promise<T | null> {
+  async findOne (query: Query<T>, client?: SqlClient): Promise<T | null> {
     return (await this.find(query, undefined, 1, client))[0] ?? null
   }
 
-  async insertOne (data: Partial<T>, client?: Sql): Promise<K extends keyof T ? T[K] : undefined> {
+  async insertOne (data: Partial<T>, client?: SqlClient): Promise<K extends keyof T ? T[K] : undefined> {
     const snakeData = convertKeysToSnakeCase(data)
     const keys: string[] = Object.keys(snakeData)
     const values = Object.values(snakeData) as any
@@ -330,7 +358,7 @@ implements DbCollection<T> {
     return res[0][idKey]
   }
 
-  async insertMany (data: Array<Partial<T>>, client?: Sql): Promise<K extends keyof T ? Array<T[K]> : undefined> {
+  async insertMany (data: Array<Partial<T>>, client?: SqlClient): Promise<K extends keyof T ? Array<T[K]> : undefined> {
     const snakeData = convertKeysToSnakeCase(data)
     const columns = new Set<string>()
     for (const record of snakeData) {
@@ -396,7 +424,7 @@ implements DbCollection<T> {
     return [`SET ${updateChunks.join(', ')}`, values]
   }
 
-  async update (query: Query<T>, ops: Operations<T>, client?: Sql): Promise<void> {
+  async update (query: Query<T>, ops: Operations<T>, client?: SqlClient): Promise<void> {
     const sqlChunks: string[] = [`UPDATE ${this.getTableName()}`]
     const [updateClause, updateValues] = this.buildUpdateClause(ops)
     const [whereClause, whereValues] = this.buildWhereClause(query, updateValues.length)
@@ -410,7 +438,7 @@ implements DbCollection<T> {
     await this.unsafe(finalSql, [...updateValues, ...whereValues], client)
   }
 
-  async deleteMany (query: Query<T>, client?: Sql): Promise<void> {
+  async deleteMany (query: Query<T>, client?: SqlClient): Promise<void> {
     const sqlChunks: string[] = [`DELETE FROM ${this.getTableName()}`]
     const [whereClause, whereValues] = this.buildWhereClause(query)
 
@@ -433,7 +461,7 @@ export class AccountPostgresDbCollection
     ns?: string,
     withRetryClient?: PostgresDbCollectionOptions<Account, 'uuid'>['withRetryClient']
   ) {
-    super('account', client, { idKey: 'uuid', ns, withRetryClient })
+    super('account', client, { idKey: 'uuid', ns, timestampFields: ['deleteOn', 'blockedOn'], withRetryClient })
   }
 
   getPasswordsTableName (): string {
@@ -454,6 +482,8 @@ export class AccountPostgresDbCollection
         a.automatic,
         a.max_workspaces,
         a.failed_login_attempts,
+        a.delete_on,
+        a.blocked_on,
         p.hash,
         p.salt
       FROM ${this.getTableName()} as a
@@ -461,7 +491,7 @@ export class AccountPostgresDbCollection
     )`
   }
 
-  async find (query: Query<Account>, sort?: Sort<Account>, limit?: number, client?: Sql): Promise<Account[]> {
+  async find (query: Query<Account>, sort?: Sort<Account>, limit?: number, client?: SqlClient): Promise<Account[]> {
     if (Object.keys(query).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in find query conditions')
     }
@@ -480,7 +510,7 @@ export class AccountPostgresDbCollection
     return result
   }
 
-  async insertOne (data: Partial<Account>, client?: Sql): Promise<Account['uuid']> {
+  async insertOne (data: Partial<Account>, client?: SqlClient): Promise<Account['uuid']> {
     if (Object.keys(data).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in insert query')
     }
@@ -488,7 +518,7 @@ export class AccountPostgresDbCollection
     return await super.insertOne(data, client)
   }
 
-  async update (query: Query<Account>, ops: Operations<Account>, client?: Sql): Promise<void> {
+  async update (query: Query<Account>, ops: Operations<Account>, client?: SqlClient): Promise<void> {
     if (Object.keys({ ...ops, ...query }).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in update query')
     }
@@ -496,7 +526,7 @@ export class AccountPostgresDbCollection
     await super.update(query, ops, client)
   }
 
-  async deleteMany (query: Query<Account>, client?: Sql): Promise<void> {
+  async deleteMany (query: Query<Account>, client?: SqlClient): Promise<void> {
     if (Object.keys(query).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in delete query')
     }
@@ -540,7 +570,12 @@ export class PostgresAccountDB implements AccountDB {
   integrationSecret: PostgresDbCollection<IntegrationSecret>
   userProfile: PostgresDbCollection<UserProfile, 'personUuid'>
   subscription: PostgresDbCollection<Subscription, 'id'>
+  paymentIntent: PostgresDbCollection<PaymentIntent, 'id'>
+  paymentOperation: PostgresDbCollection<PaymentOperation, 'id'>
+  workspacePurchase: PostgresDbCollection<WorkspacePurchase, 'id'>
   workspacePermission: PostgresDbCollection<WorkspacePermission>
+  accountWorkspaceBadgeStatus: PostgresDbCollection<AccountWorkspaceBadgeStatus>
+  adminAction: PostgresDbCollection<AdminAction, 'id'>
 
   constructor (
     readonly client: Sql,
@@ -558,7 +593,7 @@ export class PostgresAccountDB implements AccountDB {
     })
     this.workspaceStatus = new PostgresDbCollection<WorkspaceStatus>('workspace_status', client, {
       ns,
-      timestampFields: ['lastProcessingTime', 'lastVisit'],
+      timestampFields: ['lastProcessingTime', 'lastVisit', 'deleteOn'],
       withRetryClient
     })
     this.workspace = new PostgresDbCollection<Workspace, 'uuid'>('workspace', client, {
@@ -611,8 +646,41 @@ export class PostgresAccountDB implements AccountDB {
       timestampFields: ['periodStart', 'periodEnd', 'trialEnd', 'canceledAt', 'willCancelAt', 'createdOn', 'updatedOn'],
       withRetryClient
     })
+    this.paymentIntent = new PostgresDbCollection<PaymentIntent, 'id'>('payment_intent', client, {
+      ns,
+      idKey: 'id',
+      timestampFields: ['heartbeatAt', 'createdOn', 'updatedOn'],
+      withRetryClient
+    })
+    this.paymentOperation = new PostgresDbCollection<PaymentOperation, 'id'>('payment_operation', client, {
+      ns,
+      idKey: 'id',
+      timestampFields: ['createdOn'],
+      withRetryClient
+    })
+    this.workspacePurchase = new PostgresDbCollection<WorkspacePurchase, 'id'>('workspace_purchase', client, {
+      ns,
+      idKey: 'id',
+      timestampFields: ['createdOn'],
+      withRetryClient
+    })
     this.workspacePermission = new PostgresDbCollection<WorkspacePermission>('workspace_permissions', client, {
       ns,
+      timestampFields: ['createdOn'],
+      withRetryClient
+    })
+    this.accountWorkspaceBadgeStatus = new PostgresDbCollection<AccountWorkspaceBadgeStatus>(
+      'account_workspace_badge_status',
+      client,
+      {
+        ns,
+        timestampFields: ['updatedOn'],
+        withRetryClient
+      }
+    )
+    this.adminAction = new PostgresDbCollection<AdminAction, 'id'>('admin_action', client, {
+      ns,
+      idKey: 'id',
       timestampFields: ['createdOn'],
       withRetryClient
     })
@@ -642,7 +710,24 @@ export class PostgresAccountDB implements AccountDB {
     let updateInterval: NodeJS.Timeout | null = null
     let executed = false
 
-    const executeMigration = async (client: Sql): Promise<void> => {
+    // Every process reopening the account DB replays this list. Reading an applied migration without
+    // FOR UPDATE keeps concurrent openers off each other's lock and its retryIntervalMs sleep.
+    const applied = await this.client`
+      SELECT applied_at, ddl
+      FROM ${this.client(this.ns)}._account_applied_migrations
+      WHERE identifier = ${name} AND applied_at IS NOT NULL
+    `
+    if (applied.length > 0) {
+      if (applied[0].ddl !== ddl) {
+        console.error(
+          `Migration ${name} was applied with different DDL than the current build defines. ` +
+            'Existing migrations must never be modified — add a new one instead.'
+        )
+      }
+      return
+    }
+
+    const executeMigration = async (client: SqlClient): Promise<void> => {
       updateInterval = setInterval(() => {
         this.client`
           UPDATE ${this.client(this.ns)}._account_applied_migrations
@@ -664,7 +749,7 @@ export class PostgresAccountDB implements AccountDB {
           await this.client.begin(async (client) => {
             // Only locks if row exists and is not already locked
             const existing = await client`
-              SELECT identifier, applied_at, last_processed_at
+              SELECT identifier, applied_at, last_processed_at, ddl
               FROM ${this.client(this.ns)}._account_applied_migrations
               WHERE identifier = ${name}
               FOR UPDATE NOWAIT
@@ -672,7 +757,14 @@ export class PostgresAccountDB implements AccountDB {
 
             if (existing.length > 0) {
               if (existing[0].applied_at !== null) {
-                // Already completed
+                // Already completed. A changed DDL under an applied identifier never re-runs, so the
+                // schema silently diverges — warn instead of leaving it to fail at query time.
+                if (existing[0].ddl !== ddl) {
+                  console.error(
+                    `Migration ${name} was applied with different DDL than the current build defines. ` +
+                      'Existing migrations must never be modified — add a new one instead.'
+                  )
+                }
                 migrationComplete = true
               } else if (
                 existing[0].last_processed_at === null ||
@@ -699,7 +791,7 @@ export class PostgresAccountDB implements AccountDB {
                 // Successfully inserted
                 await executeMigration(client)
               }
-              // If insert failed (count === 0), another worker got it first, we'll retry the loop
+              // count === 0: another worker claimed it first, loop retries
             }
           })
 
@@ -709,6 +801,7 @@ export class PostgresAccountDB implements AccountDB {
               SET applied_at = NOW()
               WHERE identifier = ${name}
             `
+            console.log(`Applied migration ${name}`)
             migrationComplete = true
           }
         } catch (err: any) {
@@ -829,7 +922,7 @@ export class PostgresAccountDB implements AccountDB {
       .client`UPDATE ${this.client(this.workspace.getTableName())} SET allow_guest_sign_up = ${guestSignUpAllowed} WHERE uuid = ${workspaceId}`
   }
 
-  async updatePasswordAgingRule (workspaceId: WorkspaceUuid, days: number): Promise<void> {
+  async updatePasswordAgingRule (workspaceId: WorkspaceUuid, days: number | null): Promise<void> {
     await this
       .client`UPDATE ${this.client(this.workspace.getTableName())} SET password_aging_rule = ${days} WHERE uuid = ${workspaceId}`
   }
@@ -922,7 +1015,8 @@ export class PostgresAccountDB implements AccountDB {
             'processing_attempts', s.processing_attempts,
             'processing_message', s.processing_message,
             'backup_info', s.backup_info,
-            'usage_info', s.usage_info
+            'usage_info', s.usage_info,
+            'delete_on', s.delete_on
           ) status
            FROM ${this.getWsMembersTableName()} as m
            INNER JOIN ${this.workspace.getTableName()} as w ON m.workspace_uuid = w.uuid
@@ -937,6 +1031,7 @@ export class PostgresAccountDB implements AccountDB {
       for (const row of res) {
         row.created_on = convertTimestamp(row.created_on)
         row.status.last_processing_time = convertTimestamp(row.status.last_processing_time)
+        row.status.delete_on = row.status.delete_on != null ? convertTimestamp(row.status.delete_on) : undefined
         row.status.last_visit = convertTimestamp(row.status.last_visit)
         row.password_aging_rule = convertTimestamp(row.password_aging_rule)
       }
@@ -964,6 +1059,7 @@ export class PostgresAccountDB implements AccountDB {
           w.created_by,
           w.created_on,
           w.billing_account,
+          w.language,
           json_build_object(
             'mode', s.mode,
             'processing_progress', s.processing_progress,
@@ -976,7 +1072,8 @@ export class PostgresAccountDB implements AccountDB {
             'processing_attempts', s.processing_attempts,
             'processing_message', s.processing_message,
             'backup_info', s.backup_info,
-            'usage_info', s.usage_info
+            'usage_info', s.usage_info,
+            'delete_on', s.delete_on
           ) status
            FROM ${this.workspace.getTableName()} as w
            INNER JOIN ${this.workspaceStatus.getTableName()} as s ON s.workspace_uuid = w.uuid
@@ -1021,12 +1118,19 @@ export class PostgresAccountDB implements AccountDB {
     }
     whereChunks.push(operationSql)
 
-    // TODO: support returning pending deletion workspaces when we will actually want
+    // TODO: support returning pending deletion workspaces when we actually want
     // to clear them with the worker.
     whereChunks.push("s.mode <> 'manual-creation'")
     whereChunks.push('(s.processing_attempts IS NULL OR s.processing_attempts <= 3)')
     whereChunks.push(`(s.last_processing_time IS NULL OR s.last_processing_time < $${values.length + 1})`)
     values.push(Date.now() - processingTimeoutMs)
+
+    // A live backup lease blocks operations that read/write backup or data; create/upgrade never
+    // touch those modes, so this is a no-op for them.
+    whereChunks.push(
+      `(NOT (${archivingSql} OR ${migrationSql} OR ${restoringSql} OR ${deletingSql}) OR s.backup_lease_until IS NULL OR s.backup_lease_until < $${values.length + 1})`
+    )
+    values.push(Date.now())
 
     if (region !== '') {
       whereChunks.push(`region = $${values.length + 1}`)
@@ -1053,6 +1157,68 @@ export class PostgresAccountDB implements AccountDB {
       }
 
       return convertKeysToCamelCase(res[0]) as WorkspaceInfoWithStatus
+    })
+  }
+
+  async updateBackupLease (
+    workspace: WorkspaceUuid,
+    owner: string,
+    action: 'acquire' | 'renew' | 'release',
+    now: number,
+    until: number
+  ): Promise<boolean> {
+    const table = this.workspaceStatus.getTableName()
+    return await this.withRetry(async (rTx) => {
+      let res: any
+      switch (action) {
+        case 'acquire':
+          res = await rTx.unsafe(
+            `UPDATE ${table}
+             SET backup_lease_until = $1, backup_lease_owner = $2
+             WHERE workspace_uuid = $3
+               AND (mode = 'active' OR mode IS NULL)
+               AND (is_disabled IS NOT TRUE)
+               AND (backup_lease_until IS NULL OR backup_lease_until < $4 OR backup_lease_owner = $2)
+             RETURNING workspace_uuid`,
+            [until, owner, workspace, now]
+          )
+          break
+        case 'renew':
+          // mode <> 'active' fails renew at once, instead of making archiving wait a whole backup.
+          res = await rTx.unsafe(
+            `UPDATE ${table}
+             SET backup_lease_until = $1, backup_lease_owner = $2
+             WHERE workspace_uuid = $3 AND backup_lease_owner = $2 AND (mode = 'active' OR mode IS NULL)
+               AND (is_disabled IS NOT TRUE)
+             RETURNING workspace_uuid`,
+            [until, owner, workspace]
+          )
+          break
+        case 'release':
+          res = await rTx.unsafe(
+            `UPDATE ${table}
+             SET backup_lease_until = NULL, backup_lease_owner = NULL
+             WHERE workspace_uuid = $1 AND backup_lease_owner = $2
+             RETURNING workspace_uuid`,
+            [workspace, owner]
+          )
+          break
+      }
+      return (res?.length ?? 0) > 0
+    })
+  }
+
+  async takeNeedsReindex (workspace: WorkspaceUuid): Promise<boolean> {
+    const table = this.workspaceStatus.getTableName()
+    return await this.withRetry(async (rTx) => {
+      const res: any = await rTx.unsafe(
+        `UPDATE ${table}
+         SET needs_reindex = NULL
+         WHERE workspace_uuid = $1 AND needs_reindex
+         RETURNING workspace_uuid`,
+        [workspace]
+      )
+      return (res?.length ?? 0) > 0
     })
   }
 
@@ -1087,31 +1253,85 @@ export class PostgresAccountDB implements AccountDB {
 
       await this.mailbox.deleteMany({ accountUuid }, rTx)
 
-      await this.socialId.update({ personUuid: accountUuid }, { verifiedOn: undefined }, rTx)
+      // Social ids stay as rows so their _id keeps resolving in workspace data, but the value is
+      // mangled and flagged: the identifier can never be handed to a new person, and a fresh signup
+      // with the same email no longer finds anything to reuse.
+      for (const socialIdObj of socialIds) {
+        if (socialIdObj.isDeleted === true) continue
+        await this.socialId.update(
+          { _id: socialIdObj._id },
+          { value: `${socialIdObj.value}#${socialIdObj._id}`, isDeleted: true, verifiedOn: undefined },
+          rTx
+        )
+      }
 
       // Unassign from all workspaces
       await rTx`DELETE FROM ${this.client(this.getWsMembersTableName())} WHERE account_uuid = ${accountUuid}`
 
+      // The last two tables still pointing at the account row. Both columns are NOT NULL, so the
+      // rows go with it; the payment ledger keeps the billing history on its own.
+      await this.subscription.deleteMany({ accountUuid }, rTx)
+      await this.workspacePermission.deleteMany({ accountUuid }, rTx)
+
+      await this.userProfile.deleteMany({ personUuid: accountUuid }, rTx)
+
       // This removes the account along with the password if any
       await this.account.deleteMany({ uuid: accountUuid }, rTx)
+
+      // The person row outlives the account (workspace rows reference it), so strip what it carried.
+      await this.person.update({ uuid: accountUuid }, { firstName: '', lastName: '', phoneHint: undefined }, rTx)
     })
   }
 
-  async listAccounts (search?: string, skip?: number, limit?: number): Promise<AccountAggregatedInfo[]> {
+  /**
+   * Purge an unfinished signup: a person row with social ids but no account.
+   * Children first - account_events, user_profile and social_id all have FKs to person.
+   */
+  async deletePerson (personUuid: PersonUuid): Promise<void> {
+    await this.withRetry(async (rTx) => {
+      const socialIds = await this.socialId.find({ personUuid }, undefined, undefined, rTx)
+      for (const socialIdObj of socialIds) {
+        await this.integrationSecret.deleteMany({ socialId: socialIdObj._id }, rTx)
+        await this.integration.deleteMany({ socialId: socialIdObj._id }, rTx)
+      }
+
+      await rTx`DELETE FROM ${this.client(this.getWsMembersTableName())} WHERE account_uuid = ${personUuid}`
+      await this.accountEvent.deleteMany({ accountUuid: personUuid as AccountUuid }, rTx)
+      await this.userProfile.deleteMany({ personUuid }, rTx)
+      await this.socialId.deleteMany({ personUuid }, rTx)
+      await this.person.deleteMany({ uuid: personUuid }, rTx)
+    })
+  }
+
+  async listAccounts (
+    search?: string,
+    skip?: number,
+    limit?: number,
+    sort?: AccountsSortKey,
+    filter?: AccountsFilter,
+    order?: 'asc' | 'desc'
+  ): Promise<AccountAggregatedInfo[]> {
     const sqlChunks: string[] = [
       `
       WITH account_data AS (
         SELECT
-          a.uuid,
+          p.uuid,
           a.timezone,
           a.locale,
           a.automatic,
           a.max_workspaces,
+          a.blocked_on,
+          (a.uuid IS NOT NULL) as has_account,
           p.first_name,
           p.last_name,
           up.country,
           up.city,
           p.migrated_to,
+          (
+            SELECT MIN(s.created_on)
+            FROM ${this.socialId.getTableName()} s
+            WHERE s.person_uuid = p.uuid
+          ) as registered_on,
           (
             SELECT jsonb_agg(jsonb_build_object(
               'socialId', i.social_id,
@@ -1119,7 +1339,7 @@ export class PostgresAccountDB implements AccountDB {
               'workspaceUuid', i.workspace_uuid
             ))
             FROM ${this.integration.getTableName()} i
-            WHERE i.social_id IN (SELECT _id FROM ${this.socialId.getTableName()} s WHERE s.person_uuid = a.uuid)
+            WHERE i.social_id IN (SELECT _id FROM ${this.socialId.getTableName()} s WHERE s.person_uuid = p.uuid)
           ) as integrations,
           (
             SELECT jsonb_agg(jsonb_build_object(
@@ -1131,9 +1351,19 @@ export class PostgresAccountDB implements AccountDB {
               'verifiedOn', s.verified_on,
               'displayValue', s.display_value
             ))
-            FROM ${this.socialId.getTableName()} s
-            WHERE s.person_uuid = a.uuid AND s.is_deleted = FALSE
+            FROM (
+              SELECT * FROM ${this.socialId.getTableName()} s2
+              WHERE s2.person_uuid = p.uuid AND s2.is_deleted = FALSE
+              ORDER BY s2.created_on ASC NULLS LAST, s2._id
+            ) s
           ) as social_ids,
+          (
+            SELECT s.value
+            FROM ${this.socialId.getTableName()} s
+            WHERE s.person_uuid = p.uuid AND s.type = 'email' AND s.is_deleted = FALSE
+            ORDER BY s.created_on ASC NULLS LAST, s._id
+            LIMIT 1
+          ) as primary_email,
           (
             SELECT jsonb_agg(jsonb_build_object(
               'uuid', w.uuid,
@@ -1148,10 +1378,21 @@ export class PostgresAccountDB implements AccountDB {
             ))
             FROM ${this.workspace.getTableName()} w
             INNER JOIN ${this.getWsMembersTableName()} m ON m.workspace_uuid = w.uuid
-            WHERE m.account_uuid = a.uuid
-          ) as workspaces
-        FROM ${this.account.getTableName()} a
-        INNER JOIN ${this.ns}.person p ON p.uuid = a.uuid
+            WHERE m.account_uuid = p.uuid
+          ) as workspaces,
+          (
+            SELECT COUNT(*)
+            FROM ${this.getWsMembersTableName()} m3
+            WHERE m3.account_uuid = p.uuid
+          ) as workspaces_count,
+          (
+            SELECT MAX(ws.last_visit)
+            FROM ${this.workspaceStatus.getTableName()} ws
+            INNER JOIN ${this.getWsMembersTableName()} m2 ON m2.workspace_uuid = ws.workspace_uuid
+            WHERE m2.account_uuid = p.uuid
+          ) as last_visit
+        FROM ${this.ns}.person p
+        LEFT JOIN ${this.account.getTableName()} a ON a.uuid = p.uuid
         LEFT JOIN ${this.userProfile.getTableName()} up ON up.person_uuid = p.uuid
     `
     ]
@@ -1166,14 +1407,45 @@ export class PostgresAccountDB implements AccountDB {
           p.last_name ILIKE $${paramIndex} OR
           EXISTS (
             SELECT 1 FROM ${this.socialId.getTableName()} s
-            WHERE s.person_uuid = a.uuid AND s.value ILIKE $${paramIndex}
+            WHERE s.person_uuid = p.uuid AND s.value ILIKE $${paramIndex}
           )
       `)
       values.push(`%${search}%`)
       paramIndex++
     }
 
-    sqlChunks.push('ORDER BY p.first_name')
+    // ORDER BY/LIMIT must live on the outer SELECT: row order of a CTE is not guaranteed outside it
+    sqlChunks.push(') SELECT * FROM account_data')
+
+    // Filters use the CTE's aggregated columns, so they belong to the outer WHERE.
+    // The CTE is person-based, so accounts must be selected explicitly (default behaviour).
+    const outerWhere: string[] = [filter?.pendingOnly === true ? 'has_account = FALSE' : 'has_account = TRUE']
+    if (filter?.blockedOnly === true) {
+      outerWhere.push('blocked_on IS NOT NULL')
+    }
+    if (filter?.noWorkspaces === true) {
+      outerWhere.push('(workspaces IS NULL OR jsonb_array_length(workspaces) = 0)')
+    }
+    if (filter?.inactiveDays !== undefined) {
+      outerWhere.push(`(last_visit IS NULL OR last_visit < $${paramIndex})`)
+      values.push(Date.now() - filter.inactiveDays * 24 * 3600 * 1000)
+      paramIndex++
+    }
+    sqlChunks.push(`WHERE ${outerWhere.join(' AND ')}`)
+
+    const orderBy: Record<AccountsSortKey, string> = {
+      name: 'first_name',
+      lastVisit: 'last_visit',
+      registeredOn: 'registered_on',
+      // Counting members is an index-only scan; jsonb_array_length would build every workspace
+      // object for every row just to measure it (~2x on 50k accounts).
+      workspaces: 'workspaces_count',
+      email: 'primary_email'
+    }
+    // Names and emails read A-Z by default, the rest newest/biggest first.
+    const dir = order ?? (sort === undefined || sort === 'name' || sort === 'email' ? 'asc' : 'desc')
+    const dirSql = dir === 'asc' ? 'ASC' : 'DESC'
+    sqlChunks.push(`ORDER BY ${orderBy[sort ?? 'name'] ?? orderBy.name} ${dirSql} NULLS LAST`)
 
     if (limit !== undefined) {
       sqlChunks.push(`LIMIT $${paramIndex}`)
@@ -1185,8 +1457,6 @@ export class PostgresAccountDB implements AccountDB {
       sqlChunks.push(`OFFSET $${paramIndex}`)
       values.push(skip)
     }
-
-    sqlChunks.push(') SELECT * FROM account_data')
 
     return await this.withRetry(async (rTx) => {
       const result = await rTx.unsafe(sqlChunks.join(' '), values)
@@ -1213,15 +1483,423 @@ export class PostgresAccountDB implements AccountDB {
           }
         }
 
+        converted.lastVisit = convertTimestamp(converted.lastVisit)
+        converted.registeredOn = convertTimestamp(converted.registeredOn)
+        converted.blockedOn = convertTimestamp(converted.blockedOn)
+
         return converted as AccountAggregatedInfo
       })
     })
+  }
+
+  async listAdminActions (query: AdminActionsQuery): Promise<AdminActionsResult> {
+    const table = this.adminAction.getTableName()
+    const where: string[] = []
+    const args: any[] = []
+
+    if (query.search !== undefined && query.search !== '') {
+      args.push(`%${query.search}%`)
+      where.push(
+        `(actor_email ILIKE $${args.length} OR target ILIKE $${args.length} OR target_label ILIKE $${args.length})`
+      )
+    }
+    if (query.action !== undefined && query.action !== '') {
+      args.push(query.action)
+      where.push(`action = $${args.length}`)
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''
+
+    args.push(Math.min(Math.max(query.limit ?? 50, 1), 1000))
+    const limitSql = `LIMIT $${args.length}`
+    args.push(Math.max(query.skip ?? 0, 0))
+    const offsetSql = `OFFSET $${args.length}`
+
+    const rows = await this.adminAction.unsafe(
+      `SELECT *, COUNT(*) OVER() AS total FROM ${table} ${whereSql} ORDER BY created_on DESC ${limitSql} ${offsetSql}`,
+      args
+    )
+    const list = rows as Array<Record<string, any>>
+    return {
+      actions: list.map((r) => {
+        const { total, ...rest } = r
+        return this.adminAction.convertToObj(rest)
+      }),
+      total: list.length > 0 ? Number(list[0].total) : 0
+    }
+  }
+
+  private workspaceStatusJson (alias: string): string {
+    return `json_build_object(
+            'mode', ${alias}.mode,
+            'processing_progress', ${alias}.processing_progress,
+            'version_major', ${alias}.version_major,
+            'version_minor', ${alias}.version_minor,
+            'version_patch', ${alias}.version_patch,
+            'last_processing_time', ${alias}.last_processing_time,
+            'last_visit', ${alias}.last_visit,
+            'is_disabled', ${alias}.is_disabled,
+            'processing_attempts', ${alias}.processing_attempts,
+            'processing_message', ${alias}.processing_message,
+            'backup_info', ${alias}.backup_info,
+            'usage_info', ${alias}.usage_info,
+            'delete_on', ${alias}.delete_on
+          )`
+  }
+
+  async listWorkspacesPaged (query: WorkspacesPagedQuery): Promise<WorkspacesPagedResult> {
+    const where: string[] = []
+    const values: any[] = []
+    let idx = 1
+
+    if (query.search !== undefined && query.search !== '') {
+      where.push(`(w.name ILIKE $${idx} OR w.url ILIKE $${idx} OR w.uuid::text ILIKE $${idx})`)
+      values.push(`%${query.search}%`)
+      idx++
+    }
+    if (query.modes !== undefined && query.modes.length > 0) {
+      where.push(`s.mode = ANY($${idx}::text[])`)
+      values.push(query.modes)
+      idx++
+    }
+    if (query.region !== undefined) {
+      where.push(`COALESCE(w.region, '') = $${idx}`)
+      values.push(query.region)
+      idx++
+    }
+    if (query.attemptsGte !== undefined) {
+      where.push(`COALESCE(s.processing_attempts, 0) >= $${idx}`)
+      values.push(query.attemptsGte)
+      idx++
+    }
+    if (query.billingPlan !== undefined && query.billingPlan !== '') {
+      where.push(`bs.plan = $${idx}`)
+      values.push(query.billingPlan)
+      idx++
+    }
+    if (query.billingStatus !== undefined && query.billingStatus !== '') {
+      where.push(`bs.status = $${idx}`)
+      values.push(query.billingStatus)
+      idx++
+    }
+    if (query.billingStatusNot !== undefined && query.billingStatusNot !== '') {
+      where.push(`(bs.status IS NULL OR bs.status <> $${idx})`)
+      values.push(query.billingStatusNot)
+      idx++
+    }
+    if (query.billingExpired === true) {
+      where.push("bs.plan IS NOT NULL AND bs.status NOT IN ('active', 'trialing')")
+    }
+
+    // backup_info jsonb keys are snake_case (convertKeysToSnakeCase on write)
+    const backupSize = `GREATEST(
+      COALESCE((s.backup_info->>'backup_size')::numeric, 0),
+      COALESCE((s.backup_info->>'data_size')::numeric, 0) + COALESCE((s.backup_info->>'blobs_size')::numeric, 0)
+    )`
+    const sortColumns: Record<string, string> = {
+      name: 'w.name',
+      createdOn: 'w.created_on',
+      lastVisit: 's.last_visit',
+      backupDate: "COALESCE((s.backup_info->>'last_backup')::bigint, 0)",
+      backupSize
+    }
+    const sortCol = sortColumns[query.sort ?? 'lastVisit'] ?? sortColumns.lastVisit
+    const order = query.order === 'asc' ? 'ASC' : 'DESC'
+    // Interpolated into SQL: force finite numbers, non-numeric RPC input falls back to defaults
+    const limit = Number.isFinite(query.limit) ? Math.min(Math.max(Math.round(query.limit as number), 1), 1000) : 50
+    const skip = Number.isFinite(query.skip) ? Math.max(Math.round(query.skip as number), 0) : 0
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''
+    // Current tier subscription (billing): the active/trialing one, else the latest
+    const billingJoin = `LEFT JOIN LATERAL (
+          SELECT sub.plan, sub.status, sub.period_end
+          FROM ${this.subscription.getTableName()} sub
+          WHERE sub.workspace_uuid = w.uuid AND sub.type = 'tier'
+          ORDER BY CASE WHEN sub.status IN ('active', 'trialing') THEN 0 ELSE 1 END, sub.created_on DESC
+          LIMIT 1
+        ) bs ON TRUE`
+    const sql = `SELECT
+          w.uuid, w.name, w.url, w.branding, w.location, w.region,
+          w.created_by, w.created_on, w.billing_account, w.disabled_features_override, w.max_api_keys,
+          bs.plan AS billing_plan, bs.status AS billing_status, bs.period_end AS billing_period_end,
+          ${this.workspaceStatusJson('s')} status,
+          COUNT(*) OVER() AS total
+        FROM ${this.workspace.getTableName()} w
+        INNER JOIN ${this.workspaceStatus.getTableName()} s ON s.workspace_uuid = w.uuid
+        ${billingJoin}
+        ${whereSql}
+        ORDER BY ${sortCol} ${order} NULLS LAST, w.uuid
+        LIMIT ${limit} OFFSET ${skip}`
+
+    return await this.withRetry(async (rTx) => {
+      const res: any = await rTx.unsafe(sql, values)
+      let total = res.length > 0 ? Number(res[0].total) : 0
+      if (res.length === 0 && skip > 0) {
+        const cnt: any = await rTx.unsafe(
+          `SELECT COUNT(*) AS total FROM ${this.workspace.getTableName()} w
+           INNER JOIN ${this.workspaceStatus.getTableName()} s ON s.workspace_uuid = w.uuid
+           ${billingJoin} ${whereSql}`,
+          values
+        )
+        total = Number(cnt[0].total)
+      }
+      for (const row of res) {
+        delete row.total
+        row.created_on = convertTimestamp(row.created_on)
+        row.billing_period_end = row.billing_period_end != null ? convertTimestamp(row.billing_period_end) : undefined
+        row.status.last_processing_time = convertTimestamp(row.status.last_processing_time)
+        row.status.delete_on = row.status.delete_on != null ? convertTimestamp(row.status.delete_on) : undefined
+        row.status.last_visit = convertTimestamp(row.status.last_visit)
+      }
+      return { workspaces: convertKeysToCamelCase(res), total }
+    })
+  }
+
+  async getWorkspacesSummary (): Promise<WorkspacesSummary> {
+    return await this.withRetry(async (rTx) => {
+      const byMode: any = await rTx.unsafe(
+        `SELECT COALESCE(s.mode, 'unknown') AS key, COUNT(*) AS count
+         FROM ${this.workspaceStatus.getTableName()} s GROUP BY 1`,
+        []
+      )
+      const byRegion: any = await rTx.unsafe(
+        `SELECT COALESCE(w.region, '') AS key, COUNT(*) AS count
+         FROM ${this.workspace.getTableName()} w
+         INNER JOIN ${this.workspaceStatus.getTableName()} s ON s.workspace_uuid = w.uuid
+         WHERE s.mode = 'active' GROUP BY 1`,
+        []
+      )
+      const byVersion: any = await rTx.unsafe(
+        `SELECT concat(s.version_major, '.', s.version_minor, '.', s.version_patch) AS key, COUNT(*) AS count
+         FROM ${this.workspaceStatus.getTableName()} s WHERE s.mode = 'active' GROUP BY 1`,
+        []
+      )
+      const billing: any = await rTx.unsafe(
+        `SELECT plan, COUNT(*) AS workspaces, COALESCE(SUM((limits->>'users_limit')::int), 0) AS seats
+         FROM ${this.subscription.getTableName()}
+         WHERE type = 'tier' AND status IN ('active', 'trialing')
+         GROUP BY plan ORDER BY seats DESC`,
+        []
+      )
+      const toRecord = (rows: any[]): Record<string, number> =>
+        Object.fromEntries(rows.map((r) => [r.key, Number(r.count)]))
+      const modes = toRecord(byMode)
+      return {
+        total: Object.values(modes).reduce((a, b) => a + b, 0),
+        byMode: modes,
+        byRegion: toRecord(byRegion),
+        byVersion: toRecord(byVersion),
+        billing: billing.map((r: any) => ({ plan: r.plan, workspaces: Number(r.workspaces), seats: Number(r.seats) }))
+      }
+    })
+  }
+
+  async getRegistrationStats (from: number, to: number): Promise<RegistrationStats> {
+    return await this.withRetry(async (rTx) => {
+      const workspaces: any = await rTx.unsafe(
+        `SELECT to_char(to_timestamp(created_on / 1000)::date, 'YYYY-MM-DD') AS day, COUNT(*) AS count
+         FROM ${this.workspace.getTableName()}
+         WHERE created_on >= $1 AND created_on <= $2 GROUP BY 1 ORDER BY 1`,
+        [from, to]
+      )
+      const accounts: any = await rTx.unsafe(
+        `SELECT to_char(to_timestamp("time" / 1000)::date, 'YYYY-MM-DD') AS day, COUNT(*) AS count
+         FROM ${this.accountEvent.getTableName()}
+         WHERE event_type = 'account_created' AND "time" >= $1 AND "time" <= $2 GROUP BY 1 ORDER BY 1`,
+        [from, to]
+      )
+      const toPoints = (rows: any[]): Array<{ day: string, count: number }> =>
+        rows.map((r) => ({ day: r.day, count: Number(r.count) }))
+      return { workspaces: toPoints(workspaces), accounts: toPoints(accounts) }
+    })
+  }
+
+  async consumeOtp (socialId: PersonId, code: string): Promise<boolean> {
+    // Atomic: delete the row only if it exists and is unexpired; RETURNING tells us if we won.
+    return await this.withRetry(async (rTx) => {
+      const res: any = await rTx.unsafe(
+        `DELETE FROM ${this.otp.getTableName()}
+         WHERE social_id = $1 AND code = $2 AND expires_on > $3
+         RETURNING code`,
+        [socialId, code, Date.now()]
+      )
+      return res.length > 0
+    })
+  }
+
+  async getWorkspaceActivityStats (workspace: WorkspaceUuid, from: number): Promise<WorkspaceActivityPoint[]> {
+    // Workspace tx table lives in the same PG instance in the current deployment (public.tx).
+    // In a multi-instance setup this table is not reachable from the account DB - return empty.
+    try {
+      return await this.withRetry(async (rTx) => {
+        const res: any = await rTx.unsafe(
+          `SELECT to_char(date_trunc('week', to_timestamp("modifiedOn" / 1000))::date, 'YYYY-MM-DD') AS week,
+                  COUNT(*) AS count
+           FROM public.tx
+           WHERE "workspaceId" = $1 AND "modifiedOn" >= $2
+           GROUP BY 1 ORDER BY 1`,
+          [workspace, from]
+        )
+        return res.map((r: any) => ({ week: r.week, count: Number(r.count) }))
+      })
+    } catch (err: any) {
+      return []
+    }
+  }
+
+  async getWorkspaceMembersInfo (workspace: WorkspaceUuid): Promise<WorkspaceMemberDetails[]> {
+    const baseSql = `SELECT
+          m.account_uuid AS account, m.role, p.first_name, p.last_name,
+          (SELECT s.value FROM ${this.socialId.getTableName()} s
+           WHERE s.person_uuid = m.account_uuid AND s.type = 'email' AND s.is_deleted = FALSE LIMIT 1) AS email
+        FROM ${this.getWsMembersTableName()} m
+        INNER JOIN ${this.ns}.person p ON p.uuid = m.account_uuid
+        WHERE m.workspace_uuid = $1`
+
+    const members: any = await this.withRetry(async (rTx) => await rTx.unsafe(baseSql, [workspace]))
+    // Activity comes from public.tx (same PG instance in the current deployment) - best effort.
+    // Separate transaction: a failure here must not abort the members query.
+    const activity = new Map<string, { last: number, total: number }>()
+    try {
+      const act: any = await this.withRetry(
+        async (rTx) =>
+          await rTx.unsafe(
+            `SELECT s.person_uuid, MAX(t."modifiedOn") AS last_activity, COUNT(*) AS tx_total
+             FROM public.tx t
+             INNER JOIN ${this.socialId.getTableName()} s ON s._id::text = t."modifiedBy"
+             WHERE t."workspaceId" = $1
+             GROUP BY s.person_uuid`,
+            [workspace]
+          )
+      )
+      for (const row of act) {
+        activity.set(row.person_uuid, { last: Number(row.last_activity), total: Number(row.tx_total) })
+      }
+    } catch (err: any) {
+      // tx table not reachable - members without activity
+    }
+    const res: WorkspaceMemberDetails[] = members.map((m: any) => ({
+      account: m.account,
+      role: m.role,
+      firstName: m.first_name ?? undefined,
+      lastName: m.last_name ?? undefined,
+      email: m.email ?? undefined,
+      lastActivity: activity.get(m.account)?.last,
+      txTotal: activity.get(m.account)?.total ?? 0
+    }))
+    res.sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0))
+    return res
+  }
+
+  async getAccountActivityStats (account: AccountUuid, from: number): Promise<AccountActivityStats> {
+    try {
+      return await this.withRetry(async (rTx) => {
+        const byWs: any = await rTx.unsafe(
+          `SELECT t."workspaceId" AS workspace, w.name, w.url, COUNT(*) AS count, MAX(t."modifiedOn") AS last_tx
+           FROM public.tx t
+           INNER JOIN ${this.socialId.getTableName()} s ON s._id::text = t."modifiedBy" AND s.person_uuid = $1
+           LEFT JOIN ${this.workspace.getTableName()} w ON w.uuid = t."workspaceId"
+           GROUP BY 1, w.name, w.url
+           ORDER BY count DESC`,
+          [account]
+        )
+        const weekly: any = await rTx.unsafe(
+          `SELECT to_char(date_trunc('week', to_timestamp(t."modifiedOn" / 1000))::date, 'YYYY-MM-DD') AS week,
+                  COUNT(*) AS count
+           FROM public.tx t
+           INNER JOIN ${this.socialId.getTableName()} s ON s._id::text = t."modifiedBy" AND s.person_uuid = $1
+           WHERE t."modifiedOn" >= $2
+           GROUP BY 1 ORDER BY 1`,
+          [account, from]
+        )
+        return {
+          workspaces: byWs.map((r: any) => ({
+            workspace: r.workspace,
+            name: r.name ?? undefined,
+            url: r.url ?? undefined,
+            count: Number(r.count),
+            lastTx: Number(r.last_tx)
+          })),
+          weekly: weekly.map((r: any) => ({ week: r.week, count: Number(r.count) }))
+        }
+      })
+    } catch (err: any) {
+      return { workspaces: [], weekly: [] }
+    }
   }
 
   async generatePersonUuid (): Promise<PersonUuid> {
     const res = await this.client`SELECT gen_random_uuid();`
 
     return res[0].gen_random_uuid as PersonUuid
+  }
+
+  async ensurePerson (
+    socialType: SocialIdType,
+    socialValue: string,
+    firstName: string,
+    lastName: string
+  ): Promise<{ uuid: PersonUuid, socialId: PersonId }> {
+    // Atomic find-or-create of (person + social_id) keyed by (socialType, socialValue).
+    // Uses INSERT ... ON CONFLICT DO NOTHING which is supported by both PostgreSQL
+    // and CockroachDB. Avoids pg_advisory_xact_lock which CockroachDB does not support.
+    // Flow:
+    //   1. Check for existing social_id (optimistic fast path, no writes).
+    //   2. If absent, insert person, then insert social_id ON CONFLICT DO NOTHING.
+    //   3. If the social_id insert hit a conflict, the orphan person we just inserted
+    //      is rolled back inside the same transaction by deleting it, and we read the
+    //      winning row. The FK from social_id.person_uuid won't block the delete
+    //      because no one outside this transaction can see our orphan person yet.
+    const personTable = this.person.getTableName()
+    const socialIdTable = this.socialId.getTableName()
+    return await this.withRetry(async (tx) => {
+      const existing = await tx.unsafe(
+        `SELECT _id, person_uuid FROM ${socialIdTable} WHERE type = $1 AND value = $2 LIMIT 1`,
+        [socialType, socialValue]
+      )
+      if (existing.length > 0) {
+        return {
+          uuid: existing[0].person_uuid as PersonUuid,
+          socialId: existing[0]._id as PersonId
+        }
+      }
+
+      const personRow = await tx.unsafe(
+        `INSERT INTO ${personTable} (first_name, last_name) VALUES ($1, $2) RETURNING uuid`,
+        [firstName, lastName]
+      )
+      const personUuid = personRow[0].uuid as PersonUuid
+
+      const socialIdRow = await tx.unsafe(
+        `INSERT INTO ${socialIdTable} (type, value, person_uuid) VALUES ($1, $2, $3)
+         ON CONFLICT (type, value) DO NOTHING
+         RETURNING _id`,
+        [socialType, socialValue, personUuid]
+      )
+
+      if (socialIdRow.length > 0) {
+        return {
+          uuid: personUuid,
+          socialId: socialIdRow[0]._id as PersonId
+        }
+      }
+
+      // Concurrent caller won the race. Roll back our orphan person and return the winner.
+      await tx.unsafe(`DELETE FROM ${personTable} WHERE uuid = $1`, [personUuid])
+
+      const winner = await tx.unsafe(
+        `SELECT _id, person_uuid FROM ${socialIdTable} WHERE type = $1 AND value = $2 LIMIT 1`,
+        [socialType, socialValue]
+      )
+      if (winner.length === 0) {
+        throw new Error(
+          `ensurePerson: social_id conflict resolved but winning row is missing for ${socialType}:${socialValue}`
+        )
+      }
+      return {
+        uuid: winner[0].person_uuid as PersonUuid,
+        socialId: winner[0]._id as PersonId
+      }
+    })
   }
 
   protected getMigrations (): [string, string][] {
@@ -1296,5 +1974,350 @@ export class PostgresAccountDB implements AccountDB {
       permission
     })
     return results.map((r) => r.accountUuid)
+  }
+
+  async getAccountWorkspaceBadgeStatuses (accountId: AccountUuid): Promise<AccountWorkspaceBadgeStatus[]> {
+    return await this.accountWorkspaceBadgeStatus.find({ accountUuid: accountId })
+  }
+
+  async setAccountWorkspaceBadgeStatus (
+    accountId: AccountUuid,
+    workspaceId: WorkspaceUuid,
+    hasUnread: boolean
+  ): Promise<void> {
+    const updatedOn = Date.now()
+    const sql = `
+      INSERT INTO ${this.accountWorkspaceBadgeStatus.getTableName()} (account_uuid, workspace_uuid, has_unread, updated_on)
+      SELECT $1::uuid, $2::uuid, $3::boolean, $4::bigint
+      WHERE EXISTS (
+        SELECT 1 FROM ${this.getWsMembersTableName()} wm 
+        WHERE wm.account_uuid = $1::uuid AND wm.workspace_uuid = $2::uuid
+      )
+      ON CONFLICT (account_uuid, workspace_uuid) DO UPDATE SET has_unread = EXCLUDED.has_unread, updated_on = EXCLUDED.updated_on
+    `
+    await this.accountWorkspaceBadgeStatus.unsafe(sql, [accountId, workspaceId, hasUnread, updatedOn])
+  }
+
+  async batchWorkspaceBadgeStatuses (
+    data: Array<{ accountId: AccountUuid, workspaceId: WorkspaceUuid, hasUnread: boolean }>
+  ): Promise<void> {
+    if (data.length === 0) return
+    const updatedOn = Date.now()
+
+    const values: any[] = []
+    const rows = data
+      .map((d: any, i: number) => {
+        values.push(d.accountId, d.workspaceId, d.hasUnread, updatedOn)
+        return `($${i * 4 + 1}::uuid, $${i * 4 + 2}::uuid, $${i * 4 + 3}::boolean, $${i * 4 + 4}::bigint)`
+      })
+      .join(', ')
+
+    const sql = `
+      INSERT INTO ${this.accountWorkspaceBadgeStatus.getTableName()} (account_uuid, workspace_uuid, has_unread, updated_on)
+      SELECT v.account_uuid, v.workspace_uuid, v.has_unread, v.updated_on
+      FROM (VALUES ${rows}) AS v(account_uuid, workspace_uuid, has_unread, updated_on)
+      WHERE EXISTS (
+        SELECT 1 FROM ${this.getWsMembersTableName()} wm 
+        WHERE wm.account_uuid = v.account_uuid AND wm.workspace_uuid = v.workspace_uuid
+      )
+      ON CONFLICT (account_uuid, workspace_uuid) DO UPDATE SET has_unread = EXCLUDED.has_unread, updated_on = EXCLUDED.updated_on
+    `
+    await this.accountWorkspaceBadgeStatus.unsafe(sql, values)
+  }
+
+  async claimIntent (
+    claimKey: string,
+    provider: string,
+    ctx?: { subscriptionId?: string, workspaceUuid?: string, amount?: number, orderFingerprint?: string }
+  ): Promise<{ claimed: boolean, intent: PaymentIntent }> {
+    const table = this.paymentIntent.getTableName()
+    // Atomic claim: insert, or do nothing if claim_key already exists.
+    // Works identically on CockroachDB and PostgreSQL (ON CONFLICT ... DO NOTHING RETURNING).
+    const inserted = await this.paymentIntent.unsafe(
+      `INSERT INTO ${table} (claim_key, provider, status, amount, heartbeat_at, subscription_id, workspace_uuid, order_fingerprint)
+       VALUES ($1, $2, 'pending', $3, current_epoch_ms(), $4, $5, $6)
+       ON CONFLICT (claim_key) DO NOTHING
+       RETURNING *`,
+      [
+        claimKey,
+        provider,
+        ctx?.amount ?? null,
+        ctx?.subscriptionId ?? null,
+        ctx?.workspaceUuid ?? null,
+        ctx?.orderFingerprint ?? null
+      ]
+    )
+    if (inserted.length > 0) {
+      return { claimed: true, intent: this.paymentIntent.convertToObj(inserted[0]) }
+    }
+    // Conflict: another caller already claimed this key — return the existing intent.
+    const existing = await this.paymentIntent.unsafe(`SELECT * FROM ${table} WHERE claim_key = $1`, [claimKey])
+    return { claimed: false, intent: this.paymentIntent.convertToObj(existing[0]) }
+  }
+
+  // Link a checkout intent to its charge (payment_id) + save URL for reuse; webhook releases by payment_id.
+  async setIntentPayment (intentId: string, paymentId: string, paymentUrl?: string): Promise<void> {
+    const table = this.paymentIntent.getTableName()
+    await this.paymentIntent.unsafe(
+      `UPDATE ${table} SET payment_id = $2, payment_url = $3, updated_on = current_epoch_ms()
+       WHERE id = $1`,
+      [intentId, paymentId, paymentUrl ?? null]
+    )
+  }
+
+  // Release a checkout claim (scoped to 'checkout:%' so a renew ledger row is never deleted). Idempotent.
+  async deleteCheckoutIntentByPaymentId (paymentId: string, provider: string): Promise<void> {
+    const table = this.paymentIntent.getTableName()
+    await this.paymentIntent.unsafe(
+      `DELETE FROM ${table}
+       WHERE payment_id = $1 AND provider = $2 AND claim_key LIKE 'checkout:%'`,
+      [paymentId, provider]
+    )
+  }
+
+  // Release a checkout claim by intent id — for a claim that failed before issuing a payment (no
+  // payment_id yet), so a retry gets a clean claim immediately instead of waiting out the lease. Idempotent.
+  async deleteCheckoutIntentById (intentId: string): Promise<void> {
+    const table = this.paymentIntent.getTableName()
+    await this.paymentIntent.unsafe(`DELETE FROM ${table} WHERE id = $1 AND claim_key LIKE 'checkout:%'`, [intentId])
+  }
+
+  // Append an immutable payment-operation audit row (never updated/deleted).
+  async logPaymentOperation (op: PaymentOperation): Promise<void> {
+    const table = this.paymentOperation.getTableName()
+    await this.paymentOperation.unsafe(
+      `INSERT INTO ${table}
+        (provider, operation, status, payment_id, order_id, subscription_id, workspace_uuid, account_uuid,
+         action_id, actor, amount, raw)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)`,
+      [
+        op.provider,
+        op.operation,
+        op.status ?? null,
+        op.paymentId ?? null,
+        op.orderId ?? null,
+        op.subscriptionId ?? null,
+        op.workspaceUuid ?? null,
+        op.accountUuid ?? null,
+        op.actionId ?? null,
+        op.actor ?? null,
+        op.amount ?? null,
+        // Single JSON encoding: the driver serializes the object, $10::jsonb casts it.
+        op.raw ?? null
+      ]
+    )
+  }
+
+  // List ledger operations, newest first, with optional filters + pagination — for the admin page.
+  async getPaymentOperations (filter: PaymentOperationFilter): Promise<PaymentOperation[]> {
+    const table = this.paymentOperation.getTableName()
+    const where: string[] = []
+    const args: any[] = []
+    if (filter.from !== undefined) {
+      args.push(filter.from)
+      where.push(`created_on >= $${args.length}`)
+    }
+    if (filter.to !== undefined) {
+      args.push(filter.to)
+      where.push(`created_on < $${args.length}`)
+    }
+    if (filter.workspaceUuid !== undefined) {
+      args.push(filter.workspaceUuid)
+      where.push(`workspace_uuid = $${args.length}`)
+    }
+    if (filter.operation !== undefined) {
+      args.push(filter.operation)
+      where.push(`operation = $${args.length}`)
+    }
+    if (filter.status !== undefined) {
+      args.push(filter.status)
+      where.push(`status = $${args.length}`)
+    }
+    if (filter.provider !== undefined) {
+      args.push(filter.provider)
+      where.push(`provider = $${args.length}`)
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''
+    args.push(Math.min(filter.limit ?? 100, 500))
+    const limitSql = `LIMIT $${args.length}`
+    args.push(filter.offset ?? 0)
+    const offsetSql = `OFFSET $${args.length}`
+    const rows = await this.paymentOperation.unsafe(
+      `SELECT * FROM ${table} ${whereSql} ORDER BY created_on DESC ${limitSql} ${offsetSql}`,
+      args
+    )
+    return (rows as Array<Record<string, any>>).map((r) => this.paymentOperation.convertToObj(r))
+  }
+
+  // Aggregate operations in [from, to) for the daily billing summary: per-workspace charge counts,
+  // total charged amount, and error count (failed/rejected). Read-only.
+  async getPaymentOperationStats (from: number, to: number): Promise<PaymentOperationStats> {
+    const table = this.paymentOperation.getTableName()
+    const rows = await this.paymentOperation.unsafe(
+      `SELECT workspace_uuid, operation, status, amount, payment_id FROM ${table}
+       WHERE created_on >= $1 AND created_on < $2`,
+      [from, to]
+    )
+    const byWorkspace = new Map<string, { charges: number, amount: number, errors: number }>()
+    let totalCharges = 0
+    let totalAmount = 0
+    let totalErrors = 0
+    // Webhooks are delivered at-least-once: count each (payment, status) charge only once.
+    const seenCharges = new Set<string>()
+    for (const r of rows as Array<Record<string, any>>) {
+      const ws = (r.workspace_uuid as string) ?? 'unknown'
+      const entry = byWorkspace.get(ws) ?? { charges: 0, amount: 0, errors: 0 }
+      const status = (r.status as string) ?? ''
+      // Real charged money: tbank confirms via the webhook row (init_charge stays NEW).
+      let isCharge =
+        (r.operation === 'webhook' && status === 'CONFIRMED') ||
+        (r.operation === 'charge_recurrent' && status === 'success') ||
+        (r.operation === 'init_charge' && status === 'CONFIRMED')
+      if (isCharge && r.payment_id != null) {
+        const key = `${r.payment_id}|${r.operation}|${status}|${r.amount ?? ''}`
+        if (seenCharges.has(key)) isCharge = false
+        seenCharges.add(key)
+      }
+      const isError = status === 'REJECTED' || status === 'failed' || status === 'REVERSED'
+      if (isCharge) {
+        entry.charges++
+        entry.amount += Number(r.amount ?? 0)
+        totalCharges++
+        totalAmount += Number(r.amount ?? 0)
+      }
+      if (isError) {
+        entry.errors++
+        totalErrors++
+      }
+      byWorkspace.set(ws, entry)
+    }
+    return {
+      from,
+      to,
+      totalCharges,
+      totalAmount,
+      totalErrors,
+      workspaces: Array.from(byWorkspace.entries()).map(([workspaceUuid, s]) => ({ workspaceUuid, ...s }))
+    }
+  }
+
+  // Per-calendar-month (UTC) ledger aggregation for the admin finance view. Read-only.
+  async getPaymentMonthlyStats (from: number, to: number): Promise<PaymentMonthlyStats[]> {
+    const table = this.paymentOperation.getTableName()
+    const rows = await this.paymentOperation.unsafe(
+      `SELECT created_on, operation, status, amount, payment_id FROM ${table}
+       WHERE created_on >= $1 AND created_on < $2`,
+      [from, to]
+    )
+    const byMonth = new Map<string, PaymentMonthlyStats>()
+    // Webhooks are delivered at-least-once: count each (payment, status) charge only once.
+    const seenCharges = new Set<string>()
+    for (const r of rows as Array<Record<string, any>>) {
+      const month = new Date(Number(r.created_on)).toISOString().slice(0, 7)
+      const entry = byMonth.get(month) ?? { month, charges: 0, amount: 0, errors: 0, cancels: 0, refunds: 0 }
+      const status = (r.status as string) ?? ''
+      // Real charged money: tbank confirms via the webhook row (init_charge stays NEW).
+      let isCharge =
+        (r.operation === 'webhook' && status === 'CONFIRMED') ||
+        (r.operation === 'charge_recurrent' && status === 'success') ||
+        (r.operation === 'init_charge' && status === 'CONFIRMED')
+      if (isCharge && r.payment_id != null) {
+        const key = `${r.payment_id}|${r.operation}|${status}|${r.amount ?? ''}`
+        if (seenCharges.has(key)) isCharge = false
+        seenCharges.add(key)
+      }
+      if (isCharge) {
+        entry.charges++
+        entry.amount += Number(r.amount ?? 0)
+      }
+      if (status === 'REJECTED' || status === 'failed' || status === 'REVERSED') {
+        entry.errors++
+      }
+      if (r.operation === 'cancel') entry.cancels++
+      if (r.operation === 'refund' || status === 'REFUNDED') entry.refunds++
+      byMonth.set(month, entry)
+    }
+    return Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month))
+  }
+
+  // Insert a purchase row, returns the generated id. Idempotent by (payment_id, provider):
+  // a concurrent duplicate hits the unique index and returns the existing row's id.
+  async createPurchase (p: WorkspacePurchase): Promise<string> {
+    const table = this.workspacePurchase.getTableName()
+    const rows = await this.workspacePurchase.unsafe(
+      `INSERT INTO ${table}
+        (workspace_uuid, account_uuid, sku, category, status, amount, payment_id, provider, raw, activated_on)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+       ON CONFLICT (payment_id, provider) WHERE payment_id IS NOT NULL DO NOTHING
+       RETURNING id`,
+      [
+        p.workspaceUuid,
+        p.accountUuid,
+        p.sku,
+        p.category ?? null,
+        p.status,
+        p.amount ?? null,
+        p.paymentId ?? null,
+        p.provider ?? null,
+        p.raw ?? null,
+        p.activatedOn ?? null
+      ]
+    )
+    const inserted = (rows as Array<Record<string, any>>)[0]?.id as string | undefined
+    if (inserted !== undefined) return inserted
+
+    const existing = await this.workspacePurchase.unsafe(
+      `SELECT id FROM ${table} WHERE payment_id = $1 AND provider = $2`,
+      [p.paymentId ?? null, p.provider ?? null]
+    )
+    const id = (existing as Array<Record<string, any>>)[0]?.id as string | undefined
+    if (id === undefined) {
+      throw new Error(`failed to create purchase for payment ${p.paymentId ?? ''}`)
+    }
+    return id
+  }
+
+  async updatePurchaseStatus (id: string, status: WorkspacePurchaseStatus, activatedOn?: number): Promise<void> {
+    const table = this.workspacePurchase.getTableName()
+    await this.workspacePurchase.unsafe(
+      `UPDATE ${table} SET status = $2, activated_on = COALESCE($3, activated_on) WHERE id = $1`,
+      [id, status, activatedOn ?? null]
+    )
+  }
+
+  async getPurchases (workspace: WorkspaceUuid): Promise<WorkspacePurchase[]> {
+    const table = this.workspacePurchase.getTableName()
+    const rows = await this.workspacePurchase.unsafe(
+      `SELECT * FROM ${table} WHERE workspace_uuid = $1 ORDER BY created_on DESC`,
+      [workspace]
+    )
+    // The table's own converter, not the generic camel-case one: it restores column types
+    // (created_on/activated_on), which the UI otherwise renders as "Invalid date".
+    return (rows as Array<Record<string, any>>).map((r) => this.workspacePurchase.convertToObj(r))
+  }
+
+  // Lease heartbeat: refresh while the charge is in flight so other pods see the claimer is alive.
+  // Uses DB clock (current_epoch_ms) so lease comparisons never depend on per-pod wall clocks.
+  async heartbeatChargeIntent (intentId: string): Promise<void> {
+    const table = this.paymentIntent.getTableName()
+    await this.paymentIntent.unsafe(
+      `UPDATE ${table} SET heartbeat_at = current_epoch_ms(), updated_on = current_epoch_ms()
+       WHERE id = $1 AND status = 'pending'`,
+      [intentId]
+    )
+  }
+
+  // Take over an orphaned pending intent: only succeeds if it is still pending AND its lease expired
+  // (heartbeat older than leaseMs, by DB clock). Atomic — only one pod wins the takeover.
+  async reclaimStaleChargeIntent (intentId: string, leaseMs: number): Promise<boolean> {
+    const table = this.paymentIntent.getTableName()
+    const res = await this.paymentIntent.unsafe(
+      `UPDATE ${table} SET heartbeat_at = current_epoch_ms(), updated_on = current_epoch_ms()
+       WHERE id = $1 AND status = 'pending'
+         AND (heartbeat_at IS NULL OR heartbeat_at < current_epoch_ms() - $2)
+       RETURNING id`,
+      [intentId, leaseMs]
+    )
+    return res.length > 0
   }
 }

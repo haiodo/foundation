@@ -13,19 +13,20 @@
 // limitations under the License.
 //
 import activity, { type ActivityMessage, type SavedMessage } from '@hcengineering/activity'
-import core, { type Ref, SortingOrder, type WithLookup } from '@hcengineering/core'
+import core, { type Ref, SortingOrder } from '@hcengineering/core'
 import { createQuery, onClient } from '@hcengineering/presentation'
 import { writable } from 'svelte/store'
-import attachment from '@hcengineering/attachment'
-import { getCurrentLocation, navigate } from '@hcengineering/ui'
+import { getCurrentLocation, location as locationStore, navigate } from '@hcengineering/ui'
 
-export const savedMessagesStore = writable<Array<WithLookup<SavedMessage>>>([])
+import { getMessageFromLoc } from './utils'
+
+export const savedMessagesStore = writable<SavedMessage[]>([])
 export const messageInFocus = writable<Ref<ActivityMessage> | undefined>(undefined)
 export const editingMessageStore = writable<Ref<ActivityMessage> | undefined>(undefined)
 
 const savedMessagesQuery = createQuery(true)
 
-export function clearMessageInLocation (): void {
+function clearMessageInLocation (): void {
   const loc = getCurrentLocation()
   if (loc.query?.message != null) {
     delete loc.query.message
@@ -33,26 +34,24 @@ export function clearMessageInLocation (): void {
   }
 }
 
+locationStore.subscribe((newLocation) => {
+  const id = getMessageFromLoc(newLocation)
+  messageInFocus.set(id)
+})
+
+messageInFocus.subscribe((id) => {
+  if (id === undefined) {
+    clearMessageInLocation()
+  }
+})
+
 onClient(() => {
   savedMessagesQuery.query(
     activity.class.SavedMessage,
     { space: core.space.Workspace },
     (res) => {
-      savedMessagesStore.set(res.filter(({ $lookup }) => $lookup?.attachedTo !== undefined))
+      savedMessagesStore.set(res)
     },
-    {
-      lookup: {
-        attachedTo: [
-          activity.class.ActivityMessage,
-          {
-            _id: {
-              attachments: attachment.class.Attachment,
-              reactions: activity.class.Reaction
-            }
-          }
-        ]
-      },
-      sort: { modifiedOn: SortingOrder.Descending }
-    }
+    { sort: { modifiedOn: SortingOrder.Descending } }
   )
 })

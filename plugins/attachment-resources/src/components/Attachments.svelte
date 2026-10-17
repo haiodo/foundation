@@ -14,14 +14,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment } from '@hcengineering/attachment'
-  import { Class, Data, Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
-  import { Icon, Label, resizeObserver, Scroller, Spinner, ButtonIcon, IconAdd } from '@hcengineering/ui'
-  import view, { BuildModelKey } from '@hcengineering/view'
+  import type { Attachment } from '@hcengineering/attachment'
+  import type { Class, Data, Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
+  import { Icon, Label, resizeObserver, Scroller, Spinner, IconAdd } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import type { BuildModelKey } from '@hcengineering/view'
+  import view from '@hcengineering/view'
   import { Table } from '@hcengineering/view-resources'
-  import { getClient } from '@hcengineering/presentation'
-  import { FileUploadCallbackParams, uploadFiles } from '@hcengineering/uploader'
+  import presentation, { getClient } from '@hcengineering/presentation'
+  import type { FileUploadCallbackParams } from '@hcengineering/uploader'
+  import { uploadFiles } from '@hcengineering/uploader'
   import { createEventDispatcher } from 'svelte'
 
   import attachment from '../plugin'
@@ -30,6 +33,7 @@
   import AttachmentDroppable from './AttachmentDroppable.svelte'
   import IconAttachments from './icons/Attachments.svelte'
   import UploadDuo from './icons/UploadDuo.svelte'
+  import AttachmentRowPresenter from './AttachmentRowPresenter.svelte'
 
   export let object: Doc | undefined = undefined
   export let objectId: Ref<Doc>
@@ -101,7 +105,7 @@
   {#if showHeader}
     <div class="antiSection-header">
       <div class="antiSection-header__icon">
-        <Icon icon={IconAttachments} size={'small'} />
+        <Icon icon={IconAttachments} size="small" />
       </div>
       <span class="antiSection-header__title">
         <Label {label} />
@@ -110,7 +114,13 @@
         {#if loading}
           <Spinner />
         {:else if !readonly}
-          <ButtonIcon icon={IconAdd} kind={'tertiary'} size={'small'} on:click={openFile} />
+          <IconButton
+            icon={IconAdd}
+            kind="tertiary"
+            size="small"
+            tooltip={{ label: presentation.string.Add }}
+            on:click={openFile}
+          />
         {/if}
       </div>
     </div>
@@ -138,7 +148,7 @@
     >
       <div class="antiSection-empty attachments flex-col" class:mt-3={showHeader} class:solid={dragover}>
         <div class="flex-center caption-color">
-          <UploadDuo size={'large'} />
+          <UploadDuo size="large" />
         </div>
         <div class="text-sm content-dark-color" style:pointer-events="none">
           <Label label={attachment.string.NoAttachments} />
@@ -161,7 +171,7 @@
       <Table
         _class={attachmentClass}
         config={[
-          '',
+          { key: '', presenter: AttachmentRowPresenter },
           'description',
           {
             key: 'pinned',
@@ -183,7 +193,7 @@
     <Table
       _class={attachmentClass}
       config={[
-        '',
+        { key: '', presenter: AttachmentRowPresenter },
         'description',
         {
           key: 'pinned',

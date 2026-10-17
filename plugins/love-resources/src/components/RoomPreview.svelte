@@ -13,21 +13,32 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getCurrentEmployee, Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
+  import { getCurrentEmployee } from '@hcengineering/contact'
   import { Avatar, myEmployeeStore, getPersonByPersonRef, statusByUserStore } from '@hcengineering/contact-resources'
-  import { ParticipantInfo, Room, RoomAccess, RoomType, MeetingStatus, isOffice, Office } from '@hcengineering/love'
+  import type { MeetingMinutes, ParticipantInfo, Room } from '@hcengineering/love'
+  import { RoomType, MeetingStatus, isOffice, Office } from '@hcengineering/love'
   import { Icon, Label, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { getClient } from '@hcengineering/presentation'
   import { openDoc } from '@hcengineering/view-resources'
 
   import love from '../plugin'
-  import { myInfo, myOffice, selectedRoomPlace, currentRoom, currentMeetingMinutes, infos } from '../stores'
+  import {
+    myInfo,
+    myOffice,
+    selectedRoomPlace,
+    currentRoom,
+    currentMeetingMinutes,
+    infos,
+    meetings,
+    busyPersons
+  } from '../stores'
   import { getRoomLabel } from '../utils'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
   import { lkSessionConnected } from '../liveKitClient'
-  import { AccountUuid, clone, Ref } from '@hcengineering/core'
-  // import RoomLanguage from './RoomLanguage.svelte'
+  import type { AccountUuid, Ref } from '@hcengineering/core'
+  import { clone, getCurrentAccount } from '@hcengineering/core'
   import PersonActionPopup from './PersonActionPopup.svelte'
 
   export let room: Room
@@ -46,6 +57,7 @@
       if (posMap.has(`${r.x}.${r.y}`)) {
         conflicts.push(r)
       } else {
+        posMap.add(`${r.x}.${r.y}`)
         result.push(r)
       }
     }
@@ -65,12 +77,59 @@
         }
         if (found) break
       }
+      if (!found) {
+        // Grid is full - overflow along x, extra columns still render them.
+        let x = room.width
+        while (posMap.has(`${x}.0`)) x++
+        const nc = clone(c)
+        nc.x = x
+        nc.y = 0
+        posMap.add(`${x}.0`)
+        result.push(nc)
+      }
     }
 
     return result
   }
 
+  // prepareInfo resolves collisions per client, so browsers paint different layouts.
+  // The meeting creator writes its layout back; notMatch keeps it off a taken cell.
+  const persistedPlaces = new Set<string>()
+
+  async function persistPlaces (
+    resolved: ParticipantInfo[],
+    original: ParticipantInfo[],
+    allMeetings: MeetingMinutes[]
+  ): Promise<void> {
+    if (preview) return
+    const myIds = getCurrentAccount().socialIds
+    const client = getClient()
+
+    for (const r of resolved) {
+      const src = original.find((p) => p._id === r._id)
+      if (src === undefined || (src.x === r.x && src.y === r.y)) continue
+      // Overflow cells are outside the grid - the server picks those too.
+      if (r.x >= room.width || r.y >= room.height) continue
+      if (r.meeting == null) continue
+
+      const meeting = allMeetings.find((it) => it._id === r.meeting)
+      if (meeting?.createdBy == null || !myIds.includes(meeting.createdBy)) continue
+
+      const key = `${r._id}.${r.x}.${r.y}`
+      if (persistedPlaces.has(key)) continue
+      persistedPlaces.add(key)
+
+      const ops = client.apply(`love_place_${r._id}`)
+      ops.notMatch(love.class.ParticipantInfo, { room: room._id, x: r.x, y: r.y })
+      await ops.update(src, { x: r.x, y: r.y })
+      await ops.commit()
+    }
+  }
+
   $: _info = prepareInfo(info ?? [])
+  $: persistPlaces(_info, info ?? [], $meetings).catch((err) => {
+    console.error('[RoomPreview] failed to persist places', err)
+  })
 
   const me = getCurrentEmployee()
   $: myName = $myEmployeeStore?.name
@@ -84,6 +143,13 @@
       roomLabel = label
     })
   }
+
+  // Room is locked if participants are present but meeting is not in our accessible meetings store
+  // (private meeting we don't have access to)
+  $: isLockedByPrivateMeeting =
+    info.length > 0 &&
+    !info.some((p) => p.person === me) &&
+    !$meetings.some((m) => m.roomId === room._id && m.status !== MeetingStatus.Finished)
 
   $: disabled = room._class === love.class.Office && _info.length === 0
 
@@ -115,16 +181,16 @@
     const hierarchy = client.getHierarchy()
     if ($lkSessionConnected && $currentRoom?._id === room._id) {
       let meeting = $currentMeetingMinutes
-      if (meeting?.attachedTo !== room._id || meeting?.status !== MeetingStatus.Active) {
+      if (meeting?.roomId !== room._id || meeting?.status !== MeetingStatus.Active) {
         meeting = await client.findOne(love.class.MeetingMinutes, {
-          attachedTo: room._id,
+          roomId: room._id,
           status: MeetingStatus.Active
         })
       }
       if (meeting === undefined) {
         await openDoc(hierarchy, room)
       } else {
-        // We have active meeting, let's connect to it.
+        // We have active meeting, connect to it.
         await openDoc(hierarchy, meeting)
       }
     } else {
@@ -169,6 +235,9 @@
   }
 
   $: extraRow = calcExtraRows(hovered, room, _info, $myInfo)
+  // Footprint grows only on hover; otherwise overflow columns squeeze inside the
+  // room box - widening it permanently would overlap the neighbouring room.
+  $: spanWidth = hovered ? room.width + extraRow : room.width
 
   function calcExtraRows (
     hovered: boolean,
@@ -176,13 +245,14 @@
     info: ParticipantInfo[],
     myInfo: ParticipantInfo | undefined
   ): number {
-    if (!hovered) return 0
     let maxX = info.reduce((acc, p) => {
       acc = Math.max(acc, p.x)
       return acc
     }, 0)
     maxX++
     let init = maxX > room.width ? maxX - room.width : 0
+    // Overflow columns must render unhovered too, else those participants are invisible.
+    if (!hovered) return init
 
     for (let y = 0; y < room.height; y++) {
       for (let x = 0; x < room.width; x++) {
@@ -241,16 +311,17 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div
   class="floorGrid-room"
+  data-id={`room-${room.name}`}
   class:hovered
   class:disabled
   class:myOffice={$myOffice?._id === room._id}
   style:--huly-floor-roomWidth={room.width + extraRow}
   style:--huly-floor-roomHeight={room.height}
-  style:grid-column={`${room.x + 2} / span ${room.width + extraRow}`}
+  style:grid-column={`${room.x + 2} / span ${spanWidth}`}
   style:grid-row={`${room.y + 2} / span ${room.height}`}
   style:grid-template-columns={`repeat(${room.width + extraRow}, 1fr)`}
   style:grid-template-rows={`repeat(${room.height}, 1fr)`}
-  style:aspect-ratio={`${room.width + extraRow} / ${room.height}`}
+  style:aspect-ratio={`${spanWidth} / ${room.height}`}
   on:mouseover|stopPropagation
   on:mouseenter|stopPropagation={mouseEnter}
   on:mouseleave|stopPropagation={mouseLeave}
@@ -283,14 +354,22 @@
       >
         {#if personInfo === undefined && shouldShowAvatar && !isUserInOtherRoom && roomPerson != null && x === 0 && y === 0}
           {#if isHovered || isUserOnline || personPopupVisible === roomPerson?._id}
-            <Avatar name={roomPerson.name} person={roomPerson} size={'large'} variant={'roundedRect'} adaptiveName />
+            <Avatar name={roomPerson.name} person={roomPerson} size="large" variant="roundedRect" adaptiveName />
           {/if}
         {:else if personInfo !== undefined}
+          {@const isBusy = $busyPersons.has(personInfo.person)}
           {#await getPerson(personInfo.person) then person}
             {#if personInfo}
-              <Avatar name={person?.name ?? personInfo.name} {person} size={'large'} showStatus={false} adaptiveName />
+              <div class="relative">
+                <Avatar name={person?.name ?? personInfo.name} {person} size="large" showStatus={false} adaptiveName />
+                {#if isBusy}
+                  <div class="busy-badge" data-id="busy-badge">
+                    <Label label={love.string.Busy} />
+                  </div>
+                {/if}
+              </div>
             {:else if hoveredRoomX === x && hoveredRoomY === y}
-              <Avatar name={myName} person={$myEmployeeStore} size={'large'} showStatus={false} adaptiveName />
+              <Avatar name={myName} person={$myEmployeeStore} size="large" showStatus={false} adaptiveName />
             {/if}
           {/await}
         {/if}
@@ -306,16 +385,40 @@
       <!-- {#if !isOffice(room)}
         <RoomLanguage {room} />
       {/if} -->
-      {#if room.access === RoomAccess.DND || room.type === RoomType.Video}
+      {#if !isOffice(room) && (room.type === RoomType.Video || room.startPrivate || isLockedByPrivateMeeting)}
         <div class="flex-row-center flex-no-shrink h-full flex-gap-2">
-          {#if room.access === RoomAccess.DND}
-            <Icon icon={love.icon.DND} fill={'var(--bg-negative-default)'} size={'small'} />
+          {#if isLockedByPrivateMeeting || room.startPrivate}
+            <Icon
+              icon={love.icon.DND}
+              fill={isLockedByPrivateMeeting ? 'var(--bg-negative-default)' : 'var(--theme-caption-color)'}
+              size="small"
+            />
           {/if}
           {#if room.type === RoomType.Video}
-            <Icon icon={love.icon.CamEnabled} size={'small'} />
+            <Icon icon={love.icon.CamEnabled} size="small" />
           {/if}
         </div>
       {/if}
     </div>
   {/if}
 </div>
+
+<style lang="scss">
+  .relative {
+    position: relative;
+  }
+
+  .busy-badge {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-size: 0.65rem;
+    padding: 1px 2px;
+    text-align: center;
+    border-radius: 0 0 4px 4px;
+    pointer-events: none;
+  }
+</style>

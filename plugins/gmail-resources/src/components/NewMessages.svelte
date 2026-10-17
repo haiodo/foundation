@@ -14,15 +14,20 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
-  import attachmentP, { Attachment } from '@hcengineering/attachment'
+  import type { Attachment } from '@hcengineering/attachment'
+  import attachmentP from '@hcengineering/attachment'
   import { AttachmentPresenter } from '@hcengineering/attachment-resources'
-  import contact, { Channel, Contact, getName as getContactName } from '@hcengineering/contact'
-  import core, { generateId, getCurrentAccount, Markup, Ref, toIdMap } from '@hcengineering/core'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import type { Channel, Contact } from '@hcengineering/contact'
+  import contact, { getName as getContactName } from '@hcengineering/contact'
+  import type { Markup, Ref } from '@hcengineering/core'
+  import core, { generateId, getCurrentAccount, toIdMap } from '@hcengineering/core'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import setting, { Integration } from '@hcengineering/setting'
-  import templates, { TemplateDataProvider } from '@hcengineering/templates'
+  import type { Integration } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
+  import type { TemplateDataProvider } from '@hcengineering/templates'
+  import templates from '@hcengineering/templates'
   import { StyledTextEditor } from '@hcengineering/text-editor-resources'
   import { EmptyMarkup, isEmptyMarkup, markupToJSON } from '@hcengineering/text'
   import { markupToHtml } from '@hcengineering/text-html'
@@ -67,7 +72,7 @@
   let channels: Channel[] = []
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   const attachmentParentId = generateId()
   const account = getCurrentAccount()
@@ -130,7 +135,7 @@
     if (list === null || list.length === 0) return
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
-      if (file !== null) createAttachment(file)
+      if (file !== null) void createAttachment(file)
     }
     inputFile.value = ''
   }
@@ -140,7 +145,7 @@
     if (list === undefined || list.length === 0) return
     for (let index = 0; index < list.length; index++) {
       const file = list.item(index)
-      if (file !== null) createAttachment(file)
+      if (file !== null) void createAttachment(file)
     }
   }
 
@@ -164,7 +169,7 @@
         }
       )
     } catch (err: any) {
-      setPlatformStatus(unknownError(err))
+      void setPlatformStatus(unknownError(err))
     }
   }
 
@@ -196,6 +201,7 @@
   )
 
   function getName (channel: Channel): string {
+    // Channel.attachedTo is typed as a plain Doc ref; a contact channel always hangs off a Contact.
     const contact = contactMap.get(channel.attachedTo as Ref<Contact>)
     if (contact === undefined) return channel.value
     return `${getContactName(client.getHierarchy(), contact)} (${channel.value})`
@@ -207,7 +213,7 @@
   let integrations: Integration[] = []
   let selectedIntegration: Integration | undefined = undefined
 
-  getResource(templates.function.GetTemplateDataProvider).then((p) => {
+  void getResource(templates.function.GetTemplateDataProvider).then((p) => {
     templateProvider = p()
   })
 
@@ -257,7 +263,7 @@
     {#if integrations.length === 0}
       <Button
         label={plugin.string.Connect}
-        kind={'primary'}
+        kind="primary"
         on:click={(e) => {
           showPopup(Connect, {}, eventToHTMLElement(e))
         }}
@@ -297,7 +303,7 @@
       <div class="buttons-group small-gap">
         <Button
           icon={IconAttachment}
-          kind={'ghost'}
+          kind="ghost"
           disabled={channels.length === 0}
           on:click={() => {
             inputFile.click()
@@ -306,8 +312,8 @@
         {#if selectedIntegration}
           <Button
             label={plugin.string.Send}
-            size={'small'}
-            kind={'primary'}
+            size="small"
+            kind="primary"
             disabled={channels.length === 0 || isEmptyMarkup(content)}
             on:click={sendMsg}
           />
@@ -338,7 +344,7 @@
                 showPreview
                 removable
                 on:remove={(result) => {
-                  if (result !== undefined) removeAttachment(attachment)
+                  if (result !== undefined) void removeAttachment(attachment)
                 }}
               />
             </div>

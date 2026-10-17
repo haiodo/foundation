@@ -13,11 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { AnyAttribute, ArrOf, Doc, EnumOf, RefTo, Type } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { AnyAttribute, ArrOf, Doc, EnumOf, RefTo, Type } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
-  import { AnySvelteComponent, Icon, IconMoreV2, IconOpenedArrow, Label, tooltip } from '@hcengineering/ui'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { Icon, IconMoreV2, IconOpenedArrow, Label, tooltip } from '@hcengineering/ui'
   import view from '@hcengineering/view'
+  import setting from '../plugin'
 
   export let attribute: AnyAttribute
   export let attributeType: IntlString | undefined = undefined
@@ -25,14 +28,18 @@
   export let hovered: boolean = false
 
   export let attributeMapper:
-  | {
-    component: AnySvelteComponent
-    label: IntlString
-    props: Record<string, any>
-  }
-  | undefined = undefined
+    | {
+      component: AnySvelteComponent
+      label: IntlString
+      props: Record<string, any>
+    }
+    | undefined = undefined
 
   const client = getClient()
+  $: isKnownType = client.getHierarchy().hasClass(attribute.type._class)
+  $: typeLabel = isKnownType
+    ? (attribute.type.label ?? client.getHierarchy().getClass(attribute.type._class).label)
+    : undefined
 
   async function getEnumName (type: Type<any>): Promise<string | undefined> {
     const ref = (type as EnumOf).of
@@ -50,26 +57,35 @@
 
 <button class="hulyTableAttr-content__row w-full" class:hovered class:selected on:contextmenu on:click>
   <button class="hulyTableAttr-content__row-dragMenu">
-    <IconMoreV2 size={'small'} />
+    <IconMoreV2 size="small" />
   </button>
   {#if attribute.automationOnly === true}
     <div class="hulyTableAttr-content__row-icon" use:tooltip={{ label: view.string.AutomationOnly }}>
-      <Icon icon={view.icon.Setting} size={'small'} />
+      <Icon icon={view.icon.Setting} size="small" />
     </div>
   {/if}
   {#if attribute.icon !== undefined && attribute.icon !== null}
     <div class="hulyTableAttr-content__row-icon">
-      <Icon icon={attribute.icon} size={'small'} />
+      <Icon icon={attribute.icon} size="small" />
     </div>
   {/if}
   <div class="hulyTableAttr-content__row-label font-regular-14 grow" class:accent={!attribute.hidden}>
     <Label label={attribute.label} />
+    {#if attribute.required === true}
+      <span class="required-marker font-medium-12" use:tooltip={{ label: setting.string.Required }}>*</span>
+    {/if}
   </div>
   {#if attributeMapper}
     <svelte:component this={attributeMapper.component} {...attributeMapper.props} {attribute} />
   {/if}
   <div class="hulyTableAttr-content__row-type font-medium-12">
-    <Label label={attribute.type.label} />
+    {#if !isKnownType}
+      <span class="unknown-type" use:tooltip={{ label: setting.string.UnknownAttributeType }}>
+        <Label label={setting.string.UnknownType} />
+      </span>
+    {:else if typeLabel !== undefined}
+      <Label label={typeLabel} />
+    {/if}
     {#if attributeType !== undefined}
       : <Label label={attributeType} />
     {/if}
@@ -88,6 +104,25 @@
     {/if}
   </div>
   <div class="hulyTableAttr-content__row-arrow">
-    <IconOpenedArrow size={'small'} />
+    <IconOpenedArrow size="small" />
   </div>
 </button>
+
+<style lang="scss">
+  .hulyTableAttr-content__row-label {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: var(--spacing-0_5);
+  }
+
+  .unknown-type {
+    color: var(--global-error-TextColor);
+  }
+
+  .required-marker {
+    flex-shrink: 0;
+    color: var(--global-error-TextColor);
+    line-height: 1;
+  }
+</style>

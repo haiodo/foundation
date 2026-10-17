@@ -5,7 +5,7 @@
 <script lang="ts">
   import { Icon, Label, navigate } from '@hcengineering/ui'
   import { Table } from '@hcengineering/view-resources'
-  import { type Training } from '@hcengineering/training'
+  import type { Training } from '@hcengineering/training'
   import { Attachments, AttachmentStyleBoxEditor } from '@hcengineering/attachment-resources'
   import { AttributeBarEditor, getClient } from '@hcengineering/presentation'
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
@@ -66,7 +66,7 @@
   <section class="antiSection pt-6">
     <div class="antiSection-header">
       <div class="antiSection-header__icon">
-        <Icon icon={documents.icon.Document} size={'small'} />
+        <Icon icon={documents.icon.Document} size="small" />
       </div>
       <span class="antiSection-header__title">
         <Label label={documents.string.Documents} />

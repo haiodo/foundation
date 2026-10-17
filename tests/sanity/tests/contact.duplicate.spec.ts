@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from './fixtures'
 import { generateId, PlatformSetting, PlatformURI } from './utils'
 import { LeadsPage } from './model/leads/leads-page'
 
@@ -27,6 +27,6 @@ test.describe('duplicate-org-test', () => {
     await leadsPage.clickPersonButton()
     await leadsPage.clickCompanyButton()
     await leadsPage.inputCompanyName(genId)
-    await leadsPage.checkContactExistsMessage()
+    await leadsPage.checkContactExistsMessage(genId)
   })
 })

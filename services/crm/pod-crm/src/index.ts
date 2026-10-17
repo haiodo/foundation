@@ -26,6 +26,7 @@ import { AmoCrmClient } from './amocrm/client'
 import config from './config'
 import { createServer, listen } from './server'
 import { parseCookies } from './utils'
+import { crmPlugin, EmailNotification } from './plugin'
 
 async function main (): Promise<void> {
   configureAnalytics(config.ServiceId, process.env.VERSION ?? '0.7.0')
@@ -45,21 +46,23 @@ async function main (): Promise<void> {
 
   Analytics.setTag('application', config.ServiceId)
 
+  const queue = getPlatformQueue(config.ServiceId, config.QueueRegion)
+  const notificationProducer = queue.getProducer<EmailNotification>(ctx, QueueTopic.NotificationQueue)
+
+  setMetadata(crmPlugin.metadata.MailQueue, notificationProducer)
   setMetadata(serverToken.metadata.Secret, config.Secret)
   setMetadata(serverToken.metadata.Service, config.ServiceId)
   setMetadata(serverClient.metadata.Endpoint, config.AccountsUrl)
-
-  const queue = getPlatformQueue(config.ServiceId, config.QueueRegion)
 
   const consumer = queue.createConsumer<Record<string, any>>(
     ctx,
     QueueTopic.CrmQueue,
     queue.getClientId(),
     async (ctx, queueMessage) => {
-      const { firstName, lastName, email, cookies } = queueMessage.value
+      const { firstName, lastName, email, cookies, phone } = queueMessage.value
       const amocrm = new AmoCrmClient(ctx)
       const cookieValues = parseCookies(cookies)
-      await amocrm.createLead(cookieValues, config.AmoCrmTrialStatus, firstName, lastName, email)
+      await amocrm.createLead(cookieValues, config.AmoCrmTrialStatus, firstName, lastName, email, phone)
     }
   )
 

@@ -13,17 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Asset } from '@hcengineering/platform'
-  import { TagElement, TagReference } from '@hcengineering/tags'
-  import {
-    ActionIcon,
-    AnySvelteComponent,
-    Icon,
-    getPlatformColor,
-    getPlatformColorDef,
-    themeStore,
-    tooltip
-  } from '@hcengineering/ui'
+  import type { Asset } from '@hcengineering/platform'
+  import type { TagElement, TagReference } from '@hcengineering/tags'
+  import type { AnySvelteComponent } from '@hcengineering/ui'
+  import { ActionIcon, Icon, getPlatformColor, getPlatformColorDef, themeStore, tooltip } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import tags from '../plugin'
   import { getTagStyle, tagLevel } from '../utils'
@@ -81,14 +74,14 @@
     <span class="overflow-label max-w-40">{name}</span>
     {#if tag && tagIcon && schema !== '0'}
       <span class="ml-1">
-        <Icon icon={tagIcon} size={'small'} />
+        <Icon icon={tagIcon} size="small" />
       </span>
     {/if}
     {#if action}
       <div class="flex-center ml-1">
         <ActionIcon
           icon={action}
-          size={'small'}
+          size="small"
           action={() => {
             dispatch('action')
           }}

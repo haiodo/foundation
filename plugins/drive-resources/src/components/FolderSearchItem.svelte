@@ -14,8 +14,9 @@
 //
 -->
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
-  import drive, { Folder } from '@hcengineering/drive'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { Folder } from '@hcengineering/drive'
+  import drive from '@hcengineering/drive'
   import { Icon } from '@hcengineering/ui'
 
   export let value: WithLookup<Folder>
@@ -23,7 +24,7 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <Icon icon={drive.icon.Folder} size={'medium'} />
+    <Icon icon={drive.icon.Folder} size="medium" />
   </div>
   <span class="overflow-label">
     {value.title}

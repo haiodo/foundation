@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import presentation, { Card } from '@hcengineering/presentation'
-  import { ProcessFunction } from '@hcengineering/process'
+  import type { ProcessFunction } from '@hcengineering/process'
   import { Label } from '@hcengineering/ui'
   import { NumberEditor } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -33,14 +33,14 @@
   }
 </script>
 
-<Card on:close width={'x-small'} label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
+<Card on:close width="x-small" label={func.label} canSave okAction={save} okLabel={presentation.string.Save}>
   <div class="grid">
     <Label label={process.string.Start} />
     <NumberEditor
       bind:value={start}
-      size={'large'}
-      kind={'regular'}
-      justify={'left'}
+      size="large"
+      kind="regular"
+      justify="left"
       onChange={(res) => {
         if (res !== undefined) start = res
       }}
@@ -49,9 +49,9 @@
     <Label label={process.string.End} />
     <NumberEditor
       bind:value={end}
-      size={'large'}
-      kind={'regular'}
-      justify={'left'}
+      size="large"
+      kind="regular"
+      justify="left"
       onChange={(res) => {
         if (res !== undefined) end = res
       }}

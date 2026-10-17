@@ -14,7 +14,28 @@
 //
 
 import { concatLink } from '@hcengineering/core'
+import { withRetry, DelayStrategyFactory, type IsRetryable } from '@hcengineering/retry'
 import { FileStorageUploadOptions } from './types'
+
+/** Upload rejected because the workspace storage/plan limit is reached (HTTP 413). @public */
+export class StorageLimitError extends Error {
+  readonly isStorageLimit = true
+  constructor (message: string) {
+    super(message)
+    this.name = 'StorageLimitError'
+  }
+}
+
+/** Extract the server's JSON `message`, falling back to a generic limit text. */
+function serverMessage (body: string): string {
+  try {
+    const m = JSON.parse(body)?.message
+    if (typeof m === 'string' && m.length > 0) return m
+  } catch {
+    /* not JSON */
+  }
+  return 'Resource limit exceeded'
+}
 
 /** @public */
 export interface XHRUpload {
@@ -68,6 +89,9 @@ export async function uploadXhr (upload: XHRUpload, options?: FileStorageUploadO
             status: xhr.status,
             responseText: xhr.responseText
           })
+        } else if (xhr.status === 413) {
+          // Storage/plan limit reached — surface the server's message, not the generic HTTP text.
+          reject(new StorageLimitError(serverMessage(xhr.responseText)))
         } else {
           reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`))
         }
@@ -117,7 +141,15 @@ export async function uploadMultipart (upload: MultipartUpload, options?: FileSt
   let uploadId: string | undefined
 
   try {
-    const { uploadId } = await multipartUploadCreate(url, { ...headers, 'Content-Type': body.type }, signal)
+    throwIfAborted(signal)
+    // Retry each stage on transient errors. Create yields a fresh uploadId per attempt;
+    // part/complete reuse the current uploadId and are idempotent by partNumber.
+    uploadId = (
+      await retryStage(
+        signal,
+        async () => await multipartUploadCreate(url, { ...headers, 'Content-Type': body.type }, signal)
+      )
+    ).uploadId
 
     const parts: Array<{ partNumber: number, etag: string }> = []
     const totalParts = Math.ceil(body.size / CHUNK_SIZE)
@@ -145,7 +177,11 @@ export async function uploadMultipart (upload: MultipartUpload, options?: FileSt
             : undefined
       }
 
-      const { etag } = await multipartUploadPart(url, headers, uploadId, partNumber, chunk, partOptions)
+      const currentUploadId = uploadId
+      const { etag } = await retryStage(
+        signal,
+        async () => await multipartUploadPart(url, headers, currentUploadId, partNumber, chunk, partOptions)
+      )
       parts.push({ partNumber, etag })
 
       uploaded += chunk.size
@@ -153,7 +189,10 @@ export async function uploadMultipart (upload: MultipartUpload, options?: FileSt
 
     throwIfAborted(signal)
 
-    await multipartUploadComplete(url, headers, uploadId, parts, signal)
+    const currentUploadId = uploadId
+    await retryStage(signal, async () => {
+      await multipartUploadComplete(url, headers, currentUploadId, parts, signal)
+    })
   } catch (err) {
     if (uploadId !== undefined) {
       await multipartUploadAbort(url, headers, uploadId)
@@ -169,6 +208,30 @@ function throwIfAborted (signal?: AbortSignal): void {
   }
 }
 
+// Retry a multipart stage. Does not retry on abort or non-retriable client errors (4xx except 408/429).
+export async function retryStage<T> (signal: AbortSignal | undefined, op: () => Promise<T>): Promise<T> {
+  const isRetryable: IsRetryable = (err) => {
+    if (signal?.aborted === true) return false
+    const message = err instanceof Error ? err.message : String(err)
+    const m = /status (\d{3})/.exec(message)
+    if (m != null) {
+      const status = parseInt(m[1], 10)
+      if (status >= 400 && status < 500 && status !== 408 && status !== 429) return false
+    }
+    return true
+  }
+  return await withRetry(op, {
+    maxRetries: 5,
+    isRetryable,
+    delayStrategy: DelayStrategyFactory.exponentialBackoff({
+      initialDelayMs: 200,
+      maxDelayMs: 5000,
+      backoffFactor: 2,
+      jitter: 0.2
+    })
+  })
+}
+
 async function multipartUploadCreate (
   baseUrl: string,
   headers: Record<string, string>,
@@ -181,7 +244,11 @@ async function multipartUploadCreate (
   })
 
   if (!response.ok) {
-    throw new Error('Failed to initialize multipart upload')
+    if (response.status === 413) {
+      throw new StorageLimitError(serverMessage(await response.text().catch(() => '')))
+    }
+    // Keep "(status NNN)" — retryStage.isRetryable parses it to skip retrying client 4xx.
+    throw new Error(`Failed to initialize multipart upload (status ${response.status})`)
   }
 
   const { uuid, uploadId } = await response.json()
@@ -209,7 +276,10 @@ async function multipartUploadComplete (
   })
 
   if (!response.ok) {
-    throw new Error('Failed to complete multipart upload')
+    if (response.status === 413) {
+      throw new StorageLimitError(serverMessage(await response.text().catch(() => '')))
+    }
+    throw new Error(`Failed to complete multipart upload (status ${response.status})`)
   }
 }
 

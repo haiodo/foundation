@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
+  import type { TimeZone } from '..'
   import ui, {
     deviceOptionsStore,
     IconSearch,
@@ -23,7 +24,6 @@
     resizeObserver,
     EditWithIcon,
     IconClose,
-    TimeZone,
     IconChevronDown,
     ActionIcon,
     IconUndo
@@ -80,7 +80,7 @@
   <div class="header">
     <EditWithIcon
       icon={IconSearch}
-      size={'large'}
+      size="large"
       autoFocus={!$deviceOptionsStore.isMobile}
       bind:value={search}
       placeholder={ui.string.SearchDots}
@@ -88,14 +88,14 @@
   </div>
   {#if selectedTZ}
     <div class="header flex-col">
-      <div class="flex-between min-h-4" style:margin-right={'-.5rem'}>
+      <div class="flex-between min-h-4" style:margin-right="-.5rem">
         <span class="text-xs font-medium uppercase content-darker-color flex-grow">
           <Label label={ui.string.Selected} />
         </span>
         {#if reset !== null}
           <ActionIcon
             icon={IconUndo}
-            size={'x-small'}
+            size="x-small"
             action={async () => {
               if (reset !== null) selected = reset
               reset = null
@@ -106,7 +106,7 @@
         {#if count > 1}
           <ActionIcon
             icon={IconClose}
-            size={'x-small'}
+            size="x-small"
             action={async () => {
               dispatch('close', 'delete')
             }}
@@ -134,7 +134,7 @@
               >
                 <div class="flex-row-center">
                   <div class="chevron">
-                    <IconChevronDown size={'small'} filled />
+                    <IconChevronDown size="small" filled />
                   </div>
                   <span class="ml-2">{cont.continent}</span>
                 </div>
@@ -147,8 +147,8 @@
                       <div class="tool ml-2">
                         <Button
                           icon={IconAdd}
-                          size={'small'}
-                          kind={'ghost'}
+                          size="small"
+                          kind="ghost"
                           disabled={count > 4}
                           on:click={() => {
                             count++

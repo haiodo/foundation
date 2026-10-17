@@ -13,8 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { Type } from '@hcengineering/core'
-  import { Process, UserResult } from '@hcengineering/process'
+  import type { Type } from '@hcengineering/core'
+  import core from '@hcengineering/core'
+  import { translate } from '@hcengineering/platform'
+  import { getClient } from '@hcengineering/presentation'
+  import type { Process, UserResult } from '@hcengineering/process'
   import { Button, EditBox, IconClose, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { generateContextId } from '../../utils'
@@ -29,7 +32,9 @@
 
   const dispatch = createEventDispatcher()
 
-  function update (): void {
+  const client = getClient()
+
+  async function update (): Promise<void> {
     if (type == null) {
       result = null
     } else {
@@ -38,6 +43,13 @@
         name,
         key,
         type
+      }
+      if (key !== undefined) {
+        const attr = client.getModel().findAllSync(core.class.Attribute, { name: key })[0]
+        if (attr?.label !== undefined) {
+          name = await translate(attr.label, {})
+          result.name = name
+        }
       }
     }
     dispatch('change', result)
@@ -56,7 +68,7 @@
     <Label label={core.string.Description} />
   </span>
   <div class="flex-row-center flex-gap-2">
-    <EditBox bind:value={name} placeholder={core.string.Description} on:change={handleNameChange} kind={'default'} />
+    <EditBox bind:value={name} placeholder={core.string.Description} on:change={handleNameChange} kind="default" />
     <Button
       icon={IconClose}
       kind="ghost"

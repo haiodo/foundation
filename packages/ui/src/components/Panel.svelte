@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import { afterUpdate, createEventDispatcher, onMount } from 'svelte'
+  import type { ButtonItem, HeaderAdaptive, IHeaderState } from '..'
   import {
     deviceOptionsStore as deviceInfo,
     Separator,
@@ -23,11 +24,8 @@
     ButtonGroup,
     Scroller,
     panelSeparators,
-    ButtonItem,
-    Header,
-    HeaderAdaptive,
-    IHeaderState
-  } from '../../'
+    Header
+  } from '..'
   import IconClose from './icons/Close.svelte'
   import IconDetails from './icons/Details.svelte'
   import IconMaxWidth from './icons/MaxWidth.svelte'
@@ -171,7 +169,7 @@
   }}
 >
   <Header
-    type={'type-panel'}
+    type="type-panel"
     noPrint={!printHeader}
     adaptive={$deviceInfo.isMobile ? 'disabled' : adaptive}
     {hideBefore}
@@ -187,11 +185,11 @@
     <svelte:fragment slot="beforeTitle">
       {#if allowClose}
         <Button
-          id={'btnPClose'}
+          id="btnPClose"
           focusIndex={10001}
           icon={IconClose}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           noPrint
           on:click={() => {
             dispatch('close')
@@ -219,7 +217,7 @@
           focusIndex={10009}
           icon={useMaxWidth ? IconMaxWidth : IconMinWidth}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           selected={useMaxWidth}
           showTooltip={{ label: plugin.string.UseMaxWidth, direction: 'bottom' }}
           on:click={() => {
@@ -233,7 +231,7 @@
           focusIndex={100010}
           icon={fullSize ? IconScale : IconScaleFull}
           iconProps={{ size: 'medium' }}
-          kind={'icon'}
+          kind="icon"
           selected={fullSize}
           showTooltip={{ label: plugin.string.FullSize, direction: 'bottom' }}
           on:click={() => {
@@ -252,11 +250,11 @@
           />
         {:else}
           <Button
-            id={'btnPAside'}
+            id="btnPAside"
             focusIndex={10008}
             icon={IconDetails}
             iconProps={{ size: 'medium', filled: asideShown }}
-            kind={'icon'}
+            kind="icon"
             selected={asideShown}
             showTooltip={{ label: plugin.string.Sidebar, direction: 'bottom' }}
             on:click={handleAside}
@@ -277,7 +275,7 @@
           innerWidth = element.clientWidth
         }}
       >
-        <Scroller horizontal padding={'.5rem .75rem'}>
+        <Scroller horizontal padding=".5rem .75rem">
           {#if $$slots.header && isHeader}
             <div class="popupPanel-body__header mobile bottom-divider" class:max={useMaxWidth}>
               <slot name="header" />
@@ -310,9 +308,9 @@
     {/if}
 
     {#if $$slots.aside && isAside && asideShown}
-      <Separator name={'panel-aside'} float={asideFloat} index={0} />
+      <Separator name="panel-aside" float={asideFloat} index={0} />
       <div class="popupPanel-body__aside no-print" class:float={asideFloat} class:shown={asideShown}>
-        <Separator name={'panel-aside'} float={asideFloat ? 'aside' : true} index={0} />
+        <Separator name="panel-aside" float={asideFloat ? 'aside' : true} index={0} />
         <div class="antiPanel-wrap__content">
           <slot name="aside" />
         </div>

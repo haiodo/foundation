@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { parseContext, Process, Trigger } from '@hcengineering/process'
+  import type { Process, Trigger } from '@hcengineering/process'
+  import { parseContext } from '@hcengineering/process'
   import { Component, Icon, IconError, Label, tooltip } from '@hcengineering/ui'
 
   export let value: Ref<Trigger>
@@ -41,7 +42,7 @@
         return
       }
       const context = parseContext(val)
-      if (context !== undefined && context.type === 'context') {
+      if (context?.type === 'context') {
         if (process.context[context.id] === undefined) {
           error = true
           return
@@ -54,7 +55,7 @@
 
 {#if trigger}
   <div class="flex-row-center flex-gap-1" use:tooltip={{ label: trigger.label }}>
-    <Icon icon={error ? IconError : trigger.icon} size={'medium'} />
+    <Icon icon={error ? IconError : trigger.icon} size="medium" />
     {#if withLabel}
       <Label label={trigger.label} />
       {#if trigger.presenter}

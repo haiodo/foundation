@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { WithLookup } from '@hcengineering/core'
-  import { DocumentMeta } from '@hcengineering/controlled-documents'
+  import type { WithLookup } from '@hcengineering/core'
+  import type { DocumentMeta } from '@hcengineering/controlled-documents'
 
   import DocumentIcon from './icons/DocumentIcon.svelte'
 
@@ -9,7 +9,7 @@
 
 <div class="flex-row-center">
   <div class="flex-center p-1 content-dark-color flex-no-shrink mr-2-5">
-    <DocumentIcon size={'medium'} />
+    <DocumentIcon size="medium" />
   </div>
   <span class="overflow-label">
     {value.title}

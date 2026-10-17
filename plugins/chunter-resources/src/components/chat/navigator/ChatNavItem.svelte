@@ -13,32 +13,29 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import notification, { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
+  import type { DocNotificationSetting, UnreadContext } from '@hcengineering/notification'
+  import notification from '@hcengineering/notification'
   import { translate } from '@hcengineering/platform'
-  import { getClient } from '@hcengineering/presentation'
-  import { Action, languageStore, lowercaseFirstLetter, Menu, showPopup } from '@hcengineering/ui'
-  import { getObjectLinkId, canLeaveSpace, IconPicker } from '@hcengineering/view-resources'
-  import {
-    getNotificationsCount,
-    InboxNotificationsClientImpl,
-    isActivityNotification,
-    isMentionNotification,
-    MutePopup
-  } from '@hcengineering/notification-resources'
+  import { copyTextToClipboard, getClient } from '@hcengineering/presentation'
+  import type { Action } from '@hcengineering/ui'
+  import { languageStore, lowercaseFirstLetter, Menu, showPopup } from '@hcengineering/ui'
+  import { getLink, getObjectLinkId, canLeaveSpace, IconPicker } from '@hcengineering/view-resources'
+  import { NotificationClientImpl, MutePopup } from '@hcengineering/notification-resources'
   import { createEventDispatcher } from 'svelte'
   import view from '@hcengineering/view'
-  import { Doc, getCurrentAccount, Ref, Space } from '@hcengineering/core'
-  import { Channel, Chat } from '@hcengineering/chunter'
+  import type { Doc, Space } from '@hcengineering/core'
+  import { getCurrentAccount } from '@hcengineering/core'
+  import type { Channel, Chat } from '@hcengineering/chunter'
   import workbench from '@hcengineering/workbench'
 
   import NavItem from './NavItem.svelte'
-  import { ChatNavItemModel } from '../types'
+  import type { ChatNavItemModel } from '../types'
   import { openChannel, openChannelInSidebar, resetChunterLocIfEqual } from '../../../navigation'
   import chunter from '../../../plugin'
   import { leaveChannel, toggleChannelIcon } from '../../../utils'
   import ChannelIcon from '../../ChannelIcon.svelte'
 
-  export let context: DocNotifyContext | undefined
+  export let unread: UnreadContext | undefined
   export let item: ChatNavItemModel
   export let isSelected = false
   export let type: 'type-link' | 'type-tag' | 'type-anchor-link' | 'type-object' = 'type-link'
@@ -46,39 +43,24 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
   const dispatch = createEventDispatcher()
-  const notificationClient = InboxNotificationsClientImpl.getClient()
-  const notificationsByContextStore = notificationClient.inboxNotificationsByContext
+  const notificationClient = NotificationClientImpl.getClient()
+  const settingByDocStore = notificationClient.docSettingByDoc
 
-  let count: number | null = null
+  let setting: DocNotificationSetting | undefined = undefined
+  let count: number = 0
   let actions: Action[] = []
 
-  $: count = countNotifications(context, $notificationsByContextStore)
+  $: void notificationClient.loadDocSetting(item.object._id)
+  $: setting = $settingByDocStore.get(item.object._id) ?? undefined
+  $: count = unread?.unreadMessagesCount ?? 0
 
-  $: void getActions(item.object, item.chat, context).then((res) => {
+  $: void getActions(item.object, item.chat).then((res) => {
     actions = res
   })
 
-  function countNotifications (
-    context: DocNotifyContext | undefined,
-    notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): number | null {
-    if (context === undefined) {
-      return null
-    }
-
-    const notifications = (notificationsByContext.get(context._id) ?? []).filter((n) => {
-      if (isActivityNotification(n)) return true
-
-      return isMentionNotification(n) && hierarchy.isDerived(n.mentionedInClass, chunter.class.ChatMessage)
-    })
-
-    const res = getNotificationsCount(context, notifications)
-    return res === 0 ? null : res
-  }
-
   const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
 
-  async function getActions (object: Doc, chat?: Chat, context?: DocNotifyContext): Promise<Action[]> {
+  async function getActions (object: Doc, chat?: Chat): Promise<Action[]> {
     const result: Action[] = []
 
     result.push({
@@ -100,6 +82,18 @@
       }
     })
 
+    if (hierarchy.isDerived(object._class, chunter.class.Channel)) {
+      result.push({
+        label: chunter.string.CopyLink,
+        icon: chunter.icon.Copy,
+        group: 'edit',
+        action: async () => {
+          // The promise goes straight in: awaiting first loses the click gesture in Safari.
+          await copyTextToClipboard(getLink(object))
+        }
+      })
+    }
+
     const label = lowercaseFirstLetter(await translate(hierarchy.getClass(object._class).label, {}, $languageStore))
 
     if (chat != null && !chat.pinned) {
@@ -120,7 +114,7 @@
           )
         }
       })
-    } else if (chat != null && chat.pinned) {
+    } else if (chat?.pinned === true) {
       result.push({
         icon: view.icon.Star,
         label: chunter.string.Unstar,
@@ -148,7 +142,8 @@
         group: 'tools',
         component: IconPicker,
         props: { icon: channel.icon, color: channel.emoji },
-        action: async (result) => {
+        action: async () => {},
+        onSubmenuResult: async (result) => {
           if (result == null) return
           await toggleChannelIcon(channel, result.icon, result.color)
         }
@@ -191,7 +186,7 @@
             'chats',
             { hidden: true }
           )
-          await resetChunterLocIfEqual(object._id, object._class, object)
+          await resetChunterLocIfEqual(object._id)
         }
       })
     }
@@ -221,13 +216,13 @@
   {isSelected}
   iconProps={{ ...item.iconProps, value: item.object }}
   {count}
+  countColor={(unread?.notifiedMessagesCount ?? 0) === 0 ? 'gray' : 'red'}
   title={item.title}
-  description={item.description}
-  secondaryNotifyMarker={(context?.lastView ?? 0) < (context?.lastUpdate ?? 0) &&
-    (context?.lastNotifiedMessage ?? 0) < (context?.lastUpdate ?? 0)}
+  subTitle={item.subTitle}
+  identifier={item.identifier}
   {actions}
   {type}
-  muted={context?.settings?.mode === 'mute'}
+  muted={setting?.mode === 'mute'}
   {pressed}
   on:click={() => {
     const select = { chat: item.chat, object: item.object }

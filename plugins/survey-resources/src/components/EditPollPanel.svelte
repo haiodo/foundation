@@ -15,10 +15,10 @@
 //
 -->
 <script lang="ts">
-  import { Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { Panel } from '@hcengineering/panel'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Poll } from '@hcengineering/survey'
+  import type { Poll } from '@hcengineering/survey'
   import { Button, DebouncedCaller, IconMoreH, ThrottledCaller } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { DocNavLink, ParentsNavigator, showMenu } from '@hcengineering/view-resources'
@@ -74,19 +74,6 @@
       return
     }
     requestUpdate = false
-    // showPopup(
-    //   MessageBox,
-    //   {
-    //     label: survey.string.SurveySubmit,
-    //     message: survey.string.SurveySubmitConfirm
-    //   },
-    //   undefined,
-    //   async (result?: boolean) => {
-    //     if (result === true && object !== undefined) {
-    //       await getClient().updateDoc(object._class, object.space, object._id, { isCompleted: true })
-    //     }
-    //   }
-    // )
     await getClient().updateDoc(object._class, object.space, object._id, { isCompleted: true })
   }
 
@@ -138,7 +125,7 @@
         <Button
           icon={survey.icon.Submit}
           label={survey.string.SurveySubmit}
-          kind={'primary'}
+          kind="primary"
           disabled={!canSubmit}
           showTooltip={{ label: canSubmit ? undefined : survey.string.ValidateFail }}
           on:click={submit}
@@ -155,7 +142,7 @@
       <Button
         icon={IconMoreH}
         iconProps={{ size: 'medium' }}
-        kind={'icon'}
+        kind="icon"
         on:click={(e) => {
           showMenu(e, { object, excludedActions: [view.action.Open] })
         }}

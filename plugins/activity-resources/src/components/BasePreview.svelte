@@ -15,16 +15,19 @@
 
 <script lang="ts">
   import { ComponentExtensions, getClient, LiteMessageViewer } from '@hcengineering/presentation'
-  import { Person } from '@hcengineering/contact'
+  import type { Person } from '@hcengineering/contact'
   import { Avatar, getPersonByPersonIdCb, SystemAvatar } from '@hcengineering/contact-resources'
-  import core, { PersonId, Doc, Timestamp } from '@hcengineering/core'
+  import type { PersonId, Doc, Timestamp, Ref, Class } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import { Icon, Label, resizeObserver, TimeSince, tooltip } from '@hcengineering/ui'
-  import { Asset, getEmbeddedLabel, IntlString } from '@hcengineering/platform'
-  import activity, { ActivityMessage, ActivityMessagePreviewType } from '@hcengineering/activity'
+  import type { Asset, IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
+  import type { ActivityMessagePreviewType } from '@hcengineering/activity'
+  import activity from '@hcengineering/activity'
   import { classIcon, DocNavLink } from '@hcengineering/view-resources'
   import { markupToText } from '@hcengineering/text'
+  import { getObjectById } from '../objectCache'
 
-  export let message: ActivityMessage | undefined = undefined
   export let text: string | undefined = undefined
   export let intlLabel: IntlString | undefined = undefined
   export let readonly = false
@@ -32,7 +35,8 @@
   export let timestamp: Timestamp
   export let account: PersonId | undefined = undefined
   export let isCompact = false
-  export let headerObject: Doc | undefined = undefined
+  export let headerObjectClass: Ref<Class<Doc>> | undefined = undefined
+  export let headerObjectId: Ref<Doc> | undefined = undefined
   export let headerIcon: Asset | undefined = undefined
   export let header: IntlString | undefined = undefined
   export let headerParams: Record<string, any> = {}
@@ -56,6 +60,16 @@
   } else {
     person = undefined
   }
+
+  let headerObject: Doc | undefined = undefined
+
+  $: void (
+    headerObjectId &&
+    headerObjectClass &&
+    getObjectById(headerObjectClass, headerObjectId).then((doc) => {
+      headerObject = doc
+    })
+  )
 
   export function onActionsOpened (): void {
     isActionsOpened = true
@@ -105,8 +119,15 @@
     {#if type === 'full'}
       <div class="header">
         <span class="icon" use:tooltip={{ label: tooltipLabel }}>
-          {#if headerObject}
-            <Icon icon={headerIcon ?? classIcon(client, headerObject._class) ?? activity.icon.Activity} size="small" />
+          {#if headerObjectClass ?? headerObject}
+            <Icon
+              icon={headerIcon ??
+                classIcon(client, headerObjectClass ?? headerObject?._class ?? core.class.Doc) ??
+                activity.icon.Activity}
+              size="small"
+            />
+          {:else if headerIcon}
+            <Icon icon={headerIcon} size="small" />
           {:else if person}
             <Avatar size="card" {person} name={person.name} />
           {:else}
@@ -115,13 +136,16 @@
         </span>
 
         {#if !isCompact}
-          {#if headerObject}
+          {#if headerObjectClass ?? headerObject}
             <DocNavLink object={headerObject} colorInherit>
               <Label
-                label={header ?? client.getHierarchy().getClass(headerObject._class).label}
+                label={header ??
+                  client.getHierarchy().getClass(headerObjectClass ?? headerObject?._class ?? core.class.Doc).label}
                 params={headerParams}
               />
             </DocNavLink>
+          {:else if header}
+            <Label label={header} params={headerParams} />
           {:else if person}
             <ComponentExtensions extension={activity.extension.ActivityEmployeePresenter} props={{ person }} />
           {:else}
@@ -151,12 +175,6 @@
     <slot name="content" />
   </span>
 
-  <!--{#if !readonly}-->
-  <!--  <div class="actions" class:opened={isActionsOpened}>-->
-  <!--    <slot name="actions" />-->
-  <!--  </div>-->
-  <!--{/if}-->
-
   <div class="right">
     <slot name="right" />
     {#if type === 'full'}
@@ -172,7 +190,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 2.375rem;
+    height: 2.125rem;
     color: var(--global-primary-TextColor);
     width: 100%;
     padding: 0 var(--spacing-0_5);
@@ -189,17 +207,6 @@
       cursor: default;
     }
 
-    .actions {
-      position: absolute;
-      visibility: hidden;
-      top: -1.75rem;
-      right: 0;
-
-      &.opened {
-        visibility: visible;
-      }
-    }
-
     .left {
       position: relative;
       height: 100%;
@@ -213,14 +220,6 @@
       align-items: center;
       gap: var(--spacing-1);
       margin-left: var(--spacing-0_5);
-    }
-
-    &:hover:not(.readonly) > .actions {
-      visibility: visible;
-    }
-
-    &.actionsOpened {
-      background-color: var(--global-ui-BackgroundColor);
     }
   }
 
@@ -242,6 +241,7 @@
   }
 
   .time {
+    font-size: 0.75rem;
     white-space: nowrap;
     color: var(--global-tertiary-TextColor);
   }

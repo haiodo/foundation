@@ -16,7 +16,8 @@
   import core from '@hcengineering/core'
   import login from '@hcengineering/login'
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import setting, { InviteSettings } from '@hcengineering/setting'
+  import type { InviteSettings } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
   import { Breadcrumb, Button, EditBox, Header, MiniToggle } from '@hcengineering/ui'
 
   const client = getClient()
@@ -57,23 +58,23 @@
 </script>
 
 <div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={setting.icon.InviteSettings} label={setting.string.InviteSettings} size={'large'} isCurrent />
+  <Header adaptive="disabled">
+    <Breadcrumb icon={setting.icon.InviteSettings} label={setting.string.InviteSettings} size="large" isCurrent />
   </Header>
   <div class="form">
     <div class="mt-2">
-      <EditBox label={login.string.LinkValidHours} format={'number'} bind:value={expTime} />
+      <EditBox label={login.string.LinkValidHours} format="number" bind:value={expTime} />
     </div>
     <div class="mt-2">
       <MiniToggle bind:on={noLimit} label={login.string.NoLimit} on:change={() => noLimit && (limit = -1)} />
     </div>
     {#if !noLimit}
       <div class="mt-2">
-        <EditBox label={login.string.InviteLimit} format={'number'} bind:value={limit} />
+        <EditBox label={login.string.InviteLimit} format="number" bind:value={limit} />
       </div>
     {/if}
     <div class="mt-2">
-      <Button label={presentation.string.Save} size={'medium'} kind={'primary'} on:click={() => setInviteSettings()} />
+      <Button label={presentation.string.Save} size="medium" kind="primary" on:click={() => setInviteSettings()} />
     </div>
   </div>
 </div>

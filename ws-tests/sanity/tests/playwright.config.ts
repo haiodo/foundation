@@ -2,6 +2,11 @@ import { devices, PlaywrightTestConfig } from '@playwright/test'
 import { config as dotenvConfig } from 'dotenv'
 dotenvConfig()
 
+const PlatformURI = process.env.PLATFORM_URI ?? 'http://localhost:8083'
+
+// Tracing every attempt costs the whole run; TRACE_MODE=retain-on-failure when hunting a flake.
+const traceMode = (process.env.TRACE_MODE ?? 'on-first-retry') as 'on-first-retry'
+
 let maxFailures: number | undefined
 if (process.env.TESTS_MAX_FAILURES !== undefined) {
   maxFailures = parseInt(process.env.TESTS_MAX_FAILURES)
@@ -13,6 +18,17 @@ const config: PlaywrightTestConfig = {
     {
       name: 'Platform',
       use: {
+        // A toast lives 10s (packages/ui/src/utils.ts) over #profile-button; every click on it
+        // waits the toast out. setTestOptions() avoids this but only for tests that call it.
+        storageState: {
+          cookies: [],
+          origins: [
+            {
+              origin: PlatformURI,
+              localStorage: [{ name: '#platform.notification.timeout', value: '0' }]
+            }
+          ]
+        },
         testIdAttribute: 'data-id',
         permissions: ['clipboard-read', 'clipboard-write'],
         ...devices['Desktop Chrome'],
@@ -22,7 +38,7 @@ const config: PlaywrightTestConfig = {
           height: 900
         },
         trace: {
-          mode: 'retain-on-failure',
+          mode: traceMode,
           snapshots: true,
           screenshots: true,
           sources: true
@@ -44,6 +60,9 @@ const config: PlaywrightTestConfig = {
   reporter: [
     ['list'],
     ['html'],
+    // Consumed by analyze_failures.js and the telemetry collector in CI.
+    ['json', { outputFile: '../playwright-report.json' }],
+    [require.resolve('../../../tests/sanity/tests/step-reporter.ts')],
     [
       'allure-playwright',
       {

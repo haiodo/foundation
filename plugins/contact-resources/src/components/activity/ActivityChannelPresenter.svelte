@@ -13,8 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact, { Channel, Contact, getName } from '@hcengineering/contact'
-  import { Ref } from '@hcengineering/core'
+  import type { Channel, Contact } from '@hcengineering/contact'
+  import contact, { getName } from '@hcengineering/contact'
+  import type { Ref } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { CircleButton, tooltip } from '@hcengineering/ui'
@@ -36,7 +37,7 @@
 
 <div class="flex-row-center" use:tooltip={{ label: getEmbeddedLabel(value.value) }}>
   {#if provider}
-    <CircleButton icon={provider.icon} size={'small'} />
+    <CircleButton icon={provider.icon} size="small" />
   {/if}
   {#if target}
     <div class="ml-1">

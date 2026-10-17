@@ -24,5 +24,8 @@ loadMetadata(task.icon, {
   TodoUnCheck: `${icons}#todo-uncheck`,
   ManageTemplates: `${icons}#manage-templates`,
   TaskState: `${icons}#task-state`,
-  Dashboard: `${icons}#dashboard`
+  Dashboard: `${icons}#dashboard`,
+  TypeHierarchy: `${icons}#type-hierarchy`,
+  Export: `${icons}#export`,
+  Import: `${icons}#import`
 })

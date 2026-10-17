@@ -14,18 +14,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Button, ButtonSize, TimeSince } from '@hcengineering/ui'
+  import type { ButtonSize } from '@hcengineering/ui'
+  import { Button, TimeSince } from '@hcengineering/ui'
 
   export let value: number
   export let kind: 'no-border' | 'link' | 'list' = 'no-border'
-  // export let readonly = false
+  export let readonly = false
   export let size: ButtonSize = 'small'
   export let justify: 'left' | 'center' = 'center'
   export let width: string | undefined = 'fit-content'
 </script>
 
 {#if kind === 'link'}
-  <Button {kind} {size} {justify} {width}>
+  <Button {kind} {size} {justify} {width} disabled={readonly}>
     <svelte:fragment slot="content">
       {#if value != null}
         <TimeSince {value} />

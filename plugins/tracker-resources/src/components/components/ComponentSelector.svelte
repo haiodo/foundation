@@ -13,12 +13,20 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentQuery, Ref, SortingOrder } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import type { DocumentQuery, Ref } from '@hcengineering/core'
+  import { SortingOrder } from '@hcengineering/core'
+  import type { IntlString } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import { Component } from '@hcengineering/tracker'
-  import type { ButtonKind, ButtonSize, LabelAndProps, SelectPopupValueType } from '@hcengineering/ui'
-  import { Button, ButtonShape, eventToHTMLElement, showPopup, PopupResult } from '@hcengineering/ui'
+  import type { Component } from '@hcengineering/tracker'
+  import type {
+    ButtonKind,
+    ButtonSize,
+    LabelAndProps,
+    SelectPopupValueType,
+    ButtonShape,
+    PopupResult
+  } from '@hcengineering/ui'
+  import { Button, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import tracker from '../../plugin'
   import ComponentPresenter from './ComponentPresenter.svelte'
   import ComponentSelectorPopup from './ComponentSelectorPopup.svelte'
@@ -26,7 +34,6 @@
   export let value: Ref<Component> | null | undefined
   export let space: DocumentQuery<Component>['space'] | undefined = undefined
   export let query: DocumentQuery<Component> = {}
-  // export let shouldShowLabel: boolean = true
   export let isEditable: boolean = true
   export let onChange: ((newComponentId: Ref<Component> | undefined) => void) | undefined = undefined
   export let popupPlaceholder: IntlString = tracker.string.AddToComponent
@@ -35,7 +42,7 @@
   export let shape: ButtonShape = undefined
   export let justify: 'left' | 'center' = 'center'
   export let width: string | undefined = 'min-content'
-  // export let onlyIcon: boolean = false
+  export let maxLabelWidth: string | undefined = undefined
   export let enlargedText: boolean = false
   export let short: boolean = false
   export let focusIndex: number | undefined = undefined
@@ -123,7 +130,9 @@
       },
       eventToHTMLElement(event),
       (result: any) => {
-        onChange?.(result)
+        if (result !== undefined) {
+          onChange?.(result)
+        }
         selectPopupResult = undefined
       }
     )
@@ -136,7 +145,7 @@
     placeholder={popupPlaceholder}
     space={popupSpace}
     on:close={(evt) => {
-      if (onChange !== undefined) onChange(evt.detail)
+      if (evt.detail !== undefined && onChange !== undefined) onChange(evt.detail)
     }}
   />
 {:else}
@@ -148,14 +157,18 @@
     {width}
     {justify}
     {showTooltip}
+    icon={tracker.icon.Component}
     disabled={!isEditable}
     notSelected={!value}
     {short}
     on:click={handleComponentEditorOpened}
   >
     <svelte:fragment slot="content">
-      <span class="label {enlargedText ? 'text-base' : 'text-md'} overflow-label pointer-events-none">
-        <svelte:component this={ComponentPresenter} value={selectedComponent} />
+      <span
+        class="label {enlargedText ? 'text-base' : 'text-md'} overflow-label pointer-events-none"
+        style:max-width={maxLabelWidth}
+      >
+        <svelte:component this={ComponentPresenter} value={selectedComponent} shouldShowAvatar={false} />
       </span>
     </svelte:fragment>
   </Button>

@@ -19,7 +19,7 @@
   import { getFileUrl } from '../file'
   import Download from './icons/Download.svelte'
   import presentation from '../plugin'
-  import { IntlString } from '@hcengineering/platform'
+  import type { IntlString } from '@hcengineering/platform'
 
   export let file: Ref<Blob> | undefined
   export let name: string
@@ -34,7 +34,7 @@
     <a class="no-line" href={src} download={name} bind:this={download}>
       <Button
         icon={Download}
-        kind={'icon'}
+        kind="icon"
         on:click={() => {
           download.click()
         }}

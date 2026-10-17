@@ -14,10 +14,18 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, Status, StatusCategory, toIdMap } from '@hcengineering/core'
+  import type { IdMap, Ref, Status, StatusCategory } from '@hcengineering/core'
+  import core, { toIdMap } from '@hcengineering/core'
   import { BreadcrumbsElement, createQuery } from '@hcengineering/presentation'
-  import task, { Project, ProjectType, getStates } from '@hcengineering/task'
-  import { ScrollerBar, getColorNumberByText, getPlatformColor, themeStore } from '@hcengineering/ui'
+  import type { Project, ProjectType } from '@hcengineering/task'
+  import task, { getStates } from '@hcengineering/task'
+  import {
+    ScrollerBar,
+    getColorNumberByText,
+    getPlatformColor,
+    themeStore,
+    resolvePaletteColor
+  } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import { typeStore, type StatesBarPosition } from '../..'
@@ -85,9 +93,10 @@
     const type = _space ? typeStore.get(_space.type) : undefined
     const category = state.category ? categories.get(state.category) : undefined
     const statusColor = type?.statuses?.find((p) => p._id === state._id)?.color
-    const targetColor =
-      statusColor === undefined || typeof statusColor !== 'string' ? statusColor : (state.color ?? category?.color)
-    return getPlatformColor(targetColor ?? getColorNumberByText(state.name), $themeStore.dark)
+    return getPlatformColor(
+      resolvePaletteColor(statusColor, state.color, category?.color) ?? getColorNumberByText(state.name),
+      $themeStore.dark
+    )
   }
 </script>
 

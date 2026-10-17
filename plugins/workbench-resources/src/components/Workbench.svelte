@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022, 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -16,40 +17,31 @@
   import { Analytics } from '@hcengineering/analytics'
   import contact from '@hcengineering/contact'
   import { myEmployeeStore } from '@hcengineering/contact-resources'
-  import core, {
-    AccountRole,
-    Class,
-    Doc,
-    getCurrentAccount,
-    hasAccountRole,
-    Ref,
-    SortingOrder,
-    Space
-  } from '@hcengineering/core'
+  import type { Class, Doc, Ref, Space } from '@hcengineering/core'
+  import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder } from '@hcengineering/core'
   import login, { loginId } from '@hcengineering/login'
-  import notification, { DocNotifyContext, InboxNotification, notificationId } from '@hcengineering/notification'
-  import { BrowserNotificatator, InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
-  import inbox, { inboxId } from '@hcengineering/inbox'
-  import { broadcastEvent, getMetadata, getResource, IntlString, translate } from '@hcengineering/platform'
-  import {
-    ActionContext,
-    ComponentExtensions,
-    createQuery,
-    createNotificationsQuery,
-    getClient,
-    isAdminUser,
-    reduceCalls
-  } from '@hcengineering/presentation'
+  import notification, { notificationId } from '@hcengineering/notification'
+  import { AppNotificator, NotificationClientImpl } from '@hcengineering/notification-resources'
+  import type { IntlString } from '@hcengineering/platform'
+  import { broadcastEvent, getMetadata, getResource, translate } from '@hcengineering/platform'
+  import { ActionContext, ComponentExtensions, createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
-  import support, { SupportStatus } from '@hcengineering/support'
-  import {
+  import support from '@hcengineering/support'
+  import type {
     AnyComponent,
+    CompAndProps,
+    Location,
+    PopupAlignment,
+    PopupPosAlignment,
+    PopupResult,
+    ResolvedLocation
+  } from '@hcengineering/ui'
+  import {
     areLocationsEqual,
     Button,
     closePanel,
     closePopup,
     closeTooltip,
-    CompAndProps,
     Component,
     defineSeparators,
     deviceOptionsStore as deviceInfo,
@@ -60,7 +52,6 @@
     isSameSegments,
     Label,
     languageStore,
-    Location,
     location,
     locationStorageKeyId,
     locationToUrl,
@@ -68,13 +59,9 @@
     navigate,
     PanelInstance,
     Popup,
-    PopupAlignment,
-    PopupPosAlignment,
-    PopupResult,
     popupstore,
     pushRootBarComponent,
     resizeObserver,
-    ResolvedLocation,
     resolvedLocationStore,
     Separator,
     setResolvedLocation,
@@ -100,8 +87,9 @@
     ViewConfiguration,
     WorkbenchTab
   } from '@hcengineering/workbench'
-  import communication from '@hcengineering/communication'
   import { getContext, onDestroy, onMount, tick } from 'svelte'
+  import { get } from 'svelte/store'
+
   import { subscribeMobile } from '../mobile'
   import workbench from '../plugin'
   import { buildNavModel, isAllowedToRole, logOut, workspacesStore } from '../utils'
@@ -127,7 +115,6 @@
     tabIdStore,
     tabsStore
   } from '../workbench'
-  import { get } from 'svelte/store'
   import HelpAndSupport from './HelpAndSupport.svelte'
 
   const HIDE_NAVIGATOR = 720
@@ -154,7 +141,6 @@
   migrateViewOpttions()
 
   const excludedApps = getMetadata(workbench.metadata.ExcludedApplications) ?? []
-  const isCommunicationEnabled = getMetadata(communication.metadata.Enabled) ?? false
 
   const client = getClient()
 
@@ -168,7 +154,9 @@
 
   const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
 
-  const mobileAdaptive = $deviceInfo.isMobile && $deviceInfo.minWidth
+  // Reactive, not const: it gates whether the sidebar is rendered at all, and PanelInstance sizes
+  // itself off the same breakpoint on every resize - a stale value makes the panel overlap it.
+  $: mobileAdaptive = $deviceInfo.isMobile && $deviceInfo.minWidth
   const defaultNavigator = !(getMetadata(workbench.metadata.NavigationExpandedDefault) ?? true)
   const savedNavigator = localStorage.getItem('hiddenNavigator')
   let hiddenNavigator: boolean = savedNavigator !== null ? savedNavigator === 'true' : defaultNavigator
@@ -182,7 +170,7 @@
       localStorage.setItem('hiddenNavigator', `${hiddenNavigator}`)
     }
     closeTooltip()
-    if (currentApplication && navigatorModel) {
+    if (currentApplication != null && navigatorModel != null) {
       await tick()
       panelInstance.fitPopupInstance()
       popupInstance.fitPopupInstance()
@@ -216,8 +204,8 @@
   async function initCurrentTab (tabs: WorkbenchTab[]): Promise<void> {
     const tab = tabs.find((t) => t._id === $tabIdStore)
     const loc = getCurrentLocation()
-    const tabLoc = tab ? getTabLocation(tab) : undefined
-    const isLocEqual = tabLoc ? areLocationsEqual(loc, tabLoc) : false
+    const tabLoc = tab != null ? getTabLocation(tab) : undefined
+    const isLocEqual = tabLoc != null ? areLocationsEqual(loc, tabLoc) : false
     if (!isLocEqual) {
       const url = locationToUrl(loc)
       const data = await getTabDataByLocation(loc)
@@ -270,31 +258,10 @@
 
   const workspaceId = $location.path[1]
 
-  const inboxClient = InboxNotificationsClientImpl.createClient()
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
+  const inboxClient = NotificationClientImpl.createClient()
+  const totalUnreadCountStore = inboxClient.totalUnreadCount
 
-  let hasNotificationsFn: ((data: Map<Ref<DocNotifyContext>, InboxNotification[]>) => Promise<boolean>) | undefined =
-    undefined
-  let hasInboxNotifications = false
-
-  void getResource(notification.function.HasInboxNotifications).then((f) => {
-    hasNotificationsFn = f
-  })
-
-  $: void hasNotificationsFn?.($inboxNotificationsByContextStore).then((res) => {
-    hasInboxNotifications = res
-  })
-
-  let hasNewInboxNotifications = false
-
-  $: if (isCommunicationEnabled) {
-    const notificationCountQuery = createNotificationsQuery()
-    notificationCountQuery.query({ read: false, limit: 1 }, (res) => {
-      hasNewInboxNotifications = res.getResult().length > 0
-    })
-  } else {
-    hasNewInboxNotifications = false
-  }
+  $: hasInboxNotifications = $totalUnreadCountStore > 0
 
   const doSyncLoc = reduceCalls(async (loc: Location): Promise<void> => {
     if (workspaceId !== $location.path[1]) {
@@ -302,9 +269,6 @@
       // Switch of workspace
       return
     }
-    closeTooltip()
-    closePopup()
-
     await syncLoc(loc)
     await updateWindowTitle(loc)
     checkOnHide()
@@ -312,6 +276,11 @@
 
   onDestroy(
     location.subscribe((loc) => {
+      // Here, not in doSyncLoc: queued behind a slow sync, it would close a popup opened after this change.
+      if (workspaceId === loc.path[1]) {
+        closeTooltip()
+        closePopup()
+      }
       void doSyncLoc(loc)
     })
   )
@@ -356,11 +325,11 @@
     let locationResolver = currentApplication?.locationResolver
     if (loc.path[2] != null && loc.path[2].trim().length > 0) {
       const app = apps.find((p) => p.alias === loc.path[2])
-      if (app?.locationResolver) {
+      if (app?.locationResolver != null) {
         locationResolver = app?.locationResolver
       }
     }
-    if (locationResolver) {
+    if (locationResolver != null) {
       const resolver = await getResource(locationResolver)
       return await resolver(loc)
     }
@@ -371,7 +340,15 @@
     const resolvedSpace = resolved.loc.path[3]
     const resolvedSpecial = resolved.loc.path[4]
     if (resolvedApp === undefined) {
-      if (currentAppAlias === undefined) {
+      // On Back from a hidden app (settings), honor the explicit app in the URL
+      // instead of the stale current app; content apps keep it (panel in place).
+      const explicitApp = loc.path[2]
+      const explicitSwitch =
+        explicitApp != null &&
+        explicitApp !== currentAppAlias &&
+        apps.some((a) => a.alias === explicitApp) &&
+        !apps.some((a) => a.alias === currentAppAlias)
+      if (currentAppAlias === undefined || explicitSwitch) {
         loc.path = [loc.path[0], loc.path[1], ...resolved.defaultLocation.path.splice(2)]
       } else {
         const isSameApp = currentAppAlias === loc.path[2]
@@ -379,9 +356,9 @@
         loc.path[3] = currentSpace ?? currentSpecial ?? resolved.defaultLocation.path[3]
         if (loc.path[3] !== undefined && isSameApp) {
           // setting space special/aside only if it belongs to the same app
-          if (currentSpace) {
+          if (currentSpace != null) {
             loc.path[4] = currentSpecial ?? resolved.defaultLocation.path[4]
-          } else if (currentSpecial) {
+          } else if (currentSpecial != null) {
             loc.path[4] = resolved.defaultLocation.path[4]
           }
         } else {
@@ -395,11 +372,11 @@
         loc.path[4] = currentSpecial ?? resolved.defaultLocation.path[4]
       } else {
         loc.path[3] = resolvedSpace
-        if (resolvedSpecial) {
+        if (resolvedSpecial != null) {
           loc.path[4] = resolvedSpecial
-        } else if (currentSpace) {
+        } else if (currentSpace != null) {
           loc.path[4] = currentSpecial ?? resolved.defaultLocation.path[4]
-        } else if (currentSpecial) {
+        } else if (currentSpecial != null) {
           loc.path[4] = resolved.defaultLocation.path[4]
         } else {
           loc.path.length = 4
@@ -424,11 +401,15 @@
   async function syncLoc (loc: Location): Promise<void> {
     accessDeniedStore.set(false)
     const originalLoc = JSON.stringify(loc)
+    // A location that changed during an await has its own sync queued: this one must not navigate or
+    // close the panel over it. By reference: every change is a new object, and `loc` is edited in place.
+    const startLoc = $location
+    const superseded = (): boolean => $location !== startLoc
     if ($tabIdStore !== $prevTabIdStore) {
-      if ($prevTabIdStore) {
+      if ($prevTabIdStore != null) {
         const prevTab = tabs.find((t) => t._id === $prevTabIdStore)
         const prevTabLoc = prevTab ? getTabLocation(prevTab) : undefined
-        if (prevTabLoc === undefined || prevTabLoc.path[2] !== loc.path[2]) {
+        if (prevTabLoc?.path[2] !== loc.path[2]) {
           clear(1)
         }
       }
@@ -478,6 +459,11 @@
             }
           }
           loc.path.length = len
+          // Re-check: fetching the default space is awaited, and a click on the navigator made
+          // in the meantime already moved us to another app - do not navigate back over it.
+          if (getCurrentLocation().path[2] !== undefined) {
+            return
+          }
           if (navigate(loc)) {
             return
           }
@@ -497,6 +483,7 @@
       }
     }
 
+    if (superseded()) return
     if (
       space === undefined &&
       ((navigatorModel?.spaces?.length ?? 0) > 0 || (navigatorModel?.specials?.length ?? 0) > 0)
@@ -516,6 +503,8 @@
             navigate(loc)
             return
           }
+          // URL keeps the bare app path: publish the restored special to match getCurrentResolvedLocation().
+          setResolvedLocation(loc)
         }
       }
     }
@@ -532,6 +521,7 @@
       }
     }
 
+    if (superseded()) return
     if (app !== undefined) {
       localStorage.setItem(`${locationStorageKeyId}_${app}`, originalLoc)
     }
@@ -552,7 +542,7 @@
     if (props.length >= 3) {
       const _class = props[2] as Ref<Class<Doc>>
       const _id = await parseLinkId(linkProviders, props[1], _class)
-      const doc = await client.findOne<Doc>(_class, { _id })
+      const doc = await client.findOne<Doc>(client.getHierarchy().getParentClass(_class), { _id })
       panelDoc = { _class, _id }
 
       if (doc !== undefined) {
@@ -581,7 +571,8 @@
   const panelQuery = createQuery()
 
   $: if (panelDoc !== undefined) {
-    panelQuery.query(panelDoc._class, { _id: panelDoc._id }, (r) => {
+    const watchClass = client.getHierarchy().getParentClass(panelDoc._class)
+    panelQuery.query(watchClass, { _id: panelDoc._id }, (r) => {
       if (r.length === 0) {
         closePanel(false)
         panelDoc = undefined
@@ -616,6 +607,9 @@
     clear(2)
     currentSpace = spaceId
     if (spaceId === undefined) return
+    // An encoded object URI (`id|class`, chat channels, inbox contexts) is not a space id: the
+    // lookup below always came back empty, one wasted round trip per channel open.
+    if (spaceId.includes('|')) return
     const space = await client.findOne<Space>(core.class.Space, { _id: spaceId })
     if (space === undefined) return
     const spaceClass = client.getHierarchy().getClass(space._class)
@@ -657,7 +651,6 @@
     }
   }
 
-  let cover: HTMLElement
   let workbenchWidth: number = $deviceInfo.docWidth
 
   $deviceInfo.navigator.float = workbenchWidth <= HIDE_NAVIGATOR
@@ -687,7 +680,9 @@
     oldNavVisible !== $deviceInfo.navigator.visible ||
     oldASideVisible !== ($sidebarStore.variant !== SidebarVariant.MINI)
   ) {
-    if (mobileAdaptive && $deviceInfo.navigator.float) {
+    // Inlined instead of `mobileAdaptive`: this block writes $deviceInfo, so reading the reactive
+    // var here would be a cycle. Same expression, same dependency this block already has.
+    if ($deviceInfo.isMobile && $deviceInfo.minWidth && $deviceInfo.navigator.float) {
       if ($deviceInfo.navigator.visible && $sidebarStore.variant !== SidebarVariant.MINI) {
         if (oldNavVisible) $deviceInfo.navigator.visible = false
         else $sidebarStore.variant = SidebarVariant.MINI
@@ -704,9 +699,11 @@
   ) {
     $sidebarStore.widget = Array.from($sidebarStore.widgetsState.keys())[0]
   }
-  location.subscribe(() => {
-    if (mobileAdaptive && $sidebarStore.variant !== SidebarVariant.MINI) $sidebarStore.variant = SidebarVariant.MINI
-  })
+  onDestroy(
+    location.subscribe(() => {
+      if (mobileAdaptive && $sidebarStore.variant !== SidebarVariant.MINI) $sidebarStore.variant = SidebarVariant.MINI
+    })
+  )
   $: $deviceInfo.navigator.direction = $deviceInfo.isMobile && $deviceInfo.isPortrait ? 'horizontal' : 'vertical'
   let appsMini: boolean
   $: appsMini =
@@ -731,61 +728,29 @@
     subscribeMobile(setTheme)
   })
 
-  function checkInbox (popups: CompAndProps[]) {
+  function checkInboxPopup (popups: CompAndProps[]): void {
     if (inboxPopup !== undefined) {
-      const exists = popups.find((p) => p.id === inboxPopup?.id)
+      const exists = popups.some((p) => p.id === inboxPopup?.id)
       if (!exists) {
         inboxPopup = undefined
       }
     }
   }
 
-  let supportStatus: SupportStatus | undefined = undefined
-  function handleSupportStatusChanged (status: SupportStatus) {
-    supportStatus = status
-  }
-
-  const supportClient = getResource(support.function.GetSupport).then(
-    async (res) =>
-      await res((status) => {
-        handleSupportStatusChanged(status)
-      })
-  )
-  onDestroy(async () => {
-    await supportClient?.then((support) => {
-      support?.destroy()
-    })
-  })
-
-  let supportWidgetLoading = false
-  async function handleToggleSupportWidget (): Promise<void> {
-    const timer = setTimeout(() => {
-      supportWidgetLoading = true
-    }, 100)
-
-    const support = await supportClient
-    await support.toggleWidget()
-
-    clearTimeout(timer)
-    supportWidgetLoading = false
-  }
-
-  $: checkInbox($popupstore)
+  $: checkInboxPopup($popupstore)
 
   let inboxPopup: PopupResult | undefined = undefined
   let lastLoc: Location | undefined = undefined
 
-  $: activeInboxId = isCommunicationEnabled ? inboxId : notificationId
-
   $: inboxProps = {
-    selected: currentAppAlias === activeInboxId || inboxPopup !== undefined,
-    navigator: (currentAppAlias === activeInboxId || inboxPopup !== undefined) && $deviceInfo.navigator.visible,
-    notify: isCommunicationEnabled ? hasInboxNotifications || hasNewInboxNotifications : hasInboxNotifications,
+    selected: currentAppAlias === notificationId || inboxPopup !== undefined,
+    navigator: (currentAppAlias === notificationId || inboxPopup !== undefined) && $deviceInfo.navigator.visible,
+    notify: hasInboxNotifications,
     onClick: (e: MouseEvent) => {
       if (e.metaKey || e.ctrlKey) return
-      if (!$deviceInfo.navigator.visible && $deviceInfo.navigator.float && currentAppAlias === activeInboxId) {
-        toggleNav()
-      } else if (currentAppAlias === activeInboxId && lastLoc !== undefined) {
+      if (!$deviceInfo.navigator.visible && $deviceInfo.navigator.float && currentAppAlias === notificationId) {
+        void toggleNav()
+      } else if (currentAppAlias === notificationId && lastLoc !== undefined) {
         e.preventDefault()
         e.stopPropagation()
         navigate(lastLoc)
@@ -796,19 +761,16 @@
     }
   }
 
-  $: customAppProps = new Map([
-    [notificationId, inboxProps],
-    [inboxId, inboxProps]
-  ])
+  $: customAppProps = new Map([[notificationId, inboxProps]])
 
   defineSeparators('workbench', workbenchSeparators)
   defineSeparators('main', mainSeparators)
 
-  $: mainNavigator = currentApplication && navigatorModel && $deviceInfo.navigator.visible
+  $: mainNavigator = currentApplication != null && navigatorModel != null && $deviceInfo.navigator.visible
   $: elementPanel = $deviceInfo.replacedPanel ?? contentPanel
 
   $: deactivated =
-    $myEmployeeStore && client.getHierarchy().hasMixin($myEmployeeStore, contact.mixin.Employee)
+    $myEmployeeStore != null && client.getHierarchy().hasMixin($myEmployeeStore, contact.mixin.Employee)
       ? !client.getHierarchy().as($myEmployeeStore, contact.mixin.Employee).active
       : false
 
@@ -827,14 +789,14 @@
   }
 </script>
 
-{#if $myEmployeeStore && deactivated && !isAdminUser()}
+{#if $myEmployeeStore != null && deactivated}
   <div class="flex-col-center justify-center h-full flex-grow">
     <h1><Label label={workbench.string.AccountDisabled} /></h1>
     <Label label={workbench.string.AccountDisabledDescr} />
     <Button
       label={setting.string.Signout}
-      kind={'link'}
-      size={'small'}
+      kind="link"
+      size="small"
       on:click={() => {
         void logOut().then(() => {
           navigate({ path: [loginId] })
@@ -842,7 +804,7 @@
       }}
     />
   </div>
-{:else if $myEmployeeStore || account.role === AccountRole.Owner || isAdminUser()}
+{:else if $myEmployeeStore != null || account.role === AccountRole.Owner}
   <ActionHandler {currentSpace} />
   <svg class="svg-mask">
     <clipPath id="notify-normal">
@@ -884,36 +846,21 @@
             on:click={toggleNav}
           />
         </div>
-        {#if !isExcludedApp(activeInboxId)}
-          {#if !isCommunicationEnabled}
-            <NavLink
-              app={notificationId}
-              shrink={0}
-              disabled={!$deviceInfo.navigator.visible &&
-                $deviceInfo.navigator.float &&
-                currentAppAlias === notificationId}
-            >
-              <AppItem
-                icon={notification.icon.Notifications}
-                label={notification.string.Inbox}
-                {...inboxProps}
-                on:click={inboxProps.onClick}
-              />
-            </NavLink>
-          {:else}
-            <NavLink
-              app={inboxId}
-              shrink={0}
-              disabled={!$deviceInfo.navigator.visible && $deviceInfo.navigator.float && currentAppAlias === inboxId}
-            >
-              <AppItem
-                icon={inbox.icon.Inbox}
-                label={inbox.string.Inbox}
-                {...inboxProps}
-                on:click={inboxProps.onClick}
-              />
-            </NavLink>
-          {/if}
+        {#if !isExcludedApp(notificationId)}
+          <NavLink
+            app={notificationId}
+            shrink={0}
+            disabled={!$deviceInfo.navigator.visible &&
+              $deviceInfo.navigator.float &&
+              currentAppAlias === notificationId}
+          >
+            <AppItem
+              icon={notification.icon.Notifications}
+              label={notification.string.Inbox}
+              {...inboxProps}
+              on:click={inboxProps.onClick}
+            />
+          </NavLink>
         {/if}
         <Applications
           {apps}
@@ -928,18 +875,6 @@
         class:vertical-mobile={$deviceInfo.navigator.direction === 'vertical'}
         class:mini={appsMini}
       >
-        <AppItem
-          icon={IconSettings}
-          label={setting.string.Customize}
-          size={appsMini ? 'small' : 'large'}
-          on:click={() => showPopup(AppSwitcher, { apps }, popupPosition)}
-        />
-        <AppItem
-          icon={support.icon.Support}
-          label={support.string.ContactUs}
-          size={appsMini ? 'small' : 'large'}
-          on:click={helpAndSupport}
-        />
         <!-- {#await supportClient then client}
           {#if client}
             <AppItem
@@ -1037,25 +972,25 @@
                 on:open={checkOnHide}
               />
               <NavFooter>
-                {#if currentApplication && currentApplication.navFooterComponent}
+                {#if currentApplication?.navFooterComponent}
                   <Component is={currentApplication.navFooterComponent} props={{ currentSpace }} />
                 {/if}
               </NavFooter>
             </div>
             {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
               <Separator
-                name={'workbench'}
+                name="workbench"
                 float={$deviceInfo.navigator.float ? 'navigator' : true}
                 index={0}
-                color={'var(--theme-navpanel-border)'}
+                color="var(--theme-navpanel-border)"
               />
             {/if}
           </div>
           <Separator
-            name={'workbench'}
+            name="workbench"
             float={$deviceInfo.navigator.float}
             index={0}
-            color={'transparent'}
+            color="transparent"
             separatorSize={0}
             short
           />
@@ -1066,9 +1001,9 @@
           class:straighteningCorners={$sidebarStore.float &&
             $sidebarStore.variant === SidebarVariant.EXPANDED &&
             !(mobileAdaptive && $deviceInfo.isPortrait)}
-          data-id={'contentPanel'}
+          data-id="contentPanel"
         >
-          {#if currentApplication && currentApplication.component}
+          {#if currentApplication?.component}
             <Component
               is={currentApplication.component}
               props={{
@@ -1089,7 +1024,7 @@
                 queryBuilder: specialComponent?.queryBuilder
               }}
               on:action={(e) => {
-                if (e?.detail) {
+                if (e?.detail != null) {
                   const loc = getCurrentLocation()
                   loc.query = { ...loc.query, ...e.detail }
                   navigate(loc)
@@ -1110,14 +1045,16 @@
           {/if}
         </div>
       </div>
-      {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
-        <Separator name={'main'} index={0} color={'transparent'} separatorSize={0} short />
+      {#if !mobileAdaptive}
+        {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
+          <Separator name="main" index={0} color="transparent" separatorSize={0} short />
+        {/if}
+        <WidgetsBar />
       {/if}
-      <WidgetsBar />
     </div>
   </div>
   <Dock />
-  <div bind:this={cover} class="cover" />
+  <div class="cover" />
   <TooltipInstance />
   <PanelInstance bind:this={panelInstance} contentPanel={elementPanel}>
     <svelte:fragment slot="panel-header">
@@ -1132,7 +1069,7 @@
   <div class="hidden max-w-0 max-h-0">
     <ComponentExtensions extension={workbench.extensions.WorkbenchExtensions} />
   </div>
-  <BrowserNotificatator />
+  <AppNotificator />
 {/if}
 
 <style lang="scss">
@@ -1170,6 +1107,8 @@
     .antiPanel-application.horizontal {
       border-radius: 0 0 var(--medium-BorderRadius) var(--medium-BorderRadius);
       border-top: none;
+      // Bar height is driven by its buttons - without this they sit flush against both edges.
+      padding-block: 0.25rem;
     }
     .antiPanel-application:not(.horizontal) {
       border-radius: var(--medium-BorderRadius) 0 0 var(--medium-BorderRadius);
@@ -1182,9 +1121,11 @@
     display: flex;
     align-items: center;
     z-index: 1;
+    // Must give way to the info-box (help + avatar) instead of pushing it off screen.
+    min-width: 0;
 
     &.portrait {
-      margin-left: 1rem;
+      margin-left: 0.5rem;
 
       .logo-container {
         margin-right: 0.5rem;
@@ -1217,21 +1158,22 @@
     .logo-container.mini,
     .topmenu-container.mini {
       position: fixed;
-      top: 4px;
+      top: 8px;
     }
     .logo-container.mini {
-      left: 4px;
-      width: 1.75rem;
-      height: 1.75rem;
+      left: 8px;
+      width: 2.25rem;
+      height: 2.25rem;
     }
     .topmenu-container.mini {
-      left: calc(1.75rem + 8px);
+      left: calc(2.25rem + 12px);
     }
   }
 
   .info-box {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
 
     &.vertical {
       flex-direction: column;

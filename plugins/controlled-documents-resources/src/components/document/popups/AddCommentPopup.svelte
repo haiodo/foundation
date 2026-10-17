@@ -2,7 +2,8 @@
   import { createEventDispatcher } from 'svelte'
 
   import chunter, { type ChatMessage } from '@hcengineering/chunter'
-  import { Ref, generateId } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { ReferenceInput } from '@hcengineering/text-editor-resources'
   import { popupstore as popups } from '@hcengineering/ui'
 
@@ -23,7 +24,7 @@
   let popup: HTMLDivElement | undefined
 
   function isClickInsidePopup (target: Node): boolean {
-    if (popup !== undefined && popup.contains(target)) return true
+    if (popup?.contains(target) === true) return true
     if (!(target instanceof Element)) return false
 
     if (target.closest('.tippy-box') !== null) return true

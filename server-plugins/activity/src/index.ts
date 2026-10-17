@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,31 +14,10 @@
 // limitations under the License.
 //
 
-import { Plugin, Resource, plugin } from '@hcengineering/platform'
-import type { TriggerFunc } from '@hcengineering/server-core'
-import { Mixin, Ref } from '@hcengineering/core'
+import { serverActivityId, serverActivityPlugin } from './plugin'
 
-import { IdentifierPresenter, TitlePresenter, UrlPresenter } from './types'
+export type * from './types'
+export * from './utils'
 
-export * from './types'
-
-/**
- * @public
- */
-export const serverActivityId = 'server-activity' as Plugin
-
-/**
- * @public
- */
-export default plugin(serverActivityId, {
-  trigger: {
-    OnDocRemoved: '' as Resource<TriggerFunc>,
-    ReferenceTrigger: '' as Resource<TriggerFunc>,
-    HandleCardActivity: '' as Resource<TriggerFunc>
-  },
-  mixin: {
-    TitlePresenter: '' as Ref<Mixin<TitlePresenter>>,
-    UrlPresenter: '' as Ref<Mixin<UrlPresenter>>,
-    IdentifierPresenter: '' as Ref<Mixin<IdentifierPresenter>>
-  }
-})
+export { serverActivityId }
+export default serverActivityPlugin

@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,27 +15,30 @@
 // limitations under the License.
 //
 
-import { type Attachment } from '@hcengineering/attachment'
+import { type Attachment, type AttachmentValue } from '@hcengineering/attachment'
 import {
   type BlobMetadata,
   type Blob,
   type Class,
+  type Hierarchy,
   type TxOperations as Client,
   type Data,
   type Doc,
   type Ref,
   type Space,
   type WithLookup,
-  type BlobType
+  type BlobType,
+  type TxCUD
 } from '@hcengineering/core'
 import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
 import { type FileOrBlob, getClient, getPreviewAlignment, uploadFile } from '@hcengineering/presentation'
-import { closeTooltip, showPopup, type PopupResult } from '@hcengineering/ui'
+import { closeTooltip, showPopup, type AnyComponent, type PopupResult } from '@hcengineering/ui'
+import view, { type AttributeApplierResult } from '@hcengineering/view'
 import workbench, { type WidgetTab } from '@hcengineering/workbench'
-import view from '@hcengineering/view'
 
 import attachment from './plugin'
 import AttachmentPreviewPopup from './components/AttachmentPreviewPopup.svelte'
+import { type AttachmentImageSize } from './types'
 
 export async function createAttachments (
   client: Client,
@@ -141,11 +145,23 @@ export async function openFilePreviewInSidebar (
     name,
     data: { file, name, contentType, metadata }
   }
-  await createFn(widget, tab, true)
+  await createFn(widget, tab)
 }
 
 export function isAttachment (value: Attachment | BlobType): value is WithLookup<Attachment> {
   return (value as Attachment)._id !== undefined
+}
+
+// Subclasses of Attachment (e.g. voice-note) may register their own ObjectPresenter mixin to render instead.
+export function getCustomPresenter (hierarchy: Hierarchy, _class: Ref<Class<Doc>>): AnyComponent | undefined {
+  if (!hierarchy.hasClass(_class)) return undefined
+  const m = hierarchy.classHierarchyMixin(_class, view.mixin.ObjectPresenter)
+  // Only a class-specific override is used. The base Attachment presenter IS this component, so
+  // returning it would recurse infinitely - guard by its resource id.
+  if (m?.presenter === undefined || (m.presenter as string) === 'attachment:component:AttachmentPresenter') {
+    return undefined
+  }
+  return m.presenter
 }
 
 export function showAttachmentPreviewPopup (
@@ -162,31 +178,194 @@ interface ImageDimensions {
   fit: 'cover' | 'contain'
 }
 
+export function calculateAttachmentDimensions (
+  metadata: BlobMetadata | undefined,
+  size: AttachmentImageSize = 'x-large',
+  dpr: number = 1
+): ImageDimensions {
+  const defaultSizes: Record<AttachmentImageSize, { width: number, height: number }> = {
+    medium: { width: 200, height: 200 },
+    'x-large': { width: 300, height: 300 },
+    auto: { width: 300, height: 300 }
+  }
+
+  const minMaxSizes: Record<AttachmentImageSize, { min: number, max: number }> = {
+    medium: { min: 1, max: 18 },
+    'x-large': { min: 1, max: 25 },
+    auto: { min: 1, max: 25 }
+  }
+
+  const _default = defaultSizes[size] ?? defaultSizes.auto
+  const byDefault = { ..._default, fit: 'contain' as const }
+  if (size === 'auto' || size == null) return byDefault
+
+  if (metadata === undefined) return byDefault
+  const pixelRatio = Math.max(metadata.pixelRatio ?? 1, dpr)
+
+  const rawWidth = metadata.originalWidth ?? metadata.thumbnail?.width
+  const rawHeight = metadata.originalHeight ?? metadata.thumbnail?.height
+
+  if (rawWidth == null || rawHeight == null) return byDefault
+
+  const width = Math.round(rawWidth / pixelRatio)
+  const height = Math.round(rawHeight / pixelRatio)
+
+  const { min: minSizeRem, max: maxSizeRem } = minMaxSizes[size] ?? minMaxSizes.auto
+  return getImageDimensions(
+    { width, height },
+    { maxWidth: maxSizeRem, minWidth: minSizeRem, maxHeight: maxSizeRem, minHeight: minSizeRem },
+    { forceFit: 'contain' }
+  )
+}
+
+function getRootFontSize (): number {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return 16
+  const parsed = parseFloat(window.getComputedStyle(document.documentElement).fontSize)
+  return Number.isNaN(parsed) || parsed <= 0 ? 16 : parsed
+}
+
 export function getImageDimensions (
   size: { width: number, height: number },
-  maxRem: { maxWidth: number, minWidth: number, maxHeight: number, minHeight: number }
+  maxRem: { maxWidth: number, maxHeight: number, minWidth?: number, minHeight?: number },
+  options?: { enforceMinBounds?: boolean, forceFit?: 'contain' | 'cover' }
 ): ImageDimensions {
   const originalWidth = size.width
   const originalHeight = size.height
-  const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize)
-  const maxWidthPx = maxRem.maxWidth * fontSize
-  const minWidthPx = maxRem.minWidth * fontSize
-  const maxHeightPx = maxRem.maxHeight * fontSize
-  const minHeightPx = maxRem.minHeight * fontSize
+  const fontSize = getRootFontSize()
+  let maxWidthPx = maxRem.maxWidth * fontSize
+  let maxHeightPx = maxRem.maxHeight * fontSize
 
   const ratio = originalHeight / originalWidth
 
-  let width = Math.min(originalWidth, maxWidthPx)
-  let height = Math.ceil(width * ratio)
+  // Square-ish images (logos) get a tighter cap so they don't dominate the message
+  const SQUARE_CAP_REM = 6
+  if (ratio >= 0.85 && ratio <= 1.18) {
+    const squareCapPx = SQUARE_CAP_REM * fontSize
+    maxWidthPx = Math.min(maxWidthPx, squareCapPx)
+    maxHeightPx = Math.min(maxHeightPx, squareCapPx)
+  }
 
-  const fit = width < minWidthPx || height < minHeightPx ? 'cover' : 'contain'
+  let width = Math.min(originalWidth, maxWidthPx)
+  let height = Math.max(1, Math.round(width * ratio))
 
   if (height > maxHeightPx) {
     width = maxHeightPx / ratio
     height = maxHeightPx
-  } else if (height < minHeightPx) {
-    height = minHeightPx
   }
 
+  if (options?.enforceMinBounds === true) {
+    if (maxRem.minWidth !== undefined) {
+      width = Math.max(width, maxRem.minWidth * fontSize)
+    }
+    if (maxRem.minHeight !== undefined) {
+      height = Math.max(height, maxRem.minHeight * fontSize)
+    }
+  }
+
+  const minWidthPx = (maxRem.minWidth ?? 0) * fontSize
+  const minHeightPx = (maxRem.minHeight ?? 0) * fontSize
+
+  const isBelowMin =
+    (maxRem.minWidth !== undefined && width < minWidthPx) || (maxRem.minHeight !== undefined && height < minHeightPx)
+
+  const fit = options?.forceFit ?? (isBelowMin ? 'cover' : 'contain')
+
   return { width: Math.round(width), height: Math.round(height), fit }
+}
+
+export const savedBlobs = new Set<string>()
+
+export async function attachmentsApplier (
+  doc: Doc,
+  value: AttachmentValue[] | undefined
+): Promise<AttributeApplierResult> {
+  if (!Array.isArray(value)) return {}
+
+  const client = getClient()
+  const txes: Array<TxCUD<Doc>> = []
+
+  for (const item of value) {
+    const fileId = typeof item === 'string' ? item : item?.file
+    if (fileId != null) {
+      savedBlobs.add(fileId)
+    }
+  }
+
+  const existing = (await client.findAll(attachment.class.Attachment, { attachedTo: doc._id })) as Attachment[]
+  const existingFileIds = new Set(existing.map((it) => it.file))
+
+  for (const item of value) {
+    if (typeof item === 'string') {
+      const blobRef = item as any
+      if (!existingFileIds.has(blobRef) && !existing.some((e) => e._id === blobRef)) {
+        const createTx = client.txFactory.createTxCreateDoc<Attachment>(attachment.class.Attachment, doc.space, {
+          name: 'Attachment',
+          file: blobRef,
+          size: 0,
+          type: '',
+          lastModified: Date.now(),
+          attachedTo: doc._id,
+          attachedToClass: doc._class,
+          collection: 'attachments'
+        })
+        const tx = client.txFactory.createTxCollectionCUD(doc._class, doc._id, doc.space, 'attachments', createTx)
+        txes.push(tx)
+      }
+    } else if (typeof item === 'object' && item != null) {
+      const att = item
+      const blobRef = att.file
+      if (blobRef != null && !existingFileIds.has(blobRef)) {
+        const createTx = client.txFactory.createTxCreateDoc<Attachment>(attachment.class.Attachment, doc.space, {
+          name: att.name ?? 'Attachment',
+          file: blobRef,
+          size: att.size ?? 0,
+          type: att.type ?? '',
+          lastModified: Date.now(),
+          attachedTo: doc._id,
+          attachedToClass: doc._class,
+          collection: 'attachments'
+        })
+        const tx = client.txFactory.createTxCollectionCUD(doc._class, doc._id, doc.space, 'attachments', createTx)
+        txes.push(tx)
+      }
+    }
+  }
+
+  const valueFiles = new Set(value.map((v) => (typeof v === 'string' ? v : v?.file)).filter(Boolean))
+  const valueIds = new Set(value.map((v) => (typeof v === 'string' ? v : v?._id)).filter(Boolean))
+
+  for (const existingAtt of existing) {
+    if (!valueFiles.has(existingAtt.file) && !valueIds.has(existingAtt._id)) {
+      const removeTx = client.txFactory.createTxRemoveDoc(
+        attachment.class.Attachment,
+        existingAtt.space,
+        existingAtt._id
+      )
+      const tx = client.txFactory.createTxCollectionCUD(doc._class, doc._id, doc.space, 'attachments', removeTx)
+      txes.push(tx)
+    }
+  }
+
+  return { txes }
+}
+
+/**
+ * Tells a queried doc written after the last save started from a pre-save copy the query still delivers.
+ * By the server's modifiedOn only: a client clock ahead of the server hid other users' edits for as long.
+ */
+export class SaveVersion {
+  private newest = 0
+  private savedFrom = 0
+
+  seen (modifiedOn: number): void {
+    this.newest = Math.max(this.newest, modifiedOn)
+  }
+
+  saving (modifiedOn: number): void {
+    this.savedFrom = Math.max(this.newest, modifiedOn)
+  }
+
+  isAfterSave (modifiedOn: number): boolean {
+    return modifiedOn > this.savedFrom
+  }
 }

@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -16,9 +17,8 @@
 import { DownloadItem } from '@hcengineering/desktop-downloads'
 import { ScreenSource } from '@hcengineering/love'
 import { Plugin } from '@hcengineering/platform'
-import { Ref, Class, Doc } from '@hcengineering/core'
 import { IpcRendererEvent } from 'electron'
-import { ActivityMessage } from '@hcengineering/activity'
+import { Location } from '@hcengineering/ui'
 
 export interface Config {
   ACCOUNTS_URL: string
@@ -45,6 +45,7 @@ export interface Config {
   LINK_PREVIEW_URL?: string
   LIVEKIT_WS?: string
   LOVE_ENDPOINT?: string
+  LOVE_SCREEN_SHARE_SIMULCAST?: string
   MODEL_VERSION: string
   PRESENCE_URL?: string
   PREVIEW_URL?: string
@@ -58,11 +59,11 @@ export interface Config {
   VERSION: string
   STREAM_URL?: string
   BACKUP_URL?: string
+  WEBHOOK_SERVICE_URL?: string
   PUBLIC_SCHEDULE_URL?: string
   CALDAV_SERVER_URL?: string
   EXPORT_URL?: string
   USE_OTP?: string
-  COMMUNICATION_API_ENABLED?: string
   BILLING_URL?: string
   PAYMENT_URL?: string
   PASSWORD_STRICTNESS?: 'very_strict' | 'strict' | 'normal' | 'none'
@@ -116,25 +117,21 @@ export const CommandOpenApplication = 'open-application' as const
 export const CommandCloseTab = 'close-tab' as const
 
 export type Command =
-  typeof CommandOpenSettings |
-  typeof CommandOpenInbox |
-  typeof CommandOpenOffice |
-  typeof CommandOpenPlanner |
-  typeof CommandSelectWorkspace |
-  typeof CommandLogout |
-  typeof CommandOpenApplication |
-  typeof CommandCloseTab
+  | typeof CommandOpenSettings
+  | typeof CommandOpenInbox
+  | typeof CommandOpenOffice
+  | typeof CommandOpenPlanner
+  | typeof CommandSelectWorkspace
+  | typeof CommandLogout
+  | typeof CommandOpenApplication
+  | typeof CommandCloseTab
 
 export interface NotificationParams {
   title: string
   body: string
   silent: boolean
   application: Plugin
-  cardId?: string
-  objectId?: Ref<Doc>
-  objectClass?: Ref<Class<Doc>>
-  messageId?: Ref<ActivityMessage>
-  threadId?: Ref<ActivityMessage>
+  onClickLocation: Location
 }
 
 export const MenuBarActions = [
@@ -157,9 +154,10 @@ export const MenuBarActions = [
   'restore-size',
   'toggle-fullscreen',
   'toggle-minimize-to-tray',
-  'toggle-auto-launch'] as const
+  'toggle-auto-launch'
+] as const
 
-export type MenuBarAction = typeof MenuBarActions[number]
+export type MenuBarAction = (typeof MenuBarActions)[number]
 
 export interface JumpListSpares {
   applications: LaunchApplication[]
@@ -174,7 +172,7 @@ export interface LaunchApplication {
 }
 
 export interface IPCMainExposed {
-  setBadge: (badge: number) => void
+  setBadge: (badge: number | string, tooltip?: string) => void
   setTitle: (title: string) => void
   config: () => Promise<Config>
   branding: () => Promise<Branding>
@@ -198,6 +196,7 @@ export interface IPCMainExposed {
   closeWindow: () => void
   onWindowStateChange: (callback: (event: IpcRendererEvent, newState: string) => void) => void
   onWindowFocusLoss: (callback: () => void) => void
+  onSystemIdle: (callback: (idle: boolean) => void) => void
 
   isOsUsingDarkTheme: () => Promise<boolean>
   executeMenuBarAction: (action: MenuBarAction) => void

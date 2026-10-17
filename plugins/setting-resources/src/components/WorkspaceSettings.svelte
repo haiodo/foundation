@@ -14,11 +14,12 @@
 -->
 <script lang="ts">
   import { getCurrentAccount, hasAccountRole } from '@hcengineering/core'
-  import { createQuery, isAdminUser, isDisabled } from '@hcengineering/presentation'
-  import setting, { SettingsCategory } from '@hcengineering/setting'
+  import { createQuery, isDisabled } from '@hcengineering/presentation'
+  import type { SettingsCategory } from '@hcengineering/setting'
+  import setting from '@hcengineering/setting'
+  import type { Location } from '@hcengineering/ui'
   import {
     Component,
-    Location,
     NavItem,
     getCurrentResolvedLocation,
     navigate,
@@ -36,7 +37,6 @@
 
   let categories: SettingsCategory[] = []
   const account = getCurrentAccount()
-  const admin = isAdminUser()
 
   const settingsQuery = createQuery()
   settingsQuery.query(
@@ -44,9 +44,9 @@
     {},
     (res) => {
       categories = res.filter((p) => hasAccountRole(account, p.role) && !isDisabled(p.feature ?? ''))
-      if (!admin) {
-        categories = categories.filter((p) => !(p.adminOnly ?? false))
-      }
+      // adminOnly categories are for the installation operator, who no longer carries
+      // extra rights inside a workspace: hide them for everyone here.
+      categories = categories.filter((p) => !(p.adminOnly ?? false))
       category = findCategory(categoryId)
     },
     { sort: { order: 1 } }

@@ -33,11 +33,11 @@ export const pages = [
   'password',
   'recovery',
   'selectWorkspace',
-  'admin',
   'join',
   'autoJoin',
   'confirm',
   'confirmationSend',
+  'registered',
   'auth',
   'login-password',
   'changePassword',
@@ -51,6 +51,7 @@ export default plugin(loginId, {
     LastAccount: '' as Metadata<string>,
     LoginEndpoint: '' as Metadata<string>,
     LoginAccount: '' as Metadata<string>,
+    AuthEmail: '' as Metadata<string>,
     DisableSignUp: '' as Metadata<boolean>,
     HideLocalLogin: '' as Metadata<boolean>,
     LoginTheme: '' as Metadata<string>,
@@ -91,6 +92,12 @@ export default plugin(loginId, {
     PasswordMinUpperChars: '' as IntlString<{ count: number }>,
     PasswordMinLowerChars: '' as IntlString<{ count: number }>,
     SelectWorkspace: '' as IntlString,
+    DeleteAccount: '' as IntlString,
+    DeleteAccountConfirm: '' as IntlString<{ days: number }>,
+    DeleteAccountBlocked: '' as IntlString<{ workspaces: string }>,
+    DeleteAccountBlockedAdmin: '' as IntlString,
+    CodeSent: '' as IntlString,
+    CommunityEdition: '' as IntlString,
     ChangePassword: '' as IntlString,
     CurrentPassword: '' as IntlString,
     NewPassword: '' as IntlString,
@@ -100,10 +107,17 @@ export default plugin(loginId, {
     WorkspaceArchived: '' as IntlString,
     WorkspaceArchivedDesc: '' as IntlString,
     RestoreArchivedWorkspace: '' as IntlString,
+    ScheduledForDeletion: '' as IntlString<{ date: string }>,
+    WorkspaceDeletionScheduledDesc: '' as IntlString<{ date: string }>,
+    CancelWorkspaceDeletion: '' as IntlString,
+    AccountDeletionScheduled: '' as IntlString,
+    AccountDeletionScheduledDesc: '' as IntlString<{ date: string }>,
+    CancelAccountDeletion: '' as IntlString,
     PasswordExpiredDesc: '' as IntlString,
     Downloads: '' as IntlString,
     BackLabel: '' as IntlString,
     Email: '' as IntlString,
+    PhoneNumber: '' as IntlString,
     Password: '' as IntlString,
     PasswordRepeat: '' as IntlString,
     UsageConditions: '' as IntlString,
@@ -113,22 +127,22 @@ export default plugin(loginId, {
     SendInvite: '' as Resource<(email: string, role: AccountRole) => Promise<void>>,
     ResendInvite: '' as Resource<(email: string, role: AccountRole) => Promise<void>>,
     GetInviteLink: '' as Resource<
-    (
-      expHours: number,
-      mask: string,
-      limit: number | undefined,
-      role: AccountRole,
-      navigateUrl?: string
-    ) => Promise<string>
+      (
+        expHours: number,
+        mask: string,
+        limit: number | undefined,
+        role: AccountRole,
+        navigateUrl?: string
+      ) => Promise<string>
     >,
-    LeaveWorkspace: '' as Resource<(account: string) => Promise<LoginInfo | null>>,
+    LeaveWorkspace: '' as Resource<(account: string, otpCode?: string) => Promise<LoginInfo | null>>,
     ChangePassword: '' as Resource<(oldPassword: string, password: string) => Promise<void>>,
     SelectWorkspace: '' as Resource<
-    (
-      workspace: string,
-      token: string | null | undefined,
-      doNavigate?: boolean | undefined // Default to true
-    ) => Promise<[Status, WorkspaceLoginInfo | undefined, boolean]>
+      (
+        workspace: string,
+        token: string | null | undefined,
+        doNavigate?: boolean | undefined // Default to true
+      ) => Promise<[Status, WorkspaceLoginInfo | undefined, boolean]>
     >,
     ExchangeGuestToken: '' as Resource<(token: string) => Promise<string>>,
     FetchWorkspace: '' as Resource<() => Promise<[Status, WorkspaceInfoWithStatus | undefined, boolean]>>,

@@ -1,5 +1,6 @@
-import { expect, Locator, Page } from '@playwright/test'
+import { errors, expect, Locator, Page } from '@playwright/test'
 import { CommonPage } from './common-page'
+import { retry } from '../retry'
 
 export class CalendarPage extends CommonPage {
   readonly page: Page
@@ -63,5 +64,177 @@ export class CalendarPage extends CommonPage {
     await this.inputPopupTime().click()
     await this.inputPopupTime().pressSequentially(time)
     await this.inputPopupDateSave().click()
+  }
+
+  // Calendar widget in the right sidebar (SidebarPage.clickSidebarPageButton('calendar')).
+  // Renders the same DayCalendar grid as the Planner schedule, in single-day mode.
+  calendarWidget = (): Locator => this.page.locator('#sidebar .calendar-container')
+
+  eventInCalendarWidget = (title: string): Locator =>
+    this.calendarWidget().locator('div.event-container', { hasText: title })
+
+  private readonly timeCellInCalendarWidget = (time: string): Locator =>
+    this.calendarWidget().locator(`div.time-cell:text-is('${time}')`)
+
+  // The grid has one empty-cell per day column right after its time-cell - with the widget's
+  // single-day view that is always the next div in document order.
+  emptyCellAtTime = (time: string): Locator => this.timeCellInCalendarWidget(time).locator('xpath=following::div[1]')
+
+  // CalendarNavigation.svelte: Today/Back/Forward buttons, no dropdown since the widget only
+  // allows CalendarMode.Day - Forward is the last of the three.
+  private readonly calendarWidgetNavigation = (): Locator =>
+    this.page.locator('#sidebar div.flex-row-center.gap-2', { hasText: 'Today' })
+
+  buttonForwardDayInWidget = (): Locator => this.calendarWidgetNavigation().locator('button').last()
+
+  async navigateWidgetForward (): Promise<void> {
+    await this.buttonForwardDayInWidget().click()
+  }
+
+  // The stand is reused between runs and specs run in parallel against the same workspace, so a
+  // fixed hour may already hold an event - the click would then open it instead of creating one.
+  // Clicking for real (rather than probing first) keeps the check and the click atomic.
+  // Same shape as DayCalendar's getTimeFormat: 0am..11am, 12pm, 1pm..11pm.
+  private readonly hourLabel = (hour: number): string => `${hour > 12 ? hour - 12 : hour}${hour < 12 ? 'am' : 'pm'}`
+
+  // Scanning starts at midnight rather than "now": other specs book the current hour and the
+  // ones right after it, so the early morning is nearly always free and the scan ends at once.
+  async clickFreeCellInWidget (from: number = 0): Promise<string> {
+    for (let i = 0; i < 24; i++) {
+      const time = this.hourLabel((from + i) % 24)
+      const cell = this.emptyCellAtTime(time)
+      try {
+        await cell.scrollIntoViewIfNeeded({ timeout: 2000 })
+        await cell.click({ timeout: 2000 })
+      } catch (e) {
+        // Only "the cell is covered by an event" is expected here, anything else is a real failure.
+        if (!(e instanceof errors.TimeoutError)) throw e
+        continue
+      }
+      // The click can land on a sliver of a cell that is mostly covered and open nothing, so the
+      // create popup is the only proof the hour was really free.
+      if (
+        await this.createEventPopup()
+          .isVisible({ timeout: 2000 })
+          .catch(() => false)
+      ) {
+        return time
+      }
+      await this.page.keyboard.press('Escape')
+    }
+    throw new Error('no free hour left in the calendar widget')
+  }
+
+  async createEventInWidget (title: string, from: number = 0): Promise<string> {
+    const time = await this.clickFreeCellInWidget(from)
+    await this.inputEventTitle().fill(title)
+    await this.buttonCreateEventSubmit().click()
+    return time
+  }
+
+  // calendar.component.CreateEvent, opened by clicking an empty-cell above. Rendered through the
+  // platform's generic popup shell (div.popup), same as the planning create-ToDo popup.
+  createEventPopup = (): Locator => this.page.locator('div.popup div.eventPopup-container')
+
+  inputEventTitle = (): Locator => this.createEventPopup().locator('input[placeholder="Event title"]')
+  inputEventParticipants = (): Locator => this.createEventPopup().locator('input[placeholder="Add participants"]')
+  // The popup also has a "Create meeting" button, so the submit one needs an exact match.
+  buttonCreateEventSubmit = (): Locator => this.createEventPopup().getByRole('button', { name: 'Create', exact: true })
+
+  // ParticipantsPopup.svelte: person rows are plain divs, not buttons, so the common
+  // selectPopupApMenuItem (button.ap-menuItem) locator does not match here.
+  participantsPopupItem = (name: string): Locator =>
+    this.page.locator('div.antiPopup.thinStyle div.ap-menuItem', { hasText: name })
+
+  // Search matches first/last separately (findCompletions), but the popup always shows "Last
+  // First" (unlike elsewhere's "First Last") - matching on the surname alone is enough.
+  async addEventParticipant (lastName: string): Promise<void> {
+    await this.inputEventParticipants().click()
+    await this.inputEventParticipants().fill(lastName)
+    await this.participantsPopupItem(lastName).first().click()
+  }
+
+  async closeEventPopup (): Promise<void> {
+    await this.cardCloseButton().click()
+  }
+
+  // EventTimeExtraButton dispatches 'repeat' to open ReccurancePopup.svelte.
+  buttonRepeat = (): Locator => this.createEventPopup().getByText('Repeat', { exact: true })
+  private readonly recurrencePopup = (): Locator => this.page.locator('div.repeatPopup-container')
+  // The period dropdown defaults to Week (ReccurancePopup.svelte periodType).
+  private readonly buttonRepeatPeriod = (): Locator => this.recurrencePopup().getByRole('button', { name: 'Week' })
+  private readonly repeatPeriodMenuItem = (name: string): Locator =>
+    this.page.locator('div.selectPopup button.menu-item', { hasText: name })
+
+  buttonRepeatSave = (): Locator => this.recurrencePopup().getByRole('button', { name: 'Save', exact: true })
+
+  // ReccurancePopup.svelte: the "After" radio row's sibling div holds the occurrence-count input.
+  private readonly buttonRepeatAfter = (): Locator => this.recurrencePopup().getByText('After', { exact: true })
+  private readonly inputRepeatCount = (): Locator =>
+    this.buttonRepeatAfter()
+      .locator('xpath=ancestor::div[contains(@class, "antiRadio")]/following-sibling::div[1]')
+      .locator('input[type="number"]')
+
+  // Default is Weekly, no end date - select Daily, bound to a few occurrences so the series
+  // shows up next day too, without booking forever on a stand reused between runs.
+  async setRecurringDaily (occurrences: number = 3): Promise<void> {
+    await this.buttonRepeat().click()
+    await expect(this.recurrencePopup()).toBeVisible()
+    await this.buttonRepeatPeriod().click()
+    await this.repeatPeriodMenuItem('Day').click()
+    await this.buttonRepeatAfter().click()
+    await this.inputRepeatCount().fill(`${occurrences}`)
+    await this.buttonRepeatSave().click()
+  }
+
+  // calendar.action.DeleteRecEvent overrides the generic Delete for a ReccuringInstance and opens
+  // UpdateRecInstancePopup, whose dropdown defaults to "This event" - exactly the override case.
+  private readonly recInstancePopup = (): Locator => this.page.locator('div.popup div.msgbox-container')
+
+  async deleteOccurrenceInWidget (title: string): Promise<void> {
+    await this.eventInCalendarWidget(title).first().click({ button: 'right' })
+    await this.selectPopupApMenuItem('Delete').click()
+    await expect(this.recInstancePopup()).toBeVisible()
+    await this.recInstancePopup().getByRole('button', { name: 'Ok' }).click()
+    await expect(this.eventInCalendarWidget(title)).toHaveCount(0)
+  }
+
+  // The participants dropdown stays open for multi-select and covers the popup, so Escape goes
+  // to it first; the create popup itself only closes through its own cross.
+  async closeCreateEventPopup (): Promise<void> {
+    await this.page.keyboard.press('Escape')
+    if (await this.createEventPopup().isVisible()) {
+      await this.createEventPopup().locator('button#card-close').click()
+    }
+    await expect(this.createEventPopup()).toBeHidden()
+    // The overlay outlives a half-closed popup and swallows every following click.
+    await expect(this.page.locator('div.modal-overlay')).toHaveCount(0)
+  }
+
+  // Opens the create-event popup on a known hour instead of scanning for a free one - the hour
+  // is dictated by the colleague's event the test is checking against.
+  async clickCellAtTime (time: string): Promise<void> {
+    const cell = this.emptyCellAtTime(time)
+    await cell.scrollIntoViewIfNeeded()
+    await cell.click()
+    await expect(this.createEventPopup()).toBeVisible()
+  }
+
+  // EventParticipantItem.svelte marks a participant already booked for the event's own time
+  // with .busy-mark.busy; free participants get the same mark without the modifier.
+  participantsRow = (name: string): Locator => this.createEventPopup().locator('div.antiOption', { hasText: name })
+  participantBusyMark = (name: string): Locator => this.participantsRow(name).locator('.busy-mark.busy')
+
+  // The open popup reads the colleague's slots once, so reopen it per attempt instead of waiting
+  // inside a stale one.
+  async checkParticipantBusy (time: string, lastName: string, busy: boolean): Promise<void> {
+    await retry(async () => {
+      await this.clickCellAtTime(time)
+      await this.addEventParticipant(lastName)
+      const seen = await this.participantBusyMark(lastName).isVisible({ timeout: 5000 })
+      const rows = await this.participantsRow(lastName).count()
+      await this.closeCreateEventPopup()
+      expect(seen, `${lastName} at ${time}: busy=${seen}, expected ${busy}, participant rows ${rows}`).toBe(busy)
+    })
   }
 }

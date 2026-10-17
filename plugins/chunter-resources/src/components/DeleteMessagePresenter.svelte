@@ -14,13 +14,13 @@
 -->
 <script lang="ts">
   import { ActivityMessagePresenter } from '@hcengineering/activity-resources'
-  import { ChatMessage } from '@hcengineering/chunter'
+  import type { ChatMessage } from '@hcengineering/chunter'
 
   export let value: ChatMessage
 </script>
 
 <div class="delete-message-presenter">
-  <ActivityMessagePresenter {value} readonly withActions={false} hoverable={false} padding="1rem" />
+  <ActivityMessagePresenter {value} readonly withActions={false} hoverable={false} padding="1rem" skipLabel />
 </div>
 
 <style lang="scss">

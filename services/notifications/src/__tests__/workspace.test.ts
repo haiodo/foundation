@@ -1,0 +1,674 @@
+//
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// '../config' throws at import time without env vars, so it's mocked (like other test files);
+// server-pipeline/middleware resolve fine as real deps under ts-jest.
+import core, { DOMAIN_TRANSIENT } from '@hcengineering/core'
+import notification from '@hcengineering/notification'
+
+import { QueueTopic } from '@hcengineering/server-core'
+
+import Workspace, { areHeldPushesRead, isTransientError } from '../workspace'
+import { emptyResult } from '../utils/utils'
+import type { Result } from '../types'
+
+// jest hoists jest.mock above the imports.
+jest.mock('../config', () => ({
+  __esModule: true,
+  default: {
+    ApplyTxBatchSize: 100,
+    LatestNotificationsSliceSize: 5
+  }
+}))
+
+describe('isTransientError', () => {
+  it('is true for errors retryNetworkErrors accepts (ECONNREFUSED)', () => {
+    expect(isTransientError(new Error('ECONNREFUSED'))).toBe(true)
+  })
+
+  it('is true for an Error with name FetchError', () => {
+    const e = new Error('some fetch failure')
+    e.name = 'FetchError'
+    expect(isTransientError(e)).toBe(true)
+  })
+
+  it.each([408, 425, 429, 500, 502, 503, 504])('is true for an error object with httpStatus %d', (httpStatus) => {
+    expect(isTransientError({ httpStatus })).toBe(true)
+  })
+
+  it.each([400, 403, 404])('is false for an error object with httpStatus %d', (httpStatus) => {
+    expect(isTransientError({ httpStatus })).toBe(false)
+  })
+
+  it('is false for a plain Error unrelated to network issues', () => {
+    expect(isTransientError(new Error('bad request'))).toBe(false)
+  })
+})
+
+// Workspace's constructor is private only at the type level.
+// Object.create(Workspace.prototype) builds a bare instance we hand-fill for applyResult.
+describe('Workspace.applyResult (private, exercised via a bare instance)', () => {
+  function makeInstance (overrides: { tx?: jest.Mock, send?: jest.Mock, schedule?: jest.Mock }): any {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    instance.cache = { tx: jest.fn(), resetContexts: jest.fn(), getCachedContext: jest.fn() }
+    instance.client = { findOne: jest.fn() }
+    instance.producer = { send: overrides.send ?? jest.fn().mockResolvedValue(undefined) }
+    instance.timeMachine = { send: overrides.schedule ?? jest.fn().mockResolvedValue(undefined) }
+    instance.ws = { uuid: 'ws-1' }
+    instance.rest = { tx: overrides.tx ?? jest.fn().mockResolvedValue(undefined) }
+    instance.txFactory = {
+      createTxApplyIf: jest.fn().mockReturnValue({ _id: 'apply-tx' })
+    }
+    return instance
+  }
+
+  function resultWithOneTx (): Result {
+    const result = emptyResult()
+    result.createContextTx.push({ _id: 'ctx-tx-1', modifiedOn: 1, attributes: { unreadMessages: [] } } as any)
+    return result
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  // withRetry sleeps via setTimeout(...,~500-5000ms) between attempts. Advancing fake timers past
+  // the max possible delay after each microtask turn drains those sleeps without a real wait.
+  async function flushRetries<T> (promise: Promise<T>): Promise<T> {
+    let pending = true
+    void promise.then(
+      () => {
+        pending = false
+      },
+      () => {
+        pending = false
+      }
+    )
+    // Drain the retry backoff sleeps; `pending` flips inside the promise callbacks above.
+    for (let i = 0; i < 20; i++) {
+      if (!pending) break
+      await jest.advanceTimersByTimeAsync(10000)
+    }
+    return await promise
+  }
+
+  it('retries a transient error up to four attempts, then resets contexts and rethrows', async () => {
+    const txMock = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'))
+    const instance = makeInstance({ tx: txMock })
+
+    const promise = (instance.applyResult as (r: Result) => Promise<void>)(resultWithOneTx())
+    const settled = flushRetries(promise)
+
+    await expect(settled).rejects.toThrow('ECONNREFUSED')
+
+    expect(txMock).toHaveBeenCalledTimes(4)
+    expect(instance.cache.resetContexts).toHaveBeenCalledTimes(1)
+    expect(instance.cache.tx).not.toHaveBeenCalled()
+  })
+
+  it('does not retry a non-transient error: calls rest.tx once, resets contexts, does not throw, still sends queued messages', async () => {
+    const txMock = jest.fn().mockRejectedValue(Object.assign(new Error('bad request'), { httpStatus: 400 }))
+    const sendMock = jest.fn().mockResolvedValue(undefined)
+    const instance = makeInstance({ tx: txMock, send: sendMock })
+
+    const result = resultWithOneTx()
+    result.queueMessages.push({ id: 'q-1' } as any)
+
+    await flushRetries((instance.applyResult as (r: Result) => Promise<void>)(result))
+
+    expect(txMock).toHaveBeenCalledTimes(1)
+    expect(instance.cache.resetContexts).toHaveBeenCalledTimes(1)
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    expect(sendMock).toHaveBeenCalledWith(instance.ctx, 'ws-1', result.queueMessages)
+  })
+
+  it('retries a failing producer eight times, then logs the lost batch without throwing', async () => {
+    const sendMock = jest.fn().mockRejectedValue(new Error('broker unavailable'))
+    const instance = makeInstance({ send: sendMock })
+
+    const result = resultWithOneTx()
+    result.queueMessages.push({ id: 'q-1', account: 'acc-1' } as any, { id: 'q-2', account: 'acc-1' } as any)
+
+    await flushRetries((instance.applyResult as (r: Result) => Promise<void>)(result))
+
+    expect(sendMock).toHaveBeenCalledTimes(8)
+    expect(instance.cache.tx).toHaveBeenCalledTimes(1)
+    expect(instance.ctx.error).toHaveBeenCalledWith(
+      'Failed to publish user notifications, push and email of this batch are lost',
+      expect.objectContaining({ count: 2, notificationIds: ['q-1', 'q-2'], accounts: ['acc-1'] })
+    )
+  })
+
+  it('on success calls cache.tx(tx, true) for each tx in the batch', async () => {
+    const txMock = jest.fn().mockResolvedValue(undefined)
+    const instance = makeInstance({ tx: txMock })
+
+    const result = emptyResult()
+    result.createContextTx.push({ _id: 'ctx-tx-1', modifiedOn: 1, attributes: { unreadMessages: [] } } as any)
+    result.updateContextTx.push({ _id: 'ctx-tx-2', modifiedOn: 2, operations: {} } as any)
+
+    await flushRetries((instance.applyResult as (r: Result) => Promise<void>)(result))
+
+    expect(txMock).toHaveBeenCalledTimes(1)
+    expect(instance.cache.tx).toHaveBeenCalledTimes(2)
+    expect(instance.cache.tx).toHaveBeenCalledWith(expect.objectContaining({ _id: 'ctx-tx-1' }), true)
+    expect(instance.cache.tx).toHaveBeenCalledWith(expect.objectContaining({ _id: 'ctx-tx-2' }), true)
+    expect(instance.cache.resetContexts).not.toHaveBeenCalled()
+  })
+})
+
+describe('Workspace.applyResult: the time machine', () => {
+  it('sends the letter commands after the batch is applied, keyed by the workspace', async () => {
+    const schedule = jest.fn().mockResolvedValue(undefined)
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    instance.cache = { tx: jest.fn(), resetContexts: jest.fn() }
+    instance.producer = { send: jest.fn().mockResolvedValue(undefined) }
+    instance.timeMachine = { send: schedule }
+    instance.ws = { uuid: 'ws-1' }
+    instance.rest = { tx: jest.fn().mockResolvedValue(undefined) }
+    instance.txFactory = { createTxApplyIf: jest.fn().mockReturnValue({ _id: 'apply-tx' }) }
+    const result = emptyResult()
+    result.timeMachine.push({ type: 'cancel', id: 'letter:acc:n:%' })
+
+    await instance.applyResult(result)
+
+    expect(schedule).toHaveBeenCalledWith(instance.ctx, 'ws-1', [{ type: 'cancel', id: 'letter:acc:n:%' }])
+  })
+
+  it('logs and goes on when the time machine cannot be reached', async () => {
+    jest.useFakeTimers()
+    try {
+      const instance: any = Object.create((Workspace as any).prototype)
+      instance.inProgress = new Set()
+      instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+      instance.cache = { tx: jest.fn(), resetContexts: jest.fn() }
+      instance.producer = { send: jest.fn().mockResolvedValue(undefined) }
+      instance.timeMachine = { send: jest.fn().mockRejectedValue(new Error('broker down')) }
+      instance.ws = { uuid: 'ws-1' }
+      instance.rest = { tx: jest.fn().mockResolvedValue(undefined) }
+      instance.txFactory = { createTxApplyIf: jest.fn().mockReturnValue({ _id: 'apply-tx' }) }
+      const result = emptyResult()
+      result.timeMachine.push({
+        type: 'schedule',
+        id: 'letter:acc:n:email',
+        targetDate: 1,
+        topic: QueueTopic.HeldNotifications,
+        data: {}
+      })
+
+      let pending = true
+      const run = instance.applyResult(result).finally(() => {
+        pending = false
+      })
+      for (let i = 0; i < 20; i++) {
+        if (!pending) break
+        await jest.advanceTimersByTimeAsync(10000)
+      }
+      await run
+
+      expect(instance.ctx.error).toHaveBeenCalledWith(
+        'Failed to send held letters to the time machine, they are lost',
+        expect.objectContaining({ ids: ['letter:acc:n:email'] })
+      )
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+})
+
+describe('Workspace.releaseHeld', () => {
+  const held: any = {
+    account: 'acc-1',
+    notificationId: 'n-1',
+    objectId: 'doc-1',
+    createdOn: 100,
+    readBy: 'position',
+    provider: 'email',
+    message: { id: 'n-1' }
+  }
+  function instanceWith (states: unknown[]): any {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    instance.released = new Map()
+    instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    instance.ws = { uuid: 'ws-1' }
+    instance.pipeline = { findAll: jest.fn().mockResolvedValue(states) }
+    instance.producer = { send: jest.fn().mockResolvedValue(undefined) }
+    return instance
+  }
+
+  it('publishes the letter when the notification is still unread', async () => {
+    const instance = instanceWith([])
+    await instance.releaseHeld(held)
+    expect(instance.producer.send).toHaveBeenCalledWith(instance.ctx, 'ws-1', [{ id: 'n-1' }])
+    expect(instance.isInProgress()).toBe(false)
+  })
+
+  it('sends a letter the time machine fired twice only once', async () => {
+    const instance = instanceWith([])
+    await instance.releaseHeld(held)
+    await instance.releaseHeld(held)
+    expect(instance.producer.send).toHaveBeenCalledTimes(1)
+    expect(instance.ctx.warn).toHaveBeenCalledWith('held letter fired again, dropped', { notificationId: 'n-1' })
+  })
+
+  it('sends the letter again when the first publish failed', async () => {
+    const instance = instanceWith([])
+    instance.publish = jest.fn().mockRejectedValueOnce(new Error('broker down')).mockResolvedValue(undefined)
+    await expect(instance.releaseHeld(held)).rejects.toThrow('broker down')
+    await instance.releaseHeld(held)
+    expect(instance.publish).toHaveBeenCalledTimes(2)
+  })
+
+  it('forgets a letter after ten minutes, keeping the fresher ones', async () => {
+    const instance = instanceWith([])
+    const now = jest.spyOn(Date, 'now')
+    try {
+      now.mockReturnValue(1_000)
+      await instance.releaseHeld(held)
+      now.mockReturnValue(1_000 + 9 * 60 * 1000)
+      await instance.releaseHeld({ ...held, notificationId: 'n-2', message: { id: 'n-2' } })
+      now.mockReturnValue(1_000 + 10 * 60 * 1000 + 1)
+      await instance.releaseHeld({ ...held, notificationId: 'n-3', message: { id: 'n-3' } })
+      expect(Array.from(instance.released.keys())).toEqual(['letter:acc-1:n-2:email', 'letter:acc-1:n-3:email'])
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('another provider of the same notification is its own letter', async () => {
+    const instance = instanceWith([])
+    await instance.releaseHeld(held)
+    await instance.releaseHeld({ ...held, provider: 'telegram' })
+    expect(instance.producer.send).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the letter when the person read the notification meanwhile', async () => {
+    const instance = instanceWith([{ attachedTo: 'doc-1', 'acc-1': { timestamp: 100 } }])
+    await instance.releaseHeld(held)
+    expect(instance.producer.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('Workspace.close', () => {
+  it('waits for the tx in progress before closing the pipeline', async () => {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    const order: string[] = []
+    let release: () => void = () => {}
+    instance.ctx = { error: jest.fn() }
+    instance.pipeline = { close: jest.fn(async () => order.push('pipeline closed')) }
+    instance.pendingPush = { flushAll: jest.fn(async () => order.push('held pushes flushed')) }
+    instance.processTx = async () => {
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      order.push('tx done')
+    }
+
+    const tx = instance.tx({ _id: 'tx-1' })
+    const closing = instance.close()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(instance.pipeline.close).not.toHaveBeenCalled()
+
+    release()
+    await Promise.all([tx, closing])
+    expect(order).toEqual(['tx done', 'held pushes flushed', 'pipeline closed'])
+    expect(instance.isInProgress()).toBe(false)
+  })
+})
+
+describe('Workspace.releaseHeldPushes (private, exercised via a bare instance)', () => {
+  function makeInstance (status: { user: string } | undefined, size = 1): any {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    instance.pendingPush = { size, flushByAccount: jest.fn().mockResolvedValue(undefined) }
+    instance.status = status
+    instance.release = async (tx: any) => await instance.releaseHeldPushes(tx, instance.status)
+    return instance
+  }
+  const update = (operations: Record<string, unknown>): any => ({
+    _class: core.class.TxUpdateDoc,
+    objectClass: core.class.UserStatus,
+    objectId: 'us-1',
+    operations
+  })
+
+  it("releases the account's held pushes when it goes away or offline, or its status is removed", async () => {
+    for (const tx of [
+      update({ away: true }),
+      update({ online: false }),
+      { _class: core.class.TxRemoveDoc, objectClass: core.class.UserStatus, objectId: 'us-1' }
+    ]) {
+      const instance = makeInstance({ user: 'acc-1' })
+      await instance.release(tx)
+      expect(instance.pendingPush.flushByAccount).toHaveBeenCalledWith('acc-1')
+    }
+  })
+
+  it('does nothing when the person comes back, when nothing is held, or when the status is unknown', async () => {
+    const back = makeInstance({ user: 'acc-1' })
+    await back.release(update({ away: false }))
+    expect(back.pendingPush.flushByAccount).not.toHaveBeenCalled()
+
+    const empty = makeInstance({ user: 'acc-1' }, 0)
+    await empty.release(update({ away: true }))
+    expect(empty.pendingPush.flushByAccount).not.toHaveBeenCalled()
+
+    const unknown = makeInstance(undefined)
+    await unknown.release(update({ away: true }))
+    expect(unknown.pendingPush.flushByAccount).not.toHaveBeenCalled()
+  })
+
+  // The cache drops a removed status before the release runs: the account must come from the
+  // copy taken before the cache applied the tx, or a removal never releases anything.
+  it('releases on a status removal even though the cache has already forgotten the record', async () => {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    const statuses = new Map<string, { user: string }>([['us-1', { user: 'acc-1' }]])
+    instance.pendingPush = { size: 1, flushByAccount: jest.fn().mockResolvedValue(undefined) }
+    instance.cache = {
+      getCachedUserStatus: (id: string) => statuses.get(id),
+      tx: (tx: any) => {
+        if (tx._class === core.class.TxRemoveDoc) statuses.delete(tx.objectId)
+      },
+      reset: jest.fn()
+    }
+    instance.hierarchy = {
+      findDomain: () => 'transient',
+      isDerived: (a: string, b: string) => a === b
+    }
+    instance.model = { addTxes: jest.fn() }
+    instance.ctx = { error: jest.fn() }
+    await instance.processTx({ _class: core.class.TxRemoveDoc, objectClass: core.class.UserStatus, objectId: 'us-1' })
+    expect(instance.pendingPush.flushByAccount).toHaveBeenCalledWith('acc-1')
+  })
+})
+
+describe('areHeldPushesRead', () => {
+  const ctx: any = {}
+  const held = (overrides: Record<string, unknown>): any => ({
+    account: 'acc-1',
+    notificationId: 'n-1',
+    objectId: 'doc-1',
+    createdOn: 100,
+    readBy: 'position',
+    message: {},
+    ...overrides
+  })
+  const pipeline = (docs: unknown[]): any => ({ findAll: jest.fn().mockResolvedValue(docs) })
+  const one = async (docs: unknown[], push: any): Promise<boolean> =>
+    (await areHeldPushesRead(ctx, pipeline(docs), [push]))[0]
+
+  it('a message is read once the account read position passed it', async () => {
+    const state = (timestamp: number): unknown => ({ attachedTo: 'doc-1', 'acc-1': { timestamp } })
+    expect(await one([state(100)], held({}))).toBe(true)
+    expect(await one([state(99)], held({}))).toBe(false)
+    expect(await one([], held({}))).toBe(false)
+  })
+
+  it.each([
+    ['reactions', 'unreadReactions'],
+    ['mentions', 'unreadMentions'],
+    ['commons', 'unreadCommons']
+  ])('a %s notification is read once its id left the context unread list', async (readBy, field) => {
+    const context = (unread: unknown[]): unknown => ({ user: 'acc-1', objectId: 'doc-1', [field]: unread })
+    expect(await one([context([{ id: 'n-1' }])], held({ readBy }))).toBe(false)
+    expect(await one([context([{ id: 'other' }])], held({ readBy }))).toBe(true)
+    expect(await one([{ user: 'acc-1', objectId: 'doc-1' }], held({ readBy }))).toBe(true)
+    // No context at all: nothing is left to notify about.
+    expect(await one([], held({ readBy }))).toBe(true)
+  })
+
+  it('checks the pushes of many documents with one query per kind, answering in order', async () => {
+    const p: any = {
+      findAll: jest
+        .fn()
+        .mockResolvedValueOnce([
+          { attachedTo: 'doc-1', 'acc-1': { timestamp: 100 } },
+          { attachedTo: 'doc-2', 'acc-1': { timestamp: 10 }, 'acc-2': { timestamp: 500 } }
+        ])
+        .mockResolvedValueOnce([{ user: 'acc-1', objectId: 'doc-1', unreadReactions: [{ id: 'r-1' }] }])
+    }
+    const read = await areHeldPushesRead(ctx, p, [
+      held({ notificationId: 'm-1', objectId: 'doc-1' }),
+      held({ notificationId: 'm-2', objectId: 'doc-2' }),
+      held({ notificationId: 'm-3', objectId: 'doc-2', account: 'acc-2' }),
+      held({ notificationId: 'm-4', objectId: 'doc-1', createdOn: 101 }),
+      held({ notificationId: 'r-1', objectId: 'doc-1', readBy: 'reactions' }),
+      held({ notificationId: 'r-2', objectId: 'doc-1', readBy: 'reactions' })
+    ])
+    expect(read).toEqual([true, false, true, false, false, true])
+    expect(p.findAll).toHaveBeenCalledTimes(2)
+    expect(p.findAll.mock.calls[0][2]).toEqual({ attachedTo: { $in: ['doc-1', 'doc-2'] } })
+    expect(p.findAll.mock.calls[1][2]).toEqual({ objectId: { $in: ['doc-1'] }, user: { $in: ['acc-1'] } })
+  })
+
+  it('runs no query for a kind that is not in the batch', async () => {
+    const p: any = { findAll: jest.fn().mockResolvedValue([]) }
+    expect(await areHeldPushesRead(ctx, p, [held({})])).toEqual([false])
+    expect(p.findAll).toHaveBeenCalledTimes(1)
+    expect(await areHeldPushesRead(ctx, p, [])).toEqual([])
+    expect(p.findAll).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Workspace holds the native pushes of an applied batch (bare instance)', () => {
+  function bare (): any {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    instance.cache = { tx: jest.fn(), resetContexts: jest.fn() }
+    instance.producer = { send: jest.fn().mockResolvedValue(undefined) }
+    instance.timeMachine = { send: jest.fn().mockResolvedValue(undefined) }
+    instance.ws = { uuid: 'ws-1' }
+    instance.rest = { tx: jest.fn().mockResolvedValue(undefined) }
+    instance.txFactory = { createTxApplyIf: jest.fn().mockReturnValue({ _id: 'apply-tx' }) }
+    instance.pendingPush = { hold: jest.fn() }
+    return instance
+  }
+  const held: any = {
+    account: 'acc-1',
+    notificationId: 'n-1',
+    objectId: 'doc-1',
+    createdOn: 1,
+    readBy: 'position',
+    provider: 'push',
+    message: { id: 'n-1' }
+  }
+
+  it('registers the hold only after the batch is applied', async () => {
+    const instance = bare()
+    const order: string[] = []
+    instance.rest.tx.mockImplementation(async () => {
+      order.push('tx')
+    })
+    instance.pendingPush.hold.mockImplementation(() => {
+      order.push('hold')
+    })
+    const result = emptyResult()
+    result.createContextTx.push({ _id: 'ctx-tx-1', modifiedOn: 1, attributes: {} } as any)
+    result.heldPushes.push(held)
+
+    await instance.applyResult(result)
+
+    expect(order).toEqual(['tx', 'hold'])
+    expect(instance.pendingPush.hold).toHaveBeenCalledWith(held)
+  })
+
+  it('an inbox-only tx keeps neither the hold nor the scheduled letter, only the cancels', () => {
+    const instance = bare()
+    const result = emptyResult()
+    result.heldPushes.push(held)
+    result.queueMessages.push({ id: 'n-1' } as any)
+    result.createAppPushNotificationTx.push({ _id: 'app' } as any)
+    result.timeMachine.push({ type: 'schedule', id: 'letter:a:n-1:email' }, { type: 'cancel', id: 'letter:a:n-0:%' })
+
+    instance.keepInboxProviderOnly(result)
+
+    expect(result.heldPushes).toEqual([])
+    expect(result.queueMessages).toEqual([])
+    expect(result.createAppPushNotificationTx).toEqual([])
+    expect(result.timeMachine).toEqual([{ type: 'cancel', id: 'letter:a:n-0:%' }])
+  })
+})
+
+describe('Workspace.processTx: read all (bare instance)', () => {
+  function bare (): any {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.inProgress = new Set()
+    instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    instance.hierarchy = { findDomain: () => 'transient', isDerived: (a: string, b: string) => a === b }
+    instance.model = { addTxes: jest.fn() }
+    instance.cache = {
+      tx: jest.fn(),
+      getCachedUserStatus: jest.fn(),
+      getAccountBySocialId: jest.fn().mockResolvedValue('user-1'),
+      getPushSubscriptions: jest.fn().mockResolvedValue([]),
+      getPersonSpaces: jest.fn().mockResolvedValue([{ _id: 'person-space', account: 'user-1' }]),
+      dropInbox: jest.fn(),
+      resetContexts: jest.fn()
+    }
+    instance.producer = { send: jest.fn().mockResolvedValue(undefined) }
+    instance.timeMachine = { send: jest.fn().mockResolvedValue(undefined) }
+    instance.ws = { uuid: 'ws-1' }
+    instance.rest = { tx: jest.fn().mockResolvedValue(undefined) }
+    instance.txFactory = {
+      createTxApplyIf: jest.fn(),
+      createTxCreateDoc: jest.fn((_class, space, attributes) => ({ _id: 'event-tx', _class, space, attributes }))
+    }
+    instance.pendingPush = { hold: jest.fn() }
+    instance.client = {
+      ctx: instance.ctx,
+      findAll: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue({ _id: 'ctx-0' }),
+      bulkUpdate: jest.fn().mockResolvedValue(undefined),
+      bulkRemove: jest.fn().mockResolvedValue(undefined)
+    }
+    return instance
+  }
+  const action = {
+    _id: 'action-1',
+    _class: core.class.TxCreateDoc,
+    objectClass: notification.class.ReadAllNotificationAction,
+    objectSpace: 'someone-elses-space',
+    modifiedBy: 'social-1',
+    modifiedOn: 1000,
+    attributes: { account: 'user-1' }
+  }
+  it('costs the transactor one call whatever the inbox: the event to the person space of the account', async () => {
+    const instance = bare()
+
+    await instance.processTx(action)
+    await Promise.all(Array.from(instance.inProgress))
+
+    expect(instance.client.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(instance.txFactory.createTxApplyIf).not.toHaveBeenCalled()
+    expect(instance.rest.tx).toHaveBeenCalledTimes(1)
+    // The space comes from the account, not from the action a client wrote.
+    expect(instance.txFactory.createTxCreateDoc).toHaveBeenCalledWith(
+      notification.class.InboxChangeEvent,
+      'person-space',
+      { account: 'user-1' }
+    )
+  })
+
+  it('answers with the event even when nothing was unread: the client holds its loader until then', async () => {
+    const instance = bare()
+    instance.client.findOne.mockResolvedValue(undefined)
+
+    await instance.processTx(action)
+    await Promise.all(Array.from(instance.inProgress))
+
+    expect(instance.client.bulkUpdate).not.toHaveBeenCalled()
+    expect(instance.rest.tx).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends no event for an action written for somebody else', async () => {
+    const instance = bare()
+    instance.cache.getAccountBySocialId.mockResolvedValue('user-2')
+
+    await instance.processTx(action)
+    await Promise.all(Array.from(instance.inProgress))
+
+    expect(instance.rest.tx).not.toHaveBeenCalled()
+  })
+
+  it('does not wait for the event: the queue moves on while the transactor is slow', async () => {
+    const instance = bare()
+    let sent: () => void = () => {}
+    instance.rest.tx.mockImplementation(async () => {
+      await new Promise<void>((resolve) => {
+        sent = resolve
+      })
+    })
+
+    await instance.processTx(action)
+
+    // The tx is done, the event is still on its way and close() would wait for it.
+    expect(instance.inProgress.size).toBe(1)
+    sent()
+    await Promise.all(Array.from(instance.inProgress))
+    expect(instance.inProgress.size).toBe(0)
+  })
+
+  it('a failed event is logged, not thrown: the inbox is read and a retry would send nothing', async () => {
+    const instance = bare()
+    instance.rest.tx.mockRejectedValue(new Error('forbidden'))
+
+    await expect(instance.processTx(action)).resolves.toBeUndefined()
+    await Promise.all(Array.from(instance.inProgress))
+
+    expect(instance.ctx.error).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Workspace client: transient docs come from the transactor (bare instance)', () => {
+  function makeInstance (): any {
+    const instance: any = Object.create((Workspace as any).prototype)
+    instance.ctx = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    instance.hierarchy = {
+      findDomain: jest.fn((cls) => (cls === core.class.UserStatus ? DOMAIN_TRANSIENT : 'notification'))
+    }
+    instance.rest = { findAll: jest.fn().mockResolvedValue([{ _id: 'us-1', online: true }]) }
+    instance.pipeline = { findAll: jest.fn().mockResolvedValue([{ _id: 'ctx-1' }]) }
+    return instance
+  }
+
+  it('reads UserStatus through the transactor REST, not the empty local InMemory adapter', async () => {
+    const instance = makeInstance()
+    const client = instance.getClient()
+
+    expect(await client.findAll(core.class.UserStatus, {})).toEqual([{ _id: 'us-1', online: true }])
+    expect(await client.findOne(core.class.UserStatus, {})).toEqual({ _id: 'us-1', online: true })
+    expect(instance.rest.findAll).toHaveBeenLastCalledWith(core.class.UserStatus, {}, { limit: 1 })
+    expect(instance.pipeline.findAll).not.toHaveBeenCalled()
+  })
+
+  it('reads other classes through the local pipeline', async () => {
+    const instance = makeInstance()
+
+    expect(await instance.getClient().findAll(notification.class.DocNotifyContext, {})).toEqual([{ _id: 'ctx-1' }])
+    expect(instance.rest.findAll).not.toHaveBeenCalled()
+  })
+})
