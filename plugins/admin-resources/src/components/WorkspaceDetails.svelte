@@ -33,9 +33,9 @@
   } from '@hcengineering/presentation'
   import {
     Button,
-    ButtonMenu,
     CheckBox,
     Dialog,
+    type DropdownIntlItem,
     EditBox,
     Expandable,
     IconCopy,
@@ -47,6 +47,7 @@
     showPopup,
     themeStore
   } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
 
   import { onDestroy } from 'svelte'
 
@@ -127,7 +128,12 @@
   }
 
   const memberRoles = [AccountRole.Guest, AccountRole.User, AccountRole.Maintainer, AccountRole.Owner]
-  const roleItems = memberRoles.map((r) => ({ id: r, label: getEmbeddedLabel(r) }))
+  const roleItems = memberRoles.map((r): DropdownIntlItem<AccountRole> => ({ id: r, label: getEmbeddedLabel(r) }))
+
+  // The account API types member roles as plain strings.
+  function memberRole (member: WorkspaceMemberDetails): AccountRole {
+    return member.role as AccountRole
+  }
 
   let newMemberRole: AccountRole = AccountRole.User
 
@@ -632,8 +638,8 @@
                 <td>{m.email ?? '-'}</td>
                 <td>
                   {#if !readOnly}
-                    <ButtonMenu
-                      selected={m.role}
+                    <MenuButton
+                      selected={memberRole(m)}
                       size="small"
                       label={getEmbeddedLabel(m.role)}
                       items={roleItems}
@@ -710,7 +716,7 @@
         {/if}
       </div>
       <div class="ml-2">
-        <ButtonMenu
+        <MenuButton
           selected={newMemberRole}
           size="small"
           label={getEmbeddedLabel(newMemberRole)}
@@ -807,9 +813,9 @@
 
     <div class="flex-row-center mt-3 flex-wrap">
       <span class="mr-2"><Label label={adminRes.string.CreateSubscription} />:</span>
-      <ButtonMenu
+      <MenuButton
         selected={selectedPlan}
-        title={selectedPlan === '' ? '...' : (plans?.labels[selectedPlan] ?? selectedPlan)}
+        label={getEmbeddedLabel(selectedPlan === '' ? '...' : (plans?.labels[selectedPlan] ?? selectedPlan))}
         items={planItems}
         on:selected={(it) => {
           selectedPlan = it.detail

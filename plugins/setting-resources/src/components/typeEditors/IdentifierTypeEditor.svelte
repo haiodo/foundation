@@ -17,7 +17,8 @@
   import core, { IndexKind, Type } from '@hcengineering/core'
   import { TypeIdentifier } from '@hcengineering/model'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { EditBox, Label, Toggle, Button, ButtonIcon } from '@hcengineering/ui'
+  import { EditBox, Label, Toggle, Button } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import setting from '../../plugin'
 
@@ -86,7 +87,7 @@
     on:change={change}
   />
   {#if editable && currentSequence?.sequence && currentSequence.sequence > 0}
-    <ButtonIcon icon={setting.icon.Reset} tooltip={{ label: setting.string.Reset }} on:click={resetSequence} />
+    <IconButton icon={setting.icon.Reset} tooltip={{ label: setting.string.Reset }} on:click={resetSequence} />
   {/if}
   {#if editable && identifiers.has(identifier.toUpperCase())}
     <div class="overflow-label duplicated-identifier">

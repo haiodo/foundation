@@ -17,11 +17,12 @@
   import type { Attachment } from '@hcengineering/attachment'
   import type { Class, Data, Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
-  import { Icon, Label, resizeObserver, Scroller, Spinner, ButtonIcon, IconAdd } from '@hcengineering/ui'
+  import { Icon, Label, resizeObserver, Scroller, Spinner, IconAdd } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { BuildModelKey } from '@hcengineering/view'
   import view from '@hcengineering/view'
   import { Table } from '@hcengineering/view-resources'
-  import { getClient } from '@hcengineering/presentation'
+  import presentation, { getClient } from '@hcengineering/presentation'
   import type { FileUploadCallbackParams } from '@hcengineering/uploader'
   import { uploadFiles } from '@hcengineering/uploader'
   import { createEventDispatcher } from 'svelte'
@@ -113,7 +114,13 @@
         {#if loading}
           <Spinner />
         {:else if !readonly}
-          <ButtonIcon icon={IconAdd} kind="tertiary" size="small" on:click={openFile} />
+          <IconButton
+            icon={IconAdd}
+            kind="tertiary"
+            size="small"
+            tooltip={{ label: presentation.string.Add }}
+            on:click={openFile}
+          />
         {/if}
       </div>
     </div>

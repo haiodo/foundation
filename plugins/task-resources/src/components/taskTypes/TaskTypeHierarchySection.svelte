@@ -18,7 +18,6 @@
   import { getConnectedTaskTypes } from '@hcengineering/task'
   import {
     Button,
-    ButtonIcon,
     Icon,
     IconError,
     IconInfo,
@@ -28,6 +27,7 @@
     Toggle,
     tooltip
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import setting from '@hcengineering/setting'
   import tracker from '@hcengineering/tracker'
 
@@ -116,7 +116,7 @@
           </div>
         {/if}
 
-        <ButtonIcon
+        <IconButton
           icon={task.icon.TypeHierarchy}
           tooltip={{ label: task.string.TaskTypesDiagram, direction: 'bottom' }}
           size="small"
@@ -438,8 +438,6 @@
 
     .error-text {
       color: var(--global-negative-TextColor, #ef4444);
-      margin-left: 0 !important;
-      flex-grow: 0 !important;
     }
   }
 </style>

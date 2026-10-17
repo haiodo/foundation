@@ -11,9 +11,7 @@
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
   import type { AnyComponent } from '@hcengineering/ui'
-  import {
-    ButtonBase,
-    ButtonIcon,
+  import ui, {
     IconChevronLeft,
     IconChevronRight,
     Label,
@@ -27,6 +25,7 @@
     languageStore,
     getCurrentLocale
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import type { ToDo, WorkSlot } from '@hcengineering/time'
   import type { PlannerCalendarMode } from '..'
   import time from '../plugin'
@@ -339,7 +338,7 @@
       </div>
     {/if}
     <svelte:fragment slot="actions">
-      <ButtonIcon
+      <IconButton
         icon={contact.icon.Person}
         kind="secondary"
         size="small"
@@ -360,21 +359,22 @@
           localStorage.setItem(extraPersonsKey, JSON.stringify(extraPersons))
         }}
       />
-      <ButtonIcon
+      <IconButton
         icon={IconChevronLeft}
         kind="secondary"
         size="small"
-        dataId="btnPrev"
+        data-id="btnPrev"
+        tooltip={{ label: ui.string.Back }}
         on:click={() => {
           inc(-1)
         }}
       />
       {#key lang}
-        <ButtonBase
+        <Button
           icon={IconSun}
-          label={showLabel ? time.string.TodayColon : undefined}
-          title={showLabel ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
-          type={showLabel ? 'type-button' : 'type-button-icon'}
+          label={showLabel ? ui.string.TodayDate : undefined}
+          labelParams={{ date: getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) }}
+          tooltip={!showLabel ? { label: time.string.Today } : undefined}
           kind="secondary"
           size="small"
           inheritFont
@@ -385,11 +385,12 @@
           }}
         />
       {/key}
-      <ButtonIcon
+      <IconButton
         icon={IconChevronRight}
         kind="secondary"
         size="small"
-        dataId="btnNext"
+        data-id="btnNext"
+        tooltip={{ label: ui.string.Next }}
         on:click={() => {
           inc(1)
         }}

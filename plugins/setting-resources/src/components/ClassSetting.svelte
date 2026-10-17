@@ -22,7 +22,6 @@
   import type { AnySvelteComponent } from '@hcengineering/ui'
   import {
     Scroller,
-    ButtonIcon,
     IconDescription,
     Label,
     getLocation,
@@ -35,6 +34,7 @@
     NavItem,
     NavGroup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { showMenu } from '@hcengineering/view-resources'
   import view from '@hcengineering/view'
 
@@ -174,7 +174,13 @@
     <div class="hulyComponent-content__column">
       <div class="hulyComponent-content__navHeader divide">
         <div class="hulyComponent-content__navHeader-menu">
-          <ButtonIcon kind="tertiary" icon={IconDescription} size="small" inheritColor />
+          <IconButton
+            kind="tertiary"
+            icon={IconDescription}
+            size="small"
+            inheritColor
+            tooltip={{ label: setting.string.ClassSetting }}
+          />
         </div>
         <div class="hulyComponent-content__navHeader-hint paragraph-regular-14">
           <Label label={setting.string.ClassSettingHint} />

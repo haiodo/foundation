@@ -22,16 +22,8 @@
   import { getResource, translate } from '@hcengineering/platform'
   import { getClient, isSpace } from '@hcengineering/presentation'
   import type { Action, AnySvelteComponent, IconSize } from '@hcengineering/ui'
-  import ui, {
-    Icon,
-    IconAdd,
-    IconMoreH,
-    languageStore,
-    Menu,
-    ModernButton,
-    NavGroup,
-    showPopup
-  } from '@hcengineering/ui'
+  import ui, { Icon, IconAdd, IconMoreH, languageStore, Menu, NavGroup, showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { getDocIdentifier } from '@hcengineering/view-resources'
   import { NotificationClientImpl, NotifyMarker } from '@hcengineering/notification-resources'
@@ -204,7 +196,7 @@
     {/each}
     {#if canShowMore}
       <div class="showMore">
-        <ModernButton label={ui.string.ShowMore} kind="tertiary" inheritFont size="extra-small" on:click={onShowMore} />
+        <Button label={ui.string.ShowMore} kind="tertiary" inheritFont size="extra-small" on:click={onShowMore} />
       </div>
     {:else}
       <span class="freeSpace" />

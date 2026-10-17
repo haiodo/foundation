@@ -15,7 +15,8 @@
   import type { IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import type { ColorDefinition } from '@hcengineering/ui'
-  import { getPlatformColorDef, themeStore, tooltip, Label, IconClose, ButtonIcon } from '@hcengineering/ui'
+  import ui, { getPlatformColorDef, themeStore, tooltip, Label, IconClose } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
 
   export let labelIntl: IntlString | undefined = undefined
@@ -58,7 +59,16 @@
   </span>
 
   {#if removable}
-    <ButtonIcon icon={IconClose} size="min" iconSize="x-small" kind="tertiary" on:click={() => dispatch('remove')} />
+    <IconButton
+      tooltip={{ label: ui.string.Remove }}
+      icon={IconClose}
+      size="min"
+      iconSize="x-small"
+      kind="tertiary"
+      on:click={() => {
+        dispatch('remove')
+      }}
+    />
   {/if}
 </div>
 

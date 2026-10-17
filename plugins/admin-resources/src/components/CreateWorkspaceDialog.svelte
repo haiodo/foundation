@@ -16,7 +16,8 @@
   import type { RegionInfo } from '@hcengineering/account-client'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { Card } from '@hcengineering/presentation'
-  import { ButtonMenu, EditBox, Label } from '@hcengineering/ui'
+  import { EditBox, Label } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
 
   import adminRes from '../plugin'
@@ -66,7 +67,7 @@
     {#if regionInfo.length > 0}
       <div class="flex-row-center mt-2">
         <span class="mr-2"><Label label={adminRes.string.Region} />:</span>
-        <ButtonMenu
+        <MenuButton
           selected={region === '' ? '#' : region}
           size="small"
           label={getEmbeddedLabel(

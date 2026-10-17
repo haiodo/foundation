@@ -21,18 +21,17 @@
   import { taskTypeStore } from '@hcengineering/task-resources'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import ui, {
-    ButtonIcon,
     EditBox,
     IconDelete,
     languageStore,
     Loading,
-    ModernButton,
     ModernDropdown,
     Scroller,
     showPopup,
     TextArea,
     tooltip
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import type {
     Screen,
@@ -324,7 +323,7 @@
                   </div>
                 {/if}
                 {#if !readonly}
-                  <ButtonIcon
+                  <IconButton
                     icon={IconDelete}
                     tooltip={{ label: view.string.Delete, direction: 'bottom' }}
                     size="small"
@@ -363,7 +362,7 @@
 
           {#if !readonly}
             <div class="add-tab-container">
-              <ModernButton
+              <Button
                 kind="secondary"
                 size="small"
                 label={plugin.string.AddTab}

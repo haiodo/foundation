@@ -19,7 +19,9 @@
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { getClient, Card } from '@hcengineering/presentation'
   import type { AnyComponent } from '@hcengineering/ui'
-  import { Component, DropdownLabelsIntl, ModernEditbox, Label, showPopup, ButtonIcon, Toggle } from '@hcengineering/ui'
+  import { Component, DropdownLabelsIntl, ModernEditbox, Label, showPopup, Toggle } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import viewRes from '@hcengineering/view-resources/src/plugin'
   import type { DropdownIntlItem } from '@hcengineering/ui/src/types'
   import setting from '../plugin'
   import view from '@hcengineering/view'
@@ -130,7 +132,8 @@
   <div class="hulyModal-container">
     <div class="hulyModal-content__titleGroup">
       <div class="flex items-center">
-        <ButtonIcon
+        <IconButton
+          tooltip={{ label: viewRes.string.ChooseIcon }}
           icon={icon ?? setting.icon.Enums}
           size="medium"
           iconSize="large"

@@ -17,16 +17,8 @@
 <script lang="ts">
   import type { Question } from '@hcengineering/survey'
   import { QuestionKind } from '@hcengineering/survey'
-  import {
-    ButtonIcon,
-    EditBox,
-    Icon,
-    IconDelete,
-    SelectPopup,
-    eventToHTMLElement,
-    showPopup,
-    tooltip
-  } from '@hcengineering/ui'
+  import { EditBox, Icon, IconDelete, SelectPopup, eventToHTMLElement, showPopup, tooltip } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { deepEqual } from 'fast-equals'
   import { createEventDispatcher, onDestroy } from 'svelte'
   import survey from '../plugin'
@@ -332,7 +324,7 @@
   <div class="flex-row-center flex-gap-3 text-base pr-2" on:click={focusQuestion}>
     {#if isNewQuestion}
       <div class="self-start">
-        <ButtonIcon size="small" disabled icon={questionIcon} />
+        <IconButton size="small" disabled icon={questionIcon} tooltip={{ label: survey.string.Question }} />
       </div>
     {:else}
       <div
@@ -342,7 +334,13 @@
         on:dragstart={onRootDragStart}
         on:dragend={onRootDragEnd}
       >
-        <ButtonIcon size="small" disabled={readonly} icon={questionIcon} on:click={showQuestionParams} />
+        <IconButton
+          size="small"
+          disabled={readonly}
+          icon={questionIcon}
+          tooltip={{ label: survey.string.Settings }}
+          on:click={showQuestionParams}
+        />
       </div>
     {/if}
     <EditBox
@@ -395,12 +393,13 @@
           }}
           on:dragend={onOptionDragEnd}
         >
-          <ButtonIcon
+          <IconButton
             disabled={readonly}
             icon={questionIcon}
             iconSize="x-small"
             kind="tertiary"
             size="extra-small"
+            tooltip={{ label: survey.string.Settings }}
             on:click={(ev) => {
               showOptionParams(ev, index)
             }}
@@ -429,7 +428,14 @@
         on:drop={onOptionDrop}
         class:dragged-over={draggedOverIndex === inputOptions.length && draggedIndex !== inputOptions.length - 1}
       >
-        <ButtonIcon disabled icon={survey.icon.Question} iconSize="x-small" kind="tertiary" size="extra-small" />
+        <IconButton
+          disabled
+          icon={survey.icon.Question}
+          iconSize="x-small"
+          kind="tertiary"
+          size="extra-small"
+          tooltip={{ label: survey.string.Question }}
+        />
         <EditBox
           placeholder={survey.string.QuestionPlaceholderOption}
           bind:value={inputNewOption}

@@ -15,7 +15,8 @@
 <script lang="ts">
   import { type Person, formatName } from '@hcengineering/contact'
   import { Avatar, getPersonByPersonRefCb } from '@hcengineering/contact-resources'
-  import { Label, ModernButton } from '@hcengineering/ui'
+  import { Label } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { Ref } from '@hcengineering/core'
   import type { MeetingMinutes, UserMeetingInvite } from '@hcengineering/love'
 
@@ -78,20 +79,20 @@
             {/if}
           </div>
           <div class="knocking-list__actions">
-            <ModernButton
+            <Button
               label={love.string.AdmitKnock}
               kind="primary"
               size={compact ? 'small' : 'medium'}
-              dataId="knock-accept"
+              data-id="knock-accept"
               on:click={() => {
                 void handleAccept(invite)
               }}
             />
-            <ModernButton
+            <Button
               label={love.string.DeclineKnock}
               kind="secondary"
               size={compact ? 'small' : 'medium'}
-              dataId="knock-reject"
+              data-id="knock-reject"
               on:click={() => {
                 void handleReject(invite)
               }}

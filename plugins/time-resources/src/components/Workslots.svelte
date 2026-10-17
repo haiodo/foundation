@@ -14,8 +14,6 @@
 -->
 <script lang="ts">
   import {
-    ButtonBase,
-    ButtonIcon,
     IconDelete,
     themeStore,
     Hotkey,
@@ -25,6 +23,8 @@
     Label,
     tooltip
   } from '@hcengineering/ui'
+  import presentation from '@hcengineering/presentation'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { EventTimeEditor } from '@hcengineering/calendar-resources'
   import type { WorkSlot } from '@hcengineering/time'
   import { createEventDispatcher } from 'svelte'
@@ -80,11 +80,12 @@
         on:change={(e) => change(e, slot)}
         on:dueChange={(e) => dueChange(e, slot)}
       />
-      <ButtonIcon
+      <IconButton
         kind="tertiary"
         size="small"
         icon={IconDelete}
-        dataId="btnDelete"
+        data-id="btnDelete"
+        tooltip={{ label: presentation.string.Delete }}
         on:click={() => {
           dispatch('remove', { _id: slot._id })
         }}
@@ -93,17 +94,11 @@
   {/each}
 </Scroller>
 <div class="flex-row-center flex-gap-4">
-  <ButtonBase
-    kind="secondary"
-    type="type-button"
-    size="medium"
-    label={time.string.AddSlot}
-    on:click={() => dispatch('create')}
-  >
+  <Button kind="secondary" size="medium" label={time.string.AddSlot} on:click={() => dispatch('create')}>
     {#if shortcuts}
       <HotkeyGroup keys={['shift', 'Enter']} />
     {/if}
-  </ButtonBase>
+  </Button>
   {#if split.spent > 0 || split.planned > 0}
     <div class="font-regular-14">
       <Label label={time.string.SummaryDuration} />:

@@ -17,7 +17,8 @@
   import type { AccountUuid, Ref } from '@hcengineering/core'
   import { Class, Doc } from '@hcengineering/core'
   import { ComponentExtensions, createQuery, getClient, hasResource } from '@hcengineering/presentation'
-  import { ButtonIcon, Component, navigate } from '@hcengineering/ui'
+  import { Component, navigate } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { getObjectLinkFragment } from '@hcengineering/view-resources'
 
@@ -81,7 +82,13 @@
                 extension={contact.extension.EmployeePopupActions}
                 props={{ employee, icon: contact.icon.Chat, type: 'type-button-icon' }}
               />
-              <ButtonIcon icon={contact.icon.User} size="small" iconSize="small" on:click={viewProfile} />
+              <IconButton
+                icon={contact.icon.User}
+                size="small"
+                iconSize="small"
+                tooltip={{ label: contact.string.ViewProfile }}
+                on:click={viewProfile}
+              />
             </div>
           </div>
         </DeactivatedHeader>
@@ -157,7 +164,13 @@
           props={{ employee, icon: contact.icon.Chat, type: 'type-button-icon', class: 'button-container' }}
         />
         <div class="button-container">
-          <ButtonIcon icon={contact.icon.User} size="small" iconSize="small" on:click={viewProfile} />
+          <IconButton
+            icon={contact.icon.User}
+            size="small"
+            iconSize="small"
+            tooltip={{ label: contact.string.ViewProfile }}
+            on:click={viewProfile}
+          />
         </div>
       </div>
     {/if}

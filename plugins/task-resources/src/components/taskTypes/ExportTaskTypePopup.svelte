@@ -17,7 +17,8 @@
   import type { TaskType, TaskTypeDependencyItem } from '@hcengineering/task'
   import { exportTaskTypeConfig, getConnectedTaskTypesWithDependencies } from '@hcengineering/task'
   import type { DropdownIntlItem } from '@hcengineering/ui'
-  import ui, { ButtonBase, IconCopy, IconInfo, Label, Modal, ModernDropdown, tooltip } from '@hcengineering/ui'
+  import ui, { IconCopy, IconInfo, Label, Modal, ModernDropdown, tooltip } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import { Severity, Status, getEmbeddedLabel, setPlatformStatus } from '@hcengineering/platform'
 
@@ -295,10 +296,9 @@
   </div>
 
   <div slot="afterContent" class="export-footer">
-    <ButtonBase type="type-button" kind="secondary" size="medium" label={ui.string.Cancel} on:click={handleClose} />
+    <Button kind="secondary" size="medium" label={ui.string.Cancel} on:click={handleClose} />
     <div class="export-actions">
-      <ButtonBase
-        type="type-button"
+      <Button
         kind="primary"
         size="medium"
         icon={IconCopy}
@@ -307,8 +307,7 @@
         disabled={selectedCount === 0 || isExporting || isCopying}
         on:click={handleCopyToClipboard}
       />
-      <ButtonBase
-        type="type-button"
+      <Button
         kind="primary"
         size="medium"
         icon={IconDownload}

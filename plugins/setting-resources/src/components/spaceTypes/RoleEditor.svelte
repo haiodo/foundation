@@ -19,7 +19,6 @@
   import type { Permission, Ref, Role, SpaceType, SpaceTypeDescriptor } from '@hcengineering/core'
   import core from '@hcengineering/core'
   import {
-    ButtonIcon,
     Icon,
     IconDelete,
     IconEdit,
@@ -30,6 +29,7 @@
     navigate,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { ObjectBoxPopup } from '@hcengineering/view-resources'
   import { deleteSpaceTypeRole } from '@hcengineering/setting'
 
@@ -144,14 +144,16 @@
         <div class="hulyComponent-content gap">
           <div class="hulyComponent-content__column-group mt-4">
             <div class="hulyComponent-content__header mb-6 gap-2">
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingRes.string.DeleteRole }}
                 icon={IconDelete}
                 size="large"
                 kind="secondary"
                 disabled={readonly}
                 on:click={handleDeleteRole}
               />
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingRes.string.Role }}
                 icon={PersonIcon}
                 size="large"
                 iconProps={{ size: 'small' }}
@@ -173,7 +175,9 @@
               <div class="hulyTableAttr-header font-medium-12">
                 <IconSettings size="small" />
                 <span><Label label={settingRes.string.Permissions} /></span>
-                <ButtonIcon
+                <IconButton
+                  id="btnEditPermissions"
+                  tooltip={{ label: settingRes.string.Permissions }}
                   kind="primary"
                   icon={IconEdit}
                   size="small"

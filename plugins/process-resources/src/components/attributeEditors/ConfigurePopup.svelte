@@ -15,10 +15,9 @@
 <script lang="ts">
   import type { AnyAttribute, Class, Doc, DocumentQuery, Ref } from '@hcengineering/core'
   import core from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
+  import presentation, { getClient } from '@hcengineering/presentation'
   import type { Context, Func, Process, ProcessFunction, SelectedContext } from '@hcengineering/process'
   import {
-    ButtonIcon,
     CheckBox,
     closeTooltip,
     eventToHTMLElement,
@@ -30,6 +29,7 @@
     showPopup,
     Submenu
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { AttributeCategory } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import plugin from '../../plugin'
@@ -340,19 +340,21 @@
             </div>
             <div>
               {#if getFunction(f.func).editor}
-                <ButtonIcon
+                <IconButton
                   icon={IconSettings}
                   size="small"
                   kind="tertiary"
+                  tooltip={{ label: plugin.string.Settings }}
                   on:click={(e) => {
                     onConfigure(e, f, i)
                   }}
                 />
               {/if}
-              <ButtonIcon
+              <IconButton
                 icon={IconClose}
                 size="small"
                 kind="tertiary"
+                tooltip={{ label: presentation.string.Remove }}
                 on:click={() => {
                   onFunctionRemove(i)
                 }}

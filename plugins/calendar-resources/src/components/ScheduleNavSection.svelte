@@ -25,7 +25,8 @@
     MessageBox
   } from '@hcengineering/presentation'
   import type { Action } from '@hcengineering/ui'
-  import { ButtonIcon, IconAdd, IconDelete, IconLink, NavItem, showPopup } from '@hcengineering/ui'
+  import { IconAdd, IconDelete, IconLink, NavItem, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { TreeElement } from '@hcengineering/view-resources'
   import ScheduleEditor from './ScheduleEditor.svelte'
@@ -128,7 +129,7 @@
           }}
         >
           <svelte:fragment slot="actions">
-            <ButtonIcon
+            <IconButton
               icon={IconLink}
               size="extra-small"
               kind="tertiary"
@@ -137,7 +138,7 @@
                 shareLink(schedule)
               }}
             />
-            <ButtonIcon
+            <IconButton
               icon={IconDelete}
               size="extra-small"
               kind="tertiary"

@@ -20,7 +20,8 @@
   import { getClient } from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
   import type { Action } from '@hcengineering/ui'
-  import { IconMoreV, NavItem, ButtonIcon } from '@hcengineering/ui'
+  import { IconMoreV, NavItem } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { showMenu } from '@hcengineering/view-resources'
   import preference from '@hcengineering/preference'
@@ -117,15 +118,13 @@
   <svelte:fragment slot="actions">
     {#each actions as action}
       {#if action.icon}
-        <ButtonIcon
+        <IconButton
           icon={action.icon}
           size="extra-small"
           kind="tertiary"
           pressed={activeAction === action.id}
           tooltip={{ label: action.label }}
           on:click={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
             void action.action(action.props, e)
           }}
         />

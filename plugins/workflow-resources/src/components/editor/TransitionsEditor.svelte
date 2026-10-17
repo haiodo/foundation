@@ -12,12 +12,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import presentation from '@hcengineering/presentation'
   import type { Doc, Ref, Status } from '@hcengineering/core'
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
   import type { TaskType } from '@hcengineering/task'
   import { StatusPresenter } from '@hcengineering/tracker-resources'
   import {
-    ButtonIcon,
     closePanel,
     closePopup,
     Icon,
@@ -29,6 +29,7 @@
     showPopup,
     tooltip
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { SortableDocListStatic } from '@hcengineering/view-resources'
   import type { Workflow, WorkflowTransition } from '@hcengineering/workflow'
 
@@ -86,11 +87,12 @@
   <div class="hulyTableAttr-header font-medium-12">
     <Icon icon={plugin.icon.Transition} size="small" />
     <span><Label label={plugin.string.Transitions} /></span>
-    <ButtonIcon
+    <IconButton
       kind="primary"
       icon={IconAdd}
       size="small"
-      dataId="btnAddTransition"
+      data-id="btnAddTransition"
+      tooltip={{ label: presentation.string.Add }}
       on:click={addTransition}
       disabled={readonly}
     />

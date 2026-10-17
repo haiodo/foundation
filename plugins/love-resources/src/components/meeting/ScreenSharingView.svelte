@@ -9,7 +9,9 @@
     RemoteTrackPublication
   } from 'livekit-client'
   import { RoomEvent, Track } from 'livekit-client'
-  import { IconScale, IconScaleFull, ButtonIcon } from '@hcengineering/ui'
+  import { IconScale, IconScaleFull } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import love from '../../plugin'
 
   export let hasActiveTrack: boolean = false
   export let showLocalTrack: boolean = true
@@ -218,10 +220,28 @@
   />
   {#if hasActiveTrack}
     <div class="zoom-controls" class:visible={showControls}>
-      <ButtonIcon icon={IconScale} size="small" on:click={zoomOut} disabled={scale <= MIN_SCALE} />
+      <IconButton
+        icon={IconScale}
+        size="small"
+        tooltip={{ label: love.string.ZoomOut }}
+        on:click={zoomOut}
+        disabled={scale <= MIN_SCALE}
+      />
       <span class="zoom-level">{Math.round(scale * 100)}%</span>
-      <ButtonIcon icon={IconScale} size="small" on:click={zoomIn} disabled={scale >= MAX_SCALE} />
-      <ButtonIcon icon={IconScaleFull} size="small" on:click={resetZoom} disabled={scale === 1} />
+      <IconButton
+        icon={IconScale}
+        size="small"
+        tooltip={{ label: love.string.ZoomIn }}
+        on:click={zoomIn}
+        disabled={scale >= MAX_SCALE}
+      />
+      <IconButton
+        icon={IconScaleFull}
+        size="small"
+        tooltip={{ label: love.string.ResetZoom }}
+        on:click={resetZoom}
+        disabled={scale === 1}
+      />
     </div>
   {/if}
 </div>

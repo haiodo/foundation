@@ -259,7 +259,7 @@
         width: 100%;
       }
 
-      :global(.hulyButton) {
+      :global(.button) {
         height: 2.25rem !important;
         min-height: 2.25rem !important;
         max-height: 2.25rem !important;

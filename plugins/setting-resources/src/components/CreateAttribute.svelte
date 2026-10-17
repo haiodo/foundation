@@ -20,7 +20,6 @@
   import presentation, { getClient } from '@hcengineering/presentation'
   import type { AnyComponent } from '@hcengineering/ui'
   import {
-    ButtonIcon,
     Component,
     DropdownLabelsIntl,
     IconCopy,
@@ -31,6 +30,8 @@
     showPopup,
     Toggle
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import viewRes from '@hcengineering/view-resources/src/plugin'
   import type { DropdownIntlItem } from '@hcengineering/ui/src/types'
   import view from '@hcengineering/view'
   import { IconPicker } from '@hcengineering/view-resources'
@@ -140,15 +141,22 @@
   }}
 >
   <svelte:fragment slot="actions">
-    <ButtonIcon icon={IconDelete} size="small" kind="tertiary" />
-    <ButtonIcon icon={IconCopy} size="small" kind="tertiary" />
+    <IconButton icon={IconDelete} size="small" kind="tertiary" tooltip={{ label: setting.string.DeleteAttribute }} />
+    <IconButton icon={IconCopy} size="small" kind="tertiary" tooltip={{ label: presentation.string.Copy }} />
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
     <div class="hulyChip-item font-medium-12">
       <Label label={setting.string.Custom} />
     </div>
     <div class="flex items-center">
-      <ButtonIcon icon={icon ?? setting.icon.Enums} size="medium" iconSize="large" kind="tertiary" on:click={setIcon} />
+      <IconButton
+        tooltip={{ label: viewRes.string.ChooseIcon }}
+        icon={icon ?? setting.icon.Enums}
+        size="medium"
+        iconSize="large"
+        kind="tertiary"
+        on:click={setIcon}
+      />
       <ModernEditbox bind:value={name} label={core.string.Name} size="large" kind="ghost" autoFocus />
     </div>
   </div>

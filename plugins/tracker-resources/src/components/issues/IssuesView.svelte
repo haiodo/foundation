@@ -20,7 +20,8 @@
   import type { Issue, Project } from '@hcengineering/tracker'
   import { TrackerEvents } from '@hcengineering/tracker'
   import type { IModeSelector } from '@hcengineering/ui'
-  import { BlankView, ButtonMenu, type DropdownIntlItem, IconMoreH, showPopup, themeStore } from '@hcengineering/ui'
+  import { BlankView, type DropdownIntlItem, IconMoreH, showPopup, themeStore } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import type { ViewOptions, Viewlet } from '@hcengineering/view'
   import view from '@hcengineering/view'
   import {
@@ -208,7 +209,7 @@
 
   <svelte:fragment slot="actions">
     {#if menuItems.length > 0}
-      <ButtonMenu
+      <MenuButton
         icon={IconMoreH}
         kind="secondary"
         size="small"

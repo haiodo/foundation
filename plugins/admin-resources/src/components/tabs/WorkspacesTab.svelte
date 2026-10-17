@@ -25,7 +25,7 @@
     systemAccountUuid,
     type WorkspaceMode
   } from '@hcengineering/core'
-  import { getEmbeddedLabel, getMetadata, type IntlString, translate } from '@hcengineering/platform'
+  import { getEmbeddedLabel, getMetadata } from '@hcengineering/platform'
   import presentation, {
     copyTextToClipboard,
     isAdminUser,
@@ -36,7 +36,6 @@
   } from '@hcengineering/presentation'
   import {
     Button,
-    ButtonMenu,
     CheckBox,
     IconArrowRight,
     IconCopy,
@@ -53,6 +52,7 @@
     themeStore,
     ticker
   } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import { workbenchId } from '@hcengineering/workbench'
   import { formatMinutes } from '@hcengineering/billing-resources'
   import { onDestroy, onMount } from 'svelte'
@@ -575,10 +575,10 @@
 
   <div class="p-3 flex-row-center flex-wrap filters-row">
     <span class="mr-1"><Label label={adminRes.string.MigrationRegion} /></span>
-    <ButtonMenu
+    <MenuButton
       selected={selectedRegionId}
-      autoSelectionIfOne
-      title={selectedRegionName}
+      label={getEmbeddedLabel(selectedRegionName)}
+      autoSelectSingle
       items={regionInfo.map((it) => ({
         id: it.region === '' ? '#' : it.region,
         label: getEmbeddedLabel(it.name.length > 0 ? it.name : it.region + ' (hidden)')
@@ -590,10 +590,10 @@
 
     <span class="ml-4 mr-1"><CheckBox bind:checked={showSelectedRegionOnly} /></span>
     <span class="mr-1"><Label label={adminRes.string.FilterRegion} /></span>
-    <ButtonMenu
+    <MenuButton
       selected={filterRegionId}
-      autoSelectionIfOne
-      title={filteredRegionName}
+      label={getEmbeddedLabel(filteredRegionName)}
+      autoSelectSingle
       items={regionInfo.map((it) => ({
         id: it.region === '' ? '#' : it.region,
         label: getEmbeddedLabel(it.name.length > 0 ? it.name : it.region + ' (hidden)')
@@ -604,10 +604,11 @@
     />
 
     <span class="ml-4 mr-1"><Label label={adminRes.string.Plan} /></span>
-    <ButtonMenu
+    <MenuButton
       selected={billingPlanFilter === '' ? '#' : billingPlanFilter}
-      label={billingPlanFilter === '' ? adminRes.string.AllPlans : undefined}
-      title={billingPlanFilter === '' ? undefined : (plans?.labels[billingPlanFilter] ?? billingPlanFilter)}
+      label={billingPlanFilter === ''
+        ? adminRes.string.AllPlans
+        : getEmbeddedLabel(plans?.labels[billingPlanFilter] ?? billingPlanFilter)}
       items={[
         { id: '#', label: adminRes.string.AllPlans },
         ...(plans?.keys ?? []).map((k) => ({ id: k, label: getEmbeddedLabel(`${plans?.labels[k] ?? k} (${k})`) }))

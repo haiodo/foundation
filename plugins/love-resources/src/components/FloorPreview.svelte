@@ -18,10 +18,9 @@
   import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import platform, { getMetadata } from '@hcengineering/platform'
-  import { getClient } from '@hcengineering/presentation'
+  import presentation, { getClient } from '@hcengineering/presentation'
   import {
     AccordionItem,
-    ButtonIcon,
     IconDelete,
     IconEdit,
     IconMoreH,
@@ -33,9 +32,11 @@
     showPopup,
     type SelectPopupValueType
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { Floor, ParticipantInfo, Room } from '@hcengineering/love'
   import love, { isOffice, Office } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
+  import view from '@hcengineering/view'
   import plugin from '../plugin'
   import { infos } from '../stores'
   import { calculateFloorSize } from '../utils'
@@ -311,10 +312,23 @@
     {#if configurable && editable}
       {#if rooms.length === 0}
         <div class="mr-2">
-          <ButtonIcon icon={IconDelete} kind="negative" size="small" on:click={remove} />
+          <IconButton
+            icon={IconDelete}
+            kind="negative"
+            size="small"
+            tooltip={{ label: presentation.string.Delete }}
+            on:click={remove}
+          />
         </div>
       {/if}
-      <ButtonIcon icon={IconMoreH} kind="tertiary" size="small" {pressed} on:click={clickMore} />
+      <IconButton
+        icon={IconMoreH}
+        kind="tertiary"
+        size="small"
+        {pressed}
+        tooltip={{ label: view.string.MoreActions }}
+        on:click={clickMore}
+      />
     {/if}
   </svelte:fragment>
   <FloorGrid bind:floorContainer {rows} preview on:mouseover={() => (roomName = undefined)}>

@@ -13,8 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import presentation from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
-  import { ButtonIcon, Icon, IconAdd, IconDelete, Label } from '@hcengineering/ui'
+  import { Icon, IconAdd, IconDelete, Label } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import setting from '@hcengineering/setting'
   import type { Class, Doc, Ref } from '@hcengineering/core'
   import { generateId } from '@hcengineering/core'
@@ -69,7 +71,14 @@
   <div class="hulyTableAttr-header font-medium-12">
     <Icon icon={sectionIcon} size="small" />
     <span><Label label={card.string.MasterDetailViews} /></span>
-    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnAddViewConfig" on:click={addViewConfig} />
+    <IconButton
+      kind="primary"
+      icon={IconAdd}
+      size="small"
+      data-id="btnAddViewConfig"
+      tooltip={{ label: presentation.string.Add }}
+      on:click={addViewConfig}
+    />
   </div>
 
   {#if viewConfigs.length > 0}
@@ -97,11 +106,12 @@
               }}
             />
           </div>
-          <ButtonIcon
+          <IconButton
             kind="tertiary"
             icon={IconDelete}
             size="small"
             disabled={viewConfigs.length === 1}
+            tooltip={{ label: presentation.string.Delete }}
             on:click={() => {
               removeViewConfig(index)
             }}

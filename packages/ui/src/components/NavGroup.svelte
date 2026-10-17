@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import type { Doc, Ref } from '@hcengineering/core'
+  import { generateId } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel } from '@hcengineering/platform'
@@ -65,6 +66,7 @@
   export let testid: string | undefined = undefined
 
   const dispatch = createEventDispatcher()
+  const labelId = `nav-group-label-${generateId()}`
 
   $: id = `navGroup-${categoryName}`
   let pressed: boolean = false
@@ -127,6 +129,7 @@
 >
   <button
     class="hulyNavGroup-header"
+    aria-labelledby={labelId}
     class:isOpen={(isOpen || visible) && !empty}
     class:highlighted
     class:selected
@@ -153,6 +156,7 @@
       {/if}
       <span
         use:tooltip={shouldTooltip ? { label: label ?? getEmbeddedLabel(title ?? ''), direction: 'top' } : undefined}
+        id={labelId}
         class="overflow-label"
       >
         {#if label}<Label {label} />{/if}

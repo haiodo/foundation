@@ -18,7 +18,8 @@
   import presentation, { getAttributeEditor, getClient, reduceCalls } from '@hcengineering/presentation'
   import type { TaskType } from '@hcengineering/task'
   import type { AnySvelteComponent, DropdownTextItem } from '@hcengineering/ui'
-  import { eventToHTMLElement, languageStore, ModernButton, showPopup } from '@hcengineering/ui'
+  import { eventToHTMLElement, languageStore, showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type {
     CollectionOperation,
     UpdateFieldValueConfig,
@@ -384,7 +385,7 @@
   {/each}
 
   <div class="update-field-value__add-row">
-    <ModernButton label={presentation.string.Add} kind="secondary" size="small" on:click={addRow} />
+    <Button label={presentation.string.Add} kind="secondary" size="small" on:click={addRow} />
   </div>
 </div>
 

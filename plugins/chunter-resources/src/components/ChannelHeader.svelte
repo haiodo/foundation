@@ -22,7 +22,8 @@
   import type { Person } from '@hcengineering/contact'
   import contact from '@hcengineering/contact'
   import view from '@hcengineering/view'
-  import { ButtonIcon, languageStore } from '@hcengineering/ui'
+  import { languageStore } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
 
   import Header from './Header.svelte'
   import chunter from '../plugin'
@@ -129,12 +130,12 @@
         extension={chunter.extensions.DirectHeaderExtension}
         props={{ employee: directPerson, type: 'type-button-icon', size: 'small', withBackground: false }}
       />
-      <ButtonIcon
+      <IconButton
         icon={contact.icon.User}
         size="small"
         iconSize="small"
         tooltip={{ label: contact.string.ViewProfile }}
-        dataId="btnDirectViewProfile"
+        data-id="btnDirectViewProfile"
         on:click={() => directPerson && openDoc(hierarchy, directPerson)}
       />
     {/if}

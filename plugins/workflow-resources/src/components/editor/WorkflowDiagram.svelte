@@ -19,7 +19,6 @@
   import task from '@hcengineering/task'
   import {
     Button,
-    ButtonIcon,
     getColorNumberByText,
     getPlatformColorDef,
     IconError,
@@ -31,6 +30,7 @@
     themeStore,
     resolvePaletteColor
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { Workflow, WorkflowTransition } from '@hcengineering/workflow'
 
   import plugin from '../../plugin'
@@ -387,7 +387,7 @@
 <div class="mermaid-wrapper" class:embedded>
   {#if embedded && imageUrl}
     <div class="mermaid-controls">
-      <ButtonIcon
+      <IconButton
         icon={IconSquareExpand}
         tooltip={{ label: plugin.string.Transitions, direction: 'bottom' }}
         size="small"

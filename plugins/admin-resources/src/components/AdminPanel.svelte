@@ -15,7 +15,6 @@
 <script lang="ts">
   import {
     Button,
-    ButtonMenu,
     getCurrentLocation,
     IconRedo,
     Label,
@@ -26,6 +25,7 @@
     TabList,
     type TabItem
   } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import { onDestroy } from 'svelte'
 
   import adminRes from '../plugin'
@@ -97,7 +97,7 @@
       <div class="flex-row-center ml-4">
         <Button icon={IconRedo} label={adminRes.string.Refresh} on:click={refresh} />
         <span class="ml-2 mr-1"><Label label={adminRes.string.AutoRefresh} />:</span>
-        <ButtonMenu
+        <MenuButton
           selected={autoRefresh}
           size="small"
           items={refreshOptions}

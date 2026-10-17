@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import { DraftController, draftsStore, getClient, SpaceSelector } from '@hcengineering/presentation'
-  import { ButtonIcon, IconMinimize, IconSend, ModernButton, ModernEditbox } from '@hcengineering/ui'
+  import { IconMinimize, IconSend, ModernEditbox } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import { AttachmentStyledBox } from '@hcengineering/attachment-resources'
   import type { Card, MasterTag } from '@hcengineering/card'
@@ -159,7 +160,7 @@
 <div class="create-card rounded-form">
   {#if isExpanded}
     <div class="corner-container">
-      <ButtonIcon
+      <IconButton
         icon={IconMinimize}
         size="extra-small"
         on:click={() => (isExpanded = false)}
@@ -218,7 +219,7 @@
               <div class="right-divider" />
               <EditorActions actions={[attachAction]} />
             </div>
-            <ModernButton
+            <Button
               label={card.string.Post}
               icon={IconSend}
               iconSize="small"
@@ -226,7 +227,9 @@
               kind="primary"
               disabled={applyDisabled}
               loading={creating}
-              on:click={okAction}
+              on:click={() => {
+                void okAction()
+              }}
             />
           </div>
         {/if}

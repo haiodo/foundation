@@ -19,7 +19,6 @@
   import presentation, { getClient } from '@hcengineering/presentation'
   import ui, {
     Button,
-    ButtonIcon,
     Chip,
     IconAdd,
     Label,
@@ -28,6 +27,7 @@
     eventToHTMLElement,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
   import { webhookEventNames, webhookEventTypes, type WebhookEventType } from '../webhookEvents'
@@ -115,7 +115,7 @@
       <div class="flex-row-center flex-between">
         <Label label={settingsRes.string.WebhookEventsLabel} />
         <div class="flex-row-center flex-gap-1">
-          <ButtonIcon
+          <IconButton
             kind="tertiary"
             size="small"
             icon={IconAdd}

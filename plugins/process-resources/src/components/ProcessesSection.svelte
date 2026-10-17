@@ -20,16 +20,8 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import type { Process, State } from '@hcengineering/process'
   import { makeRank } from '@hcengineering/rank'
-  import {
-    ButtonIcon,
-    getCurrentLocation,
-    Icon,
-    IconAdd,
-    IconFile,
-    Label,
-    navigate,
-    showPopup
-  } from '@hcengineering/ui'
+  import { getCurrentLocation, Icon, IconAdd, IconFile, Label, navigate, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { getRequiredSlots, importProcess } from '../exporter'
   import process from '../plugin'
   import ImportSlotsPopup from './settings/ImportSlotsPopup.svelte'
@@ -122,14 +114,21 @@
   <Icon icon={process.icon.Process} size="small" />
   <span><Label label={process.string.Processes} /></span>
   <div class="flex-row-center flex-gap-1">
-    <ButtonIcon
+    <IconButton
       kind="primary"
       icon={IconFile}
       size="small"
       tooltip={{ label: process.string.Import, direction: 'bottom' }}
       on:click={handleImport}
     />
-    <ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnAdd" on:click={add} />
+    <IconButton
+      kind="primary"
+      icon={IconAdd}
+      size="small"
+      data-id="btnAdd"
+      tooltip={{ label: process.string.Add }}
+      on:click={add}
+    />
   </div>
 </div>
 {#if processes.length}

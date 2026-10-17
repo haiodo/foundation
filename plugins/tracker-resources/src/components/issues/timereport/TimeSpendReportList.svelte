@@ -23,7 +23,6 @@
   import type { Person } from '@hcengineering/contact'
   import {
     Button,
-    ButtonIcon,
     DropdownLabelsIntl,
     Icon,
     IconAdd,
@@ -34,6 +33,7 @@
     deviceOptionsStore as deviceInfo,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import TimePresenter from './TimePresenter.svelte'
   import TimeReportHeader from './TimeReportHeader.svelte'
   import IssuePresenter from '../IssuePresenter.svelte'
@@ -259,10 +259,11 @@
           </Button>
         {:else}
           <div class="dayCellAdd">
-            <ButtonIcon
+            <IconButton
               icon={IconAdd}
               size="extra-small"
               kind="tertiary"
+              tooltip={{ label: tracker.string.TimeSpendReportAdd }}
               on:click={() => {
                 showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
               }}
@@ -274,10 +275,11 @@
       <div class="dayCell" style:overflow="auto" style:height="{height}rem" class:p-1={true}>
         {#if dayReports.length === 0 && dayIssues.length === 0}
           <div class="dayCellAdd dayCellAdd--center">
-            <ButtonIcon
+            <IconButton
               icon={IconAdd}
               size="extra-small"
               kind="tertiary"
+              tooltip={{ label: tracker.string.TimeSpendReportAdd }}
               on:click={() => {
                 showPopup(PersonReportsPopup, { person, ld: dayFrom, rd: dayTo })
               }}

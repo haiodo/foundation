@@ -15,7 +15,8 @@
 <script lang="ts">
   import { MessageViewer } from '@hcengineering/presentation'
   import { highlightMarkup, isEmptyMarkup, jsonToMarkup, markupToJSON } from '@hcengineering/text-core'
-  import ui, { ModernButton, resizeObserver } from '@hcengineering/ui'
+  import ui, { resizeObserver } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { Markup } from '@hcengineering/core'
 
   import { matchedTerms, splitHighlight } from '../../../search/highlight'
@@ -64,14 +65,12 @@
     </div>
     {#if overflows}
       <div class="toggle">
-        <ModernButton
+        <Button
           label={expanded ? ui.string.ShowLess : ui.string.ShowMore}
           kind="tertiary"
           size="extra-small"
           inheritFont
-          noFocus
-          on:click={(e) => {
-            e.stopPropagation()
+          on:click={() => {
             expanded = !expanded
           }}
         />

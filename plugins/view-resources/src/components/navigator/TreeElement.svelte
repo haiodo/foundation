@@ -17,16 +17,8 @@
   import type { Doc, Ref } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import type { Action, AnySvelteComponent, IconSize } from '@hcengineering/ui'
-  import {
-    ActionIcon,
-    IconMoreH,
-    Menu,
-    showPopup,
-    getTreeCollapsed,
-    NavItem,
-    NavGroup,
-    ButtonIcon
-  } from '@hcengineering/ui'
+  import { ActionIcon, IconMoreH, Menu, showPopup, getTreeCollapsed, NavItem, NavGroup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
 
   export let _id: Ref<Doc> | string | undefined = undefined
@@ -78,6 +70,7 @@
   }
 
   async function onInlineClick (ev: MouseEvent, action: Action): Promise<void> {
+    ev.stopPropagation()
     void action.action([], ev)
   }
 </script>
@@ -118,7 +111,7 @@
     <svelte:fragment slot="tools">
       {#if inlineActions.length > 0}
         {#each inlineActions as action}
-          <ButtonIcon
+          <IconButton
             icon={action.icon ?? ActionIcon}
             size="extra-small"
             kind="tertiary"
@@ -128,7 +121,7 @@
         {/each}
       {/if}
       {#if popupMenuActions.length === 1 && popupMenuActions[0].icon}
-        <ButtonIcon
+        <IconButton
           id={_id}
           icon={popupMenuActions[0].icon}
           size="extra-small"
@@ -139,7 +132,7 @@
           }}
         />
       {:else if popupMenuActions.length > 0}
-        <ButtonIcon
+        <IconButton
           icon={IconMoreH}
           size="extra-small"
           kind="tertiary"
@@ -186,7 +179,7 @@
       {#if $$slots.actions}<slot name="actions" />{/if}
       {#if inlineActions.length > 0}
         {#each inlineActions as action}
-          <ButtonIcon
+          <IconButton
             icon={action.icon ?? ActionIcon}
             size="extra-small"
             kind="tertiary"
@@ -196,7 +189,7 @@
         {/each}
       {/if}
       {#if popupMenuActions.length === 1 && popupMenuActions[0].icon}
-        <ButtonIcon
+        <IconButton
           id={_id}
           icon={popupMenuActions[0].icon}
           size="extra-small"
@@ -207,7 +200,14 @@
           }}
         />
       {:else if popupMenuActions.length > 0}
-        <ButtonIcon icon={IconMoreH} size="extra-small" kind="tertiary" {pressed} on:click={onMenuClick} />
+        <IconButton
+          icon={IconMoreH}
+          size="extra-small"
+          kind="tertiary"
+          {pressed}
+          tooltip={{ label: view.string.MoreActions }}
+          on:click={onMenuClick}
+        />
       {/if}
     </svelte:fragment>
     <svelte:fragment slot="notify">

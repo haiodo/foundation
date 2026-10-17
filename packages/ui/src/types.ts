@@ -329,6 +329,9 @@ export interface LabelAndProps {
   textAlign?: 'left' | 'center' | 'right'
 }
 
+/** A tooltip that carries a label, so it can also name the element it is attached to. */
+export type TooltipWithLabel = LabelAndProps & { label: IntlString }
+
 export interface ListItem {
   _id: string
   label: string
@@ -352,8 +355,8 @@ export interface DropdownTextItem {
   separatorLabel?: IntlString
 }
 
-export interface DropdownIntlItem {
-  id: string | number
+export interface DropdownIntlItem<Id extends string | number = string | number> {
+  id: Id
   label: IntlString
   icon?: IconComponent
   iconProps?: Record<string, any>

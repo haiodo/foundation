@@ -2,17 +2,16 @@
   import type { Timestamp } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import {
+  import ui, {
     Label,
     areDatesEqual,
     ticker,
     Header,
-    ButtonIcon,
-    ButtonBase,
     IconChevronLeft,
     IconChevronRight,
     getFormattedDate
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import IconSun from './icons/Sun.svelte'
   import time from '../plugin'
 
@@ -49,23 +48,24 @@
 
   <svelte:fragment slot="actions" let:doubleRow>
     <slot />
-    <ButtonIcon
+    <IconButton
       icon={IconChevronLeft}
       kind="secondary"
       size="small"
-      dataId="btnPrev"
+      data-id="btnPrev"
+      tooltip={{ label: ui.string.Back }}
       on:click={() => {
         inc(-1)
       }}
     />
-    <ButtonBase
+    <Button
       icon={IconSun}
-      label={!doubleRow ? time.string.TodayColon : undefined}
-      title={!doubleRow ? getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) : undefined}
-      type={!doubleRow ? 'type-button' : 'type-button-icon'}
+      label={!doubleRow ? ui.string.TodayDate : undefined}
+      labelParams={{ date: getFormattedDate(todayDate.getTime(), { weekday: 'short', day: 'numeric' }) }}
+      tooltip={doubleRow ? { label: time.string.Today } : undefined}
       kind="secondary"
       size="small"
-      dataId="btnToday"
+      data-id="btnToday"
       inheritFont
       hasMenu
       disabled={isToday}
@@ -73,11 +73,12 @@
         inc(0)
       }}
     />
-    <ButtonIcon
+    <IconButton
       icon={IconChevronRight}
       kind="secondary"
       size="small"
-      dataId="btnNext"
+      data-id="btnNext"
+      tooltip={{ label: ui.string.Next }}
       on:click={() => {
         inc(1)
       }}

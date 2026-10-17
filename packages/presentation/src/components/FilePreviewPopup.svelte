@@ -17,18 +17,18 @@
   import type { BlobMetadata } from '@hcengineering/core'
   import { SortingOrder, type Blob, type Ref } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import {
+  import ui, {
     Button,
     Modal,
     IconHistory,
     IconScribble,
     showPopup,
     tooltip,
-    ButtonIcon,
     IconMaximize,
     IconMinimize,
     IconClose
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher, onMount } from 'svelte'
 
   import ActionContext from './ActionContext.svelte'
@@ -143,21 +143,23 @@
   }}
 >
   <svelte:fragment slot="beforeTitle">
-    <ButtonIcon
+    <IconButton
       icon={IconClose}
       kind="tertiary"
       size="small"
       noPrint
+      tooltip={{ label: presentation.string.Close }}
       on:click={() => {
         dispatch('close')
       }}
     />
     <div class="hulyHeader-divider short no-line no-print" />
-    <ButtonIcon
+    <IconButton
       icon={!fullSize ? IconMaximize : IconMinimize}
       kind="tertiary"
       size="small"
       noPrint
+      tooltip={{ label: !fullSize ? ui.string.FullSize : ui.string.NormalSize }}
       on:click={() => {
         fullSize = !fullSize
         dispatch('fullsize', fullSize)

@@ -17,8 +17,10 @@
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
 
+  import IconButton from '../ui-kit/button/IconButton.svelte'
+  import ui from '../plugin'
   import type { AnySvelteComponent, IconSize } from '../index'
-  import { ButtonIcon, Icon, IconClose, Label, tooltip } from '../index'
+  import { Icon, IconClose, Label, tooltip } from '../index'
 
   export let label: string | undefined = undefined
   export let labelIntl: IntlString | undefined = undefined
@@ -85,7 +87,17 @@
 
   {#if canClose && !readonly}
     <div class="close-button {orientation}">
-      <ButtonIcon icon={IconClose} kind="tertiary" iconSize="x-small" size="min" on:click={() => dispatch('close')} />
+      <IconButton
+        icon={IconClose}
+        kind="tertiary"
+        iconSize="x-small"
+        size="min"
+        tooltip={{ label: ui.string.Close }}
+        on:click={(e) => {
+          e.stopPropagation()
+          dispatch('close')
+        }}
+      />
     </div>
   {:else if $$slots.postfix === undefined}
     <div />

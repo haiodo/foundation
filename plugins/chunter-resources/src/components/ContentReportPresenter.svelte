@@ -20,7 +20,8 @@
     hasAccountRole
   } from '@hcengineering/core'
   import { MessageViewer, createQuery, getClient } from '@hcengineering/presentation'
-  import { IconError, Label, ModernButton, type Action as UIAction, showPopup } from '@hcengineering/ui'
+  import { IconError, Label, type Action as UIAction, showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import view, { type Action } from '@hcengineering/view'
   import { invokeAction } from '@hcengineering/view-resources'
 
@@ -215,7 +216,7 @@
       {#if canModerate && !readonly}
         <div class="report__actions">
           {#if message !== undefined}
-            <ModernButton
+            <Button
               icon={view.icon.Delete}
               label={chunter.string.ContentReportDeleteMessage}
               kind="secondary"
@@ -224,7 +225,7 @@
             />
           {/if}
           {#if kickAction !== undefined && author !== undefined}
-            <ModernButton
+            <Button
               icon={contact.icon.KickUser}
               label={kickAction.label}
               kind="secondary"

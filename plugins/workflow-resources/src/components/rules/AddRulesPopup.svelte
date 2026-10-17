@@ -17,7 +17,8 @@
   import type { Class, Ref, Status } from '@hcengineering/core'
   import presentation, { getClient } from '@hcengineering/presentation'
   import type { TaskType } from '@hcengineering/task'
-  import ui, { ButtonBase, Label, Modal } from '@hcengineering/ui'
+  import ui, { Label, Modal } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { Workflow, WorkflowRule, WorkflowTransition } from '@hcengineering/workflow'
 
   import plugin from '../../plugin'
@@ -126,8 +127,7 @@
   <svelte:fragment slot="buttons">
     <div class="add-rules-popup--back-button">
       {#if selectedRule != null}
-        <ButtonBase
-          type="type-button"
+        <Button
           kind="secondary"
           size="medium"
           label={ui.string.Back}

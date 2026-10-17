@@ -16,7 +16,8 @@
   import type { Ref } from '@hcengineering/core'
   import { settingId } from '@hcengineering/setting'
   import type { ProjectType } from '@hcengineering/task'
-  import { getCurrentResolvedLocation, IconOpenedArrow, ModernButton, navigate } from '@hcengineering/ui'
+  import { getCurrentResolvedLocation, IconOpenedArrow, navigate } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import task from '../../plugin'
 
   export let projectType: Ref<ProjectType>
@@ -36,7 +37,7 @@
 </script>
 
 <div class="flex-row-center" class:flush>
-  <ModernButton label={task.string.GoToSettings} icon={IconOpenedArrow} size="small" kind="tertiary" on:click={open} />
+  <Button label={task.string.GoToSettings} icon={IconOpenedArrow} size="small" kind="tertiary" on:click={open} />
 </div>
 
 <style lang="scss">

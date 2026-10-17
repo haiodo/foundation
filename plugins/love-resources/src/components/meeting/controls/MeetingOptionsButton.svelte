@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DropdownIntlItem } from '@hcengineering/ui'
-  import { ButtonMenu, IconMoreV } from '@hcengineering/ui'
+  import { IconMoreV } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import type { Action } from '@hcengineering/view'
   import { getResource } from '@hcengineering/platform'
   import { lkSessionConnected } from '../../../liveKitClient'
@@ -55,7 +56,7 @@
 </script>
 
 {#if $lkSessionConnected && moreItems.length > 0}
-  <ButtonMenu
+  <MenuButton
     items={moreItems}
     icon={IconMoreV}
     tooltip={{ label: love.string.MoreOptions, direction: 'top' }}

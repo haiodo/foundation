@@ -16,13 +16,14 @@
   import {
     ModernPopup,
     IconDelete,
-    ButtonIcon,
     IconMoreV,
     IconMoreV2,
     showPopup,
     eventToHTMLElement,
     ModernEditbox
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import setting from '../plugin'
@@ -144,7 +145,8 @@
     </div>
     <div class="hulyTableAttr-content__row-label grow" />
     {#if !disableMouseOver}
-      <ButtonIcon
+      <IconButton
+        tooltip={{ label: view.string.MoreActions }}
         kind="tertiary"
         icon={IconMoreV}
         iconProps={{ fill: 'var(--global-tertiary-TextColor)' }}

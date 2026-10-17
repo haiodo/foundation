@@ -22,7 +22,6 @@
   import setting, { type WebhookIncomingRule } from '@hcengineering/setting'
   import {
     Button,
-    ButtonIcon,
     IconAdd,
     IconCopy,
     IconDelete,
@@ -34,6 +33,7 @@
     showPopup,
     type SelectPopupValueType
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { SortableDocList } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
@@ -171,7 +171,8 @@
             <span class="mono dim overflow-label">{rule.action}</span>
             <span class="dim overflow-label">{rule.target.label}</span>
           </button>
-          <ButtonIcon
+          <IconButton
+            tooltip={{ label: settingsRes.string.Delete }}
             kind="tertiary"
             size="small"
             icon={IconDelete}

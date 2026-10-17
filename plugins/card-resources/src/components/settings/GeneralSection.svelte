@@ -17,10 +17,9 @@
   import core from '@hcengineering/core'
   import { TypeNumber } from '@hcengineering/model'
   import { getEmbeddedLabel, translateCB } from '@hcengineering/platform'
-  import { getClient, IconDownload, IconWithEmoji, MessageBox } from '@hcengineering/presentation'
+  import presentation, { getClient, IconDownload, IconWithEmoji, MessageBox } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
   import {
-    ButtonIcon,
     type ColorDefinition,
     eventToHTMLElement,
     getCurrentLocation,
@@ -35,6 +34,7 @@
     Toggle,
     ToggleWithLabel
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { ColorsPopup, IconPicker } from '@hcengineering/view-resources'
   import { exportModule } from '../../exporter'
@@ -170,12 +170,13 @@
 <div class="hulyComponent-content__column-group">
   <div class="hulyComponent-content__header items-center">
     <div class="flex items-center flex-grow">
-      <ButtonIcon
+      <IconButton
         icon={masterTag.icon === view.ids.IconWithEmoji ? IconWithEmoji : (masterTag.icon ?? card.icon.MasterTag)}
         iconProps={masterTag.icon === view.ids.IconWithEmoji ? { icon: masterTag.color, size: 'large' } : {}}
         size="large"
         iconSize="large"
         kind="tertiary"
+        tooltip={{ label: view.string.Icon }}
         on:click={setIcon}
       />
       <ModernEditbox
@@ -199,7 +200,7 @@
         on:click={showColorPopup}
       />
     </div>
-    <ButtonIcon
+    <IconButton
       icon={IconDownload}
       size="large"
       tooltip={{ label: card.string.Export }}
@@ -207,7 +208,13 @@
       on:click={handleExport}
     />
     {#if isEditable}
-      <ButtonIcon icon={IconDelete} size="large" kind="tertiary" on:click={handleDelete} />
+      <IconButton
+        icon={IconDelete}
+        size="large"
+        kind="tertiary"
+        tooltip={{ label: presentation.string.Delete }}
+        on:click={handleDelete}
+      />
     {/if}
   </div>
   {#if !h.isMixin(masterTag._id)}
@@ -215,7 +222,12 @@
       <Label label={card.string.Versioning} />
       <div class="flex items-center gap-1">
         {#if versioningEnabled}
-          <ButtonIcon icon={setting.icon.Setting} size="extra-small" on:click={versioningSetting} />
+          <IconButton
+            icon={setting.icon.Setting}
+            size="extra-small"
+            tooltip={{ label: setting.string.Settings }}
+            on:click={versioningSetting}
+          />
         {/if}
         <Toggle on={versioningEnabled} disabled={versioningEnabled} on:change={enableVersioning} />
       </div>
@@ -231,7 +243,7 @@
       <div class="mx-2 pt-2 flex-between items-center">
         <div class="flex items-center gap-1 caption">
           <Label label={card.string.BaseType} />
-          <ButtonIcon
+          <IconButton
             icon={IconInfo}
             size="extra-small"
             kind="tertiary"
@@ -244,7 +256,12 @@
     <div class="mx-2 flex-between items-center">
       <Label label={card.string.Duplicate} />
       <div class="flex items-center gap-1">
-        <ButtonIcon icon={setting.icon.Setting} size="extra-small" on:click={duplicateSetting} />
+        <IconButton
+          icon={setting.icon.Setting}
+          size="extra-small"
+          tooltip={{ label: setting.string.Settings }}
+          on:click={duplicateSetting}
+        />
       </div>
     </div>
   {/if}

@@ -201,7 +201,7 @@
       max-width: 100%;
       min-width: 0;
 
-      :global(.hulyButton) {
+      :global(.button) {
         width: 100%;
         max-width: 100%;
         min-width: 0;

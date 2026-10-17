@@ -30,8 +30,6 @@
   import { taskTypeStore } from '@hcengineering/task-resources'
   import type { TabItem } from '@hcengineering/ui'
   import {
-    ButtonIcon,
-    ButtonMenu,
     type DropdownIntlItem,
     EditBox,
     IconCopy,
@@ -45,6 +43,7 @@
     showPopup,
     Switcher
   } from '@hcengineering/ui'
+  import { IconButton, MenuButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { exportWorkflow, removeWorkflow, type Workflow, type WorkflowTransition } from '@hcengineering/workflow'
 
@@ -283,9 +282,9 @@
                 onlyIcons={true}
                 on:select={handleViewModeSelect}
               />
-              <ButtonMenu
+              <MenuButton
                 icon={task.icon.Export}
-                dataId="btnExportWorkflow"
+                data-id="btnExportWorkflow"
                 tooltip={{ label: plugin.string.Export, direction: 'bottom' }}
                 size="small"
                 kind="secondary"
@@ -293,9 +292,9 @@
                 items={exportActions}
                 on:selected={handleExportAction}
               />
-              <ButtonIcon
+              <IconButton
                 icon={IconDelete}
-                dataId="btnDeleteWorkflow"
+                data-id="btnDeleteWorkflow"
                 tooltip={{ label: view.string.Delete, direction: 'bottom' }}
                 size="small"
                 kind="secondary"

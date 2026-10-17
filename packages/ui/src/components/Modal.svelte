@@ -15,9 +15,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
   import type { IntlString } from '@hcengineering/platform'
+  import Button from '../ui-kit/button/Button.svelte'
   import Header from './Header.svelte'
   import Label from './Label.svelte'
-  import ButtonBase from './ButtonBase.svelte'
   import Scroller from './Scroller.svelte'
   import type { ButtonBaseKind, LabelAndProps } from '..'
   import ui from '..'
@@ -116,8 +116,7 @@
   <slot name="afterContent" />
   {#if type !== 'type-component' && !hideFooter}
     <div class="hulyModal-footer">
-      <ButtonBase
-        type="type-button"
+      <Button
         kind={okKind}
         size={type === 'type-aside' ? 'large' : 'medium'}
         tooltip={okTooltip}
@@ -127,8 +126,7 @@
         disabled={!canSave}
       />
       {#if showCancelButton}
-        <ButtonBase
-          type="type-button"
+        <Button
           kind="secondary"
           size={type === 'type-aside' ? 'large' : 'medium'}
           label={ui.string.Cancel}

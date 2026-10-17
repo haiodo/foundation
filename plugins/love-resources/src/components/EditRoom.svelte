@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { EditBox, ModernButton } from '@hcengineering/ui'
+  import { EditBox } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { Room } from '@hcengineering/love'
   import {
     isOffice,
@@ -182,11 +183,11 @@
 
       {#if !isLockedByPrivateMeeting && showConnectionButton(object, connecting, $lkSessionConnected, $infos, $myOffice, $currentRoom) && connectLabel != null}
         <div data-id="meeting-connect">
-          <ModernButton label={connectLabel} size="large" kind="primary" on:click={connect} loading={connecting} />
+          <Button label={connectLabel} size="large" kind="primary" on:click={connect} loading={connecting} />
         </div>
       {:else if isLockedByPrivateMeeting && knockTarget !== undefined && !hasOutgoingKnock}
         <div data-id="meeting-knock">
-          <ModernButton
+          <Button
             label={love.string.KnockAction}
             size="large"
             kind="primary"
@@ -197,7 +198,7 @@
         </div>
       {:else if isLockedByPrivateMeeting && hasOutgoingKnock}
         <div data-id="meeting-knock-pending">
-          <ModernButton
+          <Button
             label={love.string.CancelKnock}
             size="large"
             kind="secondary"

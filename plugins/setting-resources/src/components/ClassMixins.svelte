@@ -23,10 +23,10 @@
     IconAdd,
     IconSettings,
     Label,
-    ModernButton,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { SortableList, deleteObject } from '@hcengineering/view-resources'
   import setting from '../plugin'
   import ClassAttributes from './ClassAttributes.svelte'
@@ -100,7 +100,7 @@
     <span class="ml-2"><Label label={setting.string.Mixins} /></span>
   </div>
   {#if !disabled}
-    <ModernButton icon={IconAdd} label={setting.string.CreateMixin} size="small" on:click={createMixin} />
+    <Button icon={IconAdd} label={setting.string.CreateMixin} size="small" on:click={createMixin} />
   {/if}
 </div>
 {#if mixins.length > 0}

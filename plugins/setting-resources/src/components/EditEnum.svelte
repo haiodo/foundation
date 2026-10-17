@@ -24,12 +24,13 @@
     Modal,
     ModernEditbox,
     Label,
-    ButtonIcon,
     IconMoreV,
     IconMoreV2,
     eventToHTMLElement,
     ModernPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import setting from '../plugin'
@@ -241,7 +242,8 @@
         <IconBulletList size="small" />
         <span><Label label={setting.string.Options} /></span>
         <div class="buttons-group tertiary-textColor">
-          <ButtonIcon
+          <IconButton
+            tooltip={{ label: view.string.MoreActions }}
             kind="tertiary"
             icon={IconMoreV}
             size="small"
@@ -252,7 +254,7 @@
               openPopup(ev)
             }}
           />
-          <ButtonIcon
+          <IconButton
             kind="primary"
             icon={IconAdd}
             size="small"
@@ -305,7 +307,8 @@
                   <Label label={presentation.string.Match} />
                 </div>
               {/if}
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: setting.string.Delete }}
                 kind="tertiary"
                 icon={IconDelete}
                 size="small"

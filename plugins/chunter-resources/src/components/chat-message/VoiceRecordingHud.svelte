@@ -19,7 +19,8 @@
   import { generateId, getCurrentAccount } from '@hcengineering/core'
   import { getClient, uploadFile } from '@hcengineering/presentation'
   import { getCurrentEmployeeName } from '@hcengineering/contact-resources'
-  import { ButtonIcon, IconClose, IconCheck, IconSend, Label, Spinner } from '@hcengineering/ui'
+  import { IconClose, IconCheck, IconSend, Label, Spinner } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
   import slugify from 'slugify'
 
@@ -168,7 +169,7 @@
   {#if phase === 'starting'}
     <Spinner size="small" />
     <span class="timer"><Label label={chunter.string.PreparingMic} /></span>
-    <ButtonIcon
+    <IconButton
       icon={IconClose}
       size="small"
       kind="tertiary"
@@ -183,21 +184,21 @@
         <div class="bar" style="height: {Math.max(2, b * 22)}px" />
       {/each}
     </div>
-    <ButtonIcon
+    <IconButton
       icon={IconClose}
       size="small"
       kind="tertiary"
       tooltip={{ label: chunter.string.VoiceCancel }}
       on:click={onCancel}
     />
-    <ButtonIcon
+    <IconButton
       icon={IconCheck}
       size="small"
       kind="secondary"
       tooltip={{ label: chunter.string.VoiceAttach }}
       on:click={onAttach}
     />
-    <ButtonIcon
+    <IconButton
       icon={IconSend}
       size="small"
       kind="primary"

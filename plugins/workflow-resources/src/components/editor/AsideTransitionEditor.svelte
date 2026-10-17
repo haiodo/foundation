@@ -25,13 +25,13 @@
     Label,
     languageStore,
     Modal,
-    ModernButton,
     ModernDropdown,
     ModernDropdownLabels,
     ModernEditbox,
     showPopup,
     Spinner
   } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { ConflictInfo, Workflow, WorkflowTransition } from '@hcengineering/workflow'
   import { getTransitionConflict, removeTransition, updateTransition } from '@hcengineering/workflow'
 
@@ -364,8 +364,8 @@
   <div slot="footer" class="footer-row flex-row-center w-full justify-between">
     <div class="footer-left">
       {#if !readonly}
-        <ModernButton
-          dataId="btnRemoveTransition"
+        <Button
+          data-id="btnRemoveTransition"
           label={presentation.string.Remove}
           size="large"
           kind="secondary"

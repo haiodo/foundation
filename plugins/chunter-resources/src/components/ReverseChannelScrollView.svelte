@@ -27,7 +27,8 @@
   import type { ReadState } from '@hcengineering/notification'
   import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { addTxListener, getClient, removeTxListener } from '@hcengineering/presentation'
-  import { BlankView, ModernButton, Scroller, Loading, isAppFocusedStore } from '@hcengineering/ui'
+  import { BlankView, Scroller, Loading, isAppFocusedStore } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import { afterUpdate, onDestroy, onMount, tick } from 'svelte'
   import { fade } from 'svelte/transition'
   import type { ChatMessage } from '@hcengineering/chunter'
@@ -853,7 +854,7 @@
   </Scroller>
   {#if isLatestMessageButtonVisible}
     <div class="down-button absolute">
-      <ModernButton
+      <Button
         label={chunter.string.LatestMessages}
         shape="round"
         size="small"

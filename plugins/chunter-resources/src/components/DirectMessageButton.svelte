@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { ModernButton } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import type { Employee } from '@hcengineering/contact'
   import type { Asset } from '@hcengineering/platform'
@@ -32,14 +32,14 @@
 </script>
 
 <div class="button-container">
-  <ModernButton
+  <Button
     label={type === 'type-button-icon' ? undefined : chunter.string.Message}
     icon={icon ?? view.icon.Bubble}
     size="small"
     iconSize="small"
-    {type}
     {kind}
-    dataId="btnDirectMessage"
+    tooltip={type === 'type-button-icon' ? { label: chunter.string.Message } : undefined}
+    data-id="btnDirectMessage"
     on:click={openDirect}
   />
 </div>

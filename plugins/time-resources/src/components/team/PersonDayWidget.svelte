@@ -21,7 +21,9 @@
   import type { Project } from '@hcengineering/task'
   import type { ToDo, WorkSlot } from '@hcengineering/time'
   import { getResource } from '@hcengineering/platform'
-  import { ButtonIcon, IconClose, Label } from '@hcengineering/ui'
+  import presentation from '@hcengineering/presentation'
+  import { IconClose, Label } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { Widget } from '@hcengineering/workbench'
   import workbench from '@hcengineering/workbench'
   import time from '../../plugin'
@@ -62,7 +64,13 @@
     <div class="fs-title mb-2 flex-between">
       <PersonPresenter value={person} shouldShowAvatar shouldShowName />
       {#if widget !== undefined}
-        <ButtonIcon icon={IconClose} size="small" kind="tertiary" on:click={handleClose} />
+        <IconButton
+          icon={IconClose}
+          size="small"
+          kind="tertiary"
+          tooltip={{ label: presentation.string.Close }}
+          on:click={handleClose}
+        />
       {/if}
     </div>
     <DayPlan

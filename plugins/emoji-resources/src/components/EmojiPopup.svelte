@@ -12,10 +12,10 @@
     deviceOptionsStore as deviceInfo,
     showPopup,
     eventToHTMLElement,
-    ButtonBase,
     closeTooltip,
     Icon
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { getEmojiByShortCode, getEmojiSkins, getUnicodeEmojiByShortCode } from '../utils'
   import {
     searchEmoji,
@@ -29,6 +29,7 @@
   } from '../store'
   import type { EmojiWithGroup } from '@hcengineering/emoji'
   import ActionsPopup from './ActionsPopup.svelte'
+  import EmojiGlyph from './EmojiGlyph.svelte'
   import SkinTonePopup from './SkinTonePopup.svelte'
   import EmojiGroup from './EmojiGroup.svelte'
   import emojiPlugin, { isCustomEmoji } from '@hcengineering/emoji'
@@ -280,17 +281,16 @@
         else if (result.detail !== '') currentCategory = searchCategory[0]
       }}
     />
-    <ButtonBase
-      type="type-button-icon"
+    <IconButton
+      icon={EmojiGlyph}
+      iconProps={{ emoji: getUnicodeEmojiByShortCode(':hand:', skinTone)?.emoji, fontSize: '1.5rem' }}
       hasMenu
       pressed={shownSTM}
       kind="tertiary"
       size="small"
       tooltip={{ label: emojiPlugin.string.DefaultSkinTone }}
       on:click={showSkinMenu}
-    >
-      <span style:font-size="1.5rem" class="emoji">{getUnicodeEmojiByShortCode(':hand:', skinTone)?.emoji}</span>
-    </ButtonBase>
+    />
   </div>
   <Scroller
     bind:divScroll={scrollElement}

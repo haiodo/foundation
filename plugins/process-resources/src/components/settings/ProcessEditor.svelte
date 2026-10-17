@@ -20,8 +20,6 @@
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import {
-    ButtonIcon,
-    ButtonMenu,
     defineSeparators,
     EditBox,
     getCurrentLocation,
@@ -34,6 +32,7 @@
     showPopup,
     IconLink
   } from '@hcengineering/ui'
+  import { IconButton, MenuButton } from '@hcengineering/ui/kit'
   import { exportProcess } from '../../exporter'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
@@ -204,7 +203,7 @@
             />
             <div class="flex-row-center flex-gap-2">
               {#if value.requiredSlots && Object.keys(value.requiredSlots).length > 0}
-                <ButtonIcon
+                <IconButton
                   icon={IconLink}
                   tooltip={{ label: process.string.Bindings, direction: 'bottom' }}
                   size="small"
@@ -212,8 +211,14 @@
                   on:click={handleBindings}
                 />
               {/if}
-              <ButtonIcon icon={IconSettings} size="small" kind="secondary" on:click={handleSettings} />
-              <ButtonMenu
+              <IconButton
+                icon={IconSettings}
+                size="small"
+                kind="secondary"
+                tooltip={{ label: process.string.Settings, direction: 'bottom' }}
+                on:click={handleSettings}
+              />
+              <MenuButton
                 icon={IconDownload}
                 tooltip={{ label: process.string.Export, direction: 'bottom' }}
                 size="small"
@@ -222,14 +227,14 @@
                 noSelection
                 on:selected={onExportSelected}
               />
-              <ButtonIcon
+              <IconButton
                 icon={IconDetails}
                 tooltip={{ label: process.string.Data, direction: 'bottom' }}
                 size="small"
                 kind="secondary"
                 on:click={handleContext}
               />
-              <ButtonIcon
+              <IconButton
                 icon={IconDelete}
                 tooltip={{ label: view.string.Delete, direction: 'bottom' }}
                 size="small"

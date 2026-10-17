@@ -17,7 +17,8 @@
   import type { Ref } from '@hcengineering/core'
   import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { ButtonIcon, getCurrentLocation, IconAdd, location, Menu, navigate, showPopup } from '@hcengineering/ui'
+  import { getCurrentLocation, IconAdd, location, Menu, navigate, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
 
   import type { MasterTag } from '@hcengineering/card'
   import card from '../../plugin'
@@ -93,4 +94,12 @@
   }
 </script>
 
-<ButtonIcon icon={IconAdd} hasMenu {pressed} kind="primary" size="small" on:click={addButtonClicked} />
+<IconButton
+  icon={IconAdd}
+  hasMenu
+  {pressed}
+  kind="primary"
+  size="small"
+  tooltip={{ label: card.string.CreateCard }}
+  on:click={addButtonClicked}
+/>

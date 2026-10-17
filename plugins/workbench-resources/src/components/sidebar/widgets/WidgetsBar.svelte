@@ -15,7 +15,8 @@
 <script lang="ts">
   import type { Widget, WidgetPreference } from '@hcengineering/workbench'
   import workbench, { WidgetType } from '@hcengineering/workbench'
-  import { IconSettings, ModernButton, showPopup, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
+  import { IconSettings, showPopup, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { Ref } from '@hcengineering/core'
   import { ComponentExtensions } from '@hcengineering/presentation'
 
@@ -88,7 +89,7 @@
 
     {#if widgets.some((widget) => widget.type === WidgetType.Configurable)}
       <div class="separator" />
-      <ModernButton icon={IconSettings} size="small" on:click={handleAddWidget} />
+      <IconButton iconSize="medium" icon={IconSettings} size="small" on:click={handleAddWidget} />
     {/if}
 
     <ComponentExtensions extension={workbench.extensions.WidgetsBarExtensions} />

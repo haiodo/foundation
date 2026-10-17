@@ -22,17 +22,8 @@
   import type { ProjectType, ProjectTypeDescriptor, Task, TaskType, TaskTypeDescriptor } from '@hcengineering/task'
   import { createState, findStatusAttr } from '@hcengineering/task'
   import type { DropdownIntlItem } from '@hcengineering/ui'
-  import {
-    Icon,
-    IconError,
-    Modal,
-    ModernEditbox,
-    Label,
-    ButtonMenu,
-    Toggle,
-    IconInfo,
-    ButtonIcon
-  } from '@hcengineering/ui'
+  import { Icon, IconError, Modal, ModernEditbox, Label, Toggle, IconInfo } from '@hcengineering/ui'
+  import { IconButton, MenuButton } from '@hcengineering/ui/kit'
   import { clearSettingsStore } from '@hcengineering/setting-resources'
 
   import task from '../../plugin'
@@ -260,7 +251,7 @@
         <span class="label">
           <Label label={task.string.Type} />
         </span>
-        <ButtonMenu
+        <MenuButton
           selected={taskTypeDescriptor._id}
           items={descriptorItems}
           icon={taskTypeDescriptor.icon}
@@ -280,7 +271,7 @@
     <div class="hulyModal-content__settingsSet-line">
       <span class="label label-with-info">
         <Label label={task.string.AllowRootTask} />
-        <ButtonIcon
+        <IconButton
           icon={IconInfo}
           size="extra-small"
           kind="tertiary"
@@ -293,7 +284,7 @@
     <div class="hulyModal-content__settingsSet-line">
       <span class="label label-with-info">
         <Label label={task.string.AllowAnyParentSubtask} />
-        <ButtonIcon
+        <IconButton
           icon={IconInfo}
           size="extra-small"
           kind="tertiary"

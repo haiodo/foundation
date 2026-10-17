@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
-  import { Button, ButtonIcon, closeTooltip, IconOptions, showPopup } from '@hcengineering/ui'
+  import { Button, closeTooltip, IconOptions, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { OrderOption, Viewlet, ViewOptionModel, ViewOptions } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import view from '../plugin'
@@ -117,7 +118,7 @@
       on:click={clickHandler}
     />
   {:else}
-    <ButtonIcon
+    <IconButton
       icon={IconOptions}
       {disabled}
       {kind}
@@ -125,7 +126,7 @@
       hasMenu
       {pressed}
       tooltip={{ label: view.string.GroupAndSort, direction: 'bottom' }}
-      dataId="btn-viewOptions"
+      data-id="btn-viewOptions"
       bind:element={btn}
       on:click={clickHandler}
     />

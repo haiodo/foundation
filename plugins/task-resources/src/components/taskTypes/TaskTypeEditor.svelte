@@ -15,24 +15,23 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import view from '@hcengineering/view'
   import { onDestroy } from 'svelte'
   import type { Ref, Status } from '@hcengineering/core'
   import { SortingOrder } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { getResource } from '@hcengineering/platform'
-  import { MessageBox, createQuery, getClient } from '@hcengineering/presentation'
+  import presentation, { MessageBox, createQuery, getClient } from '@hcengineering/presentation'
   import { ClassAttributes, clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
   import type { ProjectType, TaskType } from '@hcengineering/task'
   import task, { calculateStatuses, findStatusAttr } from '@hcengineering/task'
   import {
-    ButtonIcon,
     Icon,
     IconAdd,
     IconDelete,
     IconError,
     IconSquareExpand,
     Label,
-    ModernButton,
     Scroller,
     ToggleWithLabel,
     ModernEditbox,
@@ -41,6 +40,7 @@
     resolvePaletteColor,
     showPopup
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { IconPicker, deleteObjects, statusStore } from '@hcengineering/view-resources'
   import workflow from '@hcengineering/workflow'
 
@@ -241,19 +241,20 @@
             <div class="hulyComponent-content__header mb-6">
               <div class="flex-row-center gap-1-5">
                 {#if !readonly}
-                  <ButtonIcon
+                  <IconButton
                     icon={TaskTypeIcon}
                     iconProps={{ value: taskType, size: 'medium' }}
                     size="large"
                     kind="secondary"
-                    dataId="btnSelectIcon"
+                    data-id="btnSelectIcon"
                     disabled={readonly}
+                    tooltip={{ label: view.string.Icon }}
                     on:click={selectIcon}
                   />
                 {/if}
               </div>
               <div class="flex-row gap-1">
-                <ModernButton
+                <Button
                   icon={IconSquareExpand}
                   label={plugin.string.CountTasks}
                   labelParams={{ count: tasksCounter }}
@@ -265,7 +266,7 @@
                     void showIssuesOfTaskType()
                   }}
                 />
-                <ButtonIcon
+                <IconButton
                   icon={task.icon.Export}
                   tooltip={{ label: plugin.string.Export }}
                   kind="secondary"
@@ -273,12 +274,13 @@
                   on:click={handleExport}
                 />
                 {#if canDelete}
-                  <ButtonIcon
+                  <IconButton
                     icon={IconDelete}
                     size="small"
                     kind="secondary"
                     loading={isDeleting}
                     disabled={readonly || isDeleting}
+                    tooltip={{ label: presentation.string.Delete }}
                     on:click={handleDelete}
                   />
                 {/if}
@@ -333,7 +335,14 @@
             <div class="hulyTableAttr-header font-medium-12">
               <Icon icon={task.icon.ManageTemplates} size="small" />
               <span><Label label={plugin.string.ProcessStates} /></span>
-              <ButtonIcon kind="primary" icon={IconAdd} size="small" on:click={handleAddStatus} disabled={readonly} />
+              <IconButton
+                kind="primary"
+                icon={IconAdd}
+                size="small"
+                tooltip={{ label: presentation.string.Add }}
+                on:click={handleAddStatus}
+                disabled={readonly}
+              />
             </div>
             <StatesProjectEditor
               {taskType}

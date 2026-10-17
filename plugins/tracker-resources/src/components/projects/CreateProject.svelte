@@ -28,7 +28,6 @@
   import { TimeReportDayType, TrackerEvents } from '@hcengineering/tracker'
   import {
     Button,
-    ButtonIcon,
     Component,
     EditBox,
     getColorNumberByText,
@@ -40,6 +39,7 @@
     themeStore,
     Toggle
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { IconPicker } from '@hcengineering/view-resources'
   import type { ProjectWorkflow, Workflow } from '@hcengineering/workflow'
@@ -620,11 +620,12 @@
           <span><Label label={workflow.string.WorkflowMapping} /></span>
         </div>
         <div class="flex-row-center gap-2">
-          <ButtonIcon
+          <IconButton
             icon={view.icon.Setting}
             kind="secondary"
             size="large"
-            dataId="btnConfigureWorkflows"
+            data-id="btnConfigureWorkflows"
+            tooltip={{ label: workflow.string.Workflows }}
             on:click={openConfigureWorkflows}
           />
           {#if hasConfiguredWorkflows}

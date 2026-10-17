@@ -15,7 +15,8 @@
 -->
 <script lang="ts">
   import type { ButtonBaseSize, IconSize } from '@hcengineering/ui'
-  import { ModernButton, showPopup } from '@hcengineering/ui'
+  import { showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { Employee } from '@hcengineering/contact'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
   import contactRes from '@hcengineering/contact-resources/src/plugin'
@@ -78,12 +79,11 @@
 
 {#if !hidden}
   <div class:button-container={withBackground} data-id="invite-button">
-    <ModernButton
+    <Button
       label={type === 'type-button-icon' ? undefined : love.string.Invite}
       icon={love.icon.Invite}
       {size}
       {iconSize}
-      {type}
       {kind}
       {disabled}
       tooltip={disabled

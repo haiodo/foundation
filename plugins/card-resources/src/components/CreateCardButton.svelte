@@ -19,7 +19,8 @@
   import type { Class, Data, Doc, MarkupBlobRef, Ref } from '@hcengineering/core'
   import core, { fillDefaults } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
-  import { ButtonIcon, getCurrentLocation, IconAdd, navigate, showPopup } from '@hcengineering/ui'
+  import { getCurrentLocation, IconAdd, navigate, showPopup } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { getClient } from '@hcengineering/presentation'
   import card from '../plugin'
   import { isBaseTypeWithSubtypes } from '../utils'
@@ -71,4 +72,11 @@
   }
 </script>
 
-<ButtonIcon kind="primary" icon={IconAdd} size="small" dataId="btnCreateCard" on:click={createCard} />
+<IconButton
+  kind="primary"
+  icon={IconAdd}
+  size="small"
+  data-id="btnCreateCard"
+  tooltip={{ label: card.string.CreateCard }}
+  on:click={createCard}
+/>

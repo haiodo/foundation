@@ -31,14 +31,14 @@
     IconCalendar,
     IconClose,
     Label,
-    ModernButton,
     ModernDropdownLabels,
     showPopup,
     themeStore,
     type DropdownTextItem
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
-  import { translate, translateCB, type IntlString } from '@hcengineering/platform'
+  import { getEmbeddedLabel, translate, translateCB, type IntlString } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
 
   import chunter from '../../../plugin'
@@ -303,7 +303,7 @@
 
 {#if compact}
   <div class="compact-bar">
-    <ModernButton
+    <Button
       icon={persons.length === 0 ? contact.icon.Person : undefined}
       kind="tertiary"
       size="small"
@@ -325,7 +325,7 @@
           {/if}
         </span>
       {/if}
-    </ModernButton>
+    </Button>
   </div>
 {:else}
   <div class="filter-bar-host">
@@ -355,7 +355,7 @@
         </svelte:fragment>
       </ModernDropdownLabels>
 
-      <ModernButton
+      <Button
         icon={persons.length === 0 ? contact.icon.Person : undefined}
         label={persons.length === 0 ? chunter.string.SearchFilterAuthor : undefined}
         kind="secondary"
@@ -376,10 +376,10 @@
             {/if}
           </span>
         {/if}
-      </ModernButton>
+      </Button>
 
       <div bind:this={objectsButton}>
-        <ModernButton
+        <Button
           icon={objectsIcon}
           label={objects.length === 0 ? chunter.string.SearchFilterObject : undefined}
           kind="secondary"
@@ -397,23 +397,22 @@
               <FilterButtonContent title={objects[0].title} doc={objects[0].doc} count={objects.length} />
             {/if}
           {/if}
-        </ModernButton>
+        </Button>
       </div>
 
       <div class="filter">
-        <ModernButton
+        <Button
           icon={IconCalendar}
           label={filters.after === undefined && filters.before === undefined
             ? chunter.string.SearchFilterDate
-            : undefined}
-          title={filters.after !== undefined || filters.before !== undefined ? dateText : undefined}
+            : getEmbeddedLabel(dateText)}
           kind="secondary"
           size="small"
           iconSize="small"
           on:click={pickDate}
         />
         {#if filters.after !== undefined || filters.before !== undefined}
-          <ModernButton
+          <IconButton
             icon={IconClose}
             kind="tertiary"
             size="small"
@@ -427,7 +426,7 @@
       </div>
 
       <div bind:this={optionsButton}>
-        <ModernButton
+        <Button
           icon={IconAttachment}
           label={chunter.string.SearchFilterOptions}
           kind="secondary"
@@ -438,7 +437,7 @@
           {#if activeOptions > 0}
             <span class="counter">{activeOptions}</span>
           {/if}
-        </ModernButton>
+        </Button>
       </div>
 
       {#if $$slots.trailing}

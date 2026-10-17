@@ -15,11 +15,12 @@
   import { createEventDispatcher } from 'svelte'
   import type { Doc, Ref, Status } from '@hcengineering/core'
   import { notEmpty } from '@hcengineering/core'
-  import { getClient, IconWithEmoji } from '@hcengineering/presentation'
+  import presentation, { getClient, IconWithEmoji } from '@hcengineering/presentation'
   import type { TaskType } from '@hcengineering/task'
   import { taskTypeStore, typeStore } from '@hcengineering/task-resources'
   import type { DropdownTextItem } from '@hcengineering/ui'
-  import { ButtonIcon, IconClose, IconMaximize, IconMinimize, Modal, ModernDropdownLabels } from '@hcengineering/ui'
+  import ui, { IconClose, IconMaximize, IconMinimize, Modal, ModernDropdownLabels } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { statusStore } from '@hcengineering/view-resources'
   import tracker, { type Project } from '@hcengineering/tracker'
   import type { ProjectWorkflow, Workflow, WorkflowTransition } from '@hcengineering/workflow'
@@ -175,13 +176,21 @@
 
 <Modal type="type-component" scrollableContent={false} on:fullsize on:close>
   <svelte:fragment slot="beforeTitle">
-    <ButtonIcon icon={IconClose} kind="tertiary" size="small" noPrint on:click={handleClose} />
+    <IconButton
+      icon={IconClose}
+      kind="tertiary"
+      size="small"
+      noPrint
+      tooltip={{ label: presentation.string.Close }}
+      on:click={handleClose}
+    />
     <div class="hulyHeader-divider short no-line no-print" />
-    <ButtonIcon
+    <IconButton
       icon={!fullSize ? IconMaximize : IconMinimize}
       kind="tertiary"
       size="small"
       noPrint
+      tooltip={{ label: !fullSize ? ui.string.FullSize : ui.string.NormalSize }}
       on:click={handleToggleFullSize}
     />
     <div class="hulyHeader-divider short no-print" />

@@ -30,7 +30,6 @@
   import presentation, { getClient, MessageBox } from '@hcengineering/presentation'
   import type { AnyComponent, DropdownIntlItem } from '@hcengineering/ui'
   import {
-    ButtonIcon,
     Component,
     DropdownLabelsIntl,
     IconDelete,
@@ -41,6 +40,7 @@
     themeStore,
     Toggle
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { IconPicker } from '@hcengineering/view-resources'
   import view from '@hcengineering/view-resources/src/plugin'
   import setting from '../plugin'
@@ -251,7 +251,7 @@
 >
   <svelte:fragment slot="actions">
     {#if !disabled}
-      <ButtonIcon
+      <IconButton
         icon={attribute.hidden ? view.icon.EyeCrossed : view.icon.Eye}
         tooltip={{ label: attribute.hidden ? view.string.Show : view.string.Hide }}
         size="small"
@@ -260,13 +260,21 @@
         on:click={hide}
       />
       {#if attribute.isCustom}
-        <ButtonIcon icon={IconDelete} size="small" kind="tertiary" {disabled} on:click={remove} />
+        <IconButton
+          icon={IconDelete}
+          size="small"
+          kind="tertiary"
+          {disabled}
+          on:click={remove}
+          tooltip={{ label: setting.string.DeleteAttribute }}
+        />
       {/if}
     {/if}
   </svelte:fragment>
   <div class="hulyModal-content__titleGroup">
     <div class="flex items-center">
-      <ButtonIcon
+      <IconButton
+        tooltip={{ label: view.string.ChooseIcon }}
         icon={icon ?? setting.icon.Enums}
         size="medium"
         iconSize="large"

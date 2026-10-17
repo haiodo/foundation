@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { ModernEditbox, ButtonMenu, Label, Modal, TextArea } from '@hcengineering/ui'
+  import { ModernEditbox, Label, Modal, TextArea } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import presentation, { getClient } from '@hcengineering/presentation'
   import core, { getCurrentAccount } from '@hcengineering/core'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
@@ -97,7 +98,7 @@
   <div class="hulyModal-content__settingsSet">
     <div class="hulyModal-content__settingsSet-line">
       <span class="label"><Label label={chunter.string.Visibility} /></span>
-      <ButtonMenu
+      <MenuButton
         items={visibilityOptions}
         selected={selectedVisibilityId}
         icon={visibilityIcon}

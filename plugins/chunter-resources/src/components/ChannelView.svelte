@@ -16,18 +16,18 @@
   import type { Doc, Ref, Space } from '@hcengineering/core'
   import core, { getCurrentAccount } from '@hcengineering/core'
   import {
-    Button,
+    Button as LegacyButton,
     defineSeparators,
     getCurrentLocation,
     IconSearch,
     Label,
     location as locationStore,
     deviceOptionsStore as deviceInfo,
-    ModernButton,
     navigate,
     panelSeparators,
     Separator
   } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { ActivityMessage } from '@hcengineering/activity'
   import { getClient } from '@hcengineering/presentation'
   import type { Channel, ObjectChatPanel } from '@hcengineering/chunter'
@@ -251,7 +251,7 @@
       </svelte:fragment>
       <svelte:fragment slot="actions">
         {#if searchAvailable}
-          <Button
+          <LegacyButton
             icon={IconSearch}
             iconProps={{ size: 'small' }}
             kind="icon"
@@ -277,7 +277,7 @@
                   <Label label={chunter.string.JoinChannelText} />
                 </span>
                 <span class="mt-4"> </span>
-                <ModernButton label={view.string.Join} kind="primary" dataId="btnJoin" on:click={join} />
+                <Button label={view.string.Join} kind="primary" data-id="btnJoin" on:click={join} />
               </div>
             </div>
           {:else}

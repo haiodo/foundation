@@ -21,7 +21,6 @@
   import type { Ref } from '@hcengineering/core'
   import Header from '../../Header.svelte'
   import {
-    ButtonIcon,
     daysInMonth,
     DropdownLabels,
     DropdownLabelsIntl,
@@ -30,6 +29,7 @@
     showPopup,
     type SelectPopupValueType
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import time from '../../../plugin'
 
   export let spaces: Array<Ref<Project>> = []
@@ -105,7 +105,13 @@
   {/if}
   <DropdownLabelsIntl items={modeItems} bind:selected={mode} kind="regular" size="medium" />
   {#if mode === 'week' || mode === 'month'}
-    <ButtonIcon icon={IconSettings} size="small" kind="tertiary" on:click={showExtras} />
+    <IconButton
+      icon={IconSettings}
+      size="small"
+      kind="tertiary"
+      tooltip={{ label: time.string.Settings }}
+      on:click={showExtras}
+    />
   {/if}
   <div class="hulyHeader-divider short" />
 </Header>

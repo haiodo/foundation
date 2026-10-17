@@ -5,7 +5,8 @@
 
 | Документ | Что внутри |
 |---|---|
-| [packages-ui.md](packages-ui.md) | `@hcengineering/ui` - 155 публичных компонентов: кнопки, поля, дропдауны, попапы, layout, навигация, статусы, даты. Плюс раздел "Выбор между похожими" (Button vs ModernButton, EditBox vs ModernEditbox, Popup vs Modal vs Dialog и т.д.) |
+| [ui-kit.md](ui-kit.md) | `@hcengineering/ui/kit` - актуальные базовые компоненты, которые заменяют старые из `packages/ui` и самописные в плагинах. Новый базовый компонент - только сюда |
+| [packages-ui.md](packages-ui.md) | `@hcengineering/ui` - 151 публичный компонент: кнопки, поля, дропдауны, попапы, layout, навигация, статусы, даты. Плюс раздел "Выбор между похожими" (Button vs кнопки кита, EditBox vs ModernEditbox, Popup vs Modal vs Dialog и т.д.) |
 | [packages-presentation.md](packages-presentation.md) | `@hcengineering/presentation` - работа с клиентом и данными (`getClient`, `createQuery`, `LiveQuery`), просмотр контента (`MessageViewer`, `FilePreview`), выбор объектов и пространств, карточки, атрибуты, файлы |
 | [view-resources.md](view-resources.md) | `plugins/view-resources` - презентеры и редакторы атрибутов, таблицы, вьюлеты, фильтры, панели. Плюс реестр `view.component.*` |
 
@@ -28,6 +29,7 @@ model-пространстве имён и клиентскому коду не�
 
 Источник таблиц - `index.ts` пакета и блоки `export let` компонента. Каталог правится в том же PR, что и код:
 
+- добавили компонент в кит (`@hcengineering/ui/kit`) - строка в таблицу `ui-kit.md`, в колонке "Заменил" - компоненты, которые он вытеснил;
 - добавили экспортируемый компонент/API в `packages/ui`, `packages/presentation`, `plugins/view-resources` -
   строка в соответствующую таблицу (назначение в одну фразу, до 5 ключевых props);
 - переименовали, удалили, поменяли ключевые props или `view.component.*`-id - обновить строку;

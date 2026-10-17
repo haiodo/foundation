@@ -15,20 +15,10 @@
 <script lang="ts">
   import type { AccountAggregatedInfo, AccountsFilter, AccountsSortKey } from '@hcengineering/account-client'
   import { type AccountUuid, reduceCalls } from '@hcengineering/core'
-  import { getEmbeddedLabel, translate } from '@hcengineering/platform'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
   import { copyTextToClipboard, isAdminUser, isBillingAdminUser, MessageBox } from '@hcengineering/presentation'
-  import {
-    Button,
-    ButtonMenu,
-    CheckBox,
-    IconCopy,
-    IconDetails,
-    IconStop,
-    Label,
-    SearchEdit,
-    showPopup,
-    themeStore
-  } from '@hcengineering/ui'
+  import { Button, CheckBox, IconCopy, IconDetails, IconStop, Label, SearchEdit, showPopup } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
 
   import adminRes from '../../plugin'
   import AccountDetails from '../AccountDetails.svelte'
@@ -78,7 +68,6 @@
   let pendingOnly = false
   let blockedOnly = false
   let inactiveDays: number | undefined
-  // ButtonMenu drops falsy ids (`if (result)`), so ids must be non-empty strings
   const inactiveItems = [
     { id: 'any', label: adminRes.string.AnyActivity },
     ...[1, 5, 7, 14].map((d) => ({ id: String(d), label: getEmbeddedLabel(`${d}d+`) }))
@@ -91,14 +80,7 @@
     inactiveDays
   }
 
-  let inactiveTitle = ''
-  $: if (inactiveDays === undefined) {
-    void translate(adminRes.string.AnyActivity, {}, $themeStore.language).then((t) => {
-      inactiveTitle = t
-    })
-  } else {
-    inactiveTitle = `${inactiveDays}d+`
-  }
+  $: inactiveSelected = inactiveDays === undefined ? 'any' : String(inactiveDays)
 
   const loadAccounts = reduceCalls(async (search?: string, skip?: number, limit?: number): Promise<void> => {
     accounts = await accountClient.listAccounts(search, skip, limit, sortKey, filter, sortAsc ? 'asc' : 'desc')
@@ -264,9 +246,9 @@
   </div>
 
   <span class="mr-1"><Label label={adminRes.string.InactiveOver} /></span>
-  <ButtonMenu
-    selected={inactiveDays === undefined ? 'any' : String(inactiveDays)}
-    title={inactiveTitle}
+  <MenuButton
+    selected={inactiveSelected}
+    label={inactiveItems.find((it) => it.id === inactiveSelected)?.label}
     items={inactiveItems}
     on:selected={(it) => {
       inactiveDays = it.detail === 'any' ? undefined : Number(it.detail)

@@ -18,7 +18,8 @@
   import type { Ref, Timestamp } from '@hcengineering/core'
   import { SortingOrder } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import ui, { ModernButton } from '@hcengineering/ui'
+  import ui from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
 
   import type { CardsNavigatorConfig } from '../../types'
   import NavigatorType from './NavigatorType.svelte'
@@ -125,14 +126,12 @@
 
       {#if hasMore}
         <div class="show-more">
-          <ModernButton
+          <Button
             label={ui.string.ShowMore}
             kind="tertiary"
             inheritFont
             size="extra-small"
-            on:click={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
+            on:click={() => {
               limit += config.limit
             }}
           />

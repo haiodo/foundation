@@ -23,7 +23,6 @@
     IconAdd,
     IconMenuOpen,
     IconMenuClose,
-    ButtonIcon,
     Header,
     Separator,
     showPopup,
@@ -34,6 +33,7 @@
     twoPanelsSeparators,
     resizeObserver
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import type { Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
   import { mergeQueries } from '@hcengineering/core'
   import type { IntlString, Asset } from '@hcengineering/platform'
@@ -170,7 +170,7 @@
   <div class="hulyComponent-content__column">
     <Header adaptive="disabled">
       <svelte:fragment slot="beforeTitle">
-        <ButtonIcon
+        <IconButton
           icon={visibleNavigator ? IconMenuClose : IconMenuOpen}
           kind="tertiary"
           size="small"

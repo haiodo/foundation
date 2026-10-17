@@ -15,10 +15,9 @@
   import { onDestroy } from 'svelte'
   import type { AnyAttribute, Doc, Ref } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { getClient, MessageBox } from '@hcengineering/presentation'
+  import presentation, { getClient, MessageBox } from '@hcengineering/presentation'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import {
-    ButtonIcon,
     EditBox,
     Icon,
     IconDelete,
@@ -30,6 +29,7 @@
     showPopup,
     tooltip
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { SortableDocListStatic } from '@hcengineering/view-resources'
   import type { ScreenField, ScreenTab } from '@hcengineering/workflow'
   import { addScreenField, removeScreenField, removeScreenTab } from '@hcengineering/workflow'
@@ -192,10 +192,11 @@
     </div>
     <div class="buttons-group">
       {#if !readonly && canDelete}
-        <ButtonIcon
+        <IconButton
           icon={IconDelete}
           kind="tertiary"
           size="small"
+          tooltip={{ label: presentation.string.Delete }}
           on:click={() => {
             void removeTab()
           }}
@@ -241,10 +242,11 @@
 
               {#if !readonly}
                 <div class="delete-btn">
-                  <ButtonIcon
+                  <IconButton
                     icon={IconDelete}
                     kind="tertiary"
                     size="small"
+                    tooltip={{ label: presentation.string.Delete }}
                     on:click={() => {
                       void removeField(field)
                     }}

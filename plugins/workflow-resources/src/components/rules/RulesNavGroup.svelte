@@ -17,17 +17,8 @@
   import presentation, { getClient } from '@hcengineering/presentation'
   import type { TaskType } from '@hcengineering/task'
   import type { DropdownIntlItem } from '@hcengineering/ui'
-  import {
-    ButtonMenu,
-    Icon,
-    IconAdd,
-    IconClose,
-    IconEdit,
-    IconMoreV,
-    Label,
-    NavGroup,
-    showPopup
-  } from '@hcengineering/ui'
+  import { Icon, IconAdd, IconClose, IconEdit, IconMoreV, Label, NavGroup, showPopup } from '@hcengineering/ui'
+  import { MenuButton } from '@hcengineering/ui/kit'
   import type { Workflow, WorkflowRule, WorkflowRuleConfig, WorkflowTransition } from '@hcengineering/workflow'
   import { removeRuleConfig } from '@hcengineering/workflow'
 
@@ -48,7 +39,7 @@
 
   $: rules = client.getModel().findAllSync(_class, {})
 
-  const actionItems: DropdownIntlItem[] = [
+  const actionItems: Array<DropdownIntlItem<'edit' | 'delete'>> = [
     {
       id: 'edit',
       label: presentation.string.Edit,
@@ -91,7 +82,7 @@
     await removeRuleConfig(client, workflow._id, transition._id, category, configId)
   }
 
-  async function handleAction (actionId: string, config: WorkflowRuleConfig): Promise<void> {
+  async function handleAction (actionId: 'edit' | 'delete', config: WorkflowRuleConfig): Promise<void> {
     if (actionId === 'edit') {
       handleEdit(config)
     } else if (actionId === 'delete') {
@@ -152,8 +143,8 @@
                 <span class="rule-card--name"><Label label={rule.label} /></span>
               {/if}
             </div>
-            <div class="rule-card--actions" on:click|stopPropagation>
-              <ButtonMenu
+            <div class="rule-card--actions">
+              <MenuButton
                 items={actionItems}
                 icon={IconMoreV}
                 kind="tertiary"

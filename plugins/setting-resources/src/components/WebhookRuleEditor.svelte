@@ -31,7 +31,6 @@
   import { themeStore } from '@hcengineering/theme'
   import {
     Button,
-    ButtonIcon,
     DropdownLabels,
     DropdownLabelsIntl,
     DropdownLabelsPopup,
@@ -46,6 +45,7 @@
     type DropdownIntlItem,
     type DropdownTextItem
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { jsonToMarkup } from '@hcengineering/text'
   import { markdownToMarkup } from '@hcengineering/text-markdown'
   import settingsRes from '../plugin'
@@ -546,7 +546,8 @@
       <div class="fieldBlock">
         <div class="flex-row-center flex-between">
           <Label label={settingsRes.string.WebhookRuleConditions} />
-          <ButtonIcon
+          <IconButton
+            tooltip={{ label: settingsRes.string.Add }}
             kind="tertiary"
             size="small"
             icon={IconAdd}
@@ -579,7 +580,8 @@
                 size="small"
               />
             {/if}
-            <ButtonIcon
+            <IconButton
+              tooltip={{ label: settingsRes.string.Delete }}
               kind="tertiary"
               size="small"
               icon={IconDelete}
@@ -615,7 +617,8 @@
         <div class="fieldBlock">
           <div class="flex-row-center flex-between">
             <Label label={settingsRes.string.WebhookRuleWhere} />
-            <ButtonIcon
+            <IconButton
+              tooltip={{ label: settingsRes.string.Add }}
               kind="tertiary"
               size="small"
               icon={IconAdd}
@@ -648,7 +651,8 @@
                   size="small"
                 />
               {/if}
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingsRes.string.Delete }}
                 kind="tertiary"
                 size="small"
                 icon={IconDelete}
@@ -691,7 +695,8 @@
                   pickFieldValue(e, i)
                 }}
               />
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingsRes.string.Delete }}
                 kind="tertiary"
                 size="small"
                 icon={IconDelete}

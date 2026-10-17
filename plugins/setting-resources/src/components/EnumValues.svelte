@@ -21,14 +21,14 @@
     IconAttachment,
     IconDelete,
     showPopup,
-    ModernButton,
     Label,
-    ButtonIcon,
     IconMoreV,
     IconMoreV2,
     ModernPopup,
     eventToHTMLElement
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
+  import view from '@hcengineering/view'
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import setting from '../plugin'
   import EnumValuesList from './EnumValuesList.svelte'
@@ -153,7 +153,7 @@
     size="large"
     on:change={() => update(value)}
   />
-  <ModernButton
+  <Button
     icon={IconCrossedArrows}
     label={setting.string.ProjectTypesCount}
     labelParams={{ count: 0 }}
@@ -179,7 +179,8 @@
     <IconBulletList size="small" />
     <span><Label label={setting.string.Options} /></span>
     <div class="buttons-group tertiary-textColor">
-      <ButtonIcon
+      <IconButton
+        tooltip={{ label: view.string.MoreActions }}
         kind="tertiary"
         icon={IconMoreV}
         size="small"
@@ -190,7 +191,7 @@
           openPopup(ev)
         }}
       />
-      <ButtonIcon
+      <IconButton
         kind="primary"
         icon={IconAdd}
         size="small"
@@ -234,7 +235,8 @@
               <Label label={presentation.string.Match} />
             </div>
           {/if}
-          <ButtonIcon
+          <IconButton
+            tooltip={{ label: setting.string.Delete }}
             kind="tertiary"
             icon={IconDelete}
             size="small"

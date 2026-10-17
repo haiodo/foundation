@@ -29,7 +29,6 @@
   import { StyledTextBox } from '@hcengineering/text-editor-resources'
   import ui, {
     Button,
-    ButtonIcon,
     capitalizeFirstLetter,
     createFocusManager,
     deviceOptionsStore as deviceInfo,
@@ -51,6 +50,7 @@
     themeStore,
     TimeInputBox
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
   import calendar from '../plugin'
@@ -376,7 +376,7 @@
                 {/if}
               </div>
               {#if availability[weekDay].length > 0}
-                <ButtonIcon
+                <IconButton
                   icon={IconDelete}
                   size="small"
                   kind="tertiary"
@@ -386,7 +386,7 @@
                   }}
                 />
               {:else}
-                <ButtonIcon
+                <IconButton
                   icon={IconCircleAdd}
                   size="small"
                   kind="tertiary"

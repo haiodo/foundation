@@ -14,7 +14,8 @@
 -->
 
 <script lang="ts">
-  import { CodeForm, Icon, IconCheckmark, Label, Loading, Modal, ModernButton } from '@hcengineering/ui'
+  import { CodeForm, Icon, IconCheckmark, Label, Loading, Modal } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import presentation from '@hcengineering/presentation'
   import type { IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel, getMetadata } from '@hcengineering/platform'
@@ -141,7 +142,7 @@
               <Icon icon={TelegramColor} size="x-large" />
             {/if}
             {info.name} (@{info.username})
-            <ModernButton
+            <Button
               label={telegram.string.TestConnection}
               size="small"
               loading={isTestingConnection}

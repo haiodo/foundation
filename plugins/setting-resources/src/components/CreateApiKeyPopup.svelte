@@ -18,7 +18,6 @@
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
   import ui, {
     Button,
-    ButtonIcon,
     Chip,
     IconAdd,
     Label,
@@ -32,6 +31,7 @@
     showPopup,
     type RadioItem
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { getCurrentLanguage } from '@hcengineering/theme'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
@@ -179,7 +179,7 @@
         <div class="flex-row-center flex-between">
           <Label label={settingsRes.string.ApiKeyOperations} />
           <div class="flex-row-center flex-gap-1">
-            <ButtonIcon
+            <IconButton
               kind="tertiary"
               size="small"
               icon={IconAdd}
@@ -216,7 +216,7 @@
       <div class="flex-col flex-gap-2">
         <div class="flex-row-center flex-between">
           <Label label={settingsRes.string.ApiKeySpaces} />
-          <ButtonIcon
+          <IconButton
             kind="tertiary"
             size="small"
             icon={IconAdd}

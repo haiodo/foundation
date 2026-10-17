@@ -13,17 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    Breadcrumb,
-    Header,
-    IconAdd,
-    IconCheck,
-    Label,
-    Loading,
-    ModernButton,
-    Scroller,
-    showPopup
-  } from '@hcengineering/ui'
+  import { Breadcrumb, Header, IconAdd, IconCheck, Label, Loading, Scroller, showPopup } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import setting from '@hcengineering/setting'
   import MailboxEditorModal from './MailboxEditorModal.svelte'
   import { getAccountClient } from '../utils'
@@ -90,15 +81,9 @@
     <svelte:fragment slot="actions">
       {#if mailboxOptions !== undefined && mailboxOptions.availableDomains.length > 0}
         {#if mailboxes.length >= mailboxOptions.maxMailboxCount}
-          <ModernButton
-            kind="secondary"
-            icon={IconCheck}
-            label={setting.string.MailboxLimitReached}
-            size="small"
-            disabled
-          />
+          <Button kind="secondary" icon={IconCheck} label={setting.string.MailboxLimitReached} size="small" disabled />
         {:else}
-          <ModernButton
+          <Button
             kind="primary"
             icon={IconAdd}
             label={setting.string.CreateMailbox}

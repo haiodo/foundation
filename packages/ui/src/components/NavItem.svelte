@@ -13,6 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import { generateId } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { getEmbeddedLabel } from '@hcengineering/platform'
   import type { AnySvelteComponent, IconSize } from '..'
@@ -58,6 +59,8 @@
   export let draggable: boolean = false
 
   let labelEl: HTMLSpanElement
+  const labelId = `nav-item-label-${generateId()}`
+  const countId = `nav-item-count-${generateId()}`
   let labelWidth: number
   let levelReset: boolean = false
   let hovered: boolean = false
@@ -89,6 +92,7 @@
   class:pressed
   {draggable}
   class:noActions={$$slots.actions === undefined}
+  aria-labelledby={count !== null ? `${labelId} ${countId}` : labelId}
   on:dragstart
   on:dragover
   on:dragend
@@ -130,6 +134,7 @@
   {/if}
   <span
     bind:this={labelEl}
+    id={labelId}
     use:tooltip={shouldTooltip ? { label: label ?? getEmbeddedLabel(title ?? ''), direction: 'top' } : undefined}
     class="{description ? 'hulyNavItem-wideLabel' : 'hulyNavItem-label'} overflow-label"
     class:flex-grow={!(type === 'type-anchor-link')}
@@ -158,7 +163,7 @@
     </div>
   {/if}
   {#if count !== null}
-    <span class="hulyNavItem-count font-bold-12">
+    <span id={countId} class="hulyNavItem-count font-bold-12">
       {count}
     </span>
   {/if}

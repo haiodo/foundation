@@ -21,7 +21,6 @@
   import type { DropdownIntlItem } from '@hcengineering/ui'
   import {
     Button,
-    ButtonIcon,
     DropdownLabelsPopupIntl,
     getCurrentLocation,
     getEventPositionElement,
@@ -32,6 +31,7 @@
     Scroller,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view-resources/src/plugin'
   import { createEventDispatcher, onDestroy } from 'svelte'
   import plugin from '../../plugin'
@@ -157,7 +157,7 @@
         <div class="hulyComponent-content gap">
           <div class="header flex-between">
             <TransitionPresenter transition={value} />
-            <ButtonIcon
+            <IconButton
               icon={IconDelete}
               tooltip={{ label: view.string.Delete, direction: 'bottom' }}
               size="small"

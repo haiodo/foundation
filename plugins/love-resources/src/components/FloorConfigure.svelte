@@ -18,16 +18,8 @@
   import type { Floor, Room } from '@hcengineering/love'
   import { GRID_WIDTH, getFreeSpace } from '@hcengineering/love'
   import { getClient } from '@hcengineering/presentation'
-  import {
-    ButtonIcon,
-    DropdownLabels,
-    Header,
-    IconAdd,
-    ModernButton,
-    Scroller,
-    eventToHTMLElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import { DropdownLabels, Header, IconAdd, Scroller, eventToHTMLElement, showPopup } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { createEventDispatcher } from 'svelte'
   import lovePlg from '../plugin'
   import { ensureOfficeDetailsLoaded, floors, lockedRoom, selectedFloor } from '../stores'
@@ -319,9 +311,9 @@
       on:selected={changeFloor}
     />
     <svelte:fragment slot="actions">
-      <ButtonIcon icon={IconAdd} size="small" on:click={addRoom} />
+      <IconButton icon={IconAdd} size="small" tooltip={{ label: lovePlg.string.AddRoom }} on:click={addRoom} />
       <div class="hulyHeader-divider short" />
-      <ModernButton
+      <Button
         label={lovePlg.string.FinalizeEditing}
         kind="primary"
         size="small"

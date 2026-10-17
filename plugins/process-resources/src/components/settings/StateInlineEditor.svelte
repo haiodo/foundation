@@ -15,7 +15,8 @@
 <script lang="ts">
   import { getClient } from '@hcengineering/presentation'
   import type { State } from '@hcengineering/process'
-  import { ButtonIcon, EditBox, IconDelete } from '@hcengineering/ui'
+  import { EditBox, IconDelete } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import view from '@hcengineering/view'
 
   export let value: State
@@ -33,7 +34,7 @@
 <div class="w-full container flex-between px-4">
   <EditBox bind:value={value.title} on:change={saveTitle} />
   <div class="tool">
-    <ButtonIcon
+    <IconButton
       icon={IconDelete}
       tooltip={{ label: view.string.Delete, direction: 'bottom' }}
       size="extra-small"

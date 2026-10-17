@@ -53,8 +53,7 @@ export class PlanningPage extends CalendarPage {
   readonly inputCreateToDoTitle = (): Locator =>
     this.toDosContainer().locator('input[placeholder="Add Action Item, press Enter to save"]')
 
-  readonly buttonCardClose = (): Locator =>
-    this.panel().locator('.hulyHeader-container > .hulyHeader-buttonsGroup > .font-medium-14')
+  readonly buttonCardClose = (): Locator => this.panel().getByRole('button', { name: 'Close', exact: true })
 
   readonly textPanelToDoTitle = (): Locator =>
     this.panel().locator('div.top-content label.editbox-wrapper.ghost.large input')
@@ -62,12 +61,11 @@ export class PlanningPage extends CalendarPage {
   readonly textPanelToDoDescription = (): Locator => this.panel().locator('div.top-content div.tiptap > p')
   readonly textPanelDueDate = (): Locator =>
     this.panel().locator(
-      'div.slots-content div.flex-row-top.justify-between div.flex-row-center .hulyButton:first-child span'
+      'div.slots-content div.flex-row-top.justify-between div.flex-row-center .button:first-child .button__label'
     )
 
   readonly textPanelPriority = (): Locator => this.panel().locator('button#priorityButton svg')
-  readonly textPanelVisible = (): Locator =>
-    this.panel().locator('div.hulyHeader-titleGroup > button:nth-child(3) > span')
+  readonly textPanelVisible = (): Locator => this.panel().locator('#visibleButton')
 
   readonly buttonPanelLabelFirst = (): Locator =>
     this.panel().locator('div.hulyHeader-titleGroup > button:nth-child(2)')
@@ -354,7 +352,7 @@ export class PlanningPage extends CalendarPage {
     const row = this.slotRows(popup).nth(rowNumber)
 
     // dateStart
-    await row.locator('div.dateEditor-container:first-child > div.min-w-28:first-child .hulyButton').click()
+    await row.locator('div.dateEditor-container:first-child [data-id="btnDateEditorDate"]').click()
     if (slot.dateStart === 'today') {
       await this.buttonCalendarToday().click()
     } else if (typeof slot.dateStart === 'string') {
@@ -401,7 +399,7 @@ export class PlanningPage extends CalendarPage {
     // slot then keeps its default end - a 07:00-13:30 slot instead of 07:00-08:00.
     await expect(async () => {
       if (((await endShown.first().textContent()) ?? '').trim() === wanted) return
-      const endDateButton = endContainer.locator('button.hulyButton')
+      const endDateButton = endContainer.locator('button.button')
       if ((await endDateButton.count()) === 0) {
         await endContainer.locator('div.hulyButton').click()
         await this.fillSelectDatePopup(slot.dateEnd.day, slot.dateEnd.month, slot.dateEnd.year, slot.timeEnd)
@@ -597,8 +595,8 @@ export class PlanningPage extends CalendarPage {
       .locator('div.hulyModal-container div.slots-content div.scroller-container div.box div.flex-between.min-w-full')
       .nth(rowNumber)
     // dateEnd
-    await expect(
-      row.locator('div.dateEditor-container:first-child > div.min-w-28:first-child .hulyButton')
-    ).toContainText(dateEnd)
+    await expect(row.locator('div.dateEditor-container:first-child [data-id="btnDateEditorDate"]')).toContainText(
+      dateEnd
+    )
   }
 }

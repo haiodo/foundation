@@ -14,7 +14,8 @@
 -->
 <script lang="ts">
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import { EditBox, ModernButton } from '@hcengineering/ui'
+  import { EditBox } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { MeetingMinutes, PendingRecording, ParticipantInfo } from '@hcengineering/love'
   import { MeetingStatus } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
@@ -115,26 +116,26 @@
         />
       </div>
       {#if isOwner}
-        <ModernButton
+        <Button
           label={object.private ? love.string.OpenRoom : love.string.CloseRoom}
           size="large"
           kind={object.private ? 'secondary' : 'primary'}
           on:click={togglePrivate}
-          dataId="meeting-toggle-private"
+          data-id="meeting-toggle-private"
         />
       {/if}
       {#if showConnectionButton(object, hasPendingJoinInThisSession || $connectingToMeeting, $lkSessionConnected)}
-        <ModernButton
+        <Button
           label={connectLabel}
           size="large"
           kind="primary"
           on:click={connect}
           loading={hasPendingJoinInThisSession || $connectingToMeeting}
-          dataId="meeting-connect"
+          data-id="meeting-connect"
         />
       {:else if $lkSessionConnected}
         {#if !$videoVisible}
-          <ModernButton
+          <Button
             label={love.string.ShowVideo}
             size="large"
             kind="secondary"
@@ -143,14 +144,14 @@
             }}
           />
         {/if}
-        <ModernButton
+        <Button
           label={love.string.LeaveRoom}
           size="large"
           kind="negative"
           on:click={() => {
             void leaveMeeting()
           }}
-          dataId="meeting-leave"
+          data-id="meeting-leave"
         />
       {/if}
     </div>

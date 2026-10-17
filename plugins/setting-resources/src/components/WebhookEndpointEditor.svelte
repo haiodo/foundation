@@ -25,7 +25,6 @@
   } from '@hcengineering/setting'
   import ui, {
     Button,
-    ButtonIcon,
     Chip,
     Icon,
     IconAdd,
@@ -38,6 +37,7 @@
     eventToHTMLElement,
     showPopup
   } from '@hcengineering/ui'
+  import { IconButton } from '@hcengineering/ui/kit'
   import { getCurrentLanguage } from '@hcengineering/theme'
   import { createEventDispatcher } from 'svelte'
   import view from '@hcengineering/view'
@@ -299,11 +299,12 @@
                   <Label label={settingsRes.string.WebhookEventDeliveredCount} params={{ count: sentTotal }} />
                 </div>
               {/if}
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingsRes.string.Add }}
                 kind="primary"
                 icon={IconAdd}
                 size="small"
-                dataId="btnPickWebhookEvents"
+                data-id="btnPickWebhookEvents"
                 disabled={readonly}
                 on:click={pickEvents}
               />
@@ -340,11 +341,12 @@
             <div class="hulyTableAttr-header font-medium-12">
               <Icon icon={settingsRes.icon.Setting} size="small" />
               <span><Label label={settingsRes.string.WebhookSpaces} /></span>
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingsRes.string.Add }}
                 kind="primary"
                 icon={IconAdd}
                 size="small"
-                dataId="btnPickWebhookSpaces"
+                data-id="btnPickWebhookSpaces"
                 disabled={readonly}
                 on:click={pickSpaces}
               />
@@ -381,11 +383,12 @@
             <div class="hulyTableAttr-header font-medium-12">
               <Icon icon={settingsRes.icon.Setting} size="small" />
               <span><Label label={settingsRes.string.WebhookSecrets} /></span>
-              <ButtonIcon
+              <IconButton
+                tooltip={{ label: settingsRes.string.WebhookSecretAdd }}
                 kind="primary"
                 icon={IconAdd}
                 size="small"
-                dataId="btnAddWebhookSecret"
+                data-id="btnAddWebhookSecret"
                 disabled={readonly || endpoint.secrets.length >= 2}
                 on:click={addSecret}
               />

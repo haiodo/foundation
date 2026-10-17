@@ -16,7 +16,8 @@
   import type { Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import type { ProjectType, TaskType } from '@hcengineering/task'
-  import ui, { IconOpenedArrow, Label, ModernButton, ModernDropdownLabels } from '@hcengineering/ui'
+  import ui, { IconOpenedArrow, Label, ModernDropdownLabels } from '@hcengineering/ui'
+  import { Button } from '@hcengineering/ui/kit'
   import type { Screen, ScreenProps, ScreenRequestConfig } from '@hcengineering/workflow'
 
   import plugin from '../../../plugin'
@@ -88,7 +89,7 @@
 
 {#if selectedScreenId != null}
   <div class="flex-row-center">
-    <ModernButton
+    <Button
       label={plugin.string.ConfigureScreen}
       icon={IconOpenedArrow}
       size="small"

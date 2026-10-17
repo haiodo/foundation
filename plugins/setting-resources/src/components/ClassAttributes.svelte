@@ -22,13 +22,11 @@
   import type { AnySvelteComponent, LabelAndProps } from '@hcengineering/ui'
   import {
     ActionIcon,
-    ButtonIcon,
     IconAdd,
     IconDelete,
     IconEdit,
     IconSettings,
     Label,
-    ModernButton,
     deviceWidths,
     getColorNumberByText,
     getEventPositionElement,
@@ -37,6 +35,7 @@
     showPopup,
     themeStore
   } from '@hcengineering/ui'
+  import { Button, IconButton } from '@hcengineering/ui/kit'
   import { ObjectPresenter } from '@hcengineering/view-resources'
   import { onDestroy } from 'svelte'
   import settings from '../plugin'
@@ -200,7 +199,7 @@
         </div>
         {#if onDelete !== undefined}
           <div class="ml-2">
-            <ActionIcon icon={IconDelete} size="small" action={() => onDelete?.()} {disabled} />
+            <ActionIcon icon={IconDelete} size="small" dataId="btnDeleteMixin" action={() => onDelete?.()} {disabled} />
           </div>
         {/if}
       {/if}
@@ -218,7 +217,7 @@
   <div class="hulyTableAttr-header font-medium-12" class:withButton={showHierarchy || mixinHeader}>
     {#if showHeader}
       {#if showHierarchy}
-        <ModernButton icon={IconSettings} kind="secondary" size="small" {disabled} hasMenu>
+        <Button icon={IconSettings} kind="secondary" size="small" {disabled} hasMenu>
           <Label label={settings.string.ClassColon} />
           {#if mixinBase !== undefined}
             <ObjectPresenter _class={mixinBase._class} objectId={mixinBase._id} value={mixinBase} />
@@ -229,17 +228,23 @@
             objectId={clazzHierarchy._id}
             value={clazz ?? clazzHierarchy}
           />
-        </ModernButton>
+        </Button>
       {:else if mixinHeader && clazz !== undefined}
         <div class="flex-row-center flex-gap-2">
-          <ModernButton icon={IconSettings} kind="secondary" size="small" {disabled} hasMenu>
+          <Button icon={IconSettings} kind="secondary" size="small" {disabled} hasMenu>
             <Label label={settings.string.MixinColon} />
             <ObjectPresenter _class={clazz._class} objectId={clazz._id} value={clazz ?? clazzHierarchy} />
-          </ModernButton>
+          </Button>
           {#if hierarchy.hasMixin(clazz, settings.mixin.UserMixin)}
             <ActionIcon icon={IconEdit} size="small" action={editLabel} {disabled} />
             {#if onDelete !== undefined}
-              <ActionIcon icon={IconDelete} size="small" action={() => onDelete?.()} {disabled} />
+              <ActionIcon
+                icon={IconDelete}
+                size="small"
+                dataId="btnDeleteMixin"
+                action={() => onDelete?.()}
+                {disabled}
+              />
             {/if}
           {/if}
         </div>
@@ -252,13 +257,15 @@
     {:else}
       <div></div>
     {/if}
-    <ButtonIcon
+    <IconButton
       kind="primary"
       icon={IconAdd}
       size="small"
-      dataId="btnAdd"
+      data-id="btnAdd"
       {disabled}
-      tooltip={disabled ? disabledTooltip : undefined}
+      tooltip={disabled
+        ? { ...disabledTooltip, label: disabledTooltip?.label ?? settings.string.Add }
+        : { label: settings.string.Add }}
       on:click={(ev) => {
         createAttribute(ev)
       }}
@@ -286,16 +293,18 @@
           class="hulyTableAttr-header font-medium-12 withButton subHeader"
           style:border-left={`3px solid ${barColor}`}
         >
-          <ModernButton icon={IconSettings} kind="secondary" size="small" disabled hasMenu>
+          <Button icon={IconSettings} kind="secondary" size="small" disabled hasMenu>
             <Label label={settings.string.ClassColon} />
             <ObjectPresenter _class={clazz2._class} objectId={clazz2._id} value={clazz2} />
-          </ModernButton>
-          <ButtonIcon
+          </Button>
+          <IconButton
             kind="primary"
             icon={IconAdd}
             size="small"
             {disabled}
-            tooltip={disabled ? disabledTooltip : undefined}
+            tooltip={disabled
+              ? { ...disabledTooltip, label: disabledTooltip?.label ?? settings.string.Add }
+              : { label: settings.string.Add }}
             on:click={(ev) => {
               createAttributeFor(clazz2._id, ev)
             }}
